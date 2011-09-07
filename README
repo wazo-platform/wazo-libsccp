@@ -1,0 +1,23 @@
+ABOUT:
+
+ libsccp: Skinny Client Control Protocol, 
+	  an implementation of the CISCO SCCP protocol.
+
+ This work is based on the Asterisk chan_skinny originally
+ written by Jeremy McNamara & Florian Overkamp.
+
+STATE:
+
+ Useless at this point, under development.
+
+AUTHOR:
+
+ - Nicolas Bouliane <nbouliane at avencall.com>
+
+LICENSE: GPLv3
+
+ libsccp is Copyright (C) Avencall, See the file LICENSE
+ for information of licensing and distribution.
+
+
+

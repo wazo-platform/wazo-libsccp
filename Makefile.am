@@ -1,0 +1,4 @@
+# Makefile
+#
+
+SUBDIRS = src
