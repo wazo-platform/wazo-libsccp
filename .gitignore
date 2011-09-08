@@ -27,3 +27,12 @@ src/libsccp_la-main.loT
 stamp-h1
 
 *.swp*
+
+src/libsccp.la
+src/libsccp_la-main.lo
+src/libsccp_la-main.o
+src/libsccp_la-message.lo
+src/libsccp_la-message.o
+src/libsccp_la-sccp.lo
+src/libsccp_la-sccp.o
+

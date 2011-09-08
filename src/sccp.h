@@ -8,7 +8,6 @@ struct sccp_configs {
 	char dateformat[6];
 	int keepalive;
 	int authtimeout;
-
 };
 
 int sccp_server_init(void);

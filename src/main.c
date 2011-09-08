@@ -185,12 +185,11 @@ static int parse_config_general(struct ast_config *cfg)
 static int config_load(void)
 {
 	struct ast_config *cfg;
-	struct ast_flags config_flags = { 0 };
 
 	ast_log(LOG_NOTICE, "Configuring sccp from %s...\n", sccp_config);
 
-	cfg = ast_config_load(sccp_config, config_flags);
-	if (!cfg || cfg == CONFIG_STATUS_FILEINVALID) {
+	cfg = ast_config_load(sccp_config);
+	if (!cfg) {
 		ast_log(LOG_ERROR, "Unable to load configuration file '%s'\n", sccp_config);
 		return -1;
 	}
@@ -217,34 +216,20 @@ static int config_load(void)
 	return 0;
 }
 
-static char *handle_sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+static int sccp_show_version(int fd, int argc, char *argv[])
 {
-	switch (cmd) {
-		case CLI_INIT:
-			e->command = "sccp show version";
-			e->usage =
-				"Usage: sccp show version\n"
-				"	Show the version of the sccp channel\n";
-			return NULL;
-		case CLI_GENERATE:
-			return NULL;
-	}
-	
-	ast_cli(a->fd, "sccp channel version %s\n", "11.8");
+	ast_cli(fd, "sccp channel version %s\n", "0.1");
 
-	return CLI_SUCCESS;
+	return RESULT_SUCCESS;
 }
+
+static char show_version_usage[] = "Usage: sccp show version\n";
 
 static struct ast_cli_entry cli_sccp[] = {
-	AST_CLI_DEFINE(handle_sccp_show_version, "Show the version of the sinny channel", NULL),
+	{ { "sccp", "show", "version", NULL },
+	sccp_show_version, "Show the version of the skinny channel",
+	show_version_usage },
 };
-
-static int reload_module(void)
-{
-	ast_verbose("sccp channel reloading...\n");
-
-	return 0;
-}
 
 static int load_module(void)
 {
@@ -259,6 +244,7 @@ static int load_module(void)
 
 	ret = config_load();
 	if (ret == -1) {
+		ast_channel_unregister(&sccp_tech);
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
@@ -266,6 +252,8 @@ static int load_module(void)
 
 	ret = sccp_server_init();
 	if (ret == -1) {
+		ast_channel_unregister(&sccp_tech);
+		ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
@@ -283,12 +271,11 @@ static int unload_module(void)
 }
 
 AST_MODULE_INFO(
-
+	
 	ASTERISK_GPL_KEY,
-	AST_MODFLAG_LOAD_ORDER,
+	AST_MODFLAG_DEFAULT,
 	"Skinny Client Control Protocol",
 
 	.load = load_module,
-	.reload = reload_module,
 	.unload = unload_module,
 );

@@ -4,6 +4,7 @@
 #include <asterisk/poll-compat.h>
 #include <asterisk/utils.h>
 
+#include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <fcntl.h>
