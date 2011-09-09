@@ -9,7 +9,11 @@ struct sccp_msg *msg_alloc(size_t data_length, int message_id)
 {
 	struct sccp_msg *msg;
 
-	msg = ast_calloc(1, 12 + 4 + data_length);
+	msg = ast_calloc(1, 12 + 4 + data_length);	
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "Memory allocation failed\n");
+		return NULL;
+	}
 
 	msg->length = htolel(4 + data_length);
 	msg->id = message_id;

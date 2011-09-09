@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <signal.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -34,6 +35,7 @@ static struct sccp_server {
 struct sccp_session {
 
 	ast_mutex_t lock;
+	pthread_t tid;
 	time_t start_time;
 	int sockfd;
 
@@ -146,6 +148,7 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	int ret;
 
 /*
 	ast_log(LOG_NOTICE, "name %s\n", msg->data.reg.name);
@@ -156,9 +159,25 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	ast_log(LOG_NOTICE, "maxStreams %d\n", msg->data.reg.maxStreams);
 */
 
-	register_device(msg, session);
+	ret = register_device(msg, session);
+	if (ret == 0) {
+		ast_log(LOG_ERROR, "Rejecting [%s], device not found\n", msg->data.reg.name);
+		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
+
+		if (msg == NULL) {
+			return -1;
+		}
+
+		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Access denied: %s\n", msg->data.reg.name);
+		transmit_message(msg, session);
+
+		return 0;
+	}
 
 	msg = msg_alloc(sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
+	if (msg == NULL) {
+		return -1;
+	}
 
         msg->data.regack.res[0] = '0';
         msg->data.regack.res[1] = '\0';
@@ -167,6 +186,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
         msg->data.regack.res2[0] = '0';
         msg->data.regack.res2[1] = '\0';
         msg->data.regack.secondaryKeepAlive = htolel(sccp_cfg.keepalive);
+
         transmit_message(msg, session);
 
 	return 0;
@@ -240,7 +260,7 @@ static int fetch_data(struct sccp_session *session)
 	fds[0].events = POLLIN;
 	fds[0].revents = 0;
 
-	nfds = ast_poll(fds, 1, sccp_cfg.authtimeout * 1000); /* millisecond */
+	nfds = ast_poll(fds, 1, sccp_cfg.keepalive * 1000); /* millisecond */
 	if (nfds == -1) { /* something wrong happend */
 		ast_log(LOG_WARNING, "Failed to poll socket: %s\n", strerror(errno));
 		return -1;
@@ -286,8 +306,6 @@ static int fetch_data(struct sccp_session *session)
 			ast_log(LOG_NOTICE, "Device has closed the connection\n");
 			return -1;
 		}
-
-//		ast_log(LOG_NOTICE, "packet read %d:%d\n", msg_len+4, nbyte);
 
 		return nbyte;
 	}
@@ -340,9 +358,12 @@ static void *thread_accept(void *data)
 		addrlen = sizeof(addr);
 		new_sockfd = accept(sccp_srv.sockfd, (struct sockaddr *)&addr, &addrlen);
 		if (new_sockfd == -1) {
-			ast_log(LOG_ERROR, "Failed to accept new connection: %s\n", strerror(errno));
-			continue;
+			ast_log(LOG_ERROR, "Failed to accept new connection: %s... "
+						"the main thread is going down now\n", strerror(errno));
+			return;
 		}
+
+		ast_log(LOG_NOTICE, "sockfd %d\n", new_sockfd);
 
 		/* send multiple buffers as individual packets */
 		setsockopt(new_sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay));
@@ -354,6 +375,7 @@ static void *thread_accept(void *data)
 			continue;
 		}
 
+		session->tid = AST_PTHREADT_NULL; 
 		session->sockfd = new_sockfd;
 		session->ipaddr = ast_strdup(ast_inet_ntoa(addr.sin_addr));
 		ast_mutex_init(&session->lock);
@@ -362,10 +384,42 @@ static void *thread_accept(void *data)
 		AST_LIST_LOCK(&list_session);
 		AST_LIST_INSERT_HEAD(&list_session, session, list);
 		AST_LIST_UNLOCK(&list_session);
-	
+
 		ast_log(LOG_NOTICE, "A new device has connected from: %s\n", session->ipaddr);
-		ast_pthread_create_background(&sccp_srv.thread_session, NULL, thread_session, session);
+		ast_pthread_create_background(&session->tid, NULL, thread_session, session);
 	}
+
+	ast_log(LOG_NOTICE, "end of thread\n");
+}
+
+void sccp_server_fini()
+{
+	struct sccp_session *session_itr = NULL;
+
+	int ret;
+
+	ret = pthread_cancel(sccp_srv.thread_accept);
+	ret = pthread_kill(sccp_srv.thread_accept, SIGURG);
+	ret = pthread_join(sccp_srv.thread_accept, NULL);
+
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_session, session_itr, list) {
+		if (session_itr != NULL) {
+
+			ast_log(LOG_NOTICE, "Session del %s\n", session_itr->ipaddr);
+			AST_LIST_REMOVE_CURRENT(&list_session, list);
+
+			pthread_cancel(session_itr->tid);
+			pthread_kill(session_itr->tid, SIGURG);
+			pthread_join(session_itr->tid, NULL);
+
+			destroy_session(&session_itr);
+			ast_log(LOG_NOTICE, "destroyed session\n");
+		}
+	}
+	AST_LIST_TRAVERSE_SAFE_END;
+
+	freeaddrinfo(sccp_srv.res);
+	shutdown(sccp_srv.sockfd, SHUT_RDWR);
 }
 
 int sccp_server_init(void)

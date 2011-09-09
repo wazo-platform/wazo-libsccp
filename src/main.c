@@ -265,6 +265,9 @@ static int unload_module(void)
 	ast_verbose("sccp channel unloading...\n");
 
 	ast_channel_unregister(&sccp_tech);
+
+	sccp_server_fini();
+
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	return 0;

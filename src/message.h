@@ -62,6 +62,11 @@ struct button_template_res_message {
         struct button_definition definition[42];
 };
 
+#define REGISTER_REJ_MESSAGE 0x009D
+struct register_rej_message {
+	char errMsg[33];
+};
+
 #define KEEP_ALIVE_ACK_MESSAGE 0x0100
 
 #define SELECT_SOFT_KEYS_MESSAGE 0x0110
@@ -103,6 +108,7 @@ union sccp_data {
 	struct alarm_message alarm;
 	struct register_message reg;
 	struct register_ack_message regack;
+	struct register_rej_message regrej;
 	struct button_template_res_message buttontemplate;
         struct softkey_set_res_message softkeysets;
 	struct softkey_template_res_message softkeytemplate;
