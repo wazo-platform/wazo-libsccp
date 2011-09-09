@@ -62,6 +62,8 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	ast_log(LOG_NOTICE, "write %d bytes\n", nbyte);
 
+	ast_free(msg);
+
 	return 0;
 }
 
@@ -362,8 +364,6 @@ static void *thread_accept(void *data)
 			return;
 		}
 
-		ast_log(LOG_NOTICE, "sockfd %d\n", new_sockfd);
-
 		/* send multiple buffers as individual packets */
 		setsockopt(new_sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay));
 
@@ -387,8 +387,6 @@ static void *thread_accept(void *data)
 		ast_log(LOG_NOTICE, "A new device has connected from: %s\n", session->ipaddr);
 		ast_pthread_create_background(&session->tid, NULL, thread_session, session);
 	}
-
-	ast_log(LOG_NOTICE, "end of thread\n");
 }
 
 void sccp_server_fini()
@@ -412,7 +410,6 @@ void sccp_server_fini()
 			pthread_join(session_itr->tid, NULL);
 
 			destroy_session(&session_itr);
-			ast_log(LOG_NOTICE, "destroyed session\n");
 		}
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
