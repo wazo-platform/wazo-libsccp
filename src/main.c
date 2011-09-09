@@ -9,6 +9,8 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include <asterisk/module.h>
 #include <asterisk/utils.h>
 
+#include "../config.h"
+
 #include "sccp.h"
 #include "message.h"
 #include "device.h"
@@ -238,7 +240,7 @@ static int config_load(void)
 
 static int sccp_show_version(int fd, int argc, char *argv[])
 {
-	ast_cli(fd, "sccp channel version %s\n", "0.1");
+	ast_cli(fd, "%s <%s>\n", PACKAGE_STRING, PACKAGE_BUGREPORT);
 
 	return RESULT_SUCCESS;
 }
