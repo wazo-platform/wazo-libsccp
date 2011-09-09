@@ -159,7 +159,7 @@ static int parse_config_general(struct ast_config *cfg)
 	for (var = ast_variable_browse(cfg, "general"); var != NULL; var = var->next) {
 
 		if (!strcasecmp(var->name, "bindaddr")) {
-			sccp_cfg.bindaddr = strdup(var->value);
+			sccp_cfg.bindaddr = ast_strdup(var->value);
 			ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
 			continue;
 
@@ -180,6 +180,24 @@ static int parse_config_general(struct ast_config *cfg)
 	}
 
 	return 0;
+}
+
+static int config_unload(void)
+{
+	ast_free(sccp_cfg.bindaddr);
+
+	struct sccp_device *device_itr;
+	struct sccp_line *line_itr;
+
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_device, device_itr, list) {
+		AST_LIST_REMOVE_CURRENT(&list_device, list);
+	}
+	AST_LIST_TRAVERSE_SAFE_END;
+
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_line, line_itr, list) {
+		AST_LIST_REMOVE_CURRENT(&list_line, list);
+	}
+	AST_LIST_TRAVERSE_SAFE_END;
 }
 
 static int config_load(void)
@@ -212,6 +230,8 @@ static int config_load(void)
 			ast_log(LOG_NOTICE, "[%s] \n", line_itr->name);
 		}
 	}
+
+	ast_config_destroy(cfg);
 
 	return 0;
 }
@@ -267,10 +287,17 @@ static int unload_module(void)
 	ast_channel_unregister(&sccp_tech);
 
 	sccp_server_fini();
+	config_unload();
 
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	return 0;
+}
+
+static int reload_module(void)
+{
+	unload_module();
+	return load_module();
 }
 
 AST_MODULE_INFO(
@@ -278,7 +305,7 @@ AST_MODULE_INFO(
 	ASTERISK_GPL_KEY,
 	AST_MODFLAG_DEFAULT,
 	"Skinny Client Control Protocol",
-
 	.load = load_module,
+	.reload = reload_module,
 	.unload = unload_module,
 );
