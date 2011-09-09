@@ -95,7 +95,6 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 
 static int handle_keep_alive_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-
 	msg = msg_alloc(0, KEEP_ALIVE_ACK_MESSAGE);
 	transmit_message(msg, session);
 
