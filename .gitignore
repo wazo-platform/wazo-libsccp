@@ -27,6 +27,8 @@ src/libsccp_la-main.loT
 stamp-h1
 
 *.swp*
+src/.sccp.c.swo
+src/sccp.c~
 
 src/libsccp.la
 src/libsccp_la-main.lo
