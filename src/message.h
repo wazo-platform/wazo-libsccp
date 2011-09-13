@@ -51,10 +51,6 @@ struct button_definition {
         uint8_t buttonDefinition;
 };
 
-struct button_definition_template {
-	uint8_t buttonDefinition;
-};
-
 struct button_template_res_message {
         uint32_t buttonOffset;
         uint32_t buttonCount;

@@ -72,8 +72,10 @@ static int handle_softkey_template_req_message(struct sccp_msg *msg, struct sccp
 	msg = msg_alloc(sizeof(struct softkey_template_res_message), SOFTKEY_TEMPLATE_RES_MESSAGE);
 
 	msg->data.softkeytemplate.softKeyOffset = htolel(0);
-	msg->data.softkeytemplate.softKeyCount = htolel(0);
-	msg->data.softkeytemplate.totalSoftKeyCount = htolel(0);
+	msg->data.softkeytemplate.softKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
+	msg->data.softkeytemplate.totalSoftKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
+	memcpy(msg->data.softkeytemplate.softKeyTemplateDefinition, softkey_template_default, sizeof(softkey_template_default));
+
 	transmit_message(msg, session);
 
 	return 0;
@@ -82,13 +84,35 @@ static int handle_softkey_template_req_message(struct sccp_msg *msg, struct sccp
 static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct button_definition_template btl[42];
-	msg = msg_alloc(sizeof(struct button_template_res_message), BUTTON_TEMPLATE_RES_MESSAGE);
+	int buttonCount = 0;
+	int i;
 
+	msg = msg_alloc(sizeof(struct button_template_res_message), BUTTON_TEMPLATE_RES_MESSAGE);
 	memset(&btl, 0, sizeof(btl));
 
-	msg->data.buttontemplate.buttonOffset = 0;
-	msg->data.buttontemplate.buttonCount = 0;
-	msg->data.buttontemplate.totalButtonCount = 0;
+	device_get_button_template(session->device, btl);
+
+	for (i=0; i<42; i++) {
+		switch (btl[i].buttonDefinition) {
+			case BT_CUST_LINESPEEDDIAL:
+				msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
+				msg->data.buttontemplate.definition[i].instanceNumber = htolel(0);
+				buttonCount++;
+				break;
+
+			case BT_NONE:
+				break;
+
+			default:
+				msg->data.buttontemplate.definition[i].buttonDefinition = htolel(btl[i].buttonDefinition);
+				msg->data.buttontemplate.definition[i].instanceNumber = htolel(0);
+				break;
+		}
+	}
+
+	msg->data.buttontemplate.buttonOffset = htolel(0);
+	msg->data.buttontemplate.buttonCount = htolel(buttonCount);
+	msg->data.buttontemplate.totalButtonCount = htolel(buttonCount);
 
 	transmit_message(msg, session);
 	
@@ -127,19 +151,32 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	const struct softkey_definitions *softkeymode = softkey_default_definitions;
+	int keyset_count;
+	int i, j, k;
 
 	msg = msg_alloc(sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
+	keyset_count = sizeof(softkey_default_definitions) / sizeof(struct softkey_definitions);
 
         msg->data.softkeysets.softKeySetOffset = htolel(0);
-        msg->data.softkeysets.softKeySetCount = htolel(0);
-        msg->data.softkeysets.totalSoftKeySetCount = htolel(0);
+        msg->data.softkeysets.softKeySetCount = htolel(keyset_count);
+        msg->data.softkeysets.totalSoftKeySetCount = htolel(keyset_count);
+
+	for (i = 0; i < keyset_count; i++) {
+
+		for (j = 0; j < softkeymode->count; j++) {
+			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyTemplateIndex[j] = htolel(softkeymode->defaults[j]);
+			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyInfoIndex[j] = htolel(softkeymode->defaults[j]);
+		}
+		softkeymode++;
+	}
 
 	transmit_message(msg, session);
 
 	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
-        msg->data.selectsoftkey.instance = htolel(1);
-        msg->data.selectsoftkey.reference = htolel(1);
-        msg->data.selectsoftkey.softKeySetIndex = htolel(0);
+        msg->data.selectsoftkey.instance = htolel(0);
+        msg->data.selectsoftkey.reference = htolel(0);
+        msg->data.selectsoftkey.softKeySetIndex = htolel(KEYDEF_ONHOOK);
         msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
 
 	transmit_message(msg, session);
@@ -151,14 +188,14 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 {
 	int ret;
 
-/*
+
 	ast_log(LOG_NOTICE, "name %s\n", msg->data.reg.name);
 	ast_log(LOG_NOTICE, "userId %d\n", msg->data.reg.userId);
 	ast_log(LOG_NOTICE, "instance %d\n", msg->data.reg.instance);
 	ast_log(LOG_NOTICE, "ip %d\n", msg->data.reg.ip);
 	ast_log(LOG_NOTICE, "type %d\n", msg->data.reg.type);
 	ast_log(LOG_NOTICE, "maxStreams %d\n", msg->data.reg.maxStreams);
-*/
+
 
 	ret = register_device(msg, session);
 	if (ret == 0) {
