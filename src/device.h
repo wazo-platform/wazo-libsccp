@@ -10,6 +10,37 @@
 
 #define SCCP_DEVICE_7940		8
 
+#define STIMULUS_REDIAL                 0x01
+#define STIMULUS_SPEEDDIAL              0x02
+#define STIMULUS_HOLD                   0x03
+#define STIMULUS_TRANSFER               0x04
+#define STIMULUS_FORWARDALL             0x05
+#define STIMULUS_FORWARDBUSY            0x06
+#define STIMULUS_FORWARDNOANSWER        0x07
+#define STIMULUS_DISPLAY                0x08
+#define STIMULUS_LINE                   0x09
+#define STIMULUS_VOICEMAIL              0x0F
+#define STIMULUS_AUTOANSWER             0x11
+#define STIMULUS_CONFERENCE             0x7D
+#define STIMULUS_CALLPARK               0x7E
+#define STIMULUS_CALLPICKUP             0x7F
+#define STIMULUS_NONE                   0xFF
+
+/* Button types */
+#define BT_REDIAL                       STIMULUS_REDIAL
+#define BT_SPEEDDIAL                    STIMULUS_SPEEDDIAL
+#define BT_HOLD                         STIMULUS_HOLD
+#define BT_TRANSFER                     STIMULUS_TRANSFER
+#define BT_FORWARDALL                   STIMULUS_FORWARDALL
+#define BT_FORWARDBUSY                  STIMULUS_FORWARDBUSY
+#define BT_FORWARDNOANSWER              STIMULUS_FORWARDNOANSWER
+#define BT_DISPLAY                      STIMULUS_DISPLAY
+#define BT_LINE                         STIMULUS_LINE
+#define BT_VOICEMAIL                    STIMULUS_VOICEMAIL
+#define BT_AUTOANSWER                   STIMULUS_AUTOANSWER
+#define BT_CONFERENCE                   STIMULUS_CONFERENCE
+#define BT_CALLPARK                     STIMULUS_CALLPARK
+#define BT_CALLPICKUP                   STIMULUS_CALLPICKUP
 #define BT_NONE				0x00
 #define BT_CUST_LINESPEEDDIAL		0xB0	/* line or speeddial */
 

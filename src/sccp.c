@@ -95,8 +95,8 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 	for (i=0; i<42; i++) {
 		switch (btl[i].buttonDefinition) {
 			case BT_CUST_LINESPEEDDIAL:
-				msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
-				msg->data.buttontemplate.definition[i].instanceNumber = htolel(0);
+				msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
+				msg->data.buttontemplate.definition[i].instanceNumber = htolel(i+1);
 				buttonCount++;
 				break;
 
@@ -192,13 +192,17 @@ static int handle_line_state_req_message(struct sccp_msg *msg, struct sccp_sessi
 	line_instance = letohl(msg->data.line.lineNumber);
 	ast_log(LOG_NOTICE, "lineNumber %d\n", line_instance);
 
-	line = device_get_line(session->device, line_instance);	
+	line = device_get_line(session->device, line_instance-1);	
+	if (line == NULL)
+		return -1;
 
 	msg = msg_alloc(sizeof(struct line_state_res_message), LINE_STATE_RES_MESSAGE);
 	msg->data.linestate.lineNumber = letohl(line_instance);
 
+	ast_log(LOG_NOTICE, "line name %s\n", line->name);
+
 	memcpy(msg->data.linestate.lineDirNumber, line->name, sizeof(msg->data.linestate.lineDirNumber));
-	memcpy(msg->data.linestate.lineDisplayName, line->name, sizeof(msg->data.linestate.lineDisplayName));
+	memcpy(msg->data.linestate.lineDisplayName, session->device->name, sizeof(msg->data.linestate.lineDisplayName));
 
 	transmit_message(msg, session);
 
@@ -276,6 +280,8 @@ static void destroy_session(struct sccp_session **session)
 static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	switch (msg->id) {
+
+		/* FIXME: if handle_ return an error, disconnect device */
 
 		case KEEP_ALIVE_MESSAGE:
 			ast_log(LOG_NOTICE, "Keep alive message\n");
