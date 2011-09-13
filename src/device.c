@@ -15,6 +15,23 @@ struct sccp_line *device_get_line(struct sccp_device *device, int instance)
 	return NULL;
 }
 
+int device_type_is_supported(int device_type)
+{
+	int is_supported = 0;
+
+	switch (device_type) {
+		case SCCP_DEVICE_7940:
+			is_supported = 1;
+			break;
+
+		default:
+			is_supported = 0;
+			break;
+	}
+
+	return is_supported;
+}
+
 void *device_get_button_template(struct sccp_device *device, struct button_definition_template *btl)
 {
 	int i;

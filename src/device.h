@@ -189,5 +189,6 @@ extern struct list_device list_device; /* global */
 
 void *get_button_template(struct sccp_device *device, struct button_definition_template *btl);
 struct sccp_line *device_get_line(struct sccp_device *device, int instance);
+int device_type_is_supported(int device_type);
 
 #endif /* SCCP_DEVICE_H */

@@ -216,7 +216,20 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	ast_log(LOG_NOTICE, "type %d\n", msg->data.reg.type);
 	ast_log(LOG_NOTICE, "maxStreams %d\n", msg->data.reg.maxStreams);
 
-	/* FIXME: verify that the device type is supported */
+	ret = device_type_is_supported(msg->data.reg.type);
+	if (ret == 0) {
+		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, msg->data.reg.type);
+		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
+
+		if (msg == NULL) {
+			return -1;
+		}
+
+		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Unsupported device type [%d]\n", msg->data.reg.type);
+		transmit_message(msg, session);
+
+		return 0;
+	}
 
 	ret = register_device(msg, session);
 	if (ret == 0) {
