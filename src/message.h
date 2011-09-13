@@ -23,6 +23,11 @@ struct register_message {
 	uint32_t maxStreams;
 };
 
+#define LINE_STATE_REQ_MESSAGE 0x000B
+struct line_state_req_message {
+	uint32_t lineNumber;
+};
+
 #define BUTTON_TEMPLATE_REQ_MESSAGE 0x000E
 
 #define ALARM_MESSAGE 0x0020
@@ -43,6 +48,14 @@ struct register_ack_message {
         char res[2];
         uint32_t secondaryKeepAlive;
         char res2[4];
+};
+
+#define LINE_STATE_RES_MESSAGE 0x0092
+struct line_state_res_message {
+	uint32_t lineNumber;
+	char lineDirNumber[24];
+	char lineDisplayName[24];
+	uint32_t space[15];
 };
 
 #define BUTTON_TEMPLATE_RES_MESSAGE 0x0097
@@ -106,6 +119,8 @@ union sccp_data {
 	struct register_ack_message regack;
 	struct register_rej_message regrej;
 	struct button_template_res_message buttontemplate;
+	struct line_state_req_message line;
+	struct line_state_res_message linestate;
         struct softkey_set_res_message softkeysets;
 	struct softkey_template_res_message softkeytemplate;
         struct select_soft_keys_message selectsoftkey;

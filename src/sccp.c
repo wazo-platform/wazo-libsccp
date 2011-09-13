@@ -184,10 +184,30 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 	return 0;
 }
 
+static int handle_line_state_req_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	int line_instance;
+	struct sccp_line *line;
+
+	line_instance = letohl(msg->data.line.lineNumber);
+	ast_log(LOG_NOTICE, "lineNumber %d\n", line_instance);
+
+	line = device_get_line(session->device, line_instance);	
+
+	msg = msg_alloc(sizeof(struct line_state_res_message), LINE_STATE_RES_MESSAGE);
+	msg->data.linestate.lineNumber = letohl(line_instance);
+
+	memcpy(msg->data.linestate.lineDirNumber, line->name, sizeof(msg->data.linestate.lineDirNumber));
+	memcpy(msg->data.linestate.lineDisplayName, line->name, sizeof(msg->data.linestate.lineDisplayName));
+
+	transmit_message(msg, session);
+
+	return 0; 
+}
+
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret;
-
 
 	ast_log(LOG_NOTICE, "name %s\n", msg->data.reg.name);
 	ast_log(LOG_NOTICE, "userId %d\n", msg->data.reg.userId);
@@ -196,6 +216,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	ast_log(LOG_NOTICE, "type %d\n", msg->data.reg.type);
 	ast_log(LOG_NOTICE, "maxStreams %d\n", msg->data.reg.maxStreams);
 
+	/* FIXME: verify that the device type is supported */
 
 	ret = register_device(msg, session);
 	if (ret == 0) {
@@ -253,6 +274,10 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 			handle_register_message(msg, session);
 			break;
 
+		case LINE_STATE_REQ_MESSAGE:
+			handle_line_state_req_message(msg, session);
+			break;
+
 		case BUTTON_TEMPLATE_REQ_MESSAGE:
 			ast_log(LOG_NOTICE, "Button template request message\n");
 			handle_button_template_req_message(msg, session);
@@ -273,7 +298,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 			break;
 
 		default:
-			ast_log(LOG_NOTICE, "Unknown message %d\n", msg->id);
+			ast_log(LOG_NOTICE, "Unknown message %x\n", msg->id);
 			break;
 	}
 	return 0;

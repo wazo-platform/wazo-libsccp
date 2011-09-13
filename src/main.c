@@ -51,6 +51,7 @@ static int parse_config_devices(struct ast_config *cfg)
 	char *category;
 	int duplicate = 0;
 	int found_line = 0;
+	int line_instance = 0;
 
 	/* get the default settings for the devices */
 	for (var = ast_variable_browse(cfg, "devices"); var != NULL; var = var->next) {
@@ -85,6 +86,7 @@ static int parse_config_devices(struct ast_config *cfg)
 						if (!strcasecmp(var->value, line_itr->name)) {
 							/* we found a line */
 							if (line_itr->device == NULL) {
+								line_itr->instance = line_instance++;
 								AST_LIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
 								line_itr->device = device;
 							} else {
@@ -105,6 +107,7 @@ static int parse_config_devices(struct ast_config *cfg)
 			}
 		}
 		duplicate = 0;
+		line_instance = 0;
 		category = ast_category_browse(cfg, category);
 	}
 
@@ -229,7 +232,7 @@ static int config_load(void)
 		ast_log(LOG_NOTICE, "Device [%s] : \n", device_itr->name);
 
 		AST_LIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
-			ast_log(LOG_NOTICE, "[%s] \n", line_itr->name);
+			ast_log(LOG_NOTICE, "[%s] [%d]\n", line_itr->name, line_itr->instance);
 		}
 	}
 

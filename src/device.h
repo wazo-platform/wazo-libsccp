@@ -165,6 +165,7 @@ struct button_definition_template {
 struct sccp_line {
 
 	char name[80];
+	int instance;
 	struct sccp_device *device;
 	AST_LIST_ENTRY(sccp_line) list;
 	AST_LIST_ENTRY(sccp_line) list_per_device;
@@ -180,12 +181,13 @@ struct sccp_device {
 	AST_LIST_ENTRY(sccp_device) list;
 };
 
-void *get_button_template(struct sccp_device *device, struct button_definition_template *btl);
-
 AST_LIST_HEAD(list_line, sccp_line);
 AST_LIST_HEAD(list_device, sccp_device);
 
 extern struct list_line list_line; /* global */
 extern struct list_device list_device; /* global */
+
+void *get_button_template(struct sccp_device *device, struct button_definition_template *btl);
+struct sccp_line *device_get_line(struct sccp_device *device, int instance);
 
 #endif /* SCCP_DEVICE_H */
