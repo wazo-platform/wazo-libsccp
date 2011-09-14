@@ -218,7 +218,7 @@ AST_LIST_HEAD(list_device, sccp_device);
 extern struct list_line list_line; /* global */
 extern struct list_device list_device; /* global */
 
-void *get_button_template(struct sccp_device *device, struct button_definition_template *btl);
+int get_button_template(struct sccp_device *device, struct button_definition_template *btl);
 struct sccp_line *device_get_line(struct sccp_device *device, int instance);
 int device_type_is_supported(int device_type);
 

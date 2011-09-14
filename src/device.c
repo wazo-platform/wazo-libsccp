@@ -32,9 +32,10 @@ int device_type_is_supported(int device_type)
 	return is_supported;
 }
 
-void *device_get_button_template(struct sccp_device *device, struct button_definition_template *btl)
+int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl)
 {
 	int i;
+	int err = 0;
 
 	ast_log(LOG_NOTICE, "device type %d\n", device->type);
 
@@ -47,9 +48,9 @@ void *device_get_button_template(struct sccp_device *device, struct button_defin
 
 		default:
 			ast_log(LOG_WARNING, "Unknown device type '%d'\n", device->type);
-			btl = NULL;
+			err = -1;
 			break;
 	}
 
-	return btl;
+	return err;
 }

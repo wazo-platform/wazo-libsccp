@@ -59,24 +59,53 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
 
 	nbyte = write(session->sockfd, session->outbuf, letohl(msg->length)+8);	
+	if (nbyte == -1) {
+		ast_log(LOG_ERROR, "Message transmit failed %s\n", strerror(errno));
+	}
 
 	ast_log(LOG_NOTICE, "write %d bytes\n", nbyte);
-
 	ast_free(msg);
+
+	return nbyte;
+}
+
+int transmit_selectsoftkeys(struct sccp_session *session, int instance, int callid, int softkey)
+{
+	struct sccp_msg *msg;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+        msg->data.selectsoftkey.instance = htolel(instance);
+        msg->data.selectsoftkey.reference = htolel(callid);
+        msg->data.selectsoftkey.softKeySetIndex = htolel(softkey);
+        msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
 
 	return 0;
 }
 
 static int handle_softkey_template_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	int ret = 0;
+
 	msg = msg_alloc(sizeof(struct softkey_template_res_message), SOFTKEY_TEMPLATE_RES_MESSAGE);
+	if (msg == NULL)
+		return -1;
 
 	msg->data.softkeytemplate.softKeyOffset = htolel(0);
 	msg->data.softkeytemplate.softKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
 	msg->data.softkeytemplate.totalSoftKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
 	memcpy(msg->data.softkeytemplate.softKeyTemplateDefinition, softkey_template_default, sizeof(softkey_template_default));
 
-	transmit_message(msg, session);
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
 
 	return 0;
 }
@@ -85,14 +114,19 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 {
 	struct button_definition_template btl[42];
 	int buttonCount = 0;
+	int ret = 0;
 	int i;
 
 	msg = msg_alloc(sizeof(struct button_template_res_message), BUTTON_TEMPLATE_RES_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
 	memset(&btl, 0, sizeof(btl));
+	ret = device_get_button_template(session->device, btl);
+	if (ret == -1)
+		return -1;
 
-	device_get_button_template(session->device, btl);
-
-	for (i=0; i<42; i++) {
+	for (i = 0; i < 42; i++) {
 		switch (btl[i].buttonDefinition) {
 			case BT_CUST_LINESPEEDDIAL:
 				msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
@@ -114,15 +148,24 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 	msg->data.buttontemplate.buttonCount = htolel(buttonCount);
 	msg->data.buttontemplate.totalButtonCount = htolel(buttonCount);
 
-	transmit_message(msg, session);
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
 	
 	return 0;
 }
 
 static int handle_keep_alive_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	int ret = 0;
+
 	msg = msg_alloc(0, KEEP_ALIVE_ACK_MESSAGE);
-	transmit_message(msg, session);
+	if (msg == NULL)
+		return -1;
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
 
 	return 0;
 }
@@ -153,7 +196,8 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 {
 	const struct softkey_definitions *softkeymode = softkey_default_definitions;
 	int keyset_count;
-	int i, j, k;
+	int i, j;
+	int ret = 0;
 
 	msg = msg_alloc(sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
 	keyset_count = sizeof(softkey_default_definitions) / sizeof(struct softkey_definitions);
@@ -171,15 +215,13 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 		softkeymode++;
 	}
 
-	transmit_message(msg, session);
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
 
-	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
-        msg->data.selectsoftkey.instance = htolel(0);
-        msg->data.selectsoftkey.reference = htolel(0);
-        msg->data.selectsoftkey.softKeySetIndex = htolel(KEYDEF_ONHOOK);
-        msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
-
-	transmit_message(msg, session);
+	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
+	if (ret == -1)
+		return -1;
 
 	return 0;
 }
@@ -188,6 +230,7 @@ static int handle_line_state_req_message(struct sccp_msg *msg, struct sccp_sessi
 {
 	int line_instance;
 	struct sccp_line *line;
+	int ret = 0;
 
 	line_instance = letohl(msg->data.line.lineNumber);
 	ast_log(LOG_NOTICE, "lineNumber %d\n", line_instance);
@@ -197,21 +240,25 @@ static int handle_line_state_req_message(struct sccp_msg *msg, struct sccp_sessi
 		return -1;
 
 	msg = msg_alloc(sizeof(struct line_state_res_message), LINE_STATE_RES_MESSAGE);
-	msg->data.linestate.lineNumber = letohl(line_instance);
+	if (msg == NULL)
+		return -1;
 
+	msg->data.linestate.lineNumber = letohl(line_instance);
 	ast_log(LOG_NOTICE, "line name %s\n", line->name);
 
 	memcpy(msg->data.linestate.lineDirNumber, line->name, sizeof(msg->data.linestate.lineDirNumber));
 	memcpy(msg->data.linestate.lineDisplayName, session->device->name, sizeof(msg->data.linestate.lineDisplayName));
 
-	transmit_message(msg, session);
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
 
 	return 0; 
 }
 
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int ret;
+	int ret = 0;
 
 	ast_log(LOG_NOTICE, "name %s\n", msg->data.reg.name);
 	ast_log(LOG_NOTICE, "userId %d\n", msg->data.reg.userId);
@@ -230,7 +277,9 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		}
 
 		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Unsupported device type [%d]\n", msg->data.reg.type);
-		transmit_message(msg, session);
+		ret = transmit_message(msg, session);
+		if (ret == -1)
+			return -1;
 
 		return 0;
 	}
@@ -245,7 +294,9 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		}
 
 		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Access denied: %s\n", msg->data.reg.name);
-		transmit_message(msg, session);
+		ret = transmit_message(msg, session);
+		if (ret == -1)
+			return -1;
 
 		return 0;
 	}
@@ -263,11 +314,12 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
         msg->data.regack.res2[1] = '\0';
         msg->data.regack.secondaryKeepAlive = htolel(sccp_cfg.keepalive);
 
-        transmit_message(msg, session);
+        ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
 
 	return 0;
 }
-
 
 static void destroy_session(struct sccp_session **session)
 {
@@ -279,32 +331,33 @@ static void destroy_session(struct sccp_session **session)
 
 static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	switch (msg->id) {
+	int ret = 0;
 
-		/* FIXME: if handle_ return an error, disconnect device */
+	switch (msg->id) {
 
 		case KEEP_ALIVE_MESSAGE:
 			ast_log(LOG_NOTICE, "Keep alive message\n");
-			handle_keep_alive_message(msg, session);
+			ret = handle_keep_alive_message(msg, session);
 			break;
 
 		case REGISTER_MESSAGE:
 			ast_log(LOG_NOTICE, "Register message\n");
-			handle_register_message(msg, session);
+			ret = handle_register_message(msg, session);
 			break;
 
 		case LINE_STATE_REQ_MESSAGE:
-			handle_line_state_req_message(msg, session);
+			ast_log(LOG_NOTICE, "Line state message\n");
+			ret = handle_line_state_req_message(msg, session);
 			break;
 
 		case BUTTON_TEMPLATE_REQ_MESSAGE:
 			ast_log(LOG_NOTICE, "Button template request message\n");
-			handle_button_template_req_message(msg, session);
+			ret = handle_button_template_req_message(msg, session);
 			break;
 
 		case SOFTKEY_TEMPLATE_REQ_MESSAGE:
 			ast_log(LOG_NOTICE, "Softkey template request message\n");
-			handle_softkey_template_req_message(msg, session);
+			ret = handle_softkey_template_req_message(msg, session);
 			break;
 
 		case ALARM_MESSAGE:
@@ -313,14 +366,14 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 		case SOFTKEY_SET_REQ_MESSAGE:
 			ast_log(LOG_NOTICE, "Softkey set request message\n");
-			handle_softkey_set_req_message(msg, session);
+			ret = handle_softkey_set_req_message(msg, session);
 			break;
 
 		default:
 			ast_log(LOG_NOTICE, "Unknown message %x\n", msg->id);
 			break;
 	}
-	return 0;
+	return ret;
 }
 
 static int fetch_data(struct sccp_session *session)
@@ -368,7 +421,7 @@ static int fetch_data(struct sccp_session *session)
 			return -1;
 
 		} else if (nbyte < 4) {
-			ast_log(LOG_WARNING, "Client sent less data than expected. Expected 4 but got %d\n", nbyte);
+			ast_log(LOG_WARNING, "Client sent less data than expected. Expected at least 4 bytes but got %d\n", nbyte);
 			return -1;
 		}
 
@@ -397,26 +450,26 @@ static int fetch_data(struct sccp_session *session)
 
 static void *thread_session(void *data)
 {
-	int ret = 0;
 	struct sccp_session *session = data;
 	struct sccp_msg *msg;
 	int connected = 1;
+	int ret = 0;
 
 	while (connected) {
 
 		ret = fetch_data(session);
+		if (ret > 0) {
+			msg = (struct sccp_msg *)session->inbuf;
+			ret = handle_message(msg, session);
+		}
 
 		if (ret == -1) {
-			/* something wrong happend */
 			connected = 0;
 			AST_LIST_LOCK(&list_session);
 			session = AST_LIST_REMOVE(&list_session, session, list);
 			AST_LIST_UNLOCK(&list_session);	
-		
-		} else if (ret > 0) {
-			/* we've read some data */			
-			msg = (struct sccp_msg *)session->inbuf;
-			ret = handle_message(msg, session);
+
+			ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
 		}
 	}
 
