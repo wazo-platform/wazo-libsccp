@@ -1,4 +1,3 @@
-
 #include <asterisk.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/poll-compat.h>
