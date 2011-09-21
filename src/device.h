@@ -8,7 +8,28 @@
 
 #include "message.h"
 
-#define SCCP_DEVICE_7940		8
+#define SCCP_DEVICE_7940	8
+#define SCCP_DEVICE_7941	115
+
+#define SCCP_OFFHOOK	1
+#define SCCP_ONHOOK	2
+#define SCCP_RINGOUT	3
+#define SCCP_RINGIN	4
+#define SCCP_CONNECTED	5
+#define SCCP_BUSY	6
+#define SCCP_CONGESTION	7
+#define SCCP_HOLD	8
+#define SCCP_CALLWAIT	9
+#define SCCP_TRANSFER	10
+#define SCCP_PARK	11
+#define SCCP_PROGRESS	12
+#define SCCP_INVALID	14
+
+#define SCCP_LAMP_OFF	1
+#define SCCP_LAMP_ON	2
+#define SCCP_LAMP_WINK	3
+#define SCCP_LAMP_FLASH	4
+#define SCCP_LAMP_BLINK	5
 
 #define STIMULUS_REDIAL                 0x01
 #define STIMULUS_SPEEDDIAL              0x02
@@ -218,7 +239,7 @@ AST_LIST_HEAD(list_device, sccp_device);
 extern struct list_line list_line; /* global */
 extern struct list_device list_device; /* global */
 
-int get_button_template(struct sccp_device *device, struct button_definition_template *btl);
+int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl);
 struct sccp_line *device_get_line(struct sccp_device *device, int instance);
 int device_type_is_supported(int device_type);
 

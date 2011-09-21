@@ -20,7 +20,7 @@
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
 
-#define SCCP_MAX_PACKET_SZ 1000
+#define SCCP_MAX_PACKET_SZ 10000
 
 static struct sccp_server {
 
@@ -68,6 +68,46 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	return nbyte;
 }
 
+static int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid)
+{
+	struct sccp_msg *msg;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct call_state_message), CALL_STATE_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.callstate.callState = htolel(state);
+	msg->data.callstate.lineInstance = htolel(instance);
+	msg->data.callstate.callReference = htolel(callid);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+static int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication)
+{
+	struct sccp_msg *msg;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct set_lamp_message), SET_LAMP_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.setlamp.stimulus = htolel(stimulus);
+	msg->data.setlamp.stimulusInstance = htolel(instance);
+	msg->data.setlamp.deviceStimulus = htolel(indication);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_selectsoftkeys(struct sccp_session *session, int instance, int callid, int softkey)
 {
 	struct sccp_msg *msg;
@@ -109,6 +149,61 @@ static int handle_softkey_template_req_message(struct sccp_msg *msg, struct sccp
 	return 0;
 }
 
+static int handle_config_state_req_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct config_state_res_message), CONFIG_STATE_RES_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	memcpy(msg->data.configstate.deviceName, session->device->name, sizeof(msg->data.configstate.deviceName));
+	msg->data.configstate.stationUserId = htolel(0);
+	msg->data.configstate.stationInstance = htolel(1);
+//	memcpy(msg->data.configstate.userName, "userName", sizeof(msg->data.configstate.userName));
+//	memcpy(msg->data.configstate.serverName, "serverName", sizeof(msg->data.configstate.serverName));
+	msg->data.configstate.numberLines = htolel(2);
+	msg->data.configstate.numberSpeedDials = htolel(0);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+static int handle_time_date_req_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	time_t now;
+	struct tm *cmtime = NULL;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct time_date_res_message), DATE_TIME_RES_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	now = time(NULL);
+	cmtime = localtime(&now);
+	if (cmtime == NULL)
+		return -1;
+
+	msg->data.timedate.year = htolel(cmtime->tm_year + 1900);
+	msg->data.timedate.month = htolel(cmtime->tm_mon + 1);
+	msg->data.timedate.dayOfWeek = htolel(cmtime->tm_wday);
+	msg->data.timedate.day = htolel(cmtime->tm_mday);
+	msg->data.timedate.hour = htolel(cmtime->tm_hour);
+	msg->data.timedate.minute = htolel(cmtime->tm_min);
+	msg->data.timedate.seconds = htolel(cmtime->tm_sec);
+	msg->data.timedate.milliseconds = htolel(0);
+	msg->data.timedate.systemTime = htolel(0);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct button_definition_template btl[42];
@@ -134,10 +229,8 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 				break;
 
 			case BT_NONE:
-				break;
-
 			default:
-				msg->data.buttontemplate.definition[i].buttonDefinition = htolel(btl[i].buttonDefinition);
+				msg->data.buttontemplate.definition[i].buttonDefinition = 0xff;
 				msg->data.buttontemplate.definition[i].instanceNumber = htolel(0);
 				break;
 		}
@@ -191,6 +284,21 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	return device_found;
 }
 
+static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	transmit_lamp_indication(session, 1, 1, SCCP_LAMP_ON);
+	transmit_callstate(session, 1, SCCP_OFFHOOK, 1);
+	transmit_selectsoftkeys(session, 0, 0, KEYDEF_OFFHOOK);
+	return 0;
+}
+
+static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	transmit_callstate(session, 1, SCCP_ONHOOK, 1);
+	transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
+	return 0;
+}
+
 static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	const struct softkey_definitions *softkeymode = softkey_default_definitions;
@@ -225,6 +333,49 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 	return 0;
 }
 
+static int handle_forward_stat_req_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	uint32_t instance;
+	int ret = 0;
+
+	instance = letohl(msg->data.forward.lineNumber);
+	ast_log(LOG_NOTICE, "Forward status line %d\n", instance);
+
+	msg = msg_alloc(sizeof(struct forward_stat_res_message), FORWARD_STAT_RES_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.forwardstat.status = 0;
+	msg->data.forwardstat.lineNumber = htolel(instance);
+	
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	uint32_t count = 0;
+	int i;
+
+/*
+	count = letohl(msg->data.caps.count);
+	if (count > SCCP_MAX_CAPABILITIES) {
+		count = SCCP_MAX_CAPABILITIES;
+		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
+	}
+*/
+
+/*
+	for (i = 0; i < count; i++) {
+	
+	}	
+*/
+	return 0;
+}
+
 static int handle_line_state_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int line_instance;
@@ -234,7 +385,7 @@ static int handle_line_state_req_message(struct sccp_msg *msg, struct sccp_sessi
 	line_instance = letohl(msg->data.line.lineNumber);
 	ast_log(LOG_NOTICE, "lineNumber %d\n", line_instance);
 
-	line = device_get_line(session->device, line_instance-1);	
+	line = device_get_line(session->device, 0);	
 	if (line == NULL)
 		return -1;
 
@@ -247,7 +398,20 @@ static int handle_line_state_req_message(struct sccp_msg *msg, struct sccp_sessi
 
 	memcpy(msg->data.linestate.lineDirNumber, line->name, sizeof(msg->data.linestate.lineDirNumber));
 	memcpy(msg->data.linestate.lineDisplayName, session->device->name, sizeof(msg->data.linestate.lineDisplayName));
+	memcpy(msg->data.linestate.lineDisplayAlias, line->name, sizeof(msg->data.linestate.lineDisplayAlias));
 
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	/* foward stat */
+	msg = msg_alloc(sizeof(struct forward_stat_res_message), FORWARD_STAT_RES_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.forwardstat.status = 0;
+	msg->data.forwardstat.lineNumber = htolel(1);
+	
 	ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1;
@@ -265,6 +429,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	ast_log(LOG_NOTICE, "ip %d\n", msg->data.reg.ip);
 	ast_log(LOG_NOTICE, "type %d\n", msg->data.reg.type);
 	ast_log(LOG_NOTICE, "maxStreams %d\n", msg->data.reg.maxStreams);
+	ast_log(LOG_NOTICE, "protoVersion %d\n", msg->data.reg.protoVersion);
 
 	ret = device_type_is_supported(msg->data.reg.type);
 	if (ret == 0) {
@@ -305,17 +470,32 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return -1;
 	}
 
-        msg->data.regack.res[0] = '0';
+        msg->data.regack.res[0] = '\0';
         msg->data.regack.res[1] = '\0';
         msg->data.regack.keepAlive = htolel(sccp_cfg.keepalive);
-        memcpy(msg->data.regack.dateTemplate, sccp_cfg.dateformat, sizeof(msg->data.regack.dateTemplate));
-        msg->data.regack.res2[0] = '0';
-        msg->data.regack.res2[1] = '\0';
+       // memcpy(msg->data.regack.dateTemplate, sccp_cfg.dateformat, sizeof(msg->data.regack.dateTemplate));
+        memcpy(msg->data.regack.dateTemplate, "D.M.Y", sizeof(msg->data.regack.dateTemplate));
+
+        msg->data.regack.protoVersion = 0x0b;
+        msg->data.regack.unknown1 = 0x20;
+	msg->data.regack.unknown2 = 0xF1;
+	msg->data.regack.unknown3 = 0xFF;
+
         msg->data.regack.secondaryKeepAlive = htolel(sccp_cfg.keepalive);
 
         ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1;
+
+
+	msg = msg_alloc(0, CAPABILITIES_REQ_MESSAGE);
+	if (msg == NULL) {
+		return -1;
+	}
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1; 
 
 	return 0;
 }
@@ -344,9 +524,44 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 			ret = handle_register_message(msg, session);
 			break;
 
+		case IP_PORT_MESSAGE:
+			ast_log(LOG_NOTICE, "Ip Port message\n");
+			ast_log(LOG_NOTICE, "station Ip Port %d\n", letohl(msg->data.ipport.stationIpPort));
+			break;
+			
+		case OFFHOOK_MESSAGE:
+			ast_log(LOG_NOTICE, "OffHook Message\n");
+			ret = handle_offhook_message(msg, session);
+			break;
+
+		case ONHOOK_MESSAGE:
+			ast_log(LOG_NOTICE, "OnHook Message\n");
+			ret = handle_onhook_message(msg, session);
+			break;
+
+		case FORWARD_STAT_REQ_MESSAGE:
+			ast_log(LOG_NOTICE, "Forward State Message\n");
+			ret = handle_forward_stat_req_message(msg, session);
+			break;
+
+		case CAPABILITIES_RES_MESSAGE:
+			ast_log(LOG_NOTICE, "Capabilities Message\n");
+			ret = handle_capabilities_res_message(msg, session);
+			break;
+
 		case LINE_STATE_REQ_MESSAGE:
 			ast_log(LOG_NOTICE, "Line state message\n");
 			ret = handle_line_state_req_message(msg, session);
+			break;
+
+		case CONFIG_STATE_REQ_MESSAGE:
+			ast_log(LOG_NOTICE, "Config state message\n");
+			ret = handle_config_state_req_message(msg, session);
+			break;
+
+		case TIME_DATE_REQ_MESSAGE:
+			ast_log(LOG_NOTICE, "Time Date message\n");
+			ret = handle_time_date_req_message(msg, session);
 			break;
 
 		case BUTTON_TEMPLATE_REQ_MESSAGE:
@@ -368,6 +583,9 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 			ret = handle_softkey_set_req_message(msg, session);
 			break;
 
+		case REGISTER_AVAILABLE_LINES_MESSAGE:
+			ast_log(LOG_NOTICE, "Register available lines message\n");
+
 		default:
 			ast_log(LOG_NOTICE, "Unknown message %x\n", msg->id);
 			break;
@@ -376,6 +594,81 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 }
 
 static int fetch_data(struct sccp_session *session)
+{
+	struct pollfd fds[1];
+	int nfds = 0;
+	time_t now = 0;
+	ssize_t nbyte = 0;
+	int msg_len = 0;
+	
+	time(&now);
+	/* if no device or device is not registered and time has elapsed */
+	if ((session->device == NULL || (session->device != NULL && session->device->registered == 0))
+		&& now > session->start_time + sccp_cfg.authtimeout) {
+		return -1;
+	}
+
+	fds[0].fd = session->sockfd;
+	fds[0].events = POLLIN;
+	fds[0].revents = 0;
+
+	nfds = ast_poll(fds, 1, sccp_cfg.keepalive * 5000); /* millisecond */
+	if (nfds == -1) { /* something wrong happend */
+		ast_log(LOG_WARNING, "Failed to poll socket: %s\n", strerror(errno));
+		return -1;
+
+	} else if (nfds == 0) { /* the file descriptor is not ready */
+		ast_log(LOG_WARNING, "Device has timed out\n");
+		return -1;
+
+	} else if (fds[0].revents & POLLERR || fds[0].revents & POLLHUP) {
+		ast_log(LOG_WARNING, "Device has closed the connection\n");
+		return -1;
+
+	} else if (fds[0].revents & POLLIN || fds[0].revents & POLLPRI) {
+
+		/* fetch the field that contain the packet length */
+		nbyte = read(session->sockfd, session->inbuf, 4);
+		ast_log(LOG_NOTICE, "nbyte %d\n", nbyte);
+		if (nbyte < 0) { /* something wrong happend */
+			ast_log(LOG_WARNING, "Failed to read socket: %s\n", strerror(errno));
+			return -1;
+
+		} else if (nbyte == 0) { /* EOF */
+			ast_log(LOG_NOTICE, "Device has closed the connection\n");
+			return -1;
+
+		} else if (nbyte < 4) {
+			ast_log(LOG_WARNING, "Client sent less data than expected. Expected at least 4 bytes but got %d\n", nbyte);
+			return -1;
+		}
+
+		msg_len = letohl(*((int *)session->inbuf));
+		ast_log(LOG_NOTICE, "msg_len %d\n", msg_len);
+		if (msg_len > SCCP_MAX_PACKET_SZ || msg_len < 0) {
+			ast_log(LOG_WARNING, "Packet length is out of bounds: 0 > %d > %d\n", msg_len, SCCP_MAX_PACKET_SZ);
+			return -1;
+		}
+
+		/* bypass the length field and fetch the payload */
+		nbyte = read(session->sockfd, session->inbuf+4, msg_len+4);
+		ast_log(LOG_NOTICE, "nbyte %d\n", nbyte);
+		if (nbyte < 0) {
+			ast_log(LOG_WARNING, "Failed to read socket: %s\n", strerror(errno));
+			return -1;
+
+		} else if (nbyte == 0) { /* EOF */
+			ast_log(LOG_NOTICE, "Device has closed the connection\n");
+			return -1;
+		}
+
+		return nbyte;
+	}
+
+	return -1;	
+}
+
+static int fetch_data2(struct sccp_session *session)
 {
 	struct pollfd fds[1];
 	int nfds = 0;
@@ -410,7 +703,8 @@ static int fetch_data(struct sccp_session *session)
 	} else if (fds[0].revents & POLLIN || fds[0].revents & POLLPRI) {
 
 		/* fetch the field that contain the packet length */
-		nbyte = read(session->sockfd, session->inbuf, 4);
+		nbyte = read(session->sockfd, session->inbuf, SCCP_MAX_PACKET_SZ);
+		ast_log(LOG_NOTICE, "nbyte read %d\n", nbyte);
 		if (nbyte < 0) { /* something wrong happend */
 			ast_log(LOG_WARNING, "Failed to read socket: %s\n", strerror(errno));
 			return -1;
@@ -425,19 +719,9 @@ static int fetch_data(struct sccp_session *session)
 		}
 
 		msg_len = letohl(*((int *)session->inbuf));
+		ast_log(LOG_NOTICE, "msg_len is %d\n", msg_len);
 		if (msg_len > SCCP_MAX_PACKET_SZ || msg_len < 0) {
 			ast_log(LOG_WARNING, "Packet length is out of bounds: 0 > %d > %d\n", msg_len, SCCP_MAX_PACKET_SZ);
-			return -1;
-		}
-
-		/* bypass the length field and fetch the payload */
-		nbyte = read(session->sockfd, session->inbuf+4, msg_len+4);
-		if (nbyte < 0) {
-			ast_log(LOG_WARNING, "Failed to read socket: %s\n", strerror(errno));
-			return -1;
-
-		} else if (nbyte == 0) { /* EOF */
-			ast_log(LOG_NOTICE, "Device has closed the connection\n");
 			return -1;
 		}
 

@@ -21,6 +21,7 @@ int device_type_is_supported(int device_type)
 
 	switch (device_type) {
 		case SCCP_DEVICE_7940:
+		case SCCP_DEVICE_7941:
 			is_supported = 1;
 			break;
 
@@ -41,6 +42,7 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 
 	switch (device->type) {
 		case SCCP_DEVICE_7940:
+		case SCCP_DEVICE_7941:
 			for (i = 0; i < 2; i++) {
 				(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
 			}
