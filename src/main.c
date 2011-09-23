@@ -88,6 +88,7 @@ static int parse_config_devices(struct ast_config *cfg)
 							if (line_itr->device == NULL) {
 								line_itr->instance = line_instance++;
 								AST_LIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
+								device->line_count++;
 								line_itr->device = device;
 							} else {
 								ast_log(LOG_WARNING, "Line [%s] is already attach to device [%s]\n",
@@ -169,7 +170,7 @@ static int parse_config_general(struct ast_config *cfg)
 			continue;
 
 		} else if (!strcasecmp(var->name, "dateformat")) {
-			ast_copy_string(sccp_cfg.dateformat, var->name, sizeof(sccp_cfg.dateformat));
+			ast_copy_string(sccp_cfg.dateformat, var->value, sizeof(sccp_cfg.dateformat));
 			continue;
 
 		} else if (!strcasecmp(var->name, "keepalive")) {

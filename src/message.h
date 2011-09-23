@@ -42,8 +42,8 @@ struct onhook_message {
 	uint32_t unknown2;
 };
 
-#define FORWARD_STAT_REQ_MESSAGE 0x0009
-struct forward_stat_req_message {
+#define FORWARD_STATUS_REQ_MESSAGE 0x0009
+struct forward_status_req_message {
 	uint32_t lineNumber;
 };
 
@@ -63,12 +63,12 @@ struct capabilities_res_message {
 	struct station_capabilities caps[SCCP_MAX_CAPABILITIES];
 };
 
-#define LINE_STATE_REQ_MESSAGE 0x000B
-struct line_state_req_message {
+#define LINE_STATUS_REQ_MESSAGE 0x000B
+struct line_status_req_message {
 	uint32_t lineNumber;
 };
 
-#define CONFIG_STATE_REQ_MESSAGE 0x000C
+#define CONFIG_STATUS_REQ_MESSAGE 0x000C
 #define TIME_DATE_REQ_MESSAGE 0x000D
 #define BUTTON_TEMPLATE_REQ_MESSAGE 0x000E
 
@@ -102,8 +102,8 @@ struct set_lamp_message {
 	uint32_t deviceStimulus;
 };
 
-#define FORWARD_STAT_RES_MESSAGE 0x0090
-struct forward_stat_res_message {
+#define FORWARD_STATUS_RES_MESSAGE 0x0090
+struct forward_status_res_message {
 	uint32_t status;
 	uint32_t lineNumber;
 	uint32_t cfwdAllStatus;
@@ -114,16 +114,16 @@ struct forward_stat_res_message {
 	char cfwdNoAnswerNumber[24];
 };
 
-#define LINE_STATE_RES_MESSAGE 0x0092
-struct line_state_res_message {
+#define LINE_STATUS_RES_MESSAGE 0x0092
+struct line_status_res_message {
 	uint32_t lineNumber;
 	char lineDirNumber[24];
 	char lineDisplayName[40];
 	char lineDisplayAlias[44];
 };
 
-#define CONFIG_STATE_RES_MESSAGE 0x0093
-struct config_state_res_message {
+#define CONFIG_STATUS_RES_MESSAGE 0x0093
+struct config_status_res_message {
 	char deviceName[16];
 	uint32_t stationUserId;
 	uint32_t stationInstance;
@@ -216,15 +216,15 @@ union sccp_data {
 	struct register_message reg;
 	struct register_ack_message regack;
 	struct register_rej_message regrej;
-	struct forward_stat_req_message forward;
-	struct forward_stat_res_message forwardstat;
+	struct forward_status_req_message forward;
+	struct forward_status_res_message forwardstatus;
 	struct capabilities_res_message caps;
 	struct ip_port_message ipport;
 	struct button_template_res_message buttontemplate;
-	struct line_state_req_message line;
-	struct line_state_res_message linestate;
+	struct line_status_req_message line;
+	struct line_status_res_message linestatus;
 	struct time_date_res_message timedate;
-	struct config_state_res_message configstate;
+	struct config_status_res_message configstatus;
 	struct set_lamp_message setlamp;
 	struct call_state_message callstate;
         struct softkey_set_res_message softkeysets;

@@ -62,7 +62,7 @@
 #define BT_CONFERENCE			STIMULUS_CONFERENCE
 #define BT_CALLPARK			STIMULUS_CALLPARK
 #define BT_CALLPICKUP			STIMULUS_CALLPICKUP
-#define BT_NONE				0x00
+#define BT_NONE				STIMULUS_NONE
 #define BT_CUST_LINESPEEDDIAL		0xB0	/* line or speeddial */
 
 #define KEYDEF_ONHOOK			0
@@ -226,6 +226,10 @@ struct sccp_device {
 
 	char name[80];
 	uint8_t registered;
+	uint8_t protoVersion;
+	uint32_t line_count;
+	uint32_t speeddial_count;
+	uint32_t station_port;
 	int type;
 	AST_LIST_HEAD(, sccp_line) lines;
 	AST_LIST_ENTRY(sccp_device) list;
