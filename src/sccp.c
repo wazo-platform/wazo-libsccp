@@ -333,7 +333,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_tone(session, SCCP_TONE_BUSY, 1, 0);
+	ret = transmit_tone(session, SCCP_TONE_DIAL, 1, 0);
 	if (ret == -1)
 		return -1;
 
