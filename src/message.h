@@ -95,6 +95,20 @@ struct register_ack_message {
 	uint8_t unknown3;
 };
 
+#define START_TONE_MESSAGE 0x00082
+struct start_tone_message {
+	uint32_t tone;
+	uint32_t space;
+	uint32_t instance;
+	uint32_t reference;
+};
+
+#define STOP_TONE_MESSAGE 0x0083
+struct stop_tone_message {
+	uint32_t instance;
+	uint32_t reference;
+};
+
 #define SET_LAMP_MESSAGE 0x0086
 struct set_lamp_message {
 	uint32_t stimulus;
@@ -216,6 +230,7 @@ union sccp_data {
 	struct register_message reg;
 	struct register_ack_message regack;
 	struct register_rej_message regrej;
+	struct start_tone_message starttone;
 	struct forward_status_req_message forward;
 	struct forward_status_res_message forwardstatus;
 	struct capabilities_res_message caps;

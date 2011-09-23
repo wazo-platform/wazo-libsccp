@@ -25,6 +25,14 @@
 #define SCCP_PROGRESS		12
 #define SCCP_INVALID		14
 
+#define SCCP_TONE_SILENCE	0x00
+#define SCCP_TONE_DIAL		0x21
+#define SCCP_TONE_BUSY		0x23
+#define SCCP_TONE_ALERT		0x24
+#define SCCP_TONE_REORDER	0x25
+#define SCCP_TONE_CALLWAIT	0x2D
+#define SCCP_TONE_NONE		0x7F
+
 #define SCCP_LAMP_OFF		1
 #define SCCP_LAMP_ON		2
 #define SCCP_LAMP_WINK		3

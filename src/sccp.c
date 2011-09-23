@@ -88,6 +88,26 @@ static int transmit_callstate(struct sccp_session *session, int instance, int st
 	return 0;
 }
 
+static int transmit_tone(struct sccp_session *session, int tone, int instance, int reference)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct start_tone_message), START_TONE_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.starttone.tone = htolel(tone);
+	msg->data.starttone.instance = htolel(instance);
+	msg->data.starttone.reference = htolel(reference);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 static int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication)
 {
 	struct sccp_msg *msg;
@@ -313,14 +333,16 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	if (ret == -1)
 		return -1;
 
+	ret = transmit_tone(session, SCCP_TONE_BUSY, 1, 0);
+	if (ret == -1)
+		return -1;
+
 	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_OFFHOOK);
 	if (ret == -1)
 		return -1;
 
 	return 0;
-}
-
-static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
+} static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
 
@@ -398,19 +420,13 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 {
 	uint32_t count = 0;
 	int i;
-
-/*
 	count = letohl(msg->data.caps.count);
+	ast_log(LOG_NOTICE, "Received %d capabilities\n", count);
+/*
 	if (count > SCCP_MAX_CAPABILITIES) {
 		count = SCCP_MAX_CAPABILITIES;
 		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
 	}
-*/
-
-/*
-	for (i = 0; i < count; i++) {
-	
-	}	
 */
 	return 0;
 }
@@ -424,7 +440,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	line_instance = letohl(msg->data.line.lineNumber);
 	ast_log(LOG_NOTICE, "lineNumber %d\n", line_instance);
 
-	line = device_get_line(session->device, 0);	
+	line = device_get_line(session->device, line_instance-1);
 	if (line == NULL)
 		return -1;
 
