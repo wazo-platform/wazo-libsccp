@@ -4,6 +4,17 @@
 struct list_line list_line = AST_LIST_HEAD_INIT_VALUE;
 struct list_device list_device = AST_LIST_HEAD_INIT_VALUE;
 
+struct sccp_line *find_line_by_name(char *name)
+{
+	struct sccp_line *line_itr;
+	AST_LIST_TRAVERSE(&list_line, line_itr, list) {
+		if (!strncmp(line_itr->name, name, sizeof(line_itr->name)))
+			return line_itr;
+	}
+
+	return NULL;
+}
+
 struct sccp_line *device_get_line(struct sccp_device *device, int instance)
 {
 	struct sccp_line *line_itr;

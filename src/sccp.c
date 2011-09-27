@@ -1,4 +1,5 @@
 #include <asterisk.h>
+#include <asterisk/channel.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/poll-compat.h>
 #include <asterisk/utils.h>
@@ -31,6 +32,17 @@ static struct sccp_server {
 
 } sccp_srv = {0};
 
+static struct ast_channel *sccp_request(const char *type, int format, void *data, int *cause);
+static int sccp_call(struct ast_channel *ast, char *dest, int timeout);
+static int sccp_hangup(struct ast_channel *ast);
+static int sccp_answer(struct ast_channel *ast);
+static struct ast_frame *sccp_read(struct ast_channel *ast);
+static int sccp_write(struct ast_channel *ast, struct ast_frame *frame);
+static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, size_t datalen);
+static int sccp_fixup(struct ast_channel *oldchan, struct ast_channel *newchan);
+static int sccp_senddigit_begin(struct ast_channel *ast, char digit);
+static int sccp_senddigit_end(struct ast_channel *ast, char digit, unsigned int duration);
+
 struct sccp_session {
 
 	ast_mutex_t lock;
@@ -45,6 +57,23 @@ struct sccp_session {
 	char outbuf[SCCP_MAX_PACKET_SZ];
 
 	AST_LIST_ENTRY(sccp_session) list;
+};
+
+static const struct ast_channel_tech sccp_tech = {
+	.type = "sccp",
+	.description = "Skinny Client Control Protocol",
+	.capabilities = ((AST_FORMAT_MAX_AUDIO << 1) - 1),
+	.properties = AST_CHAN_TP_WANTSJITTER | AST_CHAN_TP_CREATESJITTER,
+	.requester = sccp_request,
+	.call = sccp_call,
+	.hangup = sccp_hangup,
+	.answer = sccp_answer,
+	.read = sccp_read,
+	.write = sccp_write,
+	.indicate = sccp_indicate,
+	.fixup = sccp_fixup,
+	.send_digit_begin = sccp_senddigit_begin,
+	.send_digit_end = sccp_senddigit_end,
 };
 
 extern struct sccp_configs sccp_cfg; /* global */
@@ -88,6 +117,11 @@ static int transmit_callstate(struct sccp_session *session, int instance, int st
 	return 0;
 }
 
+static int transmit_displaymessage(struct sccp_session *session, const char *text, int instance, int reference)
+{
+	return 0;
+}
+
 static int transmit_tone(struct sccp_session *session, int tone, int instance, int reference)
 {
 	struct sccp_msg *msg = NULL;
@@ -120,6 +154,26 @@ static int transmit_lamp_indication(struct sccp_session *session, int stimulus, 
 	msg->data.setlamp.stimulus = htolel(stimulus);
 	msg->data.setlamp.stimulusInstance = htolel(instance);
 	msg->data.setlamp.deviceStimulus = htolel(indication);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+static int transmit_ringer_mode(struct sccp_session *session, int mode)
+{
+	struct sccp_msg *msg;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct set_ringer_message), SET_RINGER_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.setringer.ringerMode = htolel(mode);
+	msg->data.setringer.unknown1 = htolel(1);
+	msg->data.setringer.unknown2 = htolel(1);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -311,6 +365,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			device_itr->registered = 1;
 			device_itr->protoVersion = letohl(msg->data.reg.protoVersion);
 			device_itr->type = letohl(msg->data.reg.type);
+			device_itr->session = session;
 			session->device = device_itr;
 
 			device_found = 1;
@@ -321,8 +376,43 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	return device_found;
 }
 
+static struct ast_channel *sccp_new_channel(struct sccp_line *line)
+{
+	struct ast_channel *channel;
+	int audio_format;
+
+	channel = ast_channel_alloc(1,		/* needqueue */
+					AST_STATE_DOWN,	/* state */
+					"102",		/* cid_num */
+					"billy",	/* cid_name */
+					"code",		/* acctcode */
+					"102",		/* exten */
+					"default",	/* context */
+					0,		/* amaflag */
+					"sccp/%s@%s-%d",/* format */
+					"102",	/* name */
+					"SEPACA016FDF235",	/* name */
+					102);		/* callnums */
+
+	if (channel == NULL)
+		return NULL;
+
+	channel->tech = &sccp_tech;
+	channel->tech_pvt = line; /* attach the line */
+	/*channel->nativeformats = device->capability;*/
+	audio_format = ast_best_codec(line->device->ast_codec);
+
+	channel->writeformat = audio_format;
+	channel->rawwriteformat = audio_format;
+	channel->readformat = audio_format;
+	channel->rawreadformat = audio_format;
+
+	return channel;
+}
+
 static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	struct ast_channel *channel;
 	int ret = 0;
 
 	ret = transmit_lamp_indication(session, 1, 1, SCCP_LAMP_ON);
@@ -337,12 +427,20 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	if (ret == -1)
 		return -1;
 
+	ret = transmit_displaymessage(session, NULL, 1, 0);
+	if (ret == -1)
+		return -1;
+
 	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_OFFHOOK);
 	if (ret == -1)
 		return -1;
 
+//	channel = sccp_new_channel(session->device->active_line);
+
 	return 0;
-} static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
+}
+
+static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
 
@@ -416,18 +514,58 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	return 0;
 }
 
+enum sccp_codecs {
+	SCCP_CODEC_ALAW = 2,
+	SCCP_CODEC_ULAW = 4,
+	SCCP_CODEC_G723_1 = 9,
+	SCCP_CODEC_G729A = 12,
+	SCCP_CODEC_G726_32 = 82,
+	SCCP_CODEC_H261 = 100,
+	SCCP_CODEC_H263 = 101
+};
+
+static int codec_sccp2ast(enum sccp_codecs sccp_codec)
+{
+	switch (sccp_codec) {
+	case SCCP_CODEC_ALAW:
+		return AST_FORMAT_ALAW;
+	case SCCP_CODEC_ULAW:
+		return AST_FORMAT_ULAW;
+	case SCCP_CODEC_G723_1:
+		return AST_FORMAT_G723_1;
+	case SCCP_CODEC_G729A:
+		return AST_FORMAT_G729A;
+	case SCCP_CODEC_H261:
+		return AST_FORMAT_H261;
+	case SCCP_CODEC_H263:
+		return AST_FORMAT_H263;
+	default:
+		return 0;
+	}
+}
+
 static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	uint32_t count = 0;
+	int ast_codec = 0;
+	int sccp_codec = 0;
 	int i;
+
 	count = letohl(msg->data.caps.count);
 	ast_log(LOG_NOTICE, "Received %d capabilities\n", count);
-/*
+
 	if (count > SCCP_MAX_CAPABILITIES) {
 		count = SCCP_MAX_CAPABILITIES;
 		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
 	}
-*/
+
+	for (i = 0; i < count; i++) {
+		sccp_codec = letohl(msg->data.caps.caps[i].codec);
+		ast_codec |= codec_sccp2ast(sccp_codec);
+	}
+
+	session->device->ast_codec = ast_codec;
+
 	return 0;
 }
 
@@ -820,10 +958,111 @@ static void *thread_accept(void *data)
 	}
 }
 
+static struct ast_channel *sccp_request(const char *type, int format, void *data, int *cause)
+{
+	struct sccp_line *line = NULL;
+	struct ast_channel *channel = NULL;
+	
+	ast_log(LOG_NOTICE, "sccp request\n");
+
+	ast_log(LOG_NOTICE, "type: %s\n"
+				"format: %d\n"
+				"data: %s\n"
+				"cause: %d\n",
+				type, format, data, *cause);
+
+	line = find_line_by_name(data);
+	if (line != NULL)
+		ast_log(LOG_NOTICE, "line name %s\n", line->name);
+	else
+		ast_log(LOG_NOTICE, "no line found...\n");
+
+
+	channel = sccp_new_channel(line);	
+
+	return channel;
+}
+
+static int sccp_call(struct ast_channel *ast, char *dest, int timeout)
+{
+	struct sccp_line *line = NULL;
+	struct sccp_device *device = NULL;
+	struct sccp_session *session = NULL;
+
+	ast_log(LOG_NOTICE, "skinny call\n");
+	ast_log(LOG_NOTICE, "ast->lid.lid_name: %s\n", ast->lid.lid_name);
+	ast_log(LOG_NOTICE, "ast->lid.lid_num: %s\n", ast->lid.lid_num);
+
+	line = ast->tech_pvt;
+	device = line->device;
+	session = device->session;
+
+	ast_log(LOG_NOTICE, "line instance %d\n", line->instance);
+
+	transmit_callstate(session, 1, SCCP_RINGIN, 0);
+	transmit_selectsoftkeys(session, 1, 0, KEYDEF_RINGIN);
+	transmit_lamp_indication(session, STIMULUS_LINE, 1, SCCP_LAMP_BLINK);
+	transmit_ringer_mode(session, SCCP_RING_INSIDE);
+
+	ast_setstate(ast, AST_STATE_RINGING);
+	ast_queue_control(ast, AST_CONTROL_RINGING);
+
+	return 0;
+}
+
+static int sccp_hangup(struct ast_channel *ast)
+{
+	ast_log(LOG_NOTICE, "sccp hangup\n");
+	return 0;
+}
+
+static int sccp_answer(struct ast_channel *ast)
+{
+	ast_log(LOG_NOTICE, "sccp answer\n");
+	return 0;
+}
+
+static struct ast_frame *sccp_read(struct ast_channel *ast)
+{
+	ast_log(LOG_NOTICE, "sccp read\n");
+	return NULL;
+}
+
+static int sccp_write(struct ast_channel *ast, struct ast_frame *frame)
+{
+	ast_log(LOG_NOTICE, "sccp write\n");
+	return 0;
+}
+
+static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, size_t datalen)
+{
+	ast_log(LOG_NOTICE, "sccp indicate\n");
+	return 0;
+}
+
+static int sccp_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
+{
+	ast_log(LOG_NOTICE, "sccp fixup\n");
+	return 0;
+}
+
+static int sccp_senddigit_begin(struct ast_channel *ast, char digit)
+{
+	ast_log(LOG_NOTICE, "sccp senddigit begin\n");
+	return 0;
+}
+
+static int sccp_senddigit_end(struct ast_channel *ast, char digit, unsigned int duration)
+{
+	ast_log(LOG_NOTICE, "sccp senddigit end\n");
+	return 0;
+}
+
 void sccp_server_fini()
 {
 	struct sccp_session *session_itr = NULL;
 
+	ast_channel_unregister(&sccp_tech);
 	int ret;
 
 	ret = pthread_cancel(sccp_srv.thread_accept);
@@ -876,6 +1115,8 @@ int sccp_server_init(void)
 		ast_log(LOG_ERROR, "Failed to listen socket: %s\n", strerror(errno));
 		return -1;
 	}
+
+	ast_channel_register(&sccp_tech);
 
 	ast_pthread_create_background(&sccp_srv.thread_accept, NULL, thread_accept, NULL);
 

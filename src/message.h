@@ -57,7 +57,7 @@ struct station_capabilities {
 	} payloads;
 };
 
-#define SCCP_MAX_CAPABILITIES
+#define SCCP_MAX_CAPABILITIES 18
 struct capabilities_res_message {
 	uint32_t count;
 	struct station_capabilities caps[SCCP_MAX_CAPABILITIES];
@@ -107,6 +107,14 @@ struct start_tone_message {
 struct stop_tone_message {
 	uint32_t instance;
 	uint32_t reference;
+};
+
+#define SET_RINGER_MESSAGE 0x0085
+struct set_ringer_message {
+	uint32_t ringerMode;
+	uint32_t unknown1;
+	uint32_t unknown2;
+	uint32_t space[2];
 };
 
 #define SET_LAMP_MESSAGE 0x0086
@@ -241,6 +249,7 @@ union sccp_data {
 	struct time_date_res_message timedate;
 	struct config_status_res_message configstatus;
 	struct set_lamp_message setlamp;
+	struct set_ringer_message setringer;
 	struct call_state_message callstate;
         struct softkey_set_res_message softkeysets;
 	struct softkey_template_res_message softkeytemplate;

@@ -20,27 +20,6 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #endif
 
 static const char sccp_config[] = "skinny.conf";
-
-static const struct ast_channel_tech sccp_tech = {
-
-	.answer	= NULL,
-	.bridge = NULL,
-	.call = NULL,
-	.capabilities = AST_FORMAT_AUDIO_MASK,
-	.description = "Skinny Client Control Protocol",
-	.devicestate = NULL,
-	.fixup = NULL,
-	.hangup = NULL,
-	.indicate = NULL,
-	.properties = AST_CHAN_TP_WANTSJITTER | AST_CHAN_TP_CREATESJITTER,
-	.requester = NULL,
-	.read = NULL, 
-	.send_digit_begin = NULL,
-	.send_digit_end = NULL,
-	.type = "sccp",
-	.write = NULL,
-};
-
 struct sccp_configs sccp_cfg = {0}; /* global settings */
 
 static int parse_config_devices(struct ast_config *cfg)
@@ -262,15 +241,15 @@ static int load_module(void)
 	int ret = 0;
 	ast_verbose("sccp channel loading...\n");
 
-	/* Make sure we can register our sccp channel type */
+	/* Make sure we can register our sccp channel type
 	if (ast_channel_register(&sccp_tech)) {
 		ast_log(LOG_ERROR, "Unable to register channel type 'sccp'\n");
 		return AST_MODULE_LOAD_FAILURE;
-	}
+	}*/
 
 	ret = config_load();
 	if (ret == -1) {
-		ast_channel_unregister(&sccp_tech);
+		/*ast_channel_unregister(&sccp_tech);*/
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
@@ -278,7 +257,7 @@ static int load_module(void)
 
 	ret = sccp_server_init();
 	if (ret == -1) {
-		ast_channel_unregister(&sccp_tech);
+		/*ast_channel_unregister(&sccp_tech);*/
 		ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -290,7 +269,7 @@ static int unload_module(void)
 {
 	ast_verbose("sccp channel unloading...\n");
 
-	ast_channel_unregister(&sccp_tech);
+	/*ast_channel_unregister(&sccp_tech);*/
 
 	sccp_server_fini();
 	config_unload();

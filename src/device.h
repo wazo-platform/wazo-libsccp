@@ -39,6 +39,11 @@
 #define SCCP_LAMP_FLASH		4
 #define SCCP_LAMP_BLINK		5
 
+#define SCCP_RING_OFF		1
+#define SCCP_RING_INSIDE	2
+#define SCCP_RING_OUTSIDE	3
+#define SCCP_RING_FEATURE	4
+
 #define STIMULUS_REDIAL			0x01
 #define STIMULUS_SPEEDDIAL		0x02
 #define STIMULUS_HOLD			0x03
@@ -233,12 +238,18 @@ struct sccp_line {
 struct sccp_device {
 
 	char name[80];
-	uint8_t registered;
+	int type;
 	uint8_t protoVersion;
+	uint32_t station_port;
+
+	uint8_t registered;
 	uint32_t line_count;
 	uint32_t speeddial_count;
-	uint32_t station_port;
-	int type;
+	uint32_t ast_codec;
+
+	void *session;
+
+	struct sccp_line *active_line;
 	AST_LIST_HEAD(, sccp_line) lines;
 	AST_LIST_ENTRY(sccp_device) list;
 };
