@@ -284,7 +284,7 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 {
 	struct button_definition_template btl[42];
 	int button_count = 0;
-	int line_instance = 0;
+	int line_instance = 1;
 	int speeddial_instance = 0;
 	struct sccp_line *line_itr = NULL;
 	int ret = 0;
@@ -309,7 +309,7 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 				AST_LIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
 					if (line_itr->instance == line_instance) {
 						msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
-						msg->data.buttontemplate.definition[i].instanceNumber = htolel(i+1);
+						msg->data.buttontemplate.definition[i].instanceNumber = htolel(line_instance);
 
 						line_instance++;
 						button_count++;
@@ -600,7 +600,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	line_instance = letohl(msg->data.line.lineNumber);
 	ast_log(LOG_NOTICE, "lineNumber %d\n", line_instance);
 
-	line = device_get_line(session->device, line_instance-1);
+	line = device_get_line(session->device, line_instance);
 	if (line == NULL)
 		return -1;
 

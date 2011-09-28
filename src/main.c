@@ -30,7 +30,7 @@ static int parse_config_devices(struct ast_config *cfg)
 	char *category;
 	int duplicate = 0;
 	int found_line = 0;
-	int line_instance = 0;
+	int line_instance = 1;
 
 	/* get the default settings for the devices */
 	for (var = ast_variable_browse(cfg, "devices"); var != NULL; var = var->next) {
@@ -87,7 +87,7 @@ static int parse_config_devices(struct ast_config *cfg)
 			}
 		}
 		duplicate = 0;
-		line_instance = 0;
+		line_instance = 1;
 		category = ast_category_browse(cfg, category);
 	}
 
