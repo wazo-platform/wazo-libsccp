@@ -91,7 +91,7 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 		ast_log(LOG_ERROR, "Message transmit failed %s\n", strerror(errno));
 	}
 
-	ast_log(LOG_NOTICE, "write %d bytes\n", nbyte);
+	ast_log(LOG_DEBUG, "write %d bytes\n", nbyte);
 	ast_free(msg);
 
 	return nbyte;
@@ -360,7 +360,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	AST_LIST_TRAVERSE(&list_device, device_itr, list) {
 
 		if (!strcasecmp(device_itr->name, msg->data.reg.name)) {
-			ast_log(LOG_NOTICE, "Found device [%s]\n", device_itr->name);
+			ast_log(LOG_DEBUG, "Found device [%s]\n", device_itr->name);
 
 			device_itr->registered = 1;
 			device_itr->protoVersion = letohl(msg->data.reg.protoVersion);
@@ -433,24 +433,24 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	}
 
 	else { 
-		ret = transmit_lamp_indication(session, 1, 1, SCCP_LAMP_ON);
+		ret = transmit_lamp_indication(session, 1, line->instance, SCCP_LAMP_ON);
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_callstate(session, 1, SCCP_OFFHOOK, 1);
+		ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, 0);
 		if (ret == -1)
 			return -1;
 
 
-		ret = transmit_tone(session, SCCP_TONE_DIAL, 1, 0);
+		ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, 0);
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_displaymessage(session, NULL, 1, 0);
+		ret = transmit_displaymessage(session, NULL, line->instance, 0);
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_OFFHOOK);
+		ret = transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_OFFHOOK);
 		if (ret == -1)
 			return -1;
 
@@ -463,16 +463,17 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
+	struct sccp_line *line = session->device->active_line;
 
-	ret = transmit_callstate(session, 1, SCCP_ONHOOK, 0);
+	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, 0);
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
+	ret = transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_ONHOOK);
 	if (ret == -1)
 		return -1;
 
-	ast_queue_hangup(session->device->active_line->channel);
+	ast_queue_hangup(line->channel);
 
 	return 0;
 }
@@ -507,7 +508,8 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
+	/* XXX loop through the lines to set init state */
+	ret = transmit_selectsoftkeys(session, 1, 0, KEYDEF_ONHOOK);
 	if (ret == -1)
 		return -1;
 
@@ -520,7 +522,7 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	int ret = 0;
 
 	instance = letohl(msg->data.forward.lineNumber);
-	ast_log(LOG_NOTICE, "Forward status line %d\n", instance);
+	ast_log(LOG_DEBUG, "Forward status line %d\n", instance);
 
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
 	if (msg == NULL)
@@ -574,7 +576,7 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	int i;
 
 	count = letohl(msg->data.caps.count);
-	ast_log(LOG_NOTICE, "Received %d capabilities\n", count);
+	ast_log(LOG_DEBUG, "Received %d capabilities\n", count);
 
 	if (count > SCCP_MAX_CAPABILITIES) {
 		count = SCCP_MAX_CAPABILITIES;
@@ -598,7 +600,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	int ret = 0;
 
 	line_instance = letohl(msg->data.line.lineNumber);
-	ast_log(LOG_NOTICE, "lineNumber %d\n", line_instance);
+	ast_log(LOG_DEBUG, "lineNumber %d\n", line_instance);
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL)
@@ -609,7 +611,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 
 	msg->data.linestatus.lineNumber = letohl(line_instance);
-	ast_log(LOG_NOTICE, "line name %s\n", line->name);
+	ast_log(LOG_DEBUG, "line name %s\n", line->name);
 
 	memcpy(msg->data.linestatus.lineDirNumber, line->name, sizeof(msg->data.linestatus.lineDirNumber));
 	memcpy(msg->data.linestatus.lineDisplayName, session->device->name, sizeof(msg->data.linestatus.lineDisplayName));
@@ -621,11 +623,11 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 
 	/* foward stat */
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL)                                                                                                                                                                                                                                                                                                                                                                            
+	if (msg == NULL)
 		return -1;
 
 	msg->data.forwardstatus.status = 0;
-	msg->data.forwardstatus.lineNumber = htolel(1);
+	msg->data.forwardstatus.lineNumber = htolel(line_instance);
 	
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -866,7 +868,7 @@ static int fetch_data(struct sccp_session *session)
 
 		/* fetch the field that contain the packet length */
 		nbyte = read(session->sockfd, session->inbuf, 4);
-		ast_log(LOG_NOTICE, "nbyte %d\n", nbyte);
+		ast_log(LOG_DEBUG, "nbyte %d\n", nbyte);
 		if (nbyte < 0) { /* something wrong happend */
 			ast_log(LOG_WARNING, "Failed to read socket: %s\n", strerror(errno));
 			return -1;
@@ -881,7 +883,7 @@ static int fetch_data(struct sccp_session *session)
 		}
 
 		msg_len = letohl(*((int *)session->inbuf));
-		ast_log(LOG_NOTICE, "msg_len %d\n", msg_len);
+		ast_log(LOG_DEBUG, "msg_len %d\n", msg_len);
 		if (msg_len > SCCP_MAX_PACKET_SZ || msg_len < 0) {
 			ast_log(LOG_WARNING, "Packet length is out of bounds: 0 > %d > %d\n", msg_len, SCCP_MAX_PACKET_SZ);
 			return -1;
@@ -889,7 +891,7 @@ static int fetch_data(struct sccp_session *session)
 
 		/* bypass the length field and fetch the payload */
 		nbyte = read(session->sockfd, session->inbuf+4, msg_len+4);
-		ast_log(LOG_NOTICE, "nbyte %d\n", nbyte);
+		ast_log(LOG_DEBUG, "nbyte %d\n", nbyte);
 		if (nbyte < 0) {
 			ast_log(LOG_WARNING, "Failed to read socket: %s\n", strerror(errno));
 			return -1;
@@ -1022,9 +1024,9 @@ static int sccp_call(struct ast_channel *ast, char *dest, int timeout)
 
 	ast_log(LOG_NOTICE, "line instance %d\n", line->instance);
 
-	transmit_callstate(session, 1, SCCP_RINGIN, 0);
-	transmit_selectsoftkeys(session, 0, 0, KEYDEF_RINGIN);
-	transmit_lamp_indication(session, STIMULUS_LINE, 1, SCCP_LAMP_BLINK);
+	transmit_callstate(session, line->instance, SCCP_RINGIN, 0);
+	transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_RINGIN);
+	transmit_lamp_indication(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 
 	transmit_ringer_mode(session, SCCP_RING_INSIDE);
 
