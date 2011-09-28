@@ -21,8 +21,6 @@
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
 
-#define SCCP_MAX_PACKET_SZ 2000
-
 static struct sccp_server {
 
 	int sockfd;
@@ -31,6 +29,9 @@ static struct sccp_server {
 	pthread_t thread_session;
 
 } sccp_srv = {0};
+
+extern struct sccp_configs sccp_cfg; /* global */
+static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 
 static struct ast_channel *sccp_request(const char *type, int format, void *data, int *cause);
 static int sccp_call(struct ast_channel *ast, char *dest, int timeout);
@@ -42,22 +43,6 @@ static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, siz
 static int sccp_fixup(struct ast_channel *oldchan, struct ast_channel *newchan);
 static int sccp_senddigit_begin(struct ast_channel *ast, char digit);
 static int sccp_senddigit_end(struct ast_channel *ast, char digit, unsigned int duration);
-
-struct sccp_session {
-
-	ast_mutex_t lock;
-	pthread_t tid;
-	time_t start_time;
-	int sockfd;
-
-	char *ipaddr;
-	struct sccp_device *device;
-
-	char inbuf[SCCP_MAX_PACKET_SZ];
-	char outbuf[SCCP_MAX_PACKET_SZ];
-
-	AST_LIST_ENTRY(sccp_session) list;
-};
 
 static const struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
@@ -75,133 +60,6 @@ static const struct ast_channel_tech sccp_tech = {
 	.send_digit_begin = sccp_senddigit_begin,
 	.send_digit_end = sccp_senddigit_end,
 };
-
-extern struct sccp_configs sccp_cfg; /* global */
-static AST_LIST_HEAD_STATIC(list_session, sccp_session);
-
-int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
-{
-	ssize_t nbyte;
-
-	memcpy(session->outbuf, msg, 12);
-	memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
-
-	nbyte = write(session->sockfd, session->outbuf, letohl(msg->length)+8);	
-	if (nbyte == -1) {
-		ast_log(LOG_ERROR, "Message transmit failed %s\n", strerror(errno));
-	}
-
-	ast_log(LOG_DEBUG, "write %d bytes\n", nbyte);
-	ast_free(msg);
-
-	return nbyte;
-}
-
-static int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid)
-{
-	struct sccp_msg *msg;
-	int ret = 0;
-
-	msg = msg_alloc(sizeof(struct call_state_message), CALL_STATE_MESSAGE);
-	if (msg == NULL)
-		return -1;
-
-	msg->data.callstate.callState = htolel(state);
-	msg->data.callstate.lineInstance = htolel(instance);
-	msg->data.callstate.callReference = htolel(callid);
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-static int transmit_displaymessage(struct sccp_session *session, const char *text, int instance, int reference)
-{
-	return 0;
-}
-
-static int transmit_tone(struct sccp_session *session, int tone, int instance, int reference)
-{
-	struct sccp_msg *msg = NULL;
-	int ret = 0;
-
-	msg = msg_alloc(sizeof(struct start_tone_message), START_TONE_MESSAGE);
-	if (msg == NULL)
-		return -1;
-
-	msg->data.starttone.tone = htolel(tone);
-	msg->data.starttone.instance = htolel(instance);
-	msg->data.starttone.reference = htolel(reference);
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-static int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication)
-{
-	struct sccp_msg *msg;
-	int ret = 0;
-
-	msg = msg_alloc(sizeof(struct set_lamp_message), SET_LAMP_MESSAGE);
-	if (msg == NULL)
-		return -1;
-
-	msg->data.setlamp.stimulus = htolel(stimulus);
-	msg->data.setlamp.stimulusInstance = htolel(instance);
-	msg->data.setlamp.deviceStimulus = htolel(indication);
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-static int transmit_ringer_mode(struct sccp_session *session, int mode)
-{
-	struct sccp_msg *msg;
-	int ret = 0;
-
-	msg = msg_alloc(sizeof(struct set_ringer_message), SET_RINGER_MESSAGE);
-	if (msg == NULL)
-		return -1;
-
-	msg->data.setringer.ringerMode = htolel(mode);
-	msg->data.setringer.unknown1 = htolel(1);
-	msg->data.setringer.unknown2 = htolel(1);
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-int transmit_selectsoftkeys(struct sccp_session *session, int instance, int callid, int softkey)
-{
-	struct sccp_msg *msg;
-	int ret = 0;
-
-	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
-	if (msg == NULL)
-		return -1;
-
-        msg->data.selectsoftkey.instance = htolel(instance);
-        msg->data.selectsoftkey.reference = htolel(callid);
-        msg->data.selectsoftkey.softKeySetIndex = htolel(softkey);
-        msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
 
 static int handle_softkey_template_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
