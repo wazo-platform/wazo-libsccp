@@ -126,7 +126,16 @@ static int parse_config_lines(struct ast_config *cfg)
 			AST_LIST_INSERT_HEAD(&list_line, line, list);
 
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
-				ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);	
+				ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
+
+				if (!strcasecmp(var->name, "cid_num")) {
+					ast_copy_string(line->cid_num, var->value, sizeof(line->cid_num));
+					continue;
+
+				} else if (!strcasecmp(var->name, "cid_name")) {
+					ast_copy_string(line->cid_name, var->value, sizeof(line->cid_name));
+					continue;
+				}
 			}
 		}
 

@@ -381,25 +381,27 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 	struct ast_channel *channel;
 	int audio_format;
 
-	channel = ast_channel_alloc(1,		/* needqueue */
-					AST_STATE_DOWN,	/* state */
-					"102",		/* cid_num */
-					"billy",	/* cid_name */
-					"code",		/* acctcode */
-					"102",		/* exten */
-					"default",	/* context */
-					0,		/* amaflag */
-					"sccp/%s@%s-%d",/* format */
-					"102",	/* name */
-					"SEPACA016FDF235",	/* name */
-					102);		/* callnums */
+	channel = ast_channel_alloc(	1,			/* needqueue */
+					AST_STATE_DOWN,		/* state */
+					line->cid_num,		/* cid_num */
+					line->cid_name,		/* cid_name */
+					"code",			/* acctcode */
+					"102",			/* exten */
+					"default",		/* context */
+					0,			/* amaflag */
+					"sccp/%s@%s-%d",	/* format */
+					line->name,		/* name */
+					line->device->name,	/* name */
+					1);			/* callnums */
 
 	if (channel == NULL)
 		return NULL;
 
+	line->channel = channel;
+
 	channel->tech = &sccp_tech;
 	channel->tech_pvt = line; /* attach the line */
-	/*channel->nativeformats = device->capability;*/
+	channel->nativeformats = line->device->ast_codec;
 	audio_format = ast_best_codec(line->device->ast_codec);
 
 	channel->writeformat = audio_format;
@@ -412,30 +414,48 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 
 static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	struct sccp_device *device;
+	struct sccp_line *line;
 	struct ast_channel *channel;
 	int ret = 0;
 
-	ret = transmit_lamp_indication(session, 1, 1, SCCP_LAMP_ON);
-	if (ret == -1)
-		return -1;
+	device = session->device;
+	line = device->active_line;
 
-	ret = transmit_callstate(session, 1, SCCP_OFFHOOK, 1);
-	if (ret == -1)
-		return -1;
+	ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 
-	ret = transmit_tone(session, SCCP_TONE_DIAL, 1, 0);
-	if (ret == -1)
-		return -1;
+	if (1) { 
+		ast_queue_control(line->channel, AST_CONTROL_ANSWER);
+		transmit_callstate(session, 1, SCCP_OFFHOOK, 0);
+		transmit_tone(session, SCCP_TONE_SILENCE, 1, 0);
+		transmit_callstate(session, 1, SCCP_CONNECTED, 0);
+		ast_setstate(line->channel, AST_STATE_UP);
+	}
 
-	ret = transmit_displaymessage(session, NULL, 1, 0);
-	if (ret == -1)
-		return -1;
+	else { 
+		ret = transmit_lamp_indication(session, 1, 1, SCCP_LAMP_ON);
+		if (ret == -1)
+			return -1;
 
-	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_OFFHOOK);
-	if (ret == -1)
-		return -1;
+		ret = transmit_callstate(session, 1, SCCP_OFFHOOK, 1);
+		if (ret == -1)
+			return -1;
 
-//	channel = sccp_new_channel(session->device->active_line);
+
+		ret = transmit_tone(session, SCCP_TONE_DIAL, 1, 0);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_displaymessage(session, NULL, 1, 0);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_OFFHOOK);
+		if (ret == -1)
+			return -1;
+
+	//	channel = sccp_new_channel(session->device->active_line);
+	}
 
 	return 0;
 }
@@ -444,13 +464,15 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 {
 	int ret = 0;
 
-	ret = transmit_callstate(session, 1, SCCP_ONHOOK, 1);
+	ret = transmit_callstate(session, 1, SCCP_ONHOOK, 0);
 	if (ret == -1)
 		return -1;
 
 	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
 	if (ret == -1)
 		return -1;
+
+	ast_queue_hangup(session->device->active_line->channel);
 
 	return 0;
 }
@@ -599,7 +621,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 
 	/* foward stat */
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL)                                                                                                                                                                                                                                                                                                                                                                            
 		return -1;
 
 	msg->data.forwardstatus.status = 0;
@@ -977,7 +999,6 @@ static struct ast_channel *sccp_request(const char *type, int format, void *data
 	else
 		ast_log(LOG_NOTICE, "no line found...\n");
 
-
 	channel = sccp_new_channel(line);	
 
 	return channel;
@@ -997,11 +1018,14 @@ static int sccp_call(struct ast_channel *ast, char *dest, int timeout)
 	device = line->device;
 	session = device->session;
 
+	device->active_line = line;
+
 	ast_log(LOG_NOTICE, "line instance %d\n", line->instance);
 
 	transmit_callstate(session, 1, SCCP_RINGIN, 0);
-	transmit_selectsoftkeys(session, 1, 0, KEYDEF_RINGIN);
+	transmit_selectsoftkeys(session, 0, 0, KEYDEF_RINGIN);
 	transmit_lamp_indication(session, STIMULUS_LINE, 1, SCCP_LAMP_BLINK);
+
 	transmit_ringer_mode(session, SCCP_RING_INSIDE);
 
 	ast_setstate(ast, AST_STATE_RINGING);

@@ -229,7 +229,10 @@ struct button_definition_template {
 struct sccp_line {
 
 	char name[80];
+	char cid_num[80];
+	char cid_name[80];
 	int instance;
+	struct ast_channel *channel;
 	struct sccp_device *device;
 	AST_LIST_ENTRY(sccp_line) list;
 	AST_LIST_ENTRY(sccp_line) list_per_device;
