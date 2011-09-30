@@ -1,8 +1,3 @@
 * sccp_new_channel: create new channel using values from line and device
-* use line instance instead of the hard coded version
 * use call-id instead of hardcoded one
 * normalize line instance numbering, do not use offset
-* de-allocate un-used structure and pointers (related to call hangup)
-* refactor the actual code introduced since the last two commits
-  (transmit_ functions should go into message subsystem)
-  etc.
