@@ -61,6 +61,11 @@ static const struct ast_channel_tech sccp_tech = {
 	.send_digit_end = sccp_senddigit_end,
 };
 
+static void set_line_state(struct sccp_line *line, int state)
+{
+	line->state = state;
+}
+
 static int handle_softkey_template_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
@@ -236,8 +241,11 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 {
-	struct ast_channel *channel;
-	int audio_format;
+	struct ast_channel *channel = NULL;
+	int audio_format = 0;
+
+	if (line == NULL)
+		return NULL;
 
 	channel = ast_channel_alloc(	1,			/* needqueue */
 					AST_STATE_DOWN,		/* state */
@@ -255,10 +263,9 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 	if (channel == NULL)
 		return NULL;
 
-	line->channel = channel;
-
 	channel->tech = &sccp_tech;
-	channel->tech_pvt = line; /* attach the line */
+	channel->tech_pvt = line;
+
 	channel->nativeformats = line->device->ast_codec;
 	audio_format = ast_best_codec(line->device->ast_codec);
 
@@ -280,17 +287,22 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	device = session->device;
 	line = device->active_line;
 
-	ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 
-	if (1) { 
+	if (line && line->state == SCCP_RINGIN) {
+
+		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 		ast_queue_control(line->channel, AST_CONTROL_ANSWER);
 		transmit_callstate(session, 1, SCCP_OFFHOOK, 0);
 		transmit_tone(session, SCCP_TONE_SILENCE, 1, 0);
 		transmit_callstate(session, 1, SCCP_CONNECTED, 0);
 		ast_setstate(line->channel, AST_STATE_UP);
-	}
 
-	else { 
+		set_line_state(line, SCCP_CONNECTED);
+
+	} else if (line->state == SCCP_ONHOOK) {
+
+		set_line_state(line, SCCP_OFFHOOK);
+
 		ret = transmit_lamp_indication(session, 1, line->instance, SCCP_LAMP_ON);
 		if (ret == -1)
 			return -1;
@@ -299,22 +311,24 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		if (ret == -1)
 			return -1;
 
-
 		ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, 0);
 		if (ret == -1)
 			return -1;
-
+/*
 		ret = transmit_displaymessage(session, NULL, line->instance, 0);
 		if (ret == -1)
 			return -1;
-
+*/
 		ret = transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_OFFHOOK);
 		if (ret == -1)
 			return -1;
 
 	//	channel = sccp_new_channel(session->device->active_line);
-	}
 
+	} else {
+		ast_log(LOG_NOTICE, "Prev state is %d\n", line->state);
+	}
+	
 	return 0;
 }
 
@@ -322,6 +336,8 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 {
 	int ret = 0;
 	struct sccp_line *line = session->device->active_line;
+
+	set_line_state(line, SCCP_ONHOOK);
 
 	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, 0);
 	if (ret == -1)
@@ -331,7 +347,10 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	if (ret == -1)
 		return -1;
 
-	ast_queue_hangup(line->channel);
+	if (line->channel != NULL) {
+		ast_queue_hangup(line->channel);
+		line->channel = NULL;
+	}
 
 	return 0;
 }
@@ -367,7 +386,7 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 
 	/* XXX loop through the lines to set init state */
-	ret = transmit_selectsoftkeys(session, 1, 0, KEYDEF_ONHOOK);
+	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
 	if (ret == -1)
 		return -1;
 
@@ -840,63 +859,110 @@ static void *thread_accept(void *data)
 	}
 }
 
-static struct ast_channel *sccp_request(const char *type, int format, void *data, int *cause)
+static struct ast_channel *sccp_request(const char *type, int format, void *destination, int *cause)
 {
-	struct sccp_line *line = NULL;
-	struct ast_channel *channel = NULL;
-	
 	ast_log(LOG_NOTICE, "sccp request\n");
 
+	struct sccp_line *line = NULL;
+	struct ast_channel *channel = NULL;
+
+	
 	ast_log(LOG_NOTICE, "type: %s\n"
 				"format: %d\n"
-				"data: %s\n"
+				"destination: %s\n"
 				"cause: %d\n",
-				type, format, data, *cause);
+				type, format, destination, *cause);
 
-	line = find_line_by_name(data);
-	if (line != NULL)
-		ast_log(LOG_NOTICE, "line name %s\n", line->name);
-	else
-		ast_log(LOG_NOTICE, "no line found...\n");
+	line = find_line_by_name(destination);
+
+	if (line == NULL) {
+		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", destination);
+		return NULL;
+	}
 
 	channel = sccp_new_channel(line);	
 
 	return channel;
 }
 
-static int sccp_call(struct ast_channel *ast, char *dest, int timeout)
+static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 {
+	ast_log(LOG_NOTICE, "sccp call\n");
+
 	struct sccp_line *line = NULL;
 	struct sccp_device *device = NULL;
 	struct sccp_session *session = NULL;
 
 	ast_log(LOG_NOTICE, "skinny call\n");
-	ast_log(LOG_NOTICE, "ast->lid.lid_name: %s\n", ast->lid.lid_name);
-	ast_log(LOG_NOTICE, "ast->lid.lid_num: %s\n", ast->lid.lid_num);
+	ast_log(LOG_NOTICE, "channel->lid.lid_name: %s\n", channel->lid.lid_name);
+	ast_log(LOG_NOTICE, "channel->lid.lid_num: %s\n", channel->lid.lid_num);
 
-	line = ast->tech_pvt;
+	line = channel->tech_pvt;
 	device = line->device;
 	session = device->session;
 
-	device->active_line = line;
+	if (line->state != SCCP_ONHOOK) {
+		channel->hangupcause = AST_CONTROL_BUSY;
+		ast_setstate(channel, AST_CONTROL_BUSY);
+		ast_queue_control(channel, AST_CONTROL_BUSY);
+		return 0;
+	}
 
-	ast_log(LOG_NOTICE, "line instance %d\n", line->instance);
+	device->active_line = line;
+	line->channel = channel;
 
 	transmit_callstate(session, line->instance, SCCP_RINGIN, 0);
 	transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_RINGIN);
 	transmit_lamp_indication(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
-
 	transmit_ringer_mode(session, SCCP_RING_INSIDE);
 
-	ast_setstate(ast, AST_STATE_RINGING);
-	ast_queue_control(ast, AST_CONTROL_RINGING);
+	set_line_state(line, SCCP_RINGIN);
+	ast_setstate(channel, AST_STATE_RINGING);
+	ast_queue_control(channel, AST_CONTROL_RINGING);
 
 	return 0;
 }
 
-static int sccp_hangup(struct ast_channel *ast)
+static int sccp_hangup(struct ast_channel *channel)
 {
 	ast_log(LOG_NOTICE, "sccp hangup\n");
+	
+	struct sccp_line *line = NULL;
+	int ret = 0;
+
+	line = channel->tech_pvt;
+	if (line == NULL)
+		return NULL;
+
+	if (line->state == SCCP_RINGIN) {
+
+		ret = transmit_lamp_indication(line->device->session, 1, line->instance, SCCP_LAMP_OFF);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_callstate(line->device->session, line->instance, SCCP_ONHOOK, 0);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_tone(line->device->session, SCCP_TONE_SILENCE, line->instance, 0);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_selectsoftkeys(line->device->session, line->instance, 0, KEYDEF_ONHOOK);
+		if (ret == -1)
+			return -1;
+
+		if (line->channel != NULL) {
+			ast_queue_hangup(line->channel);
+			line->channel = NULL;
+		}
+	}
+
+	ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
+
+	set_line_state(line, SCCP_ONHOOK);
+	channel->tech_pvt = NULL;
+	
 	return 0;
 }
 

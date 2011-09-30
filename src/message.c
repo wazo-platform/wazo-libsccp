@@ -42,7 +42,7 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	return nbyte;
 }
 
-static int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid)
+int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid)
 {
 	struct sccp_msg *msg;
 	int ret = 0;
@@ -62,12 +62,12 @@ static int transmit_callstate(struct sccp_session *session, int instance, int st
 	return 0;
 }
 
-static int transmit_displaymessage(struct sccp_session *session, const char *text, int instance, int reference)
+int transmit_displaymessage(struct sccp_session *session, const char *text, int instance, int reference)
 {
 	return 0;
 }
 
-static int transmit_tone(struct sccp_session *session, int tone, int instance, int reference)
+int transmit_tone(struct sccp_session *session, int tone, int instance, int reference)
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
@@ -87,7 +87,7 @@ static int transmit_tone(struct sccp_session *session, int tone, int instance, i
 	return 0;
 }
 
-static int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication)
+int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication)
 {
 	struct sccp_msg *msg;
 	int ret = 0;
@@ -107,7 +107,7 @@ static int transmit_lamp_indication(struct sccp_session *session, int stimulus, 
 	return 0;
 }
 
-static int transmit_ringer_mode(struct sccp_session *session, int mode)
+int transmit_ringer_mode(struct sccp_session *session, int mode)
 {
 	struct sccp_msg *msg;
 	int ret = 0;

@@ -232,6 +232,7 @@ struct sccp_line {
 	char cid_num[80];
 	char cid_name[80];
 	int instance;
+	int state;
 	struct ast_channel *channel;
 	struct sccp_device *device;
 	AST_LIST_ENTRY(sccp_line) list;
