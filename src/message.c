@@ -3,14 +3,16 @@
 
 #include <asterisk.h>
 #include <asterisk/utils.h>
+#include <asterisk/rtp.h>
 
+#include "device.h"
 #include "message.h"
 #include "sccp.h"
 #include "utils.h"
 
 struct sccp_msg *msg_alloc(size_t data_length, int message_id)
 {
-	struct sccp_msg *msg;
+	struct sccp_msg *msg = NULL;
 
 	msg = ast_calloc(1, 12 + 4 + data_length);	
 	if (msg == NULL) {
@@ -26,7 +28,7 @@ struct sccp_msg *msg_alloc(size_t data_length, int message_id)
 
 int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	ssize_t nbyte;
+	ssize_t nbyte = 0;
 
 	memcpy(session->outbuf, msg, 12);
 	memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
@@ -42,9 +44,57 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	return nbyte;
 }
 
+int transmit_connect(struct sccp_line *line)
+{
+	struct ast_format_list fmt = {0};
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	/* FIXME `fmt' must be per device */
+	struct ast_codec_pref default_prefs;
+	ast_parse_allow_disallow(&default_prefs, &line->device->ast_codec, "all", 1);
+	fmt = ast_codec_pref_getsize(&default_prefs, ast_best_codec(line->device->ast_codec));
+
+	if (line->device->protoVersion >= 17) {
+
+		msg = msg_alloc(sizeof(struct open_receive_channel_message_v17), OPEN_RECEIVE_CHANNEL_MESSAGE);
+		if (msg == NULL)
+			return -1;
+
+		msg->data.openreceivechannel_v17.conferenceId = htolel(0);
+		msg->data.openreceivechannel_v17.partyId = htolel(0);
+		msg->data.openreceivechannel_v17.packets = htolel(fmt.cur_ms);
+		msg->data.openreceivechannel_v17.capability = htolel(codec_ast2sccp(fmt.bits));
+		msg->data.openreceivechannel_v17.echo = htolel(0);
+		msg->data.openreceivechannel_v17.bitrate = htolel(0);
+		msg->data.openreceivechannel_v17.conferenceId1 = htolel(0);
+		msg->data.openreceivechannel_v17.rtpTimeout = htolel(0);
+		msg->data.openreceivechannel_v17.unknown2 = htolel(4000);
+
+	} else {
+
+		msg = msg_alloc(sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
+		if (msg == NULL)
+			return -1;
+
+		msg->data.openreceivechannel.conferenceId = htolel(0);
+		msg->data.openreceivechannel.partyId = htolel(0);
+		msg->data.openreceivechannel.packets = htolel(fmt.cur_ms);
+		msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(fmt.bits));
+		msg->data.openreceivechannel.echo = htolel(0);
+		msg->data.openreceivechannel.bitrate = htolel(0);
+	}
+
+	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid)
 {
-	struct sccp_msg *msg;
+	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
 	msg = msg_alloc(sizeof(struct call_state_message), CALL_STATE_MESSAGE);
@@ -89,7 +139,7 @@ int transmit_tone(struct sccp_session *session, int tone, int instance, int refe
 
 int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication)
 {
-	struct sccp_msg *msg;
+	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
 	msg = msg_alloc(sizeof(struct set_lamp_message), SET_LAMP_MESSAGE);
@@ -109,7 +159,7 @@ int transmit_lamp_indication(struct sccp_session *session, int stimulus, int ins
 
 int transmit_ringer_mode(struct sccp_session *session, int mode)
 {
-	struct sccp_msg *msg;
+	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
 	msg = msg_alloc(sizeof(struct set_ringer_message), SET_RINGER_MESSAGE);
@@ -129,7 +179,7 @@ int transmit_ringer_mode(struct sccp_session *session, int mode)
 
 int transmit_selectsoftkeys(struct sccp_session *session, int instance, int callid, int softkey)
 {
-	struct sccp_msg *msg;
+	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
 	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);

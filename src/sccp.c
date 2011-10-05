@@ -2,6 +2,7 @@
 #include <asterisk/channel.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/poll-compat.h>
+#include <asterisk/rtp.h>
 #include <asterisk/utils.h>
 
 #include <netinet/tcp.h>
@@ -20,15 +21,6 @@
 
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
-
-static struct sccp_server {
-
-	int sockfd;
-	struct addrinfo *res;
-	pthread_t thread_accept;
-	pthread_t thread_session;
-
-} sccp_srv = {0};
 
 extern struct sccp_configs sccp_cfg; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
@@ -113,7 +105,7 @@ static int handle_config_status_req_message(struct sccp_msg *msg, struct sccp_se
 
 static int handle_time_date_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	time_t now;
+	time_t now = 0;
 	struct tm *cmtime = NULL;
 	int ret = 0;
 
@@ -145,19 +137,18 @@ static int handle_time_date_req_message(struct sccp_msg *msg, struct sccp_sessio
 
 static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct button_definition_template btl[42];
+	struct button_definition_template btl[42] = {0};
 	int button_count = 0;
 	int line_instance = 1;
 	int speeddial_instance = 0;
 	struct sccp_line *line_itr = NULL;
 	int ret = 0;
-	int i;
+	int i = 0;
 
 	msg = msg_alloc(sizeof(struct button_template_res_message), BUTTON_TEMPLATE_RES_MESSAGE);
 	if (msg == NULL)
 		return -1;
 
-	memset(&btl, 0, sizeof(btl));
 	ret = device_get_button_template(session->device, btl);
 	if (ret == -1)
 		return -1;
@@ -217,7 +208,7 @@ static int handle_keep_alive_message(struct sccp_msg *msg, struct sccp_session *
 
 static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_device *device_itr;
+	struct sccp_device *device_itr = NULL;
 	int device_found = 0;
 
 	AST_LIST_TRAVERSE(&list_device, device_itr, list) {
@@ -247,6 +238,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 	if (line == NULL)
 		return NULL;
 
+	/* FIXME replace hardcoded values */
 	channel = ast_channel_alloc(	1,			/* needqueue */
 					AST_STATE_DOWN,		/* state */
 					line->cid_num,		/* cid_num */
@@ -277,26 +269,54 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 	return channel;
 }
 
+/* FIXME doesn't belong here */
+static struct sched_context *sched = NULL;
+static struct io_conext *io;
+
+static void start_rtp(struct sccp_line *line)
+{
+	struct sockaddr_in *addr = sccp_srv.res->ai_addr;
+	struct ast_codec_pref default_prefs = {0};
+	struct sccp_session *session = NULL;
+	
+	session = line->device->session;
+	ast_parse_allow_disallow(&default_prefs, &line->device->ast_codec, "all", 1);
+	line->rtp = ast_rtp_new_with_bindaddr(sched, io, 1, 0, addr->sin_addr);
+
+	ast_log(LOG_NOTICE, "line->rtp %p\n", line->rtp);
+	ast_log(LOG_NOTICE, "line->channel %p\n", line->channel);
+
+	line->channel->fds[0] = ast_rtp_fd(line->rtp);
+	line->channel->fds[1] = ast_rtcp_fd(line->rtp);
+
+	ast_rtp_setnat(line->rtp, 0);
+	ast_rtp_codec_setpref(line->rtp, &default_prefs);
+
+	transmit_connect(line);
+}
+
 static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_device *device;
-	struct sccp_line *line;
-	struct ast_channel *channel;
+	struct sccp_device *device = NULL;
+	struct sccp_line *line = NULL;
+	struct ast_channel *channel = NULL;
 	int ret = 0;
 
 	device = session->device;
 	line = device->active_line;
 
+	ast_log(LOG_NOTICE, "active line %s\n", line->name);
 
 	if (line && line->state == SCCP_RINGIN) {
 
 		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 		ast_queue_control(line->channel, AST_CONTROL_ANSWER);
-		transmit_callstate(session, 1, SCCP_OFFHOOK, 0);
-		transmit_tone(session, SCCP_TONE_SILENCE, 1, 0);
-		transmit_callstate(session, 1, SCCP_CONNECTED, 0);
+		transmit_callstate(session, line->instance, SCCP_OFFHOOK, 0);
+		transmit_tone(session, SCCP_TONE_SILENCE, line->instance, 0);
+		transmit_callstate(session, line->instance, SCCP_CONNECTED, 0);
+		start_rtp(line);
 		ast_setstate(line->channel, AST_STATE_UP);
-
+		
 		set_line_state(line, SCCP_CONNECTED);
 
 	} else if (line->state == SCCP_ONHOOK) {
@@ -334,10 +354,13 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int ret = 0;
 	struct sccp_line *line = session->device->active_line;
+	int ret = 0;
 
 	set_line_state(line, SCCP_ONHOOK);
+
+	if (line == line->device->active_line)
+		line->device->active_line = line->device->default_line;
 
 	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, 0);
 	if (ret == -1)
@@ -358,8 +381,9 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	const struct softkey_definitions *softkeymode = softkey_default_definitions;
-	int keyset_count;
-	int i, j;
+	int keyset_count = 0;
+	int i = 0;
+	int j = 0;
 	int ret = 0;
 
 	msg = msg_alloc(sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
@@ -395,7 +419,7 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 
 static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	uint32_t instance;
+	uint32_t instance = 0;
 	int ret = 0;
 
 	instance = letohl(msg->data.forward.lineNumber);
@@ -425,6 +449,28 @@ enum sccp_codecs {
 	SCCP_CODEC_H263 = 101
 };
 
+int codec_ast2sccp(int astcodec)
+{
+        switch (astcodec) {
+        case AST_FORMAT_ALAW:
+                return SCCP_CODEC_ALAW;
+        case AST_FORMAT_ULAW:
+                return SCCP_CODEC_ULAW;
+        case AST_FORMAT_G723_1:
+                return SCCP_CODEC_G723_1;
+        case AST_FORMAT_G729A:
+                return SCCP_CODEC_G729A;
+        case AST_FORMAT_G726_AAL2: /* XXX Is this right? */
+                return SCCP_CODEC_G726_32;
+        case AST_FORMAT_H261:
+                return SCCP_CODEC_H261;
+        case AST_FORMAT_H263:
+                return SCCP_CODEC_H263;
+        default:
+                return 0;
+        }
+}
+
 static int codec_sccp2ast(enum sccp_codecs sccp_codec)
 {
 	switch (sccp_codec) {
@@ -447,10 +493,10 @@ static int codec_sccp2ast(enum sccp_codecs sccp_codec)
 
 static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	uint32_t count = 0;
+	int count = 0;
 	int ast_codec = 0;
 	int sccp_codec = 0;
-	int i;
+	int i = 0;
 
 	count = letohl(msg->data.caps.count);
 	ast_log(LOG_DEBUG, "Received %d capabilities\n", count);
@@ -466,6 +512,87 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	}
 
 	session->device->ast_codec = ast_codec;
+
+	return 0;
+}
+
+static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	struct sccp_line *line = NULL;
+	struct ast_format_list fmt = {0};
+	struct sockaddr_in sin = {0};
+	struct sockaddr_in us = {0};
+	uint32_t addr = 0;
+	uint32_t port = 0;
+	uint32_t passthruid = 0;
+	int ret = 0;
+
+	line = session->device->active_line;
+/*
+	if (line->device->protoVersion >= 17) {
+		addr = letohl(msg->data.openreceivechannelack_v17.ipAddr[0]);
+		port = letohl(msg->data.openreceivechannelack_v17.port);
+		passthruid = letohl(msg->data.openreceivechannelack_v17.passThruId);
+
+	} else {
+*/
+		addr = letohl(msg->data.openreceivechannelack.ipAddr);
+		port = letohl(msg->data.openreceivechannelack.port);
+		passthruid = letohl(msg->data.openreceivechannelack.passThruId);
+//	}
+
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = addr;
+	sin.sin_port = htons(port);
+
+	ast_rtp_set_peer(line->rtp, &sin);
+	ast_rtp_get_us(line->rtp, &us);
+
+	ast_log(LOG_NOTICE, "ipaddr %s:%d\n", ast_inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+
+	/* FIXME `fmt' per device */
+	struct ast_codec_pref default_prefs;
+	fmt = ast_codec_pref_getsize(&default_prefs, ast_best_codec(line->device->ast_codec));
+/*
+	if (line->device->protoVersion >= 17) {
+
+		msg = msg_alloc(sizeof(struct start_media_transmission_message_v17), START_MEDIA_TRANSMISSION_MESSAGE);
+		if (msg == NULL)
+			return -1;
+
+		msg->data.startmedia_v17.conferenceId = htolel(0);
+		msg->data.startmedia_v17.passThruPartyId = htolel(0);
+		msg->data.startmedia_v17.conferenceId1 = htolel(0);
+		msg->data.startmedia_v17.remoteIp[0] = htolel(us.sin_addr.s_addr);
+		msg->data.startmedia_v17.remotePort = htolel(ntohs(us.sin_port));
+		msg->data.startmedia_v17.packetSize = htolel(fmt.cur_ms);
+		msg->data.startmedia_v17.payloadType = htolel(codec_ast2sccp(fmt.bits));
+		msg->data.startmedia_v17.qualifier.precedence = htolel(127);
+		msg->data.startmedia_v17.qualifier.vad = htolel(0);
+		msg->data.startmedia_v17.qualifier.packets = htolel(0);
+		msg->data.startmedia_v17.qualifier.bitRate = htolel(0);
+
+	} else {
+*/
+		msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
+		if (msg == NULL)
+			return -1;
+
+		msg->data.startmedia.conferenceId = htolel(0);
+		msg->data.startmedia.passThruPartyId = htolel(0);
+		msg->data.startmedia.remoteIp = htolel(us.sin_addr.s_addr);
+		msg->data.startmedia.remotePort = htolel(ntohs(us.sin_port));
+		msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
+		msg->data.startmedia.payloadType = htolel(codec_ast2sccp(fmt.bits));
+		msg->data.startmedia.qualifier.precedence = htolel(127);
+		msg->data.startmedia.qualifier.vad = htolel(0);
+		msg->data.startmedia.qualifier.packets = htolel(0);
+		msg->data.startmedia.qualifier.bitRate = htolel(0);
+//	}
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
 
 	return 0;
 }
@@ -694,6 +821,11 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 			ast_log(LOG_NOTICE, "Alarm message: %s\n", msg->data.alarm.displayMessage);
 			break;
 
+		case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
+			ast_log(LOG_NOTICE, "Open receive channel ack message\n");
+			ret = handle_open_receive_channel_ack_message(msg, session);
+			break;
+
 		case SOFTKEY_SET_REQ_MESSAGE:
 			ast_log(LOG_NOTICE, "Softkey set request message\n");
 			ret = handle_softkey_set_req_message(msg, session);
@@ -711,7 +843,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 static int fetch_data(struct sccp_session *session)
 {
-	struct pollfd fds[1];
+	struct pollfd fds[1] = {0};
 	int nfds = 0;
 	time_t now = 0;
 	ssize_t nbyte = 0;
@@ -787,7 +919,7 @@ static int fetch_data(struct sccp_session *session)
 static void *thread_session(void *data)
 {
 	struct sccp_session *session = data;
-	struct sccp_msg *msg;
+	struct sccp_msg *msg = NULL;
 	int connected = 1;
 	int ret = 0;
 
@@ -817,12 +949,11 @@ static void *thread_session(void *data)
 
 static void *thread_accept(void *data)
 {
-	int new_sockfd;
-	struct sockaddr_in addr;
+	int new_sockfd = 0;
+	struct sockaddr_in addr = {0};
 	struct sccp_session *session = NULL;
-	socklen_t addrlen;
+	socklen_t addrlen = 0;
 	int flag_nodelay = 1;
-	data = NULL;
 
 	while (1) {
 
@@ -831,7 +962,7 @@ static void *thread_accept(void *data)
 		if (new_sockfd == -1) {
 			ast_log(LOG_ERROR, "Failed to accept new connection: %s... "
 						"the main thread is going down now\n", strerror(errno));
-			return;
+			return NULL;
 		}
 
 		/* send multiple buffers as individual packets */
@@ -871,12 +1002,12 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 				"format: %d\n"
 				"destination: %s\n"
 				"cause: %d\n",
-				type, format, destination, *cause);
+				type, format, (char *)destination, *cause);
 
-	line = find_line_by_name(destination);
+	line = find_line_by_name((char *)destination);
 
 	if (line == NULL) {
-		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", destination);
+		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", (char *)destination);
 		return NULL;
 	}
 
@@ -898,6 +1029,9 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	ast_log(LOG_NOTICE, "channel->lid.lid_num: %s\n", channel->lid.lid_num);
 
 	line = channel->tech_pvt;
+	if (line == NULL)
+		return -1;
+
 	device = line->device;
 	session = device->session;
 
@@ -908,13 +1042,17 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 		return 0;
 	}
 
-	device->active_line = line;
+	if (device->active_line == device->default_line
+		|| device->active_line == NULL) {
+		device->active_line = line;
+	}
+
 	line->channel = channel;
 
 	transmit_callstate(session, line->instance, SCCP_RINGIN, 0);
 	transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_RINGIN);
 	transmit_lamp_indication(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
-	transmit_ringer_mode(session, SCCP_RING_INSIDE);
+ 	transmit_ringer_mode(session, SCCP_RING_INSIDE);
 
 	set_line_state(line, SCCP_RINGIN);
 	ast_setstate(channel, AST_STATE_RINGING);
@@ -932,7 +1070,7 @@ static int sccp_hangup(struct ast_channel *channel)
 
 	line = channel->tech_pvt;
 	if (line == NULL)
-		return NULL;
+		return -1;
 
 	if (line->state == SCCP_RINGIN) {
 
@@ -959,8 +1097,11 @@ static int sccp_hangup(struct ast_channel *channel)
 	}
 
 	ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
-
 	set_line_state(line, SCCP_ONHOOK);
+
+	if (line == line->device->active_line)
+		line->device->active_line = line->device->default_line;
+
 	channel->tech_pvt = NULL;
 	
 	return 0;
@@ -972,16 +1113,49 @@ static int sccp_answer(struct ast_channel *ast)
 	return 0;
 }
 
-static struct ast_frame *sccp_read(struct ast_channel *ast)
+static struct ast_frame *sccp_read(struct ast_channel *channel)
 {
 	ast_log(LOG_NOTICE, "sccp read\n");
-	return NULL;
+
+	struct ast_frame *frame = NULL;
+	struct sccp_line *line = NULL;
+
+	/* XXX check all frame type */
+	line = channel->tech_pvt;
+	
+	switch (channel->fdno) {
+	case 0:
+		frame = ast_rtp_read(line->rtp);
+		break;
+
+	case 1:
+		frame = ast_rtcp_read(line->rtp);
+		break;
+
+	default:
+		frame = &ast_null_frame;
+	}
+
+	if (frame->frametype == AST_FRAME_VOICE) {
+		if (frame->subclass != channel->nativeformats) {
+			channel->nativeformats = frame->subclass;
+			ast_set_read_format(channel, channel->readformat);
+			ast_set_write_format(channel, channel->writeformat);
+		}
+	}
+
+	return frame;
 }
 
-static int sccp_write(struct ast_channel *ast, struct ast_frame *frame)
+static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 {
-	ast_log(LOG_NOTICE, "sccp write\n");
-	return 0;
+	int res = 0;
+	struct sccp_line *line = channel->tech_pvt; 
+	
+	res = ast_rtp_write(line->rtp, frame);
+	ast_log(LOG_NOTICE, "sccp write %d [%d]\n", res, frame->datalen);
+
+	return res;
 }
 
 static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, size_t datalen)
@@ -1011,9 +1185,10 @@ static int sccp_senddigit_end(struct ast_channel *ast, char digit, unsigned int 
 void sccp_server_fini()
 {
 	struct sccp_session *session_itr = NULL;
-
-	ast_channel_unregister(&sccp_tech);
 	int ret;
+
+	/* FIXME doesn't belong here */
+	ast_channel_unregister(&sccp_tech);
 
 	ret = pthread_cancel(sccp_srv.thread_accept);
 	ret = pthread_kill(sccp_srv.thread_accept, SIGURG);
@@ -1040,9 +1215,9 @@ void sccp_server_fini()
 
 int sccp_server_init(void)
 {
-	int ret = 0;
+	struct addrinfo hints = {0};
 	const int flag_reuse = 1;
-	struct addrinfo hints;
+	int ret = 0;
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET;
@@ -1066,6 +1241,7 @@ int sccp_server_init(void)
 		return -1;
 	}
 
+	/* FIXME doesn't belong here */
 	ast_channel_register(&sccp_tech);
 
 	ast_pthread_create_background(&sccp_srv.thread_accept, NULL, thread_accept, NULL);

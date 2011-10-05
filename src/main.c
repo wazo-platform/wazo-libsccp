@@ -66,14 +66,16 @@ static int parse_config_devices(struct ast_config *cfg)
 							/* we found a line */
 							if (line_itr->device == NULL) {
 
+								/* initialize the line instance */
 								AST_LIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
 								line_itr->state = SCCP_ONHOOK;
 								line_itr->instance = line_instance++;
 								device->line_count++;
 								line_itr->device = device;
-
+								
+								/* set the device default line */
 								if (line_itr->instance == 1)
-									device->active_line = line_itr;
+									device->default_line = line_itr;
 
 							} else {
 								ast_log(LOG_WARNING, "Line [%s] is already attach to device [%s]\n",

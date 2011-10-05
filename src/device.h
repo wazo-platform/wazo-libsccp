@@ -231,10 +231,14 @@ struct sccp_line {
 	char name[80];
 	char cid_num[80];
 	char cid_name[80];
+
 	int instance;
 	int state;
+
+	struct ast_rtp *rtp;
 	struct ast_channel *channel;
 	struct sccp_device *device;
+
 	AST_LIST_ENTRY(sccp_line) list;
 	AST_LIST_ENTRY(sccp_line) list_per_device;
 };
@@ -253,6 +257,7 @@ struct sccp_device {
 
 	void *session;
 
+	struct sccp_line *default_line;
 	struct sccp_line *active_line;
 	AST_LIST_HEAD(, sccp_line) lines;
 	AST_LIST_ENTRY(sccp_device) list;
@@ -264,9 +269,9 @@ AST_LIST_HEAD(list_device, sccp_device);
 extern struct list_line list_line;	/* global */
 extern struct list_device list_device;	/* global */
 
-int device_get_button_template(struct sccp_device *device,
-							   struct button_definition_template *btl);
+int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl);
 struct sccp_line *device_get_line(struct sccp_device *device, int instance);
 int device_type_is_supported(int device_type);
+struct sccp_line *find_line_by_name(char *name);
 
 #endif /* SCCP_DEVICE_H */

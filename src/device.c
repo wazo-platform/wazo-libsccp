@@ -46,8 +46,8 @@ int device_type_is_supported(int device_type)
 
 int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl)
 {
-	int i;
 	int err = 0;
+	int i = 0;
 
 	ast_log(LOG_NOTICE, "device type %d\n", device->type);
 

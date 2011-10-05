@@ -6,6 +6,15 @@
 #define SCCP_DEFAULT_AUTH_TIMEOUT 30
 #define SCCP_MAX_PACKET_SZ 2000
 
+static struct sccp_server {
+
+	int sockfd;
+	struct addrinfo *res;
+	pthread_t thread_accept;
+	pthread_t thread_session;
+
+} sccp_srv = {{0}};
+
 struct sccp_configs {
 
 	char *bindaddr;
@@ -30,6 +39,7 @@ struct sccp_session {
 	AST_LIST_ENTRY(sccp_session) list;
 };
 
+int codec_ast2sccp(int);
 int sccp_server_init(void);
 
 #endif /* SCCP */
