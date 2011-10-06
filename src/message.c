@@ -44,6 +44,46 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	return nbyte;
 }
 
+int transmit_close_receive_channel(struct sccp_line *line)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct close_receive_channel_message), CLOSE_RECEIVE_CHANNEL_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.closereceivechannel.conferenceId = htolel(0);
+	msg->data.closereceivechannel.partyId = htolel(line->callid ^ 0xFFFFFFFF);
+	msg->data.closereceivechannel.conferenceId1 = htolel(0);
+
+	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_stop_media_transmission(struct sccp_line *line)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;	
+
+	msg = msg_alloc(sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.stopmedia.conferenceId = htolel(0);
+	msg->data.stopmedia.partyId = htolel(line->callid ^ 0xFFFFFFFF);
+	msg->data.stopmedia.conferenceId1 = htolel(0); 
+ 
+	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_connect(struct sccp_line *line)
 {
 	struct ast_format_list fmt = {0};
@@ -55,6 +95,10 @@ int transmit_connect(struct sccp_line *line)
 	ast_parse_allow_disallow(&default_prefs, &line->device->ast_codec, "all", 1);
 	fmt = ast_codec_pref_getsize(&default_prefs, ast_best_codec(line->device->ast_codec));
 
+	ast_log(LOG_NOTICE, "callid %d\n", line->callid);
+	ast_log(LOG_NOTICE, "size struct %d\n", sizeof(struct open_receive_channel_message_v17));
+	ast_log(LOG_NOTICE, "size struct %d\n", sizeof(struct open_receive_channel_message));
+/*
 	if (line->device->protoVersion >= 17) {
 
 		msg = msg_alloc(sizeof(struct open_receive_channel_message_v17), OPEN_RECEIVE_CHANNEL_MESSAGE);
@@ -72,18 +116,20 @@ int transmit_connect(struct sccp_line *line)
 		msg->data.openreceivechannel_v17.unknown2 = htolel(4000);
 
 	} else {
-
+*/
 		msg = msg_alloc(sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
 		if (msg == NULL)
 			return -1;
 
 		msg->data.openreceivechannel.conferenceId = htolel(0);
-		msg->data.openreceivechannel.partyId = htolel(0);
+		msg->data.openreceivechannel.partyId = htolel(line->callid ^ 0xFFFFFFFF);
 		msg->data.openreceivechannel.packets = htolel(fmt.cur_ms);
 		msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(fmt.bits));
 		msg->data.openreceivechannel.echo = htolel(0);
 		msg->data.openreceivechannel.bitrate = htolel(0);
-	}
+		msg->data.openreceivechannel.conferenceId1 = htolel(0);
+		msg->data.openreceivechannel.rtpTimeout = htolel(10);
+//	}
 
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
 	if (ret == -1)

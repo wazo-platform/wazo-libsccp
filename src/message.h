@@ -144,6 +144,14 @@ struct set_lamp_message {
 	uint32_t deviceStimulus;
 };
 
+#define STOP_MEDIA_TRANSMISSION_MESSAGE 0x008B
+struct stop_media_transmission_message {
+	uint32_t conferenceId;
+	uint32_t partyId;
+	uint32_t conferenceId1;
+	uint32_t unknown1;
+};
+
 #define START_MEDIA_TRANSMISSION_MESSAGE 0x008A
 struct media_qualifier {
 	uint32_t precedence;
@@ -160,7 +168,12 @@ struct start_media_transmission_message {
 	uint32_t packetSize;
 	uint32_t payloadType;
 	struct media_qualifier qualifier;
-	uint32_t space[16];
+	uint32_t conferenceId1;
+	uint32_t space[14];
+	uint32_t rtpDtmfPayload;
+	uint32_t rtpTimeout;
+	uint32_t mixingMode;
+	uint32_t mixingParty;
 };
 
 struct start_media_transmission_message_v17 {
@@ -253,7 +266,31 @@ struct open_receive_channel_message {
 	uint32_t capability;
 	uint32_t echo;
 	uint32_t bitrate;
-	uint32_t space[16];
+
+	uint32_t conferenceId1;
+
+	uint32_t unknown1;
+	uint32_t unknown2;
+	uint32_t unknown3;
+	uint32_t unknown4;
+	uint32_t unknown5;
+	uint32_t unknown6;
+	uint32_t unknown7;
+	uint32_t unknown8;
+	uint32_t unknown9;
+	uint32_t unknown10;
+
+	uint32_t unknown11;
+	uint32_t unknown12;
+	uint32_t unknown13;
+	uint32_t unknown14;
+	uint32_t rtpDtmfPayload;
+	uint32_t rtpTimeout;
+
+	uint32_t mixingMode;
+	uint32_t mixingParty;
+	char IpAddr[16];
+	uint32_t unknown17;
 };
 
 struct open_receive_channel_message_v17 {
@@ -266,15 +303,36 @@ struct open_receive_channel_message_v17 {
 	uint32_t bitrate;
 	
 	uint32_t conferenceId1;
-	uint32_t space[14];
+	uint32_t unknowna1;
+	uint32_t unknowna2;
+	uint32_t unknowna3;
+	uint32_t unknowna4;
+	uint32_t unknowna5;
+	uint32_t unknowna6;
+	uint32_t unknowna7;
+	uint32_t unknowna8;
+	uint32_t unknowna9;
+	uint32_t unknown10;
+	uint32_t unknown11;
+	uint32_t unknown12;
+	uint32_t unknown13;
+	uint32_t unknown14;
+
 	uint32_t rtpDtmfPayload;
 	uint32_t rtpTimeout;
 	uint32_t mixingMode;
 	uint32_t mixingParty;
 	uint32_t unknown1;
-	uint8_t remoteIpAddr[16];
+	char remoteIpAddr[16];
 	uint32_t unknown2;
 	uint32_t unknown3;
+};
+
+#define CLOSE_RECEIVE_CHANNEL_MESSAGE 0x0106
+struct close_receive_channel_message {
+	uint32_t conferenceId;
+	uint32_t partyId;
+	uint32_t conferenceId1;
 };
 
 #define SELECT_SOFT_KEYS_MESSAGE 0x0110
@@ -304,6 +362,8 @@ struct softkey_set_definition {
         uint8_t softKeyTemplateIndex[16];
         uint16_t softKeyInfoIndex[16];
 };
+
+#define START_MEDIA_TRANSMISSION_ACK_MESSAGE 0x0159
 
 struct softkey_set_res_message {
         uint32_t softKeySetOffset;
@@ -341,8 +401,10 @@ union sccp_data {
         struct softkey_set_res_message softkeysets;
 	struct softkey_template_res_message softkeytemplate;
         struct select_soft_keys_message selectsoftkey;
+	struct stop_media_transmission_message stopmedia;
 	struct start_media_transmission_message startmedia;
 	struct start_media_transmission_message_v17 startmedia_v17;
+	struct close_receive_channel_message closereceivechannel;
 	struct open_receive_channel_message openreceivechannel;
 	struct open_receive_channel_message_v17 openreceivechannel_v17;
 	struct open_receive_channel_ack_message openreceivechannelack;

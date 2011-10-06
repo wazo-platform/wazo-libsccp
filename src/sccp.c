@@ -309,6 +309,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 	if (line && line->state == SCCP_RINGIN) {
 
+		line->callid++;
 		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 		ast_queue_control(line->channel, AST_CONTROL_ANSWER);
 		transmit_callstate(session, line->instance, SCCP_OFFHOOK, 0);
@@ -316,7 +317,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		transmit_callstate(session, line->instance, SCCP_CONNECTED, 0);
 		start_rtp(line);
 		ast_setstate(line->channel, AST_STATE_UP);
-		
+	
 		set_line_state(line, SCCP_CONNECTED);
 
 	} else if (line->state == SCCP_ONHOOK) {
@@ -342,9 +343,9 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		ret = transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_OFFHOOK);
 		if (ret == -1)
 			return -1;
-
-	//	channel = sccp_new_channel(session->device->active_line);
-
+/*
+		channel = sccp_new_channel(session->device->active_line);
+*/
 	} else {
 		ast_log(LOG_NOTICE, "Prev state is %d\n", line->state);
 	}
@@ -354,13 +355,16 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_line *line = session->device->active_line;
+	struct sccp_line *line = NULL;
 	int ret = 0;
 
-	set_line_state(line, SCCP_ONHOOK);
+	/* XXX line FSM */
+	line = session->device->active_line;
 
-	if (line == line->device->active_line)
-		line->device->active_line = line->device->default_line;
+	if (line->state == SCCP_CONNECTED) {
+		transmit_close_receive_channel(line);
+		transmit_stop_media_transmission(line);
+	}
 
 	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, 0);
 	if (ret == -1)
@@ -375,6 +379,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		line->channel = NULL;
 	}
 
+	set_line_state(line, SCCP_ONHOOK);
 	return 0;
 }
 
@@ -579,7 +584,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 			return -1;
 
 		msg->data.startmedia.conferenceId = htolel(0);
-		msg->data.startmedia.passThruPartyId = htolel(0);
+		msg->data.startmedia.passThruPartyId = htolel(line->callid ^ 0xFFFFFFFF);
 		msg->data.startmedia.remoteIp = htolel(us.sin_addr.s_addr);
 		msg->data.startmedia.remotePort = htolel(ntohs(us.sin_port));
 		msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
@@ -588,6 +593,8 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		msg->data.startmedia.qualifier.vad = htolel(0);
 		msg->data.startmedia.qualifier.packets = htolel(0);
 		msg->data.startmedia.qualifier.bitRate = htolel(0);
+		msg->data.startmedia.conferenceId1 = htolel(0);
+		msg->data.startmedia.rtpTimeout = htolel(10);
 //	}
 
 	ret = transmit_message(msg, session);
@@ -833,6 +840,11 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 		case REGISTER_AVAILABLE_LINES_MESSAGE:
 			ast_log(LOG_NOTICE, "Register available lines message\n");
+			break;
+
+		case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
+			ast_log(LOG_NOTICE, "Start media transmission ack message\n");
+			break;
 
 		default:
 			ast_log(LOG_NOTICE, "Unknown message %x\n", msg->id);

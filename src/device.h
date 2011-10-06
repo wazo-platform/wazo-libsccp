@@ -232,6 +232,7 @@ struct sccp_line {
 	char cid_num[80];
 	char cid_name[80];
 
+	uint32_t callid;
 	int instance;
 	int state;
 

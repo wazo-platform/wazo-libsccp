@@ -72,6 +72,7 @@ static int parse_config_devices(struct ast_config *cfg)
 								line_itr->instance = line_instance++;
 								device->line_count++;
 								line_itr->device = device;
+								line_itr->callid = 0;
 								
 								/* set the device default line */
 								if (line_itr->instance == 1)
