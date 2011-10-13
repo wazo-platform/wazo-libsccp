@@ -138,6 +138,32 @@ int transmit_connect(struct sccp_line *line)
 	return 0;
 }
 
+int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
+			const char *to_name, const char *to_num, int instance, int callid, int calltype)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct call_info_message), CALL_INFO_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	ast_copy_string(msg->data.callinfo.callingPartyName, from_name, sizeof(msg->data.callinfo.callingPartyName));
+	ast_copy_string(msg->data.callinfo.callingParty, from_num, sizeof(msg->data.callinfo.callingParty));
+	ast_copy_string(msg->data.callinfo.calledPartyName, to_name, sizeof(msg->data.callinfo.calledPartyName));
+	ast_copy_string(msg->data.callinfo.calledParty, to_num, sizeof(msg->data.callinfo.calledParty));
+
+	msg->data.callinfo.instance = htolel(instance);
+	msg->data.callinfo.reference = htolel(callid);
+	msg->data.callinfo.type = htolel(calltype);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid)
 {
 	struct sccp_msg *msg = NULL;
@@ -150,6 +176,8 @@ int transmit_callstate(struct sccp_session *session, int instance, int state, un
 	msg->data.callstate.callState = htolel(state);
 	msg->data.callstate.lineInstance = htolel(instance);
 	msg->data.callstate.callReference = htolel(callid);
+	msg->data.callstate.visibility = htolel(0);
+	msg->data.callstate.priority = htolel(4);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)

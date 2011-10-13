@@ -50,11 +50,15 @@ static int parse_config_devices(struct ast_config *cfg)
 		}
 
 		if (!duplicate) {
-			/* configure a new device */
+			/* initialize the new device */
 			device = ast_calloc(1, sizeof(struct sccp_device));
-			ast_copy_string(device->name, category, 80);
-			AST_LIST_HEAD_INIT(&device->lines);
 
+			ast_copy_string(device->name, category, 80);
+			TAILQ_INIT(&device->qline);
+			device->active_line = NULL;
+			device->active_line_cnt = 0;
+
+			AST_LIST_HEAD_INIT(&device->lines);
 			AST_LIST_INSERT_HEAD(&list_device, device, list);
 
 			/* get every settings for a particular device */
@@ -72,6 +76,7 @@ static int parse_config_devices(struct ast_config *cfg)
 								line_itr->instance = line_instance++;
 								device->line_count++;
 								line_itr->device = device;
+								line_itr->channel = NULL;
 								line_itr->callid = 0;
 								
 								/* set the device default line */

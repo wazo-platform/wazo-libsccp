@@ -5,6 +5,7 @@
 #include <asterisk/linkedlists.h>
 
 #include <stdint.h>
+#include <sys/queue.h>
 
 #include "message.h"
 
@@ -240,6 +241,7 @@ struct sccp_line {
 	struct ast_channel *channel;
 	struct sccp_device *device;
 
+	TAILQ_ENTRY(sccp_line) qline;
 	AST_LIST_ENTRY(sccp_line) list;
 	AST_LIST_ENTRY(sccp_line) list_per_device;
 };
@@ -248,6 +250,7 @@ struct sccp_device {
 
 	char name[80];
 	int type;
+	int state;
 	uint8_t protoVersion;
 	uint32_t station_port;
 
@@ -260,6 +263,9 @@ struct sccp_device {
 
 	struct sccp_line *default_line;
 	struct sccp_line *active_line;
+	uint32_t active_line_cnt;
+
+	TAILQ_HEAD(, SCCP_LINE) qline;
 	AST_LIST_HEAD(, sccp_line) lines;
 	AST_LIST_ENTRY(sccp_device) list;
 };

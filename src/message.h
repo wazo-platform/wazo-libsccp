@@ -2,7 +2,6 @@
 #define SCCP_MESSAGE_H
 
 #include <stdlib.h>
-//#include <stddef.h>
 #include <stdint.h>
 
 struct sccp_msg *msg_alloc(size_t data_length, int message_id);
@@ -192,6 +191,28 @@ struct start_media_transmission_message_v17 {
 	uint32_t mixingParty;
 };
 
+#define CALL_INFO_MESSAGE 0x008F
+struct call_info_message {
+	char callingPartyName[40];
+	char callingParty[24];
+	char calledPartyName[40];
+	char calledParty[24];
+	uint32_t instance;
+	uint32_t reference;
+	uint32_t type;
+	char originalCalledPartyName[40];
+	char originalCalledParty[24];
+	char lastRedirectingPartyName[40];
+	char lastRedirectingParty[24];
+	uint32_t originalCalledPartyRedirectReason;
+	uint32_t lastRedirectingReason;
+	char callingPartyVoiceMailbox[24];
+	char calledPartyVoiceMailbox[24];
+	char originalCalledPartyVoiceMailbox[24];
+	char lastRedirectingVoiceMailbox[24];
+	uint32_t space[3];
+};
+
 #define FORWARD_STATUS_RES_MESSAGE 0x0090
 struct forward_status_res_message {
 	uint32_t status;
@@ -348,7 +369,9 @@ struct call_state_message {
 	uint32_t callState;
 	uint32_t lineInstance;
 	uint32_t callReference;
-	uint32_t space[3];
+	uint32_t visibility;
+	uint32_t priority;
+	uint32_t unknown;
 };
 
 #define SOFTKEY_TEMPLATE_RES_MESSAGE 0x0108
@@ -404,6 +427,7 @@ union sccp_data {
 	struct stop_media_transmission_message stopmedia;
 	struct start_media_transmission_message startmedia;
 	struct start_media_transmission_message_v17 startmedia_v17;
+	struct call_info_message callinfo;
 	struct close_receive_channel_message closereceivechannel;
 	struct open_receive_channel_message openreceivechannel;
 	struct open_receive_channel_message_v17 openreceivechannel_v17;
@@ -418,6 +442,5 @@ struct sccp_msg {
 	uint32_t id;
 	union sccp_data data;
 };
-
 
 #endif /* SCCP_MESSAGE_H */

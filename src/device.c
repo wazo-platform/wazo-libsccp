@@ -67,3 +67,51 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 
 	return err;
 }
+
+void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
+{
+	if (device == NULL || line == NULL) {
+		ast_log(LOG_WARNING, "Invalid parameter\n");
+		return;
+	}
+
+	TAILQ_INSERT_TAIL(&device->qline, line, qline);
+
+	device->active_line_cnt++;
+}
+
+void device_release_line(struct sccp_device *device, struct sccp_line *line)
+{
+	if (device == NULL || line == NULL) {
+		ast_log(LOG_WARNING, "Invalid parameter\n");
+		return;
+	}
+
+	if (device->active_line == line) {
+		device->active_line = NULL;
+	} else {
+		TAILQ_REMOVE(&device->qline, line, qline);
+	}
+
+	device->active_line_cnt--;
+}
+
+int device_get_active_line(struct sccp_device *device)
+{
+	if (device == NULL) {
+		ast_log(LOG_WARNING, "Invalid parameter\n");
+		return;
+	}
+
+	if (device->active_line == NULL) {
+		if (device->qline.tqh_first != NULL) {
+			device->active_line = device->qline.tqh_first;
+			TAILQ_REMOVE(&device->qline, device->active_line, qline);
+		} else {
+			device->active_line = device->default_line;
+			device->active_line_cnt++;
+		}
+	}
+
+	return device->active_line;
+}

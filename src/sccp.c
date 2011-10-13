@@ -1,4 +1,5 @@
 #include <asterisk.h>
+#include <asterisk/causes.h>
 #include <asterisk/channel.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/poll-compat.h>
@@ -283,9 +284,6 @@ static void start_rtp(struct sccp_line *line)
 	ast_parse_allow_disallow(&default_prefs, &line->device->ast_codec, "all", 1);
 	line->rtp = ast_rtp_new_with_bindaddr(sched, io, 1, 0, addr->sin_addr);
 
-	ast_log(LOG_NOTICE, "line->rtp %p\n", line->rtp);
-	ast_log(LOG_NOTICE, "line->channel %p\n", line->channel);
-
 	line->channel->fds[0] = ast_rtp_fd(line->rtp);
 	line->channel->fds[1] = ast_rtcp_fd(line->rtp);
 
@@ -303,13 +301,10 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	int ret = 0;
 
 	device = session->device;
-	line = device->active_line;
-
-	ast_log(LOG_NOTICE, "active line %s\n", line->name);
+	line = device_get_active_line(device);
 
 	if (line && line->state == SCCP_RINGIN) {
 
-		line->callid++;
 		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 		ast_queue_control(line->channel, AST_CONTROL_ANSWER);
 		transmit_callstate(session, line->instance, SCCP_OFFHOOK, 0);
@@ -346,8 +341,6 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 /*
 		channel = sccp_new_channel(session->device->active_line);
 */
-	} else {
-		ast_log(LOG_NOTICE, "Prev state is %d\n", line->state);
 	}
 	
 	return 0;
@@ -358,8 +351,8 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	struct sccp_line *line = NULL;
 	int ret = 0;
 
-	/* XXX line FSM */
-	line = session->device->active_line;
+	line = device_get_active_line(session->device);
+	ast_log(LOG_NOTICE, "line %s\n", line->name);
 
 	if (line->state == SCCP_CONNECTED) {
 		transmit_close_receive_channel(line);
@@ -376,10 +369,15 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 
 	if (line->channel != NULL) {
 		ast_queue_hangup(line->channel);
+		line->channel->tech_pvt = NULL;
 		line->channel = NULL;
 	}
 
-	set_line_state(line, SCCP_ONHOOK);
+	if (line->state != SCCP_ONHOOK) {
+		device_release_line(line->device, line);
+		set_line_state(line, SCCP_ONHOOK);
+	}
+
 	return 0;
 }
 
@@ -532,7 +530,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	uint32_t passthruid = 0;
 	int ret = 0;
 
-	line = session->device->active_line;
+	line = device_get_active_line(session->device);
 /*
 	if (line->device->protoVersion >= 17) {
 		addr = letohl(msg->data.openreceivechannelack_v17.ipAddr[0]);
@@ -611,7 +609,6 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	int ret = 0;
 
 	line_instance = letohl(msg->data.line.lineNumber);
-	ast_log(LOG_DEBUG, "lineNumber %d\n", line_instance);
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL)
@@ -622,7 +619,6 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 
 	msg->data.linestatus.lineNumber = letohl(line_instance);
-	ast_log(LOG_DEBUG, "line name %s\n", line->name);
 
 	memcpy(msg->data.linestatus.lineDirNumber, line->name, sizeof(msg->data.linestatus.lineDirNumber));
 	memcpy(msg->data.linestatus.lineDisplayName, session->device->name, sizeof(msg->data.linestatus.lineDisplayName));
@@ -1009,7 +1005,6 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 	struct sccp_line *line = NULL;
 	struct ast_channel *channel = NULL;
 
-	
 	ast_log(LOG_NOTICE, "type: %s\n"
 				"format: %d\n"
 				"destination: %s\n"
@@ -1020,6 +1015,12 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 
 	if (line == NULL) {
 		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", (char *)destination);
+		*cause = AST_CAUSE_UNREGISTERED;
+		return NULL;
+	}
+
+	if (line->state != SCCP_ONHOOK) {
+		*cause = AST_CAUSE_BUSY;
 		return NULL;
 	}
 
@@ -1054,17 +1055,17 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 		return 0;
 	}
 
-	if (device->active_line == device->default_line
-		|| device->active_line == NULL) {
-		device->active_line = line;
-	}
-
+	device_enqueue_line(device, line);
 	line->channel = channel;
 
-	transmit_callstate(session, line->instance, SCCP_RINGIN, 0);
-	transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_RINGIN);
+	transmit_callstate(session, line->instance, SCCP_RINGIN, line->callid);
+	transmit_selectsoftkeys(session, line->instance, line->callid, KEYDEF_RINGIN);
+//	transmit_displaypromptstatus(session, "Ring-In", 0, line->instance, line->callid);
+	transmit_callinfo(session, channel->lid.lid_name, channel->lid.lid_num, line->cid_name, line->cid_num, line->instance, line->callid, 1);
 	transmit_lamp_indication(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
- 	transmit_ringer_mode(session, SCCP_RING_INSIDE);
+
+	if (device->active_line == NULL)
+		transmit_ringer_mode(session, SCCP_RING_INSIDE);
 
 	set_line_state(line, SCCP_RINGIN);
 	ast_setstate(channel, AST_STATE_RINGING);
@@ -1075,8 +1076,6 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 static int sccp_hangup(struct ast_channel *channel)
 {
-	ast_log(LOG_NOTICE, "sccp hangup\n");
-	
 	struct sccp_line *line = NULL;
 	int ret = 0;
 
@@ -1090,7 +1089,7 @@ static int sccp_hangup(struct ast_channel *channel)
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_callstate(line->device->session, line->instance, SCCP_ONHOOK, 0);
+		ret = transmit_callstate(line->device->session, line->instance, SCCP_ONHOOK, line->callid);
 		if (ret == -1)
 			return -1;
 
@@ -1101,21 +1100,25 @@ static int sccp_hangup(struct ast_channel *channel)
 		ret = transmit_selectsoftkeys(line->device->session, line->instance, 0, KEYDEF_ONHOOK);
 		if (ret == -1)
 			return -1;
-
-		if (line->channel != NULL) {
-			ast_queue_hangup(line->channel);
-			line->channel = NULL;
-		}
 	}
 
-	ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
-	set_line_state(line, SCCP_ONHOOK);
+	if (line->device->active_line_cnt <= 1)
+		ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
 
-	if (line == line->device->active_line)
-		line->device->active_line = line->device->default_line;
+	if (line->channel != NULL) {
+		ast_queue_hangup(line->channel);
+		line->channel = NULL;
+		channel->tech_pvt = NULL;
+	}
 
-	channel->tech_pvt = NULL;
-	
+	if (line->state == SCCP_RINGIN) {
+		device_release_line(line->device, line);
+		set_line_state(line, SCCP_ONHOOK);
+
+	} else if (line->state == SCCP_CONNECTED) {
+		set_line_state(line, SCCP_INVALID);
+	}
+
 	return 0;
 }
 
@@ -1127,8 +1130,6 @@ static int sccp_answer(struct ast_channel *ast)
 
 static struct ast_frame *sccp_read(struct ast_channel *channel)
 {
-	ast_log(LOG_NOTICE, "sccp read\n");
-
 	struct ast_frame *frame = NULL;
 	struct sccp_line *line = NULL;
 
@@ -1165,7 +1166,6 @@ static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 	struct sccp_line *line = channel->tech_pvt; 
 	
 	res = ast_rtp_write(line->rtp, frame);
-	ast_log(LOG_NOTICE, "sccp write %d [%d]\n", res, frame->datalen);
 
 	return res;
 }
@@ -1176,9 +1176,11 @@ static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, siz
 	return 0;
 }
 
-static int sccp_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
+static int sccp_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
 {
 	ast_log(LOG_NOTICE, "sccp fixup\n");
+	struct sccp_line *line = newchannel->tech_pvt;
+	line->channel = newchannel;
 	return 0;
 }
 
