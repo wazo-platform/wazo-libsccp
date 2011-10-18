@@ -1,4 +1,3 @@
-
 #include <asterisk.h>
 
 ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
@@ -264,15 +263,8 @@ static int load_module(void)
 	int ret = 0;
 	ast_verbose("sccp channel loading...\n");
 
-	/* Make sure we can register our sccp channel type
-	if (ast_channel_register(&sccp_tech)) {
-		ast_log(LOG_ERROR, "Unable to register channel type 'sccp'\n");
-		return AST_MODULE_LOAD_FAILURE;
-	}*/
-
 	ret = config_load();
 	if (ret == -1) {
-		/*ast_channel_unregister(&sccp_tech);*/
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
@@ -280,7 +272,6 @@ static int load_module(void)
 
 	ret = sccp_server_init();
 	if (ret == -1) {
-		/*ast_channel_unregister(&sccp_tech);*/
 		ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -291,8 +282,6 @@ static int load_module(void)
 static int unload_module(void)
 {
 	ast_verbose("sccp channel unloading...\n");
-
-	/*ast_channel_unregister(&sccp_tech);*/
 
 	sccp_server_fini();
 	config_unload();

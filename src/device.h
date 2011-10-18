@@ -2,6 +2,7 @@
 #define SCCP_DEVICE_H
 
 #include <asterisk.h>
+#include <asterisk/channel.h>
 #include <asterisk/linkedlists.h>
 
 #include <stdint.h>
@@ -253,6 +254,7 @@ struct sccp_device {
 	int state;
 	uint8_t protoVersion;
 	uint32_t station_port;
+	char exten[AST_MAX_EXTENSION];
 
 	uint8_t registered;
 	uint32_t line_count;

@@ -54,10 +54,6 @@ static const struct ast_channel_tech sccp_tech = {
 	.send_digit_end = sccp_senddigit_end,
 };
 
-static void set_line_state(struct sccp_line *line, int state)
-{
-	line->state = state;
-}
 
 static int handle_softkey_template_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
@@ -352,7 +348,9 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	int ret = 0;
 
 	line = device_get_active_line(session->device);
-	ast_log(LOG_NOTICE, "line %s\n", line->name);
+
+	/* reset dialed number */
+	line->device->exten[0] = '\0';
 
 	if (line->state == SCCP_CONNECTED) {
 		transmit_close_receive_channel(line);
@@ -402,8 +400,11 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 	for (i = 0; i < keyset_count; i++) {
 
 		for (j = 0; j < softkeymode->count; j++) {
-			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyTemplateIndex[j] = htolel(softkeymode->defaults[j]);
-			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyInfoIndex[j] = htolel(softkeymode->defaults[j]);
+			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyTemplateIndex[j]
+				= htolel(softkeymode->defaults[j]);
+
+			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyInfoIndex[j]
+				= htolel(softkeymode->defaults[j]);
 		}
 		softkeymode++;
 	}
@@ -746,6 +747,60 @@ static int handle_ipport_message(struct sccp_msg *msg, struct sccp_session *sess
 	return 0;
 }
 
+static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	struct sccp_line *line = NULL;
+	struct ast_frame frame = { AST_FRAME_DTMF, };
+
+	char digit;
+	int button;
+	int instance;
+	int callId;
+
+	size_t len;
+
+	button = letohl(msg->data.keypad.button);
+	instance = letohl(msg->data.keypad.instance);
+	callId = letohl(msg->data.keypad.callId);
+
+	line = device_get_line(session->device, instance);
+
+	if (button == 14) {
+		digit = '*';
+	} else if (button == 15) {
+		digit = '#';
+	} else if (button >= 0 && button <= 9) {
+		digit = '0' + button;
+	} else {
+		digit = '0' + button;
+		ast_log(LOG_WARNING, "Unsupported digit %d\n", button);
+	}
+
+	if (line->state == SCCP_CONNECTED) {
+
+		frame.subclass = digit;
+		frame.src = "sccp";
+		frame.len = 100;
+		frame.offset = 0;
+		frame.datalen = 0;
+		frame.data = NULL;
+
+		ast_queue_frame(line->channel, &frame);
+
+	} else if (line->state == SCCP_OFFHOOK) {
+
+		len = strlen(line->device->exten);
+		if (len < sizeof(line->device->exten) - 1) {
+			line->device->exten[len] = digit;
+			line->device->exten[len+1] = '\0';
+		}
+
+		ast_log(LOG_NOTICE, "exten: %s\n", line->device->exten);
+	}
+
+	return 0;
+}
+
 static void destroy_session(struct sccp_session **session)
 {
 	ast_mutex_destroy(&(*session)->lock);
@@ -774,7 +829,12 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 			ast_log(LOG_NOTICE, "Ip port message\n");
 			ret = handle_ipport_message(msg, session);
 			break;
-			
+
+		case KEYPAD_BUTTON_MESSAGE:
+			ast_log(LOG_NOTICE, "keypad button message\n");
+			ret = handle_keypad_button_message(msg, session);
+			break;
+
 		case OFFHOOK_MESSAGE:
 			ast_log(LOG_NOTICE, "Offhook message\n");
 			ret = handle_offhook_message(msg, session);
@@ -840,6 +900,9 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 		case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
 			ast_log(LOG_NOTICE, "Start media transmission ack message\n");
+			break;
+
+		case ACCESSORY_STATUS_MESSAGE:
 			break;
 
 		default:

@@ -31,6 +31,13 @@ struct ip_port_message {
 	uint32_t stationIpPort;
 };
 
+#define KEYPAD_BUTTON_MESSAGE 0x0003
+struct keypad_button_message {
+	uint32_t button;
+	uint32_t instance;
+	uint32_t callId;
+};
+
 #define OFFHOOK_MESSAGE 0x0006
 struct offhook_message {
 	uint32_t unknown1;
@@ -102,6 +109,7 @@ struct open_receive_channel_ack_message_v17 {
 #define SOFTKEY_SET_REQ_MESSAGE 0x0025
 #define SOFTKEY_TEMPLATE_REQ_MESSAGE 0x0028
 #define REGISTER_AVAILABLE_LINES_MESSAGE 0x002D
+#define ACCESSORY_STATUS_MESSAGE 0x0049
 #define REGISTER_ACK_MESSAGE 0x0081
 struct register_ack_message {
         uint32_t keepAlive;
@@ -421,6 +429,7 @@ union sccp_data {
 	struct set_lamp_message setlamp;
 	struct set_ringer_message setringer;
 	struct call_state_message callstate;
+	struct keypad_button_message keypad;
         struct softkey_set_res_message softkeysets;
 	struct softkey_template_res_message softkeytemplate;
         struct select_soft_keys_message selectsoftkey;
