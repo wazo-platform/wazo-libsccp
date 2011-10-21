@@ -241,7 +241,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 					line->cid_num,		/* cid_num */
 					line->cid_name,		/* cid_name */
 					"code",			/* acctcode */
-					"102",			/* exten */
+					line->device->exten,	/* exten */
 					"default",		/* context */
 					0,			/* amaflag */
 					"sccp/%s@%s-%d",	/* format */
@@ -254,9 +254,11 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 
 	channel->tech = &sccp_tech;
 	channel->tech_pvt = line;
+	line->channel = channel;
 
-	channel->nativeformats = line->device->ast_codec;
-	audio_format = ast_best_codec(line->device->ast_codec);
+	/* FIXME ast_codec get mangled */
+	channel->nativeformats = 0x10c; //line->device->ast_codec;
+	audio_format = ast_best_codec(channel->nativeformats);
 
 	channel->writeformat = audio_format;
 	channel->rawwriteformat = audio_format;
@@ -277,7 +279,8 @@ static void start_rtp(struct sccp_line *line)
 	struct sccp_session *session = NULL;
 	
 	session = line->device->session;
-	ast_parse_allow_disallow(&default_prefs, &line->device->ast_codec, "all", 1);
+	/* FIXME add option in conf */
+	ast_parse_allow_disallow(&default_prefs, &line->device->ast_codec, "", 1);
 	line->rtp = ast_rtp_new_with_bindaddr(sched, io, 1, 0, addr->sin_addr);
 
 	line->channel->fds[0] = ast_rtp_fd(line->rtp);
@@ -289,11 +292,74 @@ static void start_rtp(struct sccp_line *line)
 	transmit_connect(line);
 }
 
+static void *sccp_newcall(void *data)
+{
+	struct ast_channel *channel = data;
+	struct sccp_line *line = channel->tech_pvt;
+
+	ast_set_callerid(channel,
+			line->cid_num,
+			line->cid_name,
+			NULL);
+
+	channel->lid.lid_num = ast_strdup(channel->exten);
+	channel->lid.lid_name = NULL;
+
+	ast_setstate(channel, AST_STATE_RING);
+
+	start_rtp(line);
+	ast_pbx_run(channel);
+
+	return NULL;
+}
+
+static void *sccp_lookup_exten(void *data)
+{
+	struct ast_channel *channel = data;
+	struct sccp_line *line = channel->tech_pvt;
+
+	size_t len = 0;
+	int ret = 0;
+
+	len = strlen(line->device->exten);
+	while (line->state != SCCP_ONHOOK && len < AST_MAX_EXTENSION-1) {
+
+		//ret = ast_ignore_pattern(channel->context, line->device->exten);
+		//ast_log(LOG_NOTICE, "ast ignore pattern : %d\n", ret);
+
+		if (ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
+			if (!ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
+
+				set_line_state(line, SCCP_RINGOUT);
+				transmit_callstate(line->device->session, line->instance, SCCP_RINGOUT, line->callid);
+				ast_copy_string(channel->exten, line->device->exten, sizeof(channel->exten));
+				sccp_newcall(channel);
+				return NULL;
+			}
+		}
+/*
+		ret = ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num);
+		ast_log(LOG_NOTICE, "ast matchmore extension: %d\n", ret);
+
+		ret = ast_canmatch_extension(channel, channel->context, line->device->exten, 1, line->cid_num);
+		ast_log(LOG_NOTICE, "ast canmatch extension: %d\n", ret);
+*/
+		ast_safe_sleep(channel, 500);
+		len = strlen(line->device->exten);
+	}
+
+	if (channel)
+		ast_hangup(channel);
+
+	return NULL;
+}
+
 static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_device *device = NULL;
 	struct sccp_line *line = NULL;
 	struct ast_channel *channel = NULL;
+	pthread_t lookup_thread;
 	int ret = 0;
 
 	device = session->device;
@@ -304,7 +370,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 		ast_queue_control(line->channel, AST_CONTROL_ANSWER);
 		transmit_callstate(session, line->instance, SCCP_OFFHOOK, 0);
-		transmit_tone(session, SCCP_TONE_SILENCE, line->instance, 0);
+		transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
 		transmit_callstate(session, line->instance, SCCP_CONNECTED, 0);
 		start_rtp(line);
 		ast_setstate(line->channel, AST_STATE_UP);
@@ -314,6 +380,8 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	} else if (line->state == SCCP_ONHOOK) {
 
 		set_line_state(line, SCCP_OFFHOOK);
+		channel = sccp_new_channel(line);
+		ast_setstate(line->channel, AST_STATE_DOWN);
 
 		ret = transmit_lamp_indication(session, 1, line->instance, SCCP_LAMP_ON);
 		if (ret == -1)
@@ -334,9 +402,11 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		ret = transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_OFFHOOK);
 		if (ret == -1)
 			return -1;
-/*
-		channel = sccp_new_channel(session->device->active_line);
-*/
+
+		if (ast_pthread_create(&lookup_thread, NULL, sccp_lookup_exten, channel)) {
+			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
+			ast_hangup(channel);
+		}
 	}
 	
 	return 0;
@@ -352,11 +422,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	/* reset dialed number */
 	line->device->exten[0] = '\0';
 
-	if (line->state == SCCP_CONNECTED) {
-		transmit_close_receive_channel(line);
-		transmit_stop_media_transmission(line);
-	}
-
 	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, 0);
 	if (ret == -1)
 		return -1;
@@ -366,6 +431,15 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		return -1;
 
 	if (line->channel != NULL) {
+
+		transmit_close_receive_channel(line);
+		transmit_stop_media_transmission(line);
+
+		if (line->rtp) {
+			ast_rtp_destroy(line->rtp);
+			line->rtp = NULL;
+		}
+
 		ast_queue_hangup(line->channel);
 		line->channel->tech_pvt = NULL;
 		line->channel = NULL;
@@ -551,8 +625,6 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	ast_rtp_set_peer(line->rtp, &sin);
 	ast_rtp_get_us(line->rtp, &us);
-
-	ast_log(LOG_NOTICE, "ipaddr %s:%d\n", ast_inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 
 	/* FIXME `fmt' per device */
 	struct ast_codec_pref default_prefs;
@@ -795,7 +867,7 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 			line->device->exten[len+1] = '\0';
 		}
 
-		ast_log(LOG_NOTICE, "exten: %s\n", line->device->exten);
+		transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
 	}
 
 	return 0;
@@ -1087,7 +1159,8 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 		return NULL;
 	}
 
-	channel = sccp_new_channel(line);	
+	channel = sccp_new_channel(line);
+	ast_setstate(line->channel, AST_STATE_DOWN);
 
 	return channel;
 }
@@ -1100,7 +1173,6 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	struct sccp_device *device = NULL;
 	struct sccp_session *session = NULL;
 
-	ast_log(LOG_NOTICE, "skinny call\n");
 	ast_log(LOG_NOTICE, "channel->lid.lid_name: %s\n", channel->lid.lid_name);
 	ast_log(LOG_NOTICE, "channel->lid.lid_num: %s\n", channel->lid.lid_num);
 
@@ -1139,6 +1211,8 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 static int sccp_hangup(struct ast_channel *channel)
 {
+	ast_log(LOG_NOTICE, "sccp hangup\n");
+
 	struct sccp_line *line = NULL;
 	int ret = 0;
 
@@ -1156,7 +1230,7 @@ static int sccp_hangup(struct ast_channel *channel)
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_tone(line->device->session, SCCP_TONE_SILENCE, line->instance, 0);
+		ret = transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, 0);
 		if (ret == -1)
 			return -1;
 
@@ -1169,6 +1243,15 @@ static int sccp_hangup(struct ast_channel *channel)
 		ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
 
 	if (line->channel != NULL) {
+
+		transmit_close_receive_channel(line);
+		transmit_stop_media_transmission(line);
+
+		if (line->rtp) {
+			ast_rtp_destroy(line->rtp);
+			line->rtp = NULL;
+		}
+
 		ast_queue_hangup(line->channel);
 		line->channel = NULL;
 		channel->tech_pvt = NULL;
@@ -1185,9 +1268,20 @@ static int sccp_hangup(struct ast_channel *channel)
 	return 0;
 }
 
-static int sccp_answer(struct ast_channel *ast)
+static int sccp_answer(struct ast_channel *channel)
 {
 	ast_log(LOG_NOTICE, "sccp answer\n");
+
+	struct sccp_line *line = NULL;
+	line = channel->tech_pvt;
+
+	if (line->rtp == NULL) {
+		start_rtp(line);
+	}
+
+	ast_setstate(channel, AST_STATE_UP);
+	set_line_state(line, SCCP_CONNECTED);
+
 	return 0;
 }
 
@@ -1226,9 +1320,11 @@ static struct ast_frame *sccp_read(struct ast_channel *channel)
 static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 {
 	int res = 0;
-	struct sccp_line *line = channel->tech_pvt; 
-	
-	res = ast_rtp_write(line->rtp, frame);
+	struct sccp_line *line = channel->tech_pvt;
+
+	if (line->state == SCCP_CONNECTED) {
+		res = ast_rtp_write(line->rtp, frame);
+	}
 
 	return res;
 }
