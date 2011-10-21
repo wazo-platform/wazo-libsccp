@@ -1260,7 +1260,6 @@ static int sccp_hangup(struct ast_channel *channel)
 	if (line->state == SCCP_RINGIN) {
 		device_release_line(line->device, line);
 		set_line_state(line, SCCP_ONHOOK);
-
 	} else if (line->state == SCCP_CONNECTED) {
 		set_line_state(line, SCCP_INVALID);
 	}
@@ -1275,9 +1274,8 @@ static int sccp_answer(struct ast_channel *channel)
 	struct sccp_line *line = NULL;
 	line = channel->tech_pvt;
 
-	if (line->rtp == NULL) {
+	if (line->rtp == NULL)
 		start_rtp(line);
-	}
 
 	ast_setstate(channel, AST_STATE_UP);
 	set_line_state(line, SCCP_CONNECTED);
