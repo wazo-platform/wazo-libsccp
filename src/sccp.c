@@ -206,6 +206,7 @@ static int handle_keep_alive_message(struct sccp_msg *msg, struct sccp_session *
 static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_device *device_itr = NULL;
+	struct sccp_line *line_itr = NULL;
 	int device_found = 0;
 
 	AST_LIST_TRAVERSE(&list_device, device_itr, list) {
@@ -218,6 +219,10 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			device_itr->type = letohl(msg->data.reg.type);
 			device_itr->session = session;
 			session->device = device_itr;
+
+			AST_LIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
+				set_line_state(line_itr, SCCP_ONHOOK);
+			}
 
 			device_found = 1;
 			break;
@@ -364,6 +369,8 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 	device = session->device;
 	line = device_get_active_line(device);
+
+	ast_log(LOG_NOTICE, "handle offhook message line [%d] state [%d] SCCP_RINGIN [%d] ONHOOK [%d]\n", line, line->state, SCCP_RINGIN, SCCP_ONHOOK);
 
 	if (line && line->state == SCCP_RINGIN) {
 
@@ -684,8 +691,10 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	line_instance = letohl(msg->data.line.lineNumber);
 
 	line = device_get_line(session->device, line_instance);
-	if (line == NULL)
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "Line instance [%d] is not attached to device [%s]\n", line_instance, session->device->name);
 		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct line_status_res_message), LINE_STATUS_RES_MESSAGE);
 	if (msg == NULL)
@@ -996,6 +1005,7 @@ static int fetch_data(struct sccp_session *session)
 	/* if no device or device is not registered and time has elapsed */
 	if ((session->device == NULL || (session->device != NULL && session->device->registered == 0))
 		&& now > session->start_time + sccp_cfg.authtimeout) {
+		ast_log(LOG_WARNING, "Time has elapsed [%d]\n", sccp_cfg.authtimeout);
 		return -1;
 	}
 

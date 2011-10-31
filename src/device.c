@@ -4,6 +4,12 @@
 struct list_line list_line = AST_LIST_HEAD_INIT_VALUE;
 struct list_device list_device = AST_LIST_HEAD_INIT_VALUE;
 
+void device_reinitialize(struct sccp_device *device)
+{
+
+	return;
+}
+
 struct sccp_line *find_line_by_name(char *name)
 {
 	struct sccp_line *line_itr;
