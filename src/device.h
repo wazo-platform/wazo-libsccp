@@ -247,6 +247,9 @@ struct sccp_line {
 	AST_LIST_ENTRY(sccp_line) list_per_device;
 };
 
+#define DEVICE_REGISTERED_TRUE	0x1
+#define DEVICE_REGISTERED_FALSE	0x2
+
 struct sccp_device {
 
 	char name[80];

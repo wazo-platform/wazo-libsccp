@@ -4,8 +4,41 @@
 struct list_line list_line = AST_LIST_HEAD_INIT_VALUE;
 struct list_device list_device = AST_LIST_HEAD_INIT_VALUE;
 
-void device_reinitialize(struct sccp_device *device)
+void device_set(struct sccp_device *device,
+		uint8_t registered,
+		uint8_t protoVersion,
+		int type,
+		void *session)
 {
+	device->registered = registered;
+	device->protoVersion = protoVersion;
+	device->type = type;
+	device->session = session;
+
+	return;
+}
+
+void device_reset(struct sccp_device *device)
+{
+	struct sccp_line *line_itr = NULL;
+
+	device->registered = DEVICE_REGISTERED_FALSE;
+	device->protoVersion = 0;
+	device->type = 0;
+	device->session = NULL;
+
+	device->active_line = NULL;
+	device->active_line_cnt = 0;
+
+	while (line_itr = TAILQ_FIRST(&device->qline)) {
+		TAILQ_REMOVE(&device->qline, line_itr, qline);
+	}
+
+	device->exten[0] = '\0';
+
+	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
+		set_line_state(line_itr, SCCP_ONHOOK);
+	}
 
 	return;
 }

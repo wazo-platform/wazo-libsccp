@@ -206,7 +206,6 @@ static int handle_keep_alive_message(struct sccp_msg *msg, struct sccp_session *
 static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_device *device_itr = NULL;
-	struct sccp_line *line_itr = NULL;
 	int device_found = 0;
 
 	AST_LIST_TRAVERSE(&list_device, device_itr, list) {
@@ -214,16 +213,13 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 		if (!strcasecmp(device_itr->name, msg->data.reg.name)) {
 			ast_log(LOG_DEBUG, "Found device [%s]\n", device_itr->name);
 
-			device_itr->registered = 1;
-			device_itr->protoVersion = letohl(msg->data.reg.protoVersion);
-			device_itr->type = letohl(msg->data.reg.type);
-			device_itr->session = session;
+			device_reset(device_itr);
+			device_set(device_itr, DEVICE_REGISTERED_TRUE,
+					letohl(msg->data.reg.protoVersion),
+					letohl(msg->data.reg.type),
+					session);
+
 			session->device = device_itr;
-
-			AST_LIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
-				set_line_state(line_itr, SCCP_ONHOOK);
-			}
-
 			device_found = 1;
 			break;
 		}	
@@ -614,7 +610,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	line = device_get_active_line(session->device);
 /*
-	if (line->device->protoVersion >= 17) {
+	if (line->eevice->protoVersion >= 17) {
 		addr = letohl(msg->data.openreceivechannelack_v17.ipAddr[0]);
 		port = letohl(msg->data.openreceivechannelack_v17.port);
 		passthruid = letohl(msg->data.openreceivechannelack_v17.passThruId);
@@ -1003,7 +999,7 @@ static int fetch_data(struct sccp_session *session)
 	
 	time(&now);
 	/* if no device or device is not registered and time has elapsed */
-	if ((session->device == NULL || (session->device != NULL && session->device->registered == 0))
+	if ((session->device == NULL || (session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE))
 		&& now > session->start_time + sccp_cfg.authtimeout) {
 		ast_log(LOG_WARNING, "Time has elapsed [%d]\n", sccp_cfg.authtimeout);
 		return -1;
