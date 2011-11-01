@@ -213,8 +213,8 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 		if (!strcasecmp(device_itr->name, msg->data.reg.name)) {
 			ast_log(LOG_DEBUG, "Found device [%s]\n", device_itr->name);
 
-			device_reset(device_itr);
-			device_set(device_itr, DEVICE_REGISTERED_TRUE,
+			device_prepare(device_itr);
+			device_register(device_itr,
 					letohl(msg->data.reg.protoVersion),
 					letohl(msg->data.reg.type),
 					session);
@@ -323,10 +323,13 @@ static void *sccp_lookup_exten(void *data)
 	int ret = 0;
 
 	len = strlen(line->device->exten);
-	while (line->state != SCCP_ONHOOK && len < AST_MAX_EXTENSION-1) {
+	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
+		line->state != SCCP_ONHOOK && len < AST_MAX_EXTENSION-1) {
 
 		//ret = ast_ignore_pattern(channel->context, line->device->exten);
 		//ast_log(LOG_NOTICE, "ast ignore pattern : %d\n", ret);
+
+		ast_log(LOG_NOTICE, "lookup\n");
 
 		if (ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 			if (!ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
@@ -1081,12 +1084,14 @@ static void *thread_session(void *data)
 		}
 
 		if (ret == -1) {
-			connected = 0;
 			AST_LIST_LOCK(&list_session);
 			session = AST_LIST_REMOVE(&list_session, session, list);
 			AST_LIST_UNLOCK(&list_session);	
 
 			ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
+
+			device_unregister(session->device);
+			connected = 0;
 		}
 	}
 

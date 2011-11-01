@@ -4,13 +4,19 @@
 struct list_line list_line = AST_LIST_HEAD_INIT_VALUE;
 struct list_device list_device = AST_LIST_HEAD_INIT_VALUE;
 
-void device_set(struct sccp_device *device,
-		uint8_t registered,
-		uint8_t protoVersion,
-		int type,
-		void *session)
+void device_unregister(struct sccp_device *device)
 {
-	device->registered = registered;
+	device->registered = DEVICE_REGISTERED_FALSE;
+
+	return;
+}
+
+void device_register(struct sccp_device *device,
+			int8_t protoVersion,
+			int type,
+			void *session)
+{
+	device->registered = DEVICE_REGISTERED_TRUE;
 	device->protoVersion = protoVersion;
 	device->type = type;
 	device->session = session;
@@ -18,14 +24,9 @@ void device_set(struct sccp_device *device,
 	return;
 }
 
-void device_reset(struct sccp_device *device)
+void device_prepare(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
-
-	device->registered = DEVICE_REGISTERED_FALSE;
-	device->protoVersion = 0;
-	device->type = 0;
-	device->session = NULL;
 
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
