@@ -6,7 +6,14 @@ struct list_device list_device = AST_LIST_HEAD_INIT_VALUE;
 
 void device_unregister(struct sccp_device *device)
 {
+	struct sccp_line *line_itr = NULL;
+
 	device->registered = DEVICE_REGISTERED_FALSE;
+
+	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
+		if (line_itr->channel != NULL)
+			ast_queue_hangup(line_itr->channel);
+	}
 
 	return;
 }
