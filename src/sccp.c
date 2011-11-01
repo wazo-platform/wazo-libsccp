@@ -336,6 +336,8 @@ static void *sccp_lookup_exten(void *data)
 
 				set_line_state(line, SCCP_RINGOUT);
 				transmit_callstate(line->device->session, line->instance, SCCP_RINGOUT, line->callid);
+				transmit_tone(line->device->session, SCCP_TONE_ALERT, line->instance, 0);
+				transmit_callinfo(line->device->session, "", "", line->cid_name, line->cid_num, line->instance, line->callid, 2);
 				ast_copy_string(channel->exten, line->device->exten, sizeof(channel->exten));
 				sccp_newcall(channel);
 				return NULL;
