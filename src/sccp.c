@@ -336,12 +336,10 @@ static void *sccp_lookup_exten(void *data)
 
 	len = strlen(line->device->exten);
 	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
-		line->state != SCCP_ONHOOK && len < AST_MAX_EXTENSION-1) {
+		line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
 
 		//ret = ast_ignore_pattern(channel->context, line->device->exten);
 		//ast_log(LOG_NOTICE, "ast ignore pattern : %d\n", ret);
-
-		ast_log(LOG_NOTICE, "lookup\n");
 
 		if (ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 			if (!ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
@@ -401,6 +399,8 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 		set_line_state(line, SCCP_OFFHOOK);
 		channel = sccp_new_channel(line);
+
+		ast_log(LOG_NOTICE, "channel state %d\n", channel->_state);
 		ast_setstate(line->channel, AST_STATE_DOWN);
 
 		ret = transmit_lamp_indication(session, 1, line->instance, SCCP_LAMP_ON);
@@ -423,7 +423,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		if (ret == -1)
 			return -1;
 
-		if (ast_pthread_create(&lookup_thread, NULL, sccp_lookup_exten, channel)) {
+		if (ast_pthread_create(&device->lookup_thread, NULL, sccp_lookup_exten, channel)) {
 			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
 			ast_hangup(channel);
 		}
@@ -435,12 +435,17 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
+	void **value_ptr;
 	int ret = 0;
 
 	line = device_get_active_line(session->device);
 
+	device_release_line(line->device, line);
+	set_line_state(line, SCCP_ONHOOK);
+
 	/* reset dialed number */
 	line->device->exten[0] = '\0';
+	pthread_join(session->device->lookup_thread, value_ptr);
 
 	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, 0);
 	if (ret == -1)
@@ -463,11 +468,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		ast_queue_hangup(line->channel);
 		line->channel->tech_pvt = NULL;
 		line->channel = NULL;
-	}
-
-	if (line->state != SCCP_ONHOOK) {
-		device_release_line(line->device, line);
-		set_line_state(line, SCCP_ONHOOK);
 	}
 
 	return 0;
@@ -507,7 +507,6 @@ static int handle_softkey_set_req_message(struct sccp_msg *msg, struct sccp_sess
 	if (ret == -1)
 		return -1;
 
-	/* XXX loop through the lines to set init state */
 	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
 	if (ret == -1)
 		return -1;
@@ -1036,7 +1035,8 @@ static int fetch_data(struct sccp_session *session)
 	fds[0].events = POLLIN;
 	fds[0].revents = 0;
 
-	nfds = ast_poll(fds, 1, sccp_cfg.keepalive * 5000); /* millisecond */
+	/* wait N times the keepalive frequence */
+	nfds = ast_poll(fds, 1, sccp_cfg.keepalive * 1000 * 2);
 	if (nfds == -1) { /* something wrong happend */
 		ast_log(LOG_WARNING, "Failed to poll socket: %s\n", strerror(errno));
 		return -1;
@@ -1105,6 +1105,8 @@ static void *thread_session(void *data)
 		if (ret > 0) {
 			msg = (struct sccp_msg *)session->inbuf;
 			ret = handle_message(msg, session);
+			/* prevent flooding */
+			usleep(500);
 		}
 
 		if (ret == -1) {

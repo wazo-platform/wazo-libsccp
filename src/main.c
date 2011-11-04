@@ -80,8 +80,11 @@ static int parse_config_devices(struct ast_config *cfg)
 								line_itr->callid = 0;
 								
 								/* set the device default line */
-								if (line_itr->instance == 1)
+									ast_log(LOG_NOTICE, "instance %d\n", line_itr->instance);
+								if (line_itr->instance == 1) {
+									ast_log(LOG_NOTICE, "line name: %s\n", line_itr->name);
 									device->default_line = line_itr;
+								}
 
 							} else {
 								ast_log(LOG_WARNING, "Line [%s] is already attach to device [%s]\n",

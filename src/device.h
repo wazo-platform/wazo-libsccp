@@ -258,6 +258,7 @@ struct sccp_device {
 	uint8_t protoVersion;
 	uint32_t station_port;
 	char exten[AST_MAX_EXTENSION];
+	pthread_t lookup_thread;
 
 	uint8_t registered;
 	uint32_t line_count;
