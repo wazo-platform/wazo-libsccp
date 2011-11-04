@@ -1106,7 +1106,7 @@ static void *thread_session(void *data)
 			msg = (struct sccp_msg *)session->inbuf;
 			ret = handle_message(msg, session);
 			/* prevent flooding */
-			usleep(500);
+			usleep(100000);
 		}
 
 		if (ret == -1) {
