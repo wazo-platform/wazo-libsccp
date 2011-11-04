@@ -8,6 +8,11 @@ void device_unregister(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
 
+	if (device == NULL) {
+		ast_log(LOG_ERROR, "invalid parameter\n");
+		return;
+	}
+
 	device->registered = DEVICE_REGISTERED_FALSE;
 
 	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {

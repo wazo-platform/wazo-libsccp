@@ -211,19 +211,31 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	AST_LIST_TRAVERSE(&list_device, device_itr, list) {
 
 		if (!strcasecmp(device_itr->name, msg->data.reg.name)) {
-			ast_log(LOG_DEBUG, "Found device [%s]\n", device_itr->name);
 
-			device_prepare(device_itr);
-			device_register(device_itr,
-					letohl(msg->data.reg.protoVersion),
-					letohl(msg->data.reg.type),
-					session);
+			if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
 
-			session->device = device_itr;
-			device_found = 1;
+				ast_log(LOG_NOTICE, "Device already registered [%s]\n", device_itr->name);
+				device_found = -1;
+
+			} else {
+
+				ast_log(LOG_DEBUG, "Device found [%s]\n", device_itr->name);
+
+				device_prepare(device_itr);
+				device_register(device_itr,
+						letohl(msg->data.reg.protoVersion),
+						letohl(msg->data.reg.type),
+						session);
+
+				session->device = device_itr;
+				device_found = 1;
+			}
 			break;
-		}	
+		}
 	}
+
+	if (device_found == 0)
+		ast_log(LOG_DEBUG, "Device not found [%s]\n", device_itr->name);
 
 	return device_found;
 }
@@ -756,8 +768,8 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	}
 
 	ret = register_device(msg, session);
-	if (ret == 0) {
-		ast_log(LOG_ERROR, "Rejecting [%s], device not found\n", msg->data.reg.name);
+	if (ret <= 0) {
+		ast_log(LOG_ERROR, "Rejecting device [%s]\n", msg->data.reg.name);
 		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
 
 		if (msg == NULL) {
@@ -894,6 +906,16 @@ static void destroy_session(struct sccp_session **session)
 static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
+
+	/* Prevent unregistered phone of sending non-registering messages */
+	if ((session->device == NULL ||
+		(session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE)) &&
+		(msg->id != REGISTER_MESSAGE && msg->id != ALARM_MESSAGE)) {
+
+			ast_log(LOG_ERROR, "session from [%s::%d] sending non-registering messages\n",
+						session->ipaddr, session->sockfd);
+			return -1;
+	}
 
 	switch (msg->id) {
 
@@ -1090,9 +1112,11 @@ static void *thread_session(void *data)
 			session = AST_LIST_REMOVE(&list_session, session, list);
 			AST_LIST_UNLOCK(&list_session);	
 
-			ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
+			if (session->device) {
+				ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
+				device_unregister(session->device);
+			}
 
-			device_unregister(session->device);
 			connected = 0;
 		}
 	}
@@ -1290,6 +1314,7 @@ static int sccp_answer(struct ast_channel *channel)
 	if (line->rtp == NULL)
 		start_rtp(line);
 
+	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, 0);
 	ast_setstate(channel, AST_STATE_UP);
 	set_line_state(line, SCCP_CONNECTED);
 
