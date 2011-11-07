@@ -375,7 +375,6 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	struct sccp_device *device = NULL;
 	struct sccp_line *line = NULL;
 	struct ast_channel *channel = NULL;
-	pthread_t lookup_thread;
 	int ret = 0;
 
 	device = session->device;
