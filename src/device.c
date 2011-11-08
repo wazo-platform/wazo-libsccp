@@ -119,6 +119,7 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 
 	return err;
 }
+
 void set_line_state(struct sccp_line *line, int state)
 {
 	line->state = state;

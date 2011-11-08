@@ -206,7 +206,7 @@ static int handle_keep_alive_message(struct sccp_msg *msg, struct sccp_session *
 static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_device *device_itr = NULL;
-	int device_found = 0;
+	int ret = 0;
 
 	AST_LIST_TRAVERSE(&list_device, device_itr, list) {
 
@@ -215,12 +215,11 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
 
 				ast_log(LOG_NOTICE, "Device already registered [%s]\n", device_itr->name);
-				device_found = -1;
+				ret = -1;
 
 			} else {
 
-				ast_log(LOG_DEBUG, "Device found [%s]\n", device_itr->name);
-
+				ast_log(LOG_NOTICE, "Device found [%s]\n", device_itr->name);
 				device_prepare(device_itr);
 				device_register(device_itr,
 						letohl(msg->data.reg.protoVersion),
@@ -228,16 +227,16 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 						session);
 
 				session->device = device_itr;
-				device_found = 1;
+				ret = 1;
 			}
 			break;
 		}
 	}
 
-	if (device_found == 0)
-		ast_log(LOG_DEBUG, "Device not found [%s]\n", device_itr->name);
+	if (ret == 0)
+		ast_log(LOG_NOTICE, "Device not found [%s]\n", device_itr->name);
 
-	return device_found;
+	return ret;
 }
 
 static struct ast_channel *sccp_new_channel(struct sccp_line *line)
@@ -305,10 +304,18 @@ static void start_rtp(struct sccp_line *line)
 	transmit_connect(line);
 }
 
-static void *sccp_newcall(void *data)
+static void sccp_newcall(struct ast_channel *channel)
 {
-	struct ast_channel *channel = data;
 	struct sccp_line *line = channel->tech_pvt;
+
+	set_line_state(line, SCCP_RINGOUT);
+	ast_setstate(channel, AST_STATE_RING);
+
+	transmit_callstate(line->device->session, line->instance, SCCP_RINGOUT, line->callid);
+	transmit_tone(line->device->session, SCCP_TONE_ALERT, line->instance, 0);
+	transmit_callinfo(line->device->session, "", "", line->device->exten, line->device->exten, line->instance, line->callid, 2);
+
+	ast_copy_string(channel->exten, line->device->exten, sizeof(channel->exten));
 
 	ast_set_callerid(channel,
 			line->cid_num,
@@ -318,12 +325,10 @@ static void *sccp_newcall(void *data)
 	channel->lid.lid_num = ast_strdup(channel->exten);
 	channel->lid.lid_name = NULL;
 
-	ast_setstate(channel, AST_STATE_RING);
-
 	start_rtp(line);
-	ast_pbx_run(channel);
+	ast_pbx_start(channel);
 
-	return NULL;
+	return;
 }
 
 static void *sccp_lookup_exten(void *data)
@@ -338,17 +343,14 @@ static void *sccp_lookup_exten(void *data)
 	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
 		line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
 
+		ast_log(LOG_NOTICE, "lookup %s\n", line->device->exten);
+
 		//ret = ast_ignore_pattern(channel->context, line->device->exten);
 		//ast_log(LOG_NOTICE, "ast ignore pattern : %d\n", ret);
 
 		if (ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 			if (!ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 
-				set_line_state(line, SCCP_RINGOUT);
-				transmit_callstate(line->device->session, line->instance, SCCP_RINGOUT, line->callid);
-				transmit_tone(line->device->session, SCCP_TONE_ALERT, line->instance, 0);
-				transmit_callinfo(line->device->session, "", "", line->cid_name, line->cid_num, line->instance, line->callid, 2);
-				ast_copy_string(channel->exten, line->device->exten, sizeof(channel->exten));
 				sccp_newcall(channel);
 				return NULL;
 			}
@@ -397,9 +399,8 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	} else if (line->state == SCCP_ONHOOK) {
 
 		set_line_state(line, SCCP_OFFHOOK);
-		channel = sccp_new_channel(line);
 
-		ast_log(LOG_NOTICE, "channel state %d\n", channel->_state);
+		channel = sccp_new_channel(line);
 		ast_setstate(line->channel, AST_STATE_DOWN);
 
 		ret = transmit_lamp_indication(session, 1, line->instance, SCCP_LAMP_ON);
@@ -425,6 +426,8 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		if (ast_pthread_create(&device->lookup_thread, NULL, sccp_lookup_exten, channel)) {
 			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
 			ast_hangup(channel);
+		} else {
+			device->lookup = 1;
 		}
 	}
 	
@@ -434,7 +437,6 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
-	void **value_ptr;
 	int ret = 0;
 
 	line = device_get_active_line(session->device);
@@ -442,9 +444,12 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	device_release_line(line->device, line);
 	set_line_state(line, SCCP_ONHOOK);
 
-	/* reset dialed number */
 	line->device->exten[0] = '\0';
-	pthread_join(session->device->lookup_thread, value_ptr);
+	/* wait for lookup thread to terminate */
+	if (session->device->lookup == 1)
+		pthread_join(session->device->lookup_thread, NULL);
+	else
+		session->device->lookup = 0;
 
 	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, 0);
 	if (ret == -1)
@@ -467,6 +472,84 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		ast_queue_hangup(line->channel);
 		line->channel->tech_pvt = NULL;
 		line->channel = NULL;
+	}
+
+	return 0;
+}
+
+static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	int ret = 0;
+
+	ast_log(LOG_NOTICE, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
+	ast_log(LOG_NOTICE, "instance: %d\n", msg->data.softkeyevent.instance);
+	ast_log(LOG_NOTICE, "callreference: %d\n", msg->data.softkeyevent.callreference);
+
+	switch (letohl(msg->data.softkeyevent.softKeyEvent)) {
+
+		case SOFTKEY_NONE:
+			break;
+
+		case SOFTKEY_REDIAL:
+			break;
+
+		case SOFTKEY_NEWCALL:
+			transmit_speaker_mode(session, SCCP_SPEAKERON);
+			handle_offhook_message(NULL, session);
+			break;
+
+		case SOFTKEY_HOLD:
+			break;
+
+		case SOFTKEY_TRNSFER:
+			break;
+
+		case SOFTKEY_CFWDALL:
+			break;
+
+		case SOFTKEY_CFWDBUSY:
+			break;
+
+		case SOFTKEY_CFWDNOANSWER:
+			break;
+
+		case SOFTKEY_BKSPC:
+			break;
+
+		case SOFTKEY_ENDCALL:
+			transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+			handle_onhook_message(NULL, session);
+			break;
+
+		case SOFTKEY_RESUME:
+			break;
+
+		case SOFTKEY_ANSWER:
+			break;
+
+		case SOFTKEY_INFO:
+			break;
+
+		case SOFTKEY_CONFRN:
+			break;
+
+		case SOFTKEY_PARK:
+			break;
+
+		case SOFTKEY_JOIN:
+			break;
+
+		case SOFTKEY_MEETME:
+			break;
+
+		case SOFTKEY_PICKUP:
+			break;
+
+		case SOFTKEY_GPICKUP:
+			break;
+
+		default:
+		break;
 	}
 
 	return 0;
@@ -984,6 +1067,11 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 		case ALARM_MESSAGE:
 			ast_log(LOG_NOTICE, "Alarm message: %s\n", msg->data.alarm.displayMessage);
+			break;
+
+		case SOFTKEY_EVENT_MESSAGE:
+			ast_log(LOG_NOTICE, "Softkey event message\n");
+			ret = handle_softkey_event_message(msg, session);
 			break;
 
 		case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:

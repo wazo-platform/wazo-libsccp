@@ -30,6 +30,11 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	ssize_t nbyte = 0;
 
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is null\n");
+		return -1;
+	}
+
 	memcpy(session->outbuf, msg, 12);
 	memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
 
@@ -42,6 +47,24 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	ast_free(msg);
 
 	return nbyte;
+}
+
+int transmit_speaker_mode(struct sccp_session *session, int mode)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct set_speaker_message), SET_SPEAKER_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.setspeaker.mode = htolel(mode);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
 }
 
 int transmit_close_receive_channel(struct sccp_line *line)

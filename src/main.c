@@ -56,6 +56,7 @@ static int parse_config_devices(struct ast_config *cfg)
 			TAILQ_INIT(&device->qline);
 			device->active_line = NULL;
 			device->active_line_cnt = 0;
+			device->lookup = 0;
 			device->registered = DEVICE_REGISTERED_FALSE;
 
 			AST_LIST_HEAD_INIT(&device->lines);

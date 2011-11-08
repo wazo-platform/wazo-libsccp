@@ -107,6 +107,13 @@ struct open_receive_channel_ack_message_v17 {
 };
 
 #define SOFTKEY_SET_REQ_MESSAGE 0x0025
+#define SOFTKEY_EVENT_MESSAGE 0x0026
+struct softkey_event_message {
+        uint32_t softKeyEvent;
+        uint32_t instance;
+        uint32_t callreference;
+};
+
 #define SOFTKEY_TEMPLATE_REQ_MESSAGE 0x0028
 #define REGISTER_AVAILABLE_LINES_MESSAGE 0x002D
 #define ACCESSORY_STATUS_MESSAGE 0x0049
@@ -149,6 +156,11 @@ struct set_lamp_message {
 	uint32_t stimulus;
 	uint32_t stimulusInstance;
 	uint32_t deviceStimulus;
+};
+
+#define SET_SPEAKER_MESSAGE 0X0088
+struct set_speaker_message {
+	uint32_t mode;
 };
 
 #define STOP_MEDIA_TRANSMISSION_MESSAGE 0x008B
@@ -430,12 +442,14 @@ union sccp_data {
 	struct set_ringer_message setringer;
 	struct call_state_message callstate;
 	struct keypad_button_message keypad;
+        struct softkey_event_message softkeyevent;
         struct softkey_set_res_message softkeysets;
 	struct softkey_template_res_message softkeytemplate;
         struct select_soft_keys_message selectsoftkey;
 	struct stop_media_transmission_message stopmedia;
 	struct start_media_transmission_message startmedia;
 	struct start_media_transmission_message_v17 startmedia_v17;
+	struct set_speaker_message setspeaker;
 	struct call_info_message callinfo;
 	struct close_receive_channel_message closereceivechannel;
 	struct open_receive_channel_message openreceivechannel;

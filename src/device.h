@@ -13,6 +13,9 @@
 #define SCCP_DEVICE_7940	8
 #define SCCP_DEVICE_7941	115
 
+#define SCCP_SPEAKERON		1
+#define SCCP_SPEAKEROFF		2
+
 #define SCCP_OFFHOOK		1
 #define SCCP_ONHOOK		2
 #define SCCP_RINGOUT		3
@@ -257,8 +260,10 @@ struct sccp_device {
 	int state;
 	uint8_t protoVersion;
 	uint32_t station_port;
+
 	char exten[AST_MAX_EXTENSION];
 	pthread_t lookup_thread;
+	int lookup;
 
 	uint8_t registered;
 	uint32_t line_count;
