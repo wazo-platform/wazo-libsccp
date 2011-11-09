@@ -447,6 +447,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	set_line_state(line, SCCP_ONHOOK);
 
 	line->device->exten[0] = '\0';
+
 	/* wait for lookup thread to terminate */
 	if (session->device->lookup == 1)
 		pthread_join(session->device->lookup_thread, NULL);
@@ -711,18 +712,10 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	int ret = 0;
 
 	line = device_get_active_line(session->device);
-/*
-	if (line->eevice->protoVersion >= 17) {
-		addr = letohl(msg->data.openreceivechannelack_v17.ipAddr[0]);
-		port = letohl(msg->data.openreceivechannelack_v17.port);
-		passthruid = letohl(msg->data.openreceivechannelack_v17.passThruId);
 
-	} else {
-*/
-		addr = letohl(msg->data.openreceivechannelack.ipAddr);
-		port = letohl(msg->data.openreceivechannelack.port);
-		passthruid = letohl(msg->data.openreceivechannelack.passThruId);
-//	}
+	addr = letohl(msg->data.openreceivechannelack.ipAddr);
+	port = letohl(msg->data.openreceivechannelack.port);
+	passthruid = letohl(msg->data.openreceivechannelack.passThruId);
 
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = addr;
@@ -734,44 +727,23 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	/* FIXME `fmt' per device */
 	struct ast_codec_pref default_prefs;
 	fmt = ast_codec_pref_getsize(&default_prefs, ast_best_codec(line->device->ast_codec));
-/*
-	if (line->device->protoVersion >= 17) {
 
-		msg = msg_alloc(sizeof(struct start_media_transmission_message_v17), START_MEDIA_TRANSMISSION_MESSAGE);
-		if (msg == NULL)
-			return -1;
+	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
+	if (msg == NULL)
+		return -1;
 
-		msg->data.startmedia_v17.conferenceId = htolel(0);
-		msg->data.startmedia_v17.passThruPartyId = htolel(0);
-		msg->data.startmedia_v17.conferenceId1 = htolel(0);
-		msg->data.startmedia_v17.remoteIp[0] = htolel(us.sin_addr.s_addr);
-		msg->data.startmedia_v17.remotePort = htolel(ntohs(us.sin_port));
-		msg->data.startmedia_v17.packetSize = htolel(fmt.cur_ms);
-		msg->data.startmedia_v17.payloadType = htolel(codec_ast2sccp(fmt.bits));
-		msg->data.startmedia_v17.qualifier.precedence = htolel(127);
-		msg->data.startmedia_v17.qualifier.vad = htolel(0);
-		msg->data.startmedia_v17.qualifier.packets = htolel(0);
-		msg->data.startmedia_v17.qualifier.bitRate = htolel(0);
-
-	} else {
-*/
-		msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
-		if (msg == NULL)
-			return -1;
-
-		msg->data.startmedia.conferenceId = htolel(0);
-		msg->data.startmedia.passThruPartyId = htolel(line->callid ^ 0xFFFFFFFF);
-		msg->data.startmedia.remoteIp = htolel(us.sin_addr.s_addr);
-		msg->data.startmedia.remotePort = htolel(ntohs(us.sin_port));
-		msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
-		msg->data.startmedia.payloadType = htolel(codec_ast2sccp(fmt.bits));
-		msg->data.startmedia.qualifier.precedence = htolel(127);
-		msg->data.startmedia.qualifier.vad = htolel(0);
-		msg->data.startmedia.qualifier.packets = htolel(0);
-		msg->data.startmedia.qualifier.bitRate = htolel(0);
-		msg->data.startmedia.conferenceId1 = htolel(0);
-		msg->data.startmedia.rtpTimeout = htolel(10);
-//	}
+	msg->data.startmedia.conferenceId = htolel(0);
+	msg->data.startmedia.passThruPartyId = htolel(line->callid ^ 0xFFFFFFFF);
+	msg->data.startmedia.remoteIp = htolel(us.sin_addr.s_addr);
+	msg->data.startmedia.remotePort = htolel(ntohs(us.sin_port));
+	msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
+	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(fmt.bits));
+	msg->data.startmedia.qualifier.precedence = htolel(127);
+	msg->data.startmedia.qualifier.vad = htolel(0);
+	msg->data.startmedia.qualifier.packets = htolel(0);
+	msg->data.startmedia.qualifier.bitRate = htolel(0);
+	msg->data.startmedia.conferenceId1 = htolel(0);
+	msg->data.startmedia.rtpTimeout = htolel(10);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -1325,7 +1297,6 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 	transmit_callstate(session, line->instance, SCCP_RINGIN, line->callid);
 	transmit_selectsoftkeys(session, line->instance, line->callid, KEYDEF_RINGIN);
-//	transmit_displaypromptstatus(session, "Ring-In", 0, line->instance, line->callid);
 	transmit_callinfo(session, channel->lid.lid_name, channel->lid.lid_num, line->cid_name, line->cid_num, line->instance, line->callid, 1);
 	transmit_lamp_indication(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 
@@ -1589,7 +1560,6 @@ void sccp_server_fini()
 	struct sccp_session *session_itr = NULL;
 	int ret;
 
-	/* FIXME doesn't belong here */
 	ast_channel_unregister(&sccp_tech);
 
 	ret = pthread_cancel(sccp_srv.thread_accept);
@@ -1643,7 +1613,6 @@ int sccp_server_init(void)
 		return -1;
 	}
 
-	/* FIXME doesn't belong here */
 	ast_channel_register(&sccp_tech);
 
 	ast_pthread_create_background(&sccp_srv.thread_accept, NULL, thread_accept, NULL);
