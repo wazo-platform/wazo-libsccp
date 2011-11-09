@@ -386,22 +386,24 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 	if (line && line->state == SCCP_RINGIN) {
 
-		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 		ast_queue_control(line->channel, AST_CONTROL_ANSWER);
+
+		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 		transmit_callstate(session, line->instance, SCCP_OFFHOOK, 0);
 		transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
 		transmit_callstate(session, line->instance, SCCP_CONNECTED, 0);
+
 		start_rtp(line);
+
 		ast_setstate(line->channel, AST_STATE_UP);
-	
 		set_line_state(line, SCCP_CONNECTED);
 
 	} else if (line->state == SCCP_ONHOOK) {
 
-		set_line_state(line, SCCP_OFFHOOK);
-
 		channel = sccp_new_channel(line);
+
 		ast_setstate(line->channel, AST_STATE_DOWN);
+		set_line_state(line, SCCP_OFFHOOK);
 
 		ret = transmit_lamp_indication(session, 1, line->instance, SCCP_LAMP_ON);
 		if (ret == -1)
@@ -469,6 +471,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 			line->rtp = NULL;
 		}
 
+		ast_setstate(line->channel, AST_STATE_DOWN);
 		ast_queue_hangup(line->channel);
 		line->channel->tech_pvt = NULL;
 		line->channel = NULL;
@@ -518,6 +521,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 		case SOFTKEY_ENDCALL:
 			transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+			transmit_ringer_mode(session, SCCP_RING_OFF);
 			handle_onhook_message(NULL, session);
 			break;
 
@@ -1387,7 +1391,7 @@ static int sccp_hangup(struct ast_channel *channel)
 		device_release_line(line->device, line);
 		set_line_state(line, SCCP_ONHOOK);
 	} else if (line->state == SCCP_CONNECTED) {
-		set_line_state(line, SCCP_INVALID);
+		set_line_state(line, SCCP_CONGESTION);
 	}
 
 	return 0;
@@ -1404,6 +1408,7 @@ static int sccp_answer(struct ast_channel *channel)
 		start_rtp(line);
 
 	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, 0);
+
 	ast_setstate(channel, AST_STATE_UP);
 	set_line_state(line, SCCP_CONNECTED);
 
@@ -1457,6 +1462,105 @@ static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, size_t datalen)
 {
 	ast_log(LOG_NOTICE, "sccp indicate\n");
+
+	switch (ind) {
+
+		case AST_CONTROL_HANGUP:
+			ast_log(LOG_NOTICE, "hangup\n");
+			break;
+
+		case AST_CONTROL_RING:
+			ast_log(LOG_NOTICE, "ring\n");
+			break;
+
+		case AST_CONTROL_RINGING:
+			ast_log(LOG_NOTICE, "ringing\n");
+			break;
+
+		case AST_CONTROL_ANSWER:
+			ast_log(LOG_NOTICE, "answer\n");
+			break;
+
+		case AST_CONTROL_BUSY:
+			ast_log(LOG_NOTICE, "busy\n");
+			break;
+
+		case AST_CONTROL_TAKEOFFHOOK:
+			ast_log(LOG_NOTICE, "takeoffhook\n");
+			break;
+
+		case AST_CONTROL_OFFHOOK:
+			ast_log(LOG_NOTICE, "offhook\n");
+			break;
+
+		case AST_CONTROL_CONGESTION:
+			ast_log(LOG_NOTICE, "congestion\n");
+			break;
+
+		case AST_CONTROL_FLASH:
+			ast_log(LOG_NOTICE, "flash\n");
+			break;
+
+		case AST_CONTROL_WINK:
+			ast_log(LOG_NOTICE, "wink\n");
+			break;
+
+		case AST_CONTROL_OPTION:
+			ast_log(LOG_NOTICE, "option\n");
+			break;
+
+		case AST_CONTROL_RADIO_KEY:
+			ast_log(LOG_NOTICE, "radio key\n");
+			break;
+
+		case AST_CONTROL_RADIO_UNKEY:
+			ast_log(LOG_NOTICE, "radio unkey\n");
+			break;
+
+		case AST_CONTROL_PROGRESS:
+			ast_log(LOG_NOTICE, "progress\n");
+			break;
+
+		case AST_CONTROL_PROCEEDING:
+			ast_log(LOG_NOTICE, "proceeding\n");
+			break;
+
+		case AST_CONTROL_HOLD:
+			ast_log(LOG_NOTICE, "hold\n");
+			break;
+
+		case AST_CONTROL_UNHOLD:
+			ast_log(LOG_NOTICE, "unhold\n");
+			break;
+
+		case AST_CONTROL_VIDUPDATE:
+			ast_log(LOG_NOTICE, "vid update\n");
+			break;
+
+		case AST_CONTROL_ATXFERCMD:
+			ast_log(LOG_NOTICE, "atxfer cmd\n");
+			break;
+
+		case AST_CONTROL_SRCUPDATE:
+			ast_log(LOG_NOTICE, "src update\n");
+			break;
+
+		case AST_CONTROL_SRCCHANGE:
+			ast_log(LOG_NOTICE, "src change\n");
+			break;
+
+		case AST_CONTROL_END_OF_Q:
+			ast_log(LOG_NOTICE, "end of q\n");
+			break;
+
+		case AST_CONTROL_CONNECTEDLINE:
+			ast_log(LOG_NOTICE, "connected line\n");
+			break;
+
+		default:
+			break;
+	}
+
 	return 0;
 }
 
