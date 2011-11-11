@@ -300,8 +300,6 @@ static void start_rtp(struct sccp_line *line)
 
 	ast_rtp_setnat(line->rtp, 0);
 	ast_rtp_codec_setpref(line->rtp, &default_prefs);
-
-	transmit_connect(line);
 }
 
 static void sccp_newcall(struct ast_channel *channel)
@@ -325,7 +323,8 @@ static void sccp_newcall(struct ast_channel *channel)
 	channel->lid.lid_num = ast_strdup(channel->exten);
 	channel->lid.lid_name = NULL;
 
-	start_rtp(line);
+	transmit_connect(line);
+
 	ast_pbx_start(channel);
 
 	return;
@@ -393,7 +392,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
 		transmit_callstate(session, line->instance, SCCP_CONNECTED, 0);
 
-		start_rtp(line);
+		transmit_connect(line);
 
 		ast_setstate(line->channel, AST_STATE_UP);
 		set_line_state(line, SCCP_CONNECTED);
@@ -720,6 +719,8 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = addr;
 	sin.sin_port = htons(port);
+
+	start_rtp(line);
 
 	ast_rtp_set_peer(line->rtp, &sin);
 	ast_rtp_get_us(line->rtp, &us);
@@ -1375,8 +1376,9 @@ static int sccp_answer(struct ast_channel *channel)
 	struct sccp_line *line = NULL;
 	line = channel->tech_pvt;
 
-	if (line->rtp == NULL)
-		start_rtp(line);
+	if (line->rtp == NULL) {
+		transmit_connect(line);
+	}
 
 	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, 0);
 
@@ -1423,18 +1425,23 @@ static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 	int res = 0;
 	struct sccp_line *line = channel->tech_pvt;
 
-	if (line->state == SCCP_CONNECTED) {
+	if (line == NULL)
+		return res;
+
+	if (line->rtp != NULL && line->state == SCCP_CONNECTED) {
 		res = ast_rtp_write(line->rtp, frame);
 	}
 
 	return res;
 }
 
-static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, size_t datalen)
+static int sccp_indicate(struct ast_channel *channel, int indicate, const void *data, size_t datalen)
 {
 	ast_log(LOG_NOTICE, "sccp indicate\n");
 
-	switch (ind) {
+	struct sccp_line *line = channel->tech_pvt;
+
+	switch (indicate) {
 
 		case AST_CONTROL_HANGUP:
 			ast_log(LOG_NOTICE, "hangup\n");
@@ -1453,6 +1460,10 @@ static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, siz
 			break;
 
 		case AST_CONTROL_BUSY:
+
+			transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
+			transmit_tone(line->device->session, SCCP_TONE_BUSY, line->instance, 0);
+
 			ast_log(LOG_NOTICE, "busy\n");
 			break;
 
@@ -1465,6 +1476,10 @@ static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, siz
 			break;
 
 		case AST_CONTROL_CONGESTION:
+
+			transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
+			transmit_tone(line->device->session, SCCP_TONE_BUSY, line->instance, 0);
+
 			ast_log(LOG_NOTICE, "congestion\n");
 			break;
 
