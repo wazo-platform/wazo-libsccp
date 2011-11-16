@@ -72,6 +72,9 @@ int transmit_close_receive_channel(struct sccp_line *line)
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
+	if (!line || !line->device || !line->device->session)
+		return -1;
+
 	msg = msg_alloc(sizeof(struct close_receive_channel_message), CLOSE_RECEIVE_CHANNEL_MESSAGE);
 	if (msg == NULL)
 		return -1;

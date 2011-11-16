@@ -52,12 +52,14 @@ static int parse_config_devices(struct ast_config *cfg)
 			/* initialize the new device */
 			device = ast_calloc(1, sizeof(struct sccp_device));
 
+			ast_mutex_init(&device->lock);
 			ast_copy_string(device->name, category, 80);
 			TAILQ_INIT(&device->qline);
 			device->active_line = NULL;
 			device->active_line_cnt = 0;
 			device->lookup = 0;
 			device->registered = DEVICE_REGISTERED_FALSE;
+			device->session = NULL;
 
 			AST_LIST_HEAD_INIT(&device->lines);
 			AST_LIST_INSERT_HEAD(&list_device, device, list);
@@ -73,6 +75,7 @@ static int parse_config_devices(struct ast_config *cfg)
 
 								/* initialize the line instance */
 								AST_LIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
+								ast_mutex_init(&line_itr->lock);
 								line_itr->state = SCCP_ONHOOK;
 								line_itr->instance = line_instance++;
 								device->line_count++;
@@ -199,11 +202,15 @@ static int config_unload(void)
 	struct sccp_line *line_itr;
 
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_device, device_itr, list) {
+
+		ast_mutex_destroy(&device_itr->lock);
 		AST_LIST_REMOVE_CURRENT(&list_device, list);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
 
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_line, line_itr, list) {
+
+		ast_mutex_destroy(&line_itr->lock);
 		AST_LIST_REMOVE_CURRENT(&list_line, list);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;

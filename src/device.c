@@ -40,6 +40,8 @@ void device_prepare(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
 
+	ast_mutex_lock(&device->lock);
+
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
 
@@ -47,24 +49,32 @@ void device_prepare(struct sccp_device *device)
 		TAILQ_REMOVE(&device->qline, line_itr, qline);
 	}
 
+	ast_mutex_unlock(&device->lock);
+
 	device->exten[0] = '\0';
 
 	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
 		set_line_state(line_itr, SCCP_ONHOOK);
 	}
 
+
 	return;
 }
 
 struct sccp_line *find_line_by_name(char *name)
 {
-	struct sccp_line *line_itr;
-	AST_LIST_TRAVERSE(&list_line, line_itr, list) {
-		if (!strncmp(line_itr->name, name, sizeof(line_itr->name)))
-			return line_itr;
-	}
+	struct sccp_line *line_itr = NULL;
 
-	return NULL;
+	if (name == NULL)
+		return NULL;
+
+	AST_LIST_TRAVERSE(&list_line, line_itr, list) {
+		ast_log(LOG_ERROR, "line_itr->name [%s] name[%s]\n", line_itr->name, name);
+		if (!strncmp(line_itr->name, name, sizeof(line_itr->name))) {
+			break;
+		}
+	}
+	return line_itr;
 }
 
 struct sccp_line *device_get_line(struct sccp_device *device, int instance)
@@ -122,7 +132,9 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 
 void set_line_state(struct sccp_line *line, int state)
 {
+	ast_mutex_lock(&line->lock);
 	line->state = state;
+	ast_mutex_unlock(&line->lock);
 }
 
 void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
@@ -132,9 +144,11 @@ void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
 		return;
 	}
 
+	ast_mutex_lock(&device->lock);
 	TAILQ_INSERT_TAIL(&device->qline, line, qline);
 
 	device->active_line_cnt++;
+	ast_mutex_unlock(&device->lock);
 }
 
 void device_release_line(struct sccp_device *device, struct sccp_line *line)
@@ -144,6 +158,7 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line)
 		return;
 	}
 
+	ast_mutex_lock(&device->lock);
 	if (device->active_line == line) {
 		device->active_line = NULL;
 	} else {
@@ -151,6 +166,7 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line)
 	}
 
 	device->active_line_cnt--;
+	ast_mutex_unlock(&device->lock);
 }
 
 int device_get_active_line(struct sccp_device *device)
@@ -160,6 +176,7 @@ int device_get_active_line(struct sccp_device *device)
 		return;
 	}
 
+	ast_mutex_lock(&device->lock);
 	if (device->active_line == NULL) {
 		if (device->qline.tqh_first != NULL) {
 			device->active_line = device->qline.tqh_first;
@@ -169,6 +186,7 @@ int device_get_active_line(struct sccp_device *device)
 			device->active_line_cnt++;
 		}
 	}
+	ast_mutex_unlock(&device->lock);
 
 	return device->active_line;
 }

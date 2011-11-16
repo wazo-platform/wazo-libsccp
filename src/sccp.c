@@ -387,7 +387,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 		ast_queue_control(line->channel, AST_CONTROL_ANSWER);
 
-		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
+		transmit_ringer_mode(session, SCCP_RING_OFF);
 		transmit_callstate(session, line->instance, SCCP_OFFHOOK, 0);
 		transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
 		transmit_callstate(session, line->instance, SCCP_CONNECTED, 0);
@@ -916,6 +916,10 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	callId = letohl(msg->data.keypad.callId);
 
 	line = device_get_line(session->device, instance);
+	if (line == NULL) {
+		ast_log(LOG_WARNING, "device [%s] has no line instance [%d]\n", session->device->name, instance);
+		return 0;
+	}
 
 	if (button == 14) {
 		digit = '*';
@@ -1249,6 +1253,7 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 				"cause: %d\n",
 				type, format, (char *)destination, *cause);
 
+
 	line = find_line_by_name((char *)destination);
 
 	if (line == NULL) {
@@ -1257,13 +1262,21 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 		return NULL;
 	}
 
-	if (line->state != SCCP_ONHOOK) {
+	if (line->device->registered == DEVICE_REGISTERED_FALSE) {
+		ast_log(LOG_NOTICE, "line [%s] belong to an unregistered device [%s]\n", line->name, line->device->name);
+		*cause = AST_CAUSE_UNREGISTERED;
+		return NULL;
+	}
+
+	if (line->state != SCCP_ONHOOK || line->channel != NULL) {
 		*cause = AST_CAUSE_BUSY;
 		return NULL;
 	}
 
 	channel = sccp_new_channel(line);
-	ast_setstate(line->channel, AST_STATE_DOWN);
+
+	if (line->channel)
+		ast_setstate(line->channel, AST_STATE_DOWN);
 
 	return channel;
 }
@@ -1284,7 +1297,16 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 		return -1;
 
 	device = line->device;
+	if (device == NULL) {
+		ast_log(LOG_ERROR, "line [%s] is attached to no device\n");
+		return -1;
+	}
+
 	session = device->session;
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "device [%s] has no active session\n");
+		return -1;
+	}
 
 	if (line->state != SCCP_ONHOOK) {
 		channel->hangupcause = AST_CONTROL_BUSY;
@@ -1322,7 +1344,13 @@ static int sccp_hangup(struct ast_channel *channel)
 	if (line == NULL)
 		return -1;
 
-	if (line->state == SCCP_RINGIN) {
+	if (line->state == SCCP_RINGIN || line->state == SCCP_CONNECTED) {
+
+		device_release_line(line->device, line);
+		set_line_state(line, SCCP_ONHOOK);
+
+		if (line->device->active_line_cnt <= 1)
+			ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
 
 		ret = transmit_lamp_indication(line->device->session, 1, line->instance, SCCP_LAMP_OFF);
 		if (ret == -1)
@@ -1339,10 +1367,26 @@ static int sccp_hangup(struct ast_channel *channel)
 		ret = transmit_selectsoftkeys(line->device->session, line->instance, 0, KEYDEF_ONHOOK);
 		if (ret == -1)
 			return -1;
-	}
 
-	if (line->device->active_line_cnt <= 1)
-		ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
+	} /*else if (line->state == SCCP_CONNECTED) {
+
+		set_line_state(line, SCCP_INVALID);
+
+		transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
+		transmit_tone(line->device->session, SCCP_TONE_BUSY, line->instance, 0);
+
+		ret = transmit_lamp_indication(line->device->session, 1, line->instance, SCCP_LAMP_OFF);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_callstate(line->device->session, line->instance, SCCP_ONHOOK, line->callid);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_selectsoftkeys(line->device->session, line->instance, 0, KEYDEF_ONHOOK);
+		if (ret == -1)
+			return -1;
+	}*/
 
 	if (line->channel != NULL) {
 
@@ -1355,15 +1399,8 @@ static int sccp_hangup(struct ast_channel *channel)
 		}
 
 		ast_queue_hangup(line->channel);
-		line->channel = NULL;
 		channel->tech_pvt = NULL;
-	}
-
-	if (line->state == SCCP_RINGIN) {
-		device_release_line(line->device, line);
-		set_line_state(line, SCCP_ONHOOK);
-	} else if (line->state == SCCP_CONNECTED) {
-		set_line_state(line, SCCP_CONGESTION);
+		line->channel = NULL;
 	}
 
 	return 0;

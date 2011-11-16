@@ -3,6 +3,7 @@
 
 #include <asterisk.h>
 #include <asterisk/channel.h>
+#include <asterisk/lock.h>
 #include <asterisk/linkedlists.h>
 
 #include <stdint.h>
@@ -233,6 +234,8 @@ struct button_definition_template {
 
 struct sccp_line {
 
+	ast_mutex_t lock;
+
 	char name[80];
 	char cid_num[80];
 	char cid_name[80];
@@ -254,6 +257,8 @@ struct sccp_line {
 #define DEVICE_REGISTERED_FALSE	0x2
 
 struct sccp_device {
+
+	ast_mutex_t lock;
 
 	char name[80];
 	int type;
