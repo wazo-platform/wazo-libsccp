@@ -1,3 +1,0 @@
-* sccp_new_channel: create new channel using values from line and device
-* use call-id instead of hardcoded one
-* normalize line instance numbering, do not use offset
