@@ -9,8 +9,6 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
-#include "message.h"
-
 #define SCCP_DEVICE_7940	8
 #define SCCP_DEVICE_7941	115
 
@@ -115,27 +113,6 @@
 #define SOFTKEY_MEETME			0x10
 #define SOFTKEY_PICKUP			0x11
 #define SOFTKEY_GPICKUP			0x12
-
-struct softkey_template_definition softkey_template_default[] = {
-	{"Redial",	0x01},
-	{"NewCall",	0x02},
-	{"Hold",	0x03},
-	{"Trnsfer",	0x04},
-	{"CFwdAll",	0x05},
-	{"CFwdBusy",	0x06},
-	{"CFwdNoAnswer",0x07},
-	{"<<",		0x08},
-	{"EndCall",	0x09},
-	{"Resume",	0x0A},
-	{"Answer",	0x0B},
-	{"Info",	0x0C},
-	{"Confrn",	0x0D},
-	{"Park",	0x0E},
-	{"Join",	0x0F},
-	{"MeetMe",	0x10},
-	{"PickUp",	0x11},
-	{"GPickUp",	0x12},
-};
 
 struct softkey_definitions {
 	const uint8_t mode;
@@ -292,9 +269,19 @@ AST_LIST_HEAD(list_device, sccp_device);
 extern struct list_line list_line;	/* global */
 extern struct list_device list_device;	/* global */
 
-int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl);
+void device_unregister(struct sccp_device *device);
+void device_register(struct sccp_device *device,
+			int8_t protoVersion,
+			int type,
+			void *session);
+void device_prepare(struct sccp_device *device);
+struct sccp_line *find_line_by_name(char *name);
 struct sccp_line *device_get_line(struct sccp_device *device, int instance);
 int device_type_is_supported(int device_type);
-struct sccp_line *find_line_by_name(char *name);
+int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl);
+void set_line_state(struct sccp_line *line, int state);
+void device_enqueue_line(struct sccp_device *device, struct sccp_line *line);
+void device_release_line(struct sccp_device *device, struct sccp_line *line);
+struct sccp_line *device_get_active_line(struct sccp_device *device);
 
 #endif /* SCCP_DEVICE_H */

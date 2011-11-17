@@ -30,8 +30,13 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	ssize_t nbyte = 0;
 
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "invalid message\n");
+		return -1;
+	}
+
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "session is null\n");
+		ast_log(LOG_ERROR, "invalid session\n");
 		return -1;
 	}
 
@@ -54,6 +59,11 @@ int transmit_speaker_mode(struct sccp_session *session, int mode)
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
+
 	msg = msg_alloc(sizeof(struct set_speaker_message), SET_SPEAKER_MESSAGE);
 	if (msg == NULL)
 		return -1;
@@ -72,8 +82,20 @@ int transmit_close_receive_channel(struct sccp_line *line)
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
-	if (!line || !line->device || !line->device->session)
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "invalid line\n");
 		return -1;
+	}
+
+	if (line->device == NULL) {
+		ast_log(LOG_ERROR, "invalid device\n");
+		return -1;
+	}
+
+	if (line->device->session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct close_receive_channel_message), CLOSE_RECEIVE_CHANNEL_MESSAGE);
 	if (msg == NULL)
@@ -95,6 +117,21 @@ int transmit_stop_media_transmission(struct sccp_line *line)
 	struct sccp_msg *msg = NULL;
 	int ret = 0;	
 
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "invalid line\n");
+		return -1;
+	}
+
+	if (line->device == NULL) {
+		ast_log(LOG_ERROR, "invalid device\n");
+		return -1;
+	}
+
+	if (line->device->session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
+
 	msg = msg_alloc(sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
 	if (msg == NULL)
 		return -1;
@@ -115,6 +152,21 @@ int transmit_connect(struct sccp_line *line)
 	struct ast_format_list fmt = {0};
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
+
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "invalid line\n");
+		return -1;
+	}
+
+	if (line->device == NULL) {
+		ast_log(LOG_ERROR, "invalid device\n");
+		return -1;
+	}
+
+	if (line->device->session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
 
 	/* FIXME `fmt' must be per device */
 	struct ast_codec_pref default_prefs;
@@ -170,6 +222,11 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
+
 	msg = msg_alloc(sizeof(struct call_info_message), CALL_INFO_MESSAGE);
 	if (msg == NULL)
 		return -1;
@@ -194,6 +251,11 @@ int transmit_callstate(struct sccp_session *session, int instance, int state, un
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct call_state_message), CALL_STATE_MESSAGE);
 	if (msg == NULL)
@@ -222,6 +284,11 @@ int transmit_tone(struct sccp_session *session, int tone, int instance, int refe
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
+
 	msg = msg_alloc(sizeof(struct start_tone_message), START_TONE_MESSAGE);
 	if (msg == NULL)
 		return -1;
@@ -241,6 +308,11 @@ int transmit_lamp_indication(struct sccp_session *session, int stimulus, int ins
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct set_lamp_message), SET_LAMP_MESSAGE);
 	if (msg == NULL)
@@ -262,6 +334,11 @@ int transmit_ringer_mode(struct sccp_session *session, int mode)
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
+
 	msg = msg_alloc(sizeof(struct set_ringer_message), SET_RINGER_MESSAGE);
 	if (msg == NULL)
 		return -1;
@@ -281,6 +358,11 @@ int transmit_selectsoftkeys(struct sccp_session *session, int instance, int call
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "invalid session\n");
+		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
 	if (msg == NULL)

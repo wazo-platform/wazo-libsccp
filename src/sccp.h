@@ -13,7 +13,7 @@ static struct sccp_server {
 	pthread_t thread_accept;
 	pthread_t thread_session;
 
-} sccp_srv = {{0}};
+} sccp_srv;
 
 struct sccp_configs {
 
@@ -41,5 +41,6 @@ struct sccp_session {
 
 int codec_ast2sccp(int);
 int sccp_server_init(void);
+void sccp_server_fini(void);
 
 #endif /* SCCP */

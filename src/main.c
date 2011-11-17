@@ -8,8 +8,6 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include <asterisk/module.h>
 #include <asterisk/utils.h>
 
-#include "../config.h"
-
 #include "sccp.h"
 #include "message.h"
 #include "device.h"
@@ -19,7 +17,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #endif
 
 static const char sccp_config[] = "skinny.conf";
-struct sccp_configs sccp_cfg = {0}; /* global settings */
+struct sccp_configs sccp_cfg; /* global settings */
 
 static int parse_config_devices(struct ast_config *cfg)
 {
@@ -194,7 +192,7 @@ static int parse_config_general(struct ast_config *cfg)
 	return 0;
 }
 
-static int config_unload(void)
+static void config_unload(void)
 {
 	ast_free(sccp_cfg.bindaddr);
 

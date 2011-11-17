@@ -4,7 +4,24 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#include "message.h"
+#include "device.h"
+#include "sccp.h"
+
 struct sccp_msg *msg_alloc(size_t data_length, int message_id);
+int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
+int transmit_speaker_mode(struct sccp_session *session, int mode);
+int transmit_close_receive_channel(struct sccp_line *line);
+int transmit_stop_media_transmission(struct sccp_line *line);
+int transmit_connect(struct sccp_line *line);
+int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
+			const char *to_name, const char *to_num, int instance, int callid, int calltype);
+int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid);
+int transmit_displaymessage(struct sccp_session *session, const char *text, int instance, int reference);
+int transmit_tone(struct sccp_session *session, int tone, int instance, int reference);
+int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication);
+int transmit_ringer_mode(struct sccp_session *session, int mode);
+int transmit_selectsoftkeys(struct sccp_session *session, int instance, int callid, int softkey);
 
 /*********************
  * Protocol Messages *
@@ -466,4 +483,24 @@ struct sccp_msg {
 	union sccp_data data;
 };
 
+struct softkey_template_definition softkey_template_default[] = {
+	{"Redial",	0x01},
+	{"NewCall",	0x02},
+	{"Hold",	0x03},
+	{"Trnsfer",	0x04},
+	{"CFwdAll",	0x05},
+	{"CFwdBusy",	0x06},
+	{"CFwdNoAnswer",0x07},
+	{"<<",		0x08},
+	{"EndCall",	0x09},
+	{"Resume",	0x0A},
+	{"Answer",	0x0B},
+	{"Info",	0x0C},
+	{"Confrn",	0x0D},
+	{"Park",	0x0E},
+	{"Join",	0x0F},
+	{"MeetMe",	0x10},
+	{"PickUp",	0x11},
+	{"GPickUp",	0x12},
+};
 #endif /* SCCP_MESSAGE_H */

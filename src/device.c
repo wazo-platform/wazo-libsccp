@@ -45,18 +45,17 @@ void device_prepare(struct sccp_device *device)
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
 
-	while (line_itr = TAILQ_FIRST(&device->qline)) {
+	while ((line_itr = TAILQ_FIRST(&device->qline))) {
 		TAILQ_REMOVE(&device->qline, line_itr, qline);
 	}
 
-	ast_mutex_unlock(&device->lock);
-
 	device->exten[0] = '\0';
+
+	ast_mutex_unlock(&device->lock);
 
 	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
 		set_line_state(line_itr, SCCP_ONHOOK);
 	}
-
 
 	return;
 }
@@ -74,6 +73,7 @@ struct sccp_line *find_line_by_name(char *name)
 			break;
 		}
 	}
+
 	return line_itr;
 }
 
@@ -93,14 +93,14 @@ int device_type_is_supported(int device_type)
 	int is_supported = 0;
 
 	switch (device_type) {
-		case SCCP_DEVICE_7940:
-		case SCCP_DEVICE_7941:
-			is_supported = 1;
-			break;
+	case SCCP_DEVICE_7940:
+	case SCCP_DEVICE_7941:
+		is_supported = 1;
+		break;
 
-		default:
-			is_supported = 0;
-			break;
+	default:
+		is_supported = 0;
+		break;
 	}
 
 	return is_supported;
@@ -114,17 +114,18 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	ast_log(LOG_NOTICE, "device type %d\n", device->type);
 
 	switch (device->type) {
-		case SCCP_DEVICE_7940:
-		case SCCP_DEVICE_7941:
-			for (i = 0; i < 2; i++) {
-				(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
-			}
-			break;
+	case SCCP_DEVICE_7940:
+		/* fall through */
+	case SCCP_DEVICE_7941:
+		for (i = 0; i < 2; i++) {
+			(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
+		}
+		break;
 
-		default:
-			ast_log(LOG_WARNING, "Unknown device type '%d'\n", device->type);
-			err = -1;
-			break;
+	default:
+		ast_log(LOG_WARNING, "Unknown device type '%d'\n", device->type);
+		err = -1;
+		break;
 	}
 
 	return err;
@@ -133,7 +134,9 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 void set_line_state(struct sccp_line *line, int state)
 {
 	ast_mutex_lock(&line->lock);
+
 	line->state = state;
+
 	ast_mutex_unlock(&line->lock);
 }
 
@@ -145,9 +148,10 @@ void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
 	}
 
 	ast_mutex_lock(&device->lock);
-	TAILQ_INSERT_TAIL(&device->qline, line, qline);
 
+	TAILQ_INSERT_TAIL(&device->qline, line, qline);
 	device->active_line_cnt++;
+
 	ast_mutex_unlock(&device->lock);
 }
 
@@ -159,6 +163,7 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line)
 	}
 
 	ast_mutex_lock(&device->lock);
+
 	if (device->active_line == line) {
 		device->active_line = NULL;
 	} else {
@@ -166,17 +171,19 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line)
 	}
 
 	device->active_line_cnt--;
+
 	ast_mutex_unlock(&device->lock);
 }
 
-int device_get_active_line(struct sccp_device *device)
+struct sccp_line *device_get_active_line(struct sccp_device *device)
 {
 	if (device == NULL) {
 		ast_log(LOG_WARNING, "Invalid parameter\n");
-		return;
+		return NULL;
 	}
 
 	ast_mutex_lock(&device->lock);
+
 	if (device->active_line == NULL) {
 		if (device->qline.tqh_first != NULL) {
 			device->active_line = device->qline.tqh_first;
@@ -186,6 +193,7 @@ int device_get_active_line(struct sccp_device *device)
 			device->active_line_cnt++;
 		}
 	}
+
 	ast_mutex_unlock(&device->lock);
 
 	return device->active_line;
