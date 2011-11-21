@@ -31,12 +31,12 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	ssize_t nbyte = 0;
 
 	if (msg == NULL) {
-		ast_log(LOG_ERROR, "invalid message\n");
+		ast_log(LOG_ERROR, "Invalid message\n");
 		return -1;
 	}
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -60,7 +60,7 @@ int transmit_speaker_mode(struct sccp_session *session, int mode)
 	int ret = 0;
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -83,17 +83,17 @@ int transmit_close_receive_channel(struct sccp_line *line)
 	int ret = 0;
 
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "invalid line\n");
+		ast_log(LOG_ERROR, "Invalid line\n");
 		return -1;
 	}
 
 	if (line->device == NULL) {
-		ast_log(LOG_ERROR, "invalid device\n");
+		ast_log(LOG_ERROR, "Invalid device\n");
 		return -1;
 	}
 
 	if (line->device->session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -118,17 +118,17 @@ int transmit_stop_media_transmission(struct sccp_line *line)
 	int ret = 0;	
 
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "invalid line\n");
+		ast_log(LOG_ERROR, "Invalid line\n");
 		return -1;
 	}
 
 	if (line->device == NULL) {
-		ast_log(LOG_ERROR, "invalid device\n");
+		ast_log(LOG_ERROR, "Invalid device\n");
 		return -1;
 	}
 
 	if (line->device->session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -154,60 +154,34 @@ int transmit_connect(struct sccp_line *line)
 	int ret = 0;
 
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "invalid line\n");
+		ast_log(LOG_ERROR, "Invalid line\n");
 		return -1;
 	}
 
 	if (line->device == NULL) {
-		ast_log(LOG_ERROR, "invalid device\n");
+		ast_log(LOG_ERROR, "Invalid device\n");
 		return -1;
 	}
 
 	if (line->device->session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
-	/* FIXME `fmt' must be per device */
-	struct ast_codec_pref default_prefs;
-	ast_parse_allow_disallow(&default_prefs, &line->device->ast_codec, "all", 1);
-	fmt = ast_codec_pref_getsize(&default_prefs, ast_best_codec(line->device->ast_codec));
+	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
 
-	ast_log(LOG_NOTICE, "callid %d\n", line->callid);
-	ast_log(LOG_NOTICE, "size struct %d\n", sizeof(struct open_receive_channel_message_v17));
-	ast_log(LOG_NOTICE, "size struct %d\n", sizeof(struct open_receive_channel_message));
-/*
-	if (line->device->protoVersion >= 17) {
+	msg = msg_alloc(sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
+	if (msg == NULL)
+		return -1;
 
-		msg = msg_alloc(sizeof(struct open_receive_channel_message_v17), OPEN_RECEIVE_CHANNEL_MESSAGE);
-		if (msg == NULL)
-			return -1;
-
-		msg->data.openreceivechannel_v17.conferenceId = htolel(0);
-		msg->data.openreceivechannel_v17.partyId = htolel(0);
-		msg->data.openreceivechannel_v17.packets = htolel(fmt.cur_ms);
-		msg->data.openreceivechannel_v17.capability = htolel(codec_ast2sccp(fmt.bits));
-		msg->data.openreceivechannel_v17.echo = htolel(0);
-		msg->data.openreceivechannel_v17.bitrate = htolel(0);
-		msg->data.openreceivechannel_v17.conferenceId1 = htolel(0);
-		msg->data.openreceivechannel_v17.rtpTimeout = htolel(0);
-		msg->data.openreceivechannel_v17.unknown2 = htolel(4000);
-
-	} else {
-*/
-		msg = msg_alloc(sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
-		if (msg == NULL)
-			return -1;
-
-		msg->data.openreceivechannel.conferenceId = htolel(0);
-		msg->data.openreceivechannel.partyId = htolel(line->callid ^ 0xFFFFFFFF);
-		msg->data.openreceivechannel.packets = htolel(fmt.cur_ms);
-		msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(fmt.bits));
-		msg->data.openreceivechannel.echo = htolel(0);
-		msg->data.openreceivechannel.bitrate = htolel(0);
-		msg->data.openreceivechannel.conferenceId1 = htolel(0);
-		msg->data.openreceivechannel.rtpTimeout = htolel(10);
-//	}
+	msg->data.openreceivechannel.conferenceId = htolel(0);
+	msg->data.openreceivechannel.partyId = htolel(line->callid ^ 0xFFFFFFFF);
+	msg->data.openreceivechannel.packets = htolel(fmt.cur_ms);
+	msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(fmt.bits));
+	msg->data.openreceivechannel.echo = htolel(0);
+	msg->data.openreceivechannel.bitrate = htolel(0);
+	msg->data.openreceivechannel.conferenceId1 = htolel(0);
+	msg->data.openreceivechannel.rtpTimeout = htolel(10);
 
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
 	if (ret == -1)
@@ -223,7 +197,7 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 	int ret = 0;
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -253,7 +227,7 @@ int transmit_callstate(struct sccp_session *session, int instance, int state, un
 	int ret = 0;
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -285,7 +259,7 @@ int transmit_tone(struct sccp_session *session, int tone, int instance, int refe
 	int ret = 0;
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -310,7 +284,7 @@ int transmit_lamp_indication(struct sccp_session *session, int stimulus, int ins
 	int ret = 0;
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -335,7 +309,7 @@ int transmit_ringer_mode(struct sccp_session *session, int mode)
 	int ret = 0;
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 
@@ -360,7 +334,7 @@ int transmit_selectsoftkeys(struct sccp_session *session, int instance, int call
 	int ret = 0;
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "invalid session\n");
+		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
 	}
 

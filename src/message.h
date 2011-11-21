@@ -23,13 +23,7 @@ int transmit_lamp_indication(struct sccp_session *session, int stimulus, int ins
 int transmit_ringer_mode(struct sccp_session *session, int mode);
 int transmit_selectsoftkeys(struct sccp_session *session, int instance, int callid, int softkey);
 
-/*********************
- * Protocol Messages *
- *********************/
-
-/* message types */
 #define KEEP_ALIVE_MESSAGE 0x0000
-/* no additional struct */
 
 #define REGISTER_MESSAGE 0x0001
 struct register_message {

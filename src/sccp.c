@@ -1,6 +1,7 @@
 #include <asterisk.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
+#include <asterisk/io.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/pbx.h>
 #include <asterisk/poll-compat.h>
@@ -247,7 +248,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 	if (line == NULL)
 		return NULL;
 
-	/* FIXME replace hardcoded values */
+	/* XXX replace hardcoded values */
 	channel = ast_channel_alloc(	1,			/* needqueue */
 					AST_STATE_DOWN,		/* state */
 					line->cid_num,		/* cid_num */
@@ -268,8 +269,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 	channel->tech_pvt = line;
 	line->channel = channel;
 
-	/* FIXME ast_codec get mangled */
-	channel->nativeformats = 0x10c; //line->device->ast_codec;
+	channel->nativeformats = line->device->codecs;
 	audio_format = ast_best_codec(channel->nativeformats);
 
 	channel->writeformat = audio_format;
@@ -280,27 +280,23 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 	return channel;
 }
 
-
 static void start_rtp(struct sccp_line *line)
 {
 	struct sockaddr_in *addr = (struct sockaddr_in *)sccp_srv.res->ai_addr;
 	struct ast_codec_pref default_prefs = {0};
 	struct sccp_session *session = NULL;
 	
-	/* FIXME doesn't belong here */
 	struct sched_context *sched = NULL;
 	struct io_conext *io = NULL;
 
 	session = line->device->session;
-	/* FIXME add option in conf */
-	ast_parse_allow_disallow(&default_prefs, &line->device->ast_codec, "", 1);
 	line->rtp = ast_rtp_new_with_bindaddr(sched, io, 1, 0, addr->sin_addr);
 
 	line->channel->fds[0] = ast_rtp_fd(line->rtp);
 	line->channel->fds[1] = ast_rtcp_fd(line->rtp);
 
 	ast_rtp_setnat(line->rtp, 0);
-	ast_rtp_codec_setpref(line->rtp, &default_prefs);
+	ast_rtp_codec_setpref(line->rtp, &line->device->codec_pref);
 }
 
 static void sccp_newcall(struct ast_channel *channel)
@@ -341,11 +337,6 @@ static void *sccp_lookup_exten(void *data)
 	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
 		line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
 
-		ast_log(LOG_NOTICE, "lookup %s\n", line->device->exten);
-
-		//ret = ast_ignore_pattern(channel->context, line->device->exten);
-		//ast_log(LOG_NOTICE, "ast ignore pattern : %d\n", ret);
-
 		if (ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 			if (!ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 
@@ -353,13 +344,7 @@ static void *sccp_lookup_exten(void *data)
 				return NULL;
 			}
 		}
-/*
-		ret = ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num);
-		ast_log(LOG_NOTICE, "ast matchmore extension: %d\n", ret);
 
-		ret = ast_canmatch_extension(channel, channel->context, line->device->exten, 1, line->cid_num);
-		ast_log(LOG_NOTICE, "ast canmatch extension: %d\n", ret);
-*/
 		ast_safe_sleep(channel, 500);
 		len = strlen(line->device->exten);
 	}
@@ -379,8 +364,6 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 	device = session->device;
 	line = device_get_active_line(device);
-
-	ast_log(LOG_NOTICE, "handle offhook message line [%p] state [%d] SCCP_RINGIN [%d] ONHOOK [%d]\n", line, line->state, SCCP_RINGIN, SCCP_ONHOOK);
 
 	if (line && line->state == SCCP_RINGIN) {
 
@@ -427,11 +410,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, 0);
 		if (ret == -1)
 			return -1;
-/*
-		ret = transmit_displaymessage(session, NULL, line->instance, 0);
-		if (ret == -1)
-			return -1;
-*/
+
 		ret = transmit_selectsoftkeys(session, line->instance, 0, KEYDEF_OFFHOOK);
 		if (ret == -1)
 			return -1;
@@ -501,12 +480,11 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 {
 	int ret = 0;
 
-	ast_log(LOG_NOTICE, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
-	ast_log(LOG_NOTICE, "instance: %d\n", msg->data.softkeyevent.instance);
-	ast_log(LOG_NOTICE, "callreference: %d\n", msg->data.softkeyevent.callreference);
+	ast_log(LOG_DEBUG, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
+	ast_log(LOG_DEBUG, "instance: %d\n", msg->data.softkeyevent.instance);
+	ast_log(LOG_DEBUG, "callreference: %d\n", msg->data.softkeyevent.callreference);
 
 	switch (letohl(msg->data.softkeyevent.softKeyEvent)) {
-
 	case SOFTKEY_NONE:
 		break;
 
@@ -669,7 +647,7 @@ int codec_ast2sccp(int astcodec)
                 return SCCP_CODEC_G723_1;
         case AST_FORMAT_G729A:
                 return SCCP_CODEC_G729A;
-        case AST_FORMAT_G726_AAL2: /* XXX Is this right? */
+        case AST_FORMAT_G726_AAL2:
                 return SCCP_CODEC_G726_32;
         case AST_FORMAT_H261:
                 return SCCP_CODEC_H261;
@@ -703,9 +681,11 @@ static int codec_sccp2ast(enum sccp_codecs sccp_codec)
 static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int count = 0;
-	int ast_codec = 0;
 	int sccp_codec = 0;
 	int i = 0;
+	struct sccp_device *device = NULL;
+
+	device = session->device;
 
 	count = letohl(msg->data.caps.count);
 	ast_log(LOG_DEBUG, "Received %d capabilities\n", count);
@@ -716,11 +696,13 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	}
 
 	for (i = 0; i < count; i++) {
-		sccp_codec = letohl(msg->data.caps.caps[i].codec);
-		ast_codec |= codec_sccp2ast(sccp_codec);
-	}
 
-	session->device->ast_codec = ast_codec;
+		/* get the device supported codecs */
+		sccp_codec = letohl(msg->data.caps.caps[i].codec);
+
+		/* translate to asterisk style encoding */
+		device->codecs |= codec_sccp2ast(sccp_codec);
+	}
 
 	return 0;
 }
@@ -751,9 +733,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	ast_rtp_set_peer(line->rtp, &sin);
 	ast_rtp_get_us(line->rtp, &us);
 
-	/* FIXME `fmt' per device */
-	struct ast_codec_pref default_prefs;
-	fmt = ast_codec_pref_getsize(&default_prefs, ast_best_codec(line->device->ast_codec));
+	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
 
 	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
 	if (msg == NULL)
@@ -807,7 +787,6 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	if (ret == -1)
 		return -1;
 
-	/* foward stat */
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
 	if (msg == NULL)
 		return -1;
@@ -825,14 +804,6 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
-
-	ast_log(LOG_NOTICE, "name %s\n", msg->data.reg.name);
-	ast_log(LOG_NOTICE, "userId %d\n", msg->data.reg.userId);
-	ast_log(LOG_NOTICE, "instance %d\n", msg->data.reg.instance);
-	ast_log(LOG_NOTICE, "ip %d\n", msg->data.reg.ip);
-	ast_log(LOG_NOTICE, "type %d\n", msg->data.reg.type);
-	ast_log(LOG_NOTICE, "maxStreams %d\n", msg->data.reg.maxStreams);
-	ast_log(LOG_NOTICE, "protoVersion %d\n", msg->data.reg.protoVersion);
 
 	ret = device_type_is_supported(msg->data.reg.type);
 	if (ret == 0) {
@@ -943,7 +914,7 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 
 	line = device_get_line(session->device, instance);
 	if (line == NULL) {
-		ast_log(LOG_WARNING, "device [%s] has no line instance [%d]\n", session->device->name, instance);
+		ast_log(LOG_WARNING, "Device [%s] has no line instance [%d]\n", session->device->name, instance);
 		return 0;
 	}
 
@@ -997,114 +968,114 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
 
-	/* Prevent unregistered phone of sending non-registering messages */
+	/* Prevent unregistered phone from sending non-registering messages */
 	if ((session->device == NULL ||
 		(session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE)) &&
 		(msg->id != REGISTER_MESSAGE && msg->id != ALARM_MESSAGE)) {
 
-			ast_log(LOG_ERROR, "session from [%s::%d] sending non-registering messages\n",
+			ast_log(LOG_ERROR, "Session from [%s::%d] sending non-registering messages\n",
 						session->ipaddr, session->sockfd);
 			return -1;
 	}
 
 	switch (msg->id) {
 	case KEEP_ALIVE_MESSAGE:
-		ast_log(LOG_NOTICE, "Keep alive message\n");
+		ast_log(LOG_DEBUG, "Keep alive message\n");
 		ret = handle_keep_alive_message(msg, session);
 		break;
 
 	case REGISTER_MESSAGE:
-		ast_log(LOG_NOTICE, "Register message\n");
+		ast_log(LOG_DEBUG, "Register message\n");
 		ret = handle_register_message(msg, session);
 		break;
 
 	case IP_PORT_MESSAGE:
-		ast_log(LOG_NOTICE, "Ip port message\n");
+		ast_log(LOG_DEBUG, "Ip port message\n");
 		ret = handle_ipport_message(msg, session);
 		break;
 
 	case KEYPAD_BUTTON_MESSAGE:
-		ast_log(LOG_NOTICE, "keypad button message\n");
+		ast_log(LOG_DEBUG, "keypad button message\n");
 		ret = handle_keypad_button_message(msg, session);
 		break;
 
 	case OFFHOOK_MESSAGE:
-		ast_log(LOG_NOTICE, "Offhook message\n");
+		ast_log(LOG_DEBUG, "Offhook message\n");
 		ret = handle_offhook_message(msg, session);
 		break;
 
 	case ONHOOK_MESSAGE:
-		ast_log(LOG_NOTICE, "Onhook message\n");
+		ast_log(LOG_DEBUG, "Onhook message\n");
 		ret = handle_onhook_message(msg, session);
 		break;
 
 	case FORWARD_STATUS_REQ_MESSAGE:
-		ast_log(LOG_NOTICE, "Forward status message\n");
+		ast_log(LOG_DEBUG, "Forward status message\n");
 		ret = handle_forward_status_req_message(msg, session);
 		break;
 
 	case CAPABILITIES_RES_MESSAGE:
-		ast_log(LOG_NOTICE, "Capabilities message\n");
+		ast_log(LOG_DEBUG, "Capabilities message\n");
 		ret = handle_capabilities_res_message(msg, session);
 		break;
 
 	case LINE_STATUS_REQ_MESSAGE:
-		ast_log(LOG_NOTICE, "Line status message\n");
+		ast_log(LOG_DEBUG, "Line status message\n");
 		ret = handle_line_status_req_message(msg, session);
 		break;
 
 	case CONFIG_STATUS_REQ_MESSAGE:
-		ast_log(LOG_NOTICE, "Config status message\n");
+		ast_log(LOG_DEBUG, "Config status message\n");
 		ret = handle_config_status_req_message(msg, session);
 		break;
 
 	case TIME_DATE_REQ_MESSAGE:
-		ast_log(LOG_NOTICE, "Time date message\n");
+		ast_log(LOG_DEBUG, "Time date message\n");
 		ret = handle_time_date_req_message(msg, session);
 		break;
 
 	case BUTTON_TEMPLATE_REQ_MESSAGE:
-		ast_log(LOG_NOTICE, "Button template request message\n");
+		ast_log(LOG_DEBUG, "Button template request message\n");
 		ret = handle_button_template_req_message(msg, session);
 		break;
 
 	case SOFTKEY_TEMPLATE_REQ_MESSAGE:
-		ast_log(LOG_NOTICE, "Softkey template request message\n");
+		ast_log(LOG_DEBUG, "Softkey template request message\n");
 		ret = handle_softkey_template_req_message(msg, session);
 		break;
 
 	case ALARM_MESSAGE:
-		ast_log(LOG_NOTICE, "Alarm message: %s\n", msg->data.alarm.displayMessage);
+		ast_log(LOG_DEBUG, "Alarm message: %s\n", msg->data.alarm.displayMessage);
 		break;
 
 	case SOFTKEY_EVENT_MESSAGE:
-		ast_log(LOG_NOTICE, "Softkey event message\n");
+		ast_log(LOG_DEBUG, "Softkey event message\n");
 		ret = handle_softkey_event_message(msg, session);
 		break;
 
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
-		ast_log(LOG_NOTICE, "Open receive channel ack message\n");
+		ast_log(LOG_DEBUG, "Open receive channel ack message\n");
 		ret = handle_open_receive_channel_ack_message(msg, session);
 		break;
 
 	case SOFTKEY_SET_REQ_MESSAGE:
-		ast_log(LOG_NOTICE, "Softkey set request message\n");
+		ast_log(LOG_DEBUG, "Softkey set request message\n");
 		ret = handle_softkey_set_req_message(msg, session);
 		break;
 
 	case REGISTER_AVAILABLE_LINES_MESSAGE:
-		ast_log(LOG_NOTICE, "Register available lines message\n");
+		ast_log(LOG_DEBUG, "Register available lines message\n");
 		break;
 
 	case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
-		ast_log(LOG_NOTICE, "Start media transmission ack message\n");
+		ast_log(LOG_DEBUG, "Start media transmission ack message\n");
 		break;
 
 	case ACCESSORY_STATUS_MESSAGE:
 		break;
 
 	default:
-		ast_log(LOG_NOTICE, "Unknown message %x\n", msg->id);
+		ast_log(LOG_DEBUG, "Unknown message %x\n", msg->id);
 		break;
 	}
 
@@ -1201,7 +1172,7 @@ static void *thread_session(void *data)
 		if (ret > 0) {
 			msg = (struct sccp_msg *)session->inbuf;
 			ret = handle_message(msg, session);
-			/* prevent flooding */
+			/* take it easy, prevent DoS attack */
 			usleep(100000);
 		}
 
@@ -1275,7 +1246,7 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 	struct sccp_line *line = NULL;
 	struct ast_channel *channel = NULL;
 
-	ast_log(LOG_NOTICE, "type: %s\n"
+	ast_log(LOG_DEBUG, "type: %s\n"
 				"format: %d\n"
 				"destination: %s\n"
 				"cause: %d\n",
@@ -1290,8 +1261,10 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 		return NULL;
 	}
 
+	ast_log(LOG_NOTICE, "format: %s\n", ast_getformatname(format));
+
 	if (line->device->registered == DEVICE_REGISTERED_FALSE) {
-		ast_log(LOG_NOTICE, "line [%s] belong to an unregistered device [%s]\n", line->name, line->device->name);
+		ast_log(LOG_NOTICE, "Line [%s] belong to an unregistered device [%s]\n", line->name, line->device->name);
 		*cause = AST_CAUSE_UNREGISTERED;
 		return NULL;
 	}
@@ -1318,8 +1291,8 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	struct sccp_session *session = NULL;
 	int ret = 0;
 
-	ast_log(LOG_NOTICE, "channel->lid.lid_name: %s\n", channel->lid.lid_name);
-	ast_log(LOG_NOTICE, "channel->lid.lid_num: %s\n", channel->lid.lid_num);
+	ast_log(LOG_DEBUG, "channel->lid.lid_name: %s\n", channel->lid.lid_name);
+	ast_log(LOG_DEBUG, "channel->lid.lid_num: %s\n", channel->lid.lid_num);
 
 	line = channel->tech_pvt;
 	if (line == NULL)
@@ -1327,13 +1300,13 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 	device = line->device;
 	if (device == NULL) {
-		ast_log(LOG_ERROR, "line [%s] is attached to no device\n", device->name);
+		ast_log(LOG_ERROR, "Line [%s] is attached to no device\n", device->name);
 		return -1;
 	}
 
 	session = device->session;
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "device [%s] has no active session\n", device->name);
+		ast_log(LOG_ERROR, "Device [%s] has no active session\n", device->name);
 		return -1;
 	}
 
@@ -1411,7 +1384,7 @@ static int sccp_hangup(struct ast_channel *channel)
 		if (ret == -1)
 			return -1;
 
-	} /*else if (line->state == SCCP_CONNECTED) {
+	} /*XXX else if (line->state == SCCP_CONNECTED) {
 
 		set_line_state(line, SCCP_INVALID);
 
@@ -1473,7 +1446,6 @@ static struct ast_frame *sccp_read(struct ast_channel *channel)
 	struct ast_frame *frame = NULL;
 	struct sccp_line *line = NULL;
 
-	/* XXX check all frame type */
 	line = channel->tech_pvt;
 	
 	switch (channel->fdno) {
@@ -1523,19 +1495,19 @@ static int sccp_indicate(struct ast_channel *channel, int indicate, const void *
 
 	switch (indicate) {
 	case AST_CONTROL_HANGUP:
-		ast_log(LOG_NOTICE, "hangup\n");
+		ast_log(LOG_DEBUG, "hangup\n");
 		break;
 
 	case AST_CONTROL_RING:
-		ast_log(LOG_NOTICE, "ring\n");
+		ast_log(LOG_DEBUG, "ring\n");
 		break;
 
 	case AST_CONTROL_RINGING:
-		ast_log(LOG_NOTICE, "ringing\n");
+		ast_log(LOG_DEBUG, "ringing\n");
 		break;
 
 	case AST_CONTROL_ANSWER:
-		ast_log(LOG_NOTICE, "answer\n");
+		ast_log(LOG_DEBUG, "answer\n");
 		break;
 
 	case AST_CONTROL_BUSY:
@@ -1543,15 +1515,15 @@ static int sccp_indicate(struct ast_channel *channel, int indicate, const void *
 		transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
 		transmit_tone(line->device->session, SCCP_TONE_BUSY, line->instance, 0);
 
-		ast_log(LOG_NOTICE, "busy\n");
+		ast_log(LOG_DEBUG, "busy\n");
 		break;
 
 	case AST_CONTROL_TAKEOFFHOOK:
-		ast_log(LOG_NOTICE, "takeoffhook\n");
+		ast_log(LOG_DEBUG, "takeoffhook\n");
 		break;
 
 	case AST_CONTROL_OFFHOOK:
-		ast_log(LOG_NOTICE, "offhook\n");
+		ast_log(LOG_DEBUG, "offhook\n");
 		break;
 
 	case AST_CONTROL_CONGESTION:
@@ -1559,67 +1531,67 @@ static int sccp_indicate(struct ast_channel *channel, int indicate, const void *
 		transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
 		transmit_tone(line->device->session, SCCP_TONE_BUSY, line->instance, 0);
 
-		ast_log(LOG_NOTICE, "congestion\n");
+		ast_log(LOG_DEBUG, "congestion\n");
 		break;
 
 	case AST_CONTROL_FLASH:
-		ast_log(LOG_NOTICE, "flash\n");
+		ast_log(LOG_DEBUG, "flash\n");
 		break;
 
 	case AST_CONTROL_WINK:
-		ast_log(LOG_NOTICE, "wink\n");
+		ast_log(LOG_DEBUG, "wink\n");
 		break;
 
 	case AST_CONTROL_OPTION:
-		ast_log(LOG_NOTICE, "option\n");
+		ast_log(LOG_DEBUG, "option\n");
 		break;
 
 	case AST_CONTROL_RADIO_KEY:
-		ast_log(LOG_NOTICE, "radio key\n");
+		ast_log(LOG_DEBUG, "radio key\n");
 		break;
 
 	case AST_CONTROL_RADIO_UNKEY:
-		ast_log(LOG_NOTICE, "radio unkey\n");
+		ast_log(LOG_DEBUG, "radio unkey\n");
 		break;
 
 	case AST_CONTROL_PROGRESS:
-		ast_log(LOG_NOTICE, "progress\n");
+		ast_log(LOG_DEBUG, "progress\n");
 		break;
 
 	case AST_CONTROL_PROCEEDING:
-		ast_log(LOG_NOTICE, "proceeding\n");
+		ast_log(LOG_DEBUG, "proceeding\n");
 		break;
 
 	case AST_CONTROL_HOLD:
-		ast_log(LOG_NOTICE, "hold\n");
+		ast_log(LOG_DEBUG, "hold\n");
 		break;
 
 	case AST_CONTROL_UNHOLD:
-		ast_log(LOG_NOTICE, "unhold\n");
+		ast_log(LOG_DEBUG, "unhold\n");
 		break;
 
 	case AST_CONTROL_VIDUPDATE:
-		ast_log(LOG_NOTICE, "vid update\n");
+		ast_log(LOG_DEBUG, "vid update\n");
 		break;
 
 	case AST_CONTROL_ATXFERCMD:
-		ast_log(LOG_NOTICE, "atxfer cmd\n");
+		ast_log(LOG_DEBUG, "atxfer cmd\n");
 		break;
 
 	case AST_CONTROL_SRCUPDATE:
-		ast_log(LOG_NOTICE, "src update\n");
+		ast_log(LOG_DEBUG, "src update\n");
 		break;
 
 	case AST_CONTROL_SRCCHANGE:
-		ast_log(LOG_NOTICE, "src change\n");
+		ast_log(LOG_DEBUG, "src change\n");
 		break;
 
 	case AST_CONTROL_END_OF_Q:
-		ast_log(LOG_NOTICE, "end of q\n");
+		ast_log(LOG_DEBUG, "end of q\n");
 		break;
 
 	case AST_CONTROL_CONNECTEDLINE:
-		ast_log(LOG_NOTICE, "connected line\n");
+		ast_log(LOG_DEBUG, "connected line\n");
 		break;
 
 	default:
@@ -1707,7 +1679,6 @@ int sccp_server_init(void)
 	}
 
 	ast_channel_register(&sccp_tech);
-
 	ast_pthread_create_background(&sccp_srv.thread_accept, NULL, thread_accept, NULL);
 
 	return 0;

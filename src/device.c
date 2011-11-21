@@ -9,7 +9,7 @@ void device_unregister(struct sccp_device *device)
 	struct sccp_line *line_itr = NULL;
 
 	if (device == NULL) {
-		ast_log(LOG_ERROR, "invalid parameter\n");
+		ast_log(LOG_ERROR, "Invalid parameter\n");
 		return;
 	}
 
@@ -68,7 +68,7 @@ struct sccp_line *find_line_by_name(char *name)
 		return NULL;
 
 	AST_LIST_TRAVERSE(&list_line, line_itr, list) {
-		ast_log(LOG_ERROR, "line_itr->name [%s] name[%s]\n", line_itr->name, name);
+		ast_log(LOG_DEBUG, "line_itr->name [%s] name[%s]\n", line_itr->name, name);
 		if (!strncmp(line_itr->name, name, sizeof(line_itr->name))) {
 			break;
 		}
@@ -90,20 +90,20 @@ struct sccp_line *device_get_line(struct sccp_device *device, int instance)
 
 int device_type_is_supported(int device_type)
 {
-	int is_supported = 0;
+	int supported = 0;
 
 	switch (device_type) {
 	case SCCP_DEVICE_7940:
 	case SCCP_DEVICE_7941:
-		is_supported = 1;
+		supported = 1;
 		break;
 
 	default:
-		is_supported = 0;
+		supported = 0;
 		break;
 	}
 
-	return is_supported;
+	return supported;
 }
 
 int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl)
@@ -111,7 +111,7 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	int err = 0;
 	int i = 0;
 
-	ast_log(LOG_NOTICE, "device type %d\n", device->type);
+	ast_log(LOG_DEBUG, "Device type %d\n", device->type);
 
 	switch (device->type) {
 	case SCCP_DEVICE_7940:
