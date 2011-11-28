@@ -12,11 +12,13 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "message.h"
 #include "device.h"
 
+#include "../config.h"
+
 #ifndef AST_MODULE
 #define AST_MODULE "chan_sccp"
 #endif
 
-static const char sccp_config[] = "skinny.conf";
+static const char sccp_config[] = "sccp.conf";
 struct sccp_configs sccp_cfg; /* global settings */
 
 static int parse_config_devices(struct ast_config *cfg)
