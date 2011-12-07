@@ -82,6 +82,7 @@ static int parse_config_devices(struct ast_config *cfg)
 								line_itr->device = device;
 								line_itr->channel = NULL;
 								line_itr->callid = 0;
+								line_itr->rtp = NULL;
 								
 								/* set the device default line */
 								if (line_itr->instance == 1)
@@ -204,14 +205,14 @@ static void config_unload(void)
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_device, device_itr, list) {
 
 		ast_mutex_destroy(&device_itr->lock);
-		AST_LIST_REMOVE_CURRENT(&list_device, list);
+		AST_LIST_REMOVE_CURRENT(list);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
 
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_line, line_itr, list) {
 
 		ast_mutex_destroy(&line_itr->lock);
-		AST_LIST_REMOVE_CURRENT(&list_line, list);
+		AST_LIST_REMOVE_CURRENT(list);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
 }
@@ -219,10 +220,11 @@ static void config_unload(void)
 static int config_load(void)
 {
 	struct ast_config *cfg;
+	struct ast_flags config_flags = { 0 };
 
 	ast_log(LOG_NOTICE, "Configuring sccp from %s...\n", sccp_config);
 
-	cfg = ast_config_load(sccp_config);
+	cfg = ast_config_load(sccp_config, config_flags);
 	if (!cfg) {
 		ast_log(LOG_ERROR, "Unable to load configuration file '%s'\n", sccp_config);
 		return -1;
@@ -252,19 +254,24 @@ static int config_load(void)
 	return 0;
 }
 
-static int sccp_show_version(int fd, int argc, char *argv[])
+static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
-	ast_cli(fd, "%s <%s>\n", PACKAGE_STRING, PACKAGE_BUGREPORT);
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show version";
+		e->usage = "Usage: sccp show version\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
 
-	return RESULT_SUCCESS;
+	ast_cli(a->fd, "%s <%s>\n", PACKAGE_STRING, PACKAGE_BUGREPORT);
+
+	return CLI_SUCCESS;
 }
 
-static char show_version_usage[] = "Usage: sccp show version\n";
-
 static struct ast_cli_entry cli_sccp[] = {
-	{ { "sccp", "show", "version", NULL },
-	sccp_show_version, "Show the version of the skinny channel",
-	show_version_usage },
+	AST_CLI_DEFINE(sccp_show_version, "Show the version of the sccp channel"),
 };
 
 static int load_module(void)
@@ -284,6 +291,7 @@ static int load_module(void)
 		ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 		return AST_MODULE_LOAD_DECLINE;
 	}
+	sccp_rtp_init(ast_module_info);
 
 	return AST_MODULE_LOAD_SUCCESS;
 }
@@ -293,6 +301,7 @@ static int unload_module(void)
 	ast_verbose("sccp channel unloading...\n");
 
 	sccp_server_fini();
+	sccp_rtp_fini();
 	config_unload();
 
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
@@ -314,4 +323,5 @@ AST_MODULE_INFO(
 	.load = load_module,
 	.reload = reload_module,
 	.unload = unload_module,
+	.load_pri = AST_MODPRI_CHANNEL_DRIVER,
 );

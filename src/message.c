@@ -3,7 +3,7 @@
 
 #include <asterisk.h>
 #include <asterisk/utils.h>
-#include <asterisk/rtp.h>
+#include <asterisk/rtp_engine.h>
 
 #include "device.h"
 #include "message.h"

@@ -1,11 +1,14 @@
 #include <asterisk.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
+#include <asterisk/devicestate.h>
 #include <asterisk/io.h>
 #include <asterisk/linkedlists.h>
+#include <asterisk/module.h>
+#include <asterisk/netsock.h>
 #include <asterisk/pbx.h>
 #include <asterisk/poll-compat.h>
-#include <asterisk/rtp.h>
+#include <asterisk/rtp_engine.h>
 #include <asterisk/utils.h>
 
 #include <netinet/tcp.h>
@@ -27,9 +30,11 @@
 
 extern struct sccp_configs sccp_cfg; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
+static struct sched_context *sched = NULL;
 
-static struct ast_channel *sccp_request(const char *type, int format, void *data, int *cause);
+static struct ast_channel *sccp_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause);
 static int sccp_call(struct ast_channel *ast, char *dest, int timeout);
+static int sccp_devicestate(void *data);
 static int sccp_hangup(struct ast_channel *ast);
 static int sccp_answer(struct ast_channel *ast);
 static struct ast_frame *sccp_read(struct ast_channel *ast);
@@ -38,13 +43,22 @@ static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, siz
 static int sccp_fixup(struct ast_channel *oldchan, struct ast_channel *newchan);
 static int sccp_senddigit_begin(struct ast_channel *ast, char digit);
 static int sccp_senddigit_end(struct ast_channel *ast, char digit, unsigned int duration);
+static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance);
+static enum ast_rtp_glue_result sccp_get_vrtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance);
+static int sccp_set_rtp_peer(struct ast_channel *channel,
+				struct ast_rtp_instance *rtp,
+				struct ast_rtp_instance *vrtp,
+				struct ast_rtp_instance *trtp,
+				format_t codecs,
+				int nat_active);
 
 static const struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
 	.description = "Skinny Client Control Protocol",
-	.capabilities = ((AST_FORMAT_MAX_AUDIO << 1) - 1),
+	.capabilities = AST_FORMAT_AUDIO_MASK,
 	.properties = AST_CHAN_TP_WANTSJITTER | AST_CHAN_TP_CREATESJITTER,
 	.requester = sccp_request,
+	.devicestate = sccp_devicestate,
 	.call = sccp_call,
 	.hangup = sccp_hangup,
 	.answer = sccp_answer,
@@ -54,6 +68,13 @@ static const struct ast_channel_tech sccp_tech = {
 	.fixup = sccp_fixup,
 	.send_digit_begin = sccp_senddigit_begin,
 	.send_digit_end = sccp_senddigit_end,
+	.bridge = ast_rtp_instance_bridge,
+};
+
+static struct ast_rtp_glue sccp_rtp_glue = {
+	.type = "sccp",
+	.get_rtp_info = sccp_get_rtp_peer,
+	.update_peer = sccp_set_rtp_peer,
 };
 
 static int handle_softkey_template_req_message(struct sccp_msg *msg, struct sccp_session *session)
@@ -240,7 +261,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	return ret;
 }
 
-static struct ast_channel *sccp_new_channel(struct sccp_line *line)
+static struct ast_channel *sccp_new_channel(struct sccp_line *line, const char *linkedid)
 {
 	struct ast_channel *channel = NULL;
 	int audio_format = 0;
@@ -256,6 +277,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 					"code",			/* acctcode */
 					line->device->exten,	/* exten */
 					"default",		/* context */
+					linkedid,		/* linked ID */
 					0,			/* amaflag */
 					"sccp/%s@%s-%d",	/* format */
 					line->name,		/* name */
@@ -277,26 +299,64 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line)
 	channel->readformat = audio_format;
 	channel->rawreadformat = audio_format;
 
+	ast_module_ref(ast_module_info->self);
+
 	return channel;
+}
+
+static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance)
+{
+	ast_log(LOG_NOTICE, "sccp_get_rtp_peer\n");
+
+	struct sccp_line *line = channel->tech_pvt;
+
+	if (line == NULL || line->rtp == NULL)
+		return AST_RTP_GLUE_RESULT_FORBID;
+
+	ao2_ref(line->rtp, +1);
+	*instance = line->rtp;
+
+	return AST_RTP_GLUE_RESULT_LOCAL;
+}
+
+static int sccp_set_rtp_peer(struct ast_channel *channel,
+				struct ast_rtp_instance *rtp,
+				struct ast_rtp_instance *vrtp,
+				struct ast_rtp_instance *trtp,
+				format_t codecs,
+				int nat_active)
+{
+
+	return 0;
 }
 
 static void start_rtp(struct sccp_line *line)
 {
-	struct sockaddr_in *addr = (struct sockaddr_in *)sccp_srv.res->ai_addr;
+	ast_log(LOG_NOTICE, "start_rtp\n");
+
 	struct ast_codec_pref default_prefs = {0};
 	struct sccp_session *session = NULL;
-	
-	struct sched_context *sched = NULL;
-	struct io_conext *io = NULL;
+	struct ast_sockaddr bindaddr_tmp;
 
 	session = line->device->session;
-	line->rtp = ast_rtp_new_with_bindaddr(sched, io, 1, 0, addr->sin_addr);
 
-	line->channel->fds[0] = ast_rtp_fd(line->rtp);
-	line->channel->fds[1] = ast_rtcp_fd(line->rtp);
+	ast_sockaddr_from_sin(&bindaddr_tmp, (struct sockaddr_in *)sccp_srv.res->ai_addr);
+	line->rtp = ast_rtp_instance_new("asterisk", sched, &bindaddr_tmp, NULL);
 
-	ast_rtp_setnat(line->rtp, 0);
-	ast_rtp_codec_setpref(line->rtp, &line->device->codec_pref);
+	if (line->rtp) {
+
+		ast_rtp_instance_set_prop(line->rtp, AST_RTP_PROPERTY_RTCP, 1);
+
+		ast_channel_set_fd(line->channel, 0, ast_rtp_instance_fd(line->rtp, 0));
+		ast_channel_set_fd(line->channel, 1, ast_rtp_instance_fd(line->rtp, 1));
+
+		ast_rtp_instance_set_qos(line->rtp, 0, 0, "sccp rtp");
+		ast_rtp_instance_set_prop(line->rtp, AST_RTP_PROPERTY_NAT, 0);
+
+		ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(line->rtp), line->rtp, &line->codec_pref);
+	}
+
+	transmit_connect(line);
 }
 
 static void sccp_newcall(struct ast_channel *channel)
@@ -317,11 +377,14 @@ static void sccp_newcall(struct ast_channel *channel)
 			line->cid_name,
 			NULL);
 
-	channel->lid.lid_num = ast_strdup(channel->exten);
-	channel->lid.lid_name = NULL;
+	ast_party_number_free(&channel->connected.id.number);
+	ast_party_number_init(&channel->connected.id.number);
+	channel->connected.id.number.valid = 1;
+	channel->connected.id.number.str = ast_strdup(channel->exten);
+	ast_party_name_free(&channel->connected.id.name);
+	ast_party_name_init(&channel->connected.id.name);
 
-	transmit_connect(line);
-
+	start_rtp(line);
 	ast_pbx_start(channel);
 
 	return;
@@ -385,16 +448,14 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_connect(line);
-		if (ret == -1)
-			return -1;
+		start_rtp(line);
 
 		ast_setstate(line->channel, AST_STATE_UP);
 		set_line_state(line, SCCP_CONNECTED);
 
 	} else if (line->state == SCCP_ONHOOK) {
 
-		channel = sccp_new_channel(line);
+		channel = sccp_new_channel(line, NULL);
 
 		ast_setstate(line->channel, AST_STATE_DOWN);
 		set_line_state(line, SCCP_OFFHOOK);
@@ -463,7 +524,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 			return -1;
 
 		if (line->rtp) {
-			ast_rtp_destroy(line->rtp);
+			ast_rtp_instance_destroy(line->rtp);
 			line->rtp = NULL;
 		}
 
@@ -471,6 +532,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		ast_queue_hangup(line->channel);
 		line->channel->tech_pvt = NULL;
 		line->channel = NULL;
+		ast_module_unref(ast_module_info->self);
 	}
 
 	return 0;
@@ -480,9 +542,9 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 {
 	int ret = 0;
 
-	ast_log(LOG_DEBUG, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
-	ast_log(LOG_DEBUG, "instance: %d\n", msg->data.softkeyevent.instance);
-	ast_log(LOG_DEBUG, "callreference: %d\n", msg->data.softkeyevent.callreference);
+	ast_log(LOG_NOTICE, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
+	ast_log(LOG_NOTICE, "instance: %d\n", msg->data.softkeyevent.instance);
+	ast_log(LOG_NOTICE, "callreference: %d\n", msg->data.softkeyevent.callreference);
 
 	switch (letohl(msg->data.softkeyevent.softKeyEvent)) {
 	case SOFTKEY_NONE:
@@ -610,7 +672,7 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	int ret = 0;
 
 	instance = letohl(msg->data.forward.lineNumber);
-	ast_log(LOG_DEBUG, "Forward status line %d\n", instance);
+	ast_log(LOG_NOTICE, "Forward status line %d\n", instance);
 
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
 	if (msg == NULL)
@@ -636,7 +698,7 @@ enum sccp_codecs {
 	SCCP_CODEC_H263 = 101
 };
 
-int codec_ast2sccp(int astcodec)
+int codec_ast2sccp(format_t astcodec)
 {
         switch (astcodec) {
         case AST_FORMAT_ALAW:
@@ -658,7 +720,7 @@ int codec_ast2sccp(int astcodec)
         }
 }
 
-static int codec_sccp2ast(enum sccp_codecs sccp_codec)
+static format_t codec_sccp2ast(enum sccp_codecs sccp_codec)
 {
 	switch (sccp_codec) {
 	case SCCP_CODEC_ALAW:
@@ -688,7 +750,7 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	device = session->device;
 
 	count = letohl(msg->data.caps.count);
-	ast_log(LOG_DEBUG, "Received %d capabilities\n", count);
+	ast_log(LOG_NOTICE, "Received %d capabilities\n", count);
 
 	if (count > SCCP_MAX_CAPABILITIES) {
 		count = SCCP_MAX_CAPABILITIES;
@@ -700,7 +762,7 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 		/* get the device supported codecs */
 		sccp_codec = letohl(msg->data.caps.caps[i].codec);
 
-		/* translate to asterisk style encoding */
+		/* translate to asterisk format */
 		device->codecs |= codec_sccp2ast(sccp_codec);
 	}
 
@@ -711,8 +773,10 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 {
 	struct sccp_line *line = NULL;
 	struct ast_format_list fmt = {0};
-	struct sockaddr_in sin = {0};
-	struct sockaddr_in us = {0};
+	struct sockaddr_in remote = {0};
+	struct sockaddr_in local = {0};
+	struct ast_sockaddr remote_tmp;
+	struct ast_sockaddr local_tmp;
 	uint32_t addr = 0;
 	uint32_t port = 0;
 	uint32_t passthruid = 0;
@@ -720,29 +784,29 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	line = device_get_active_line(session->device);
 
-	addr = letohl(msg->data.openreceivechannelack.ipAddr);
+	addr = msg->data.openreceivechannelack.ipAddr;
 	port = letohl(msg->data.openreceivechannelack.port);
 	passthruid = letohl(msg->data.openreceivechannelack.passThruId);
 
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = addr;
-	sin.sin_port = htons(port);
+	remote.sin_family = AF_INET;
+	remote.sin_addr.s_addr = addr;
+	remote.sin_port = htons(port);
 
-	start_rtp(line);
+	ast_sockaddr_from_sin(&remote_tmp, &remote);
+	ast_rtp_instance_set_remote_address(line->rtp, &remote_tmp);
 
-	ast_rtp_set_peer(line->rtp, &sin);
-	ast_rtp_get_us(line->rtp, &us);
+	ast_rtp_instance_get_local_address(line->rtp, &local_tmp);
+	ast_sockaddr_to_sin(&local_tmp, &local);
 
 	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
-
 	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
 	if (msg == NULL)
 		return -1;
 
 	msg->data.startmedia.conferenceId = htolel(0);
 	msg->data.startmedia.passThruPartyId = htolel(line->callid ^ 0xFFFFFFFF);
-	msg->data.startmedia.remoteIp = htolel(us.sin_addr.s_addr);
-	msg->data.startmedia.remotePort = htolel(ntohs(us.sin_port));
+	msg->data.startmedia.remoteIp = htolel(local.sin_addr.s_addr);
+	msg->data.startmedia.remotePort = htolel(ntohs(local.sin_port));
 	msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
 	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(fmt.bits));
 	msg->data.startmedia.qualifier.precedence = htolel(127);
@@ -931,12 +995,11 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 
 	if (line->state == SCCP_CONNECTED) {
 
-		frame.subclass = digit;
+		frame.subclass.integer = digit;
 		frame.src = "sccp";
 		frame.len = 100;
 		frame.offset = 0;
 		frame.datalen = 0;
-		frame.data = NULL;
 
 		ast_queue_frame(line->channel, &frame);
 
@@ -1239,19 +1302,29 @@ static void *thread_accept(void *data)
 	}
 }
 
-static struct ast_channel *sccp_request(const char *type, int format, void *destination, int *cause)
+static int sccp_devicestate(void *data)
+{
+	ast_log(LOG_NOTICE, "sccp devicestate %s\n", data);
+
+	int state = AST_DEVICE_UNKNOWN;
+
+	state = AST_DEVICE_NOT_INUSE;
+
+	return state;
+}
+
+static struct ast_channel *sccp_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause)
 {
 	ast_log(LOG_NOTICE, "sccp request\n");
 
 	struct sccp_line *line = NULL;
 	struct ast_channel *channel = NULL;
 
-	ast_log(LOG_DEBUG, "type: %s\n"
-				"format: %d\n"
-				"destination: %s\n"
+	ast_log(LOG_NOTICE, "type: %s "
+				"format: %s "
+				"destination: %s "
 				"cause: %d\n",
-				type, format, (char *)destination, *cause);
-
+				type, ast_getformatname(format), (char *)destination, *cause);
 
 	line = find_line_by_name((char *)destination);
 
@@ -1260,8 +1333,6 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 		*cause = AST_CAUSE_UNREGISTERED;
 		return NULL;
 	}
-
-	ast_log(LOG_NOTICE, "format: %s\n", ast_getformatname(format));
 
 	if (line->device->registered == DEVICE_REGISTERED_FALSE) {
 		ast_log(LOG_NOTICE, "Line [%s] belong to an unregistered device [%s]\n", line->name, line->device->name);
@@ -1274,7 +1345,7 @@ static struct ast_channel *sccp_request(const char *type, int format, void *dest
 		return NULL;
 	}
 
-	channel = sccp_new_channel(line);
+	channel = sccp_new_channel(line, requestor ? requestor->linkedid : NULL);
 
 	if (line->channel)
 		ast_setstate(line->channel, AST_STATE_DOWN);
@@ -1290,9 +1361,6 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	struct sccp_device *device = NULL;
 	struct sccp_session *session = NULL;
 	int ret = 0;
-
-	ast_log(LOG_DEBUG, "channel->lid.lid_name: %s\n", channel->lid.lid_name);
-	ast_log(LOG_DEBUG, "channel->lid.lid_num: %s\n", channel->lid.lid_num);
 
 	line = channel->tech_pvt;
 	if (line == NULL)
@@ -1328,7 +1396,12 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_callinfo(session, channel->lid.lid_name, channel->lid.lid_num, line->cid_name, line->cid_num, line->instance, line->callid, 1);
+	ret = transmit_callinfo(session, channel->connected.id.name.str,
+					channel->connected.id.number.str,
+					line->cid_name,
+					line->cid_num,
+					line->instance,
+					line->callid, 1);
 	if (ret == -1)
 		return -1;
 
@@ -1410,13 +1483,14 @@ static int sccp_hangup(struct ast_channel *channel)
 		transmit_stop_media_transmission(line);
 
 		if (line->rtp) {
-			ast_rtp_destroy(line->rtp);
+			ast_rtp_instance_destroy(line->rtp);
 			line->rtp = NULL;
 		}
 
 		ast_queue_hangup(line->channel);
 		channel->tech_pvt = NULL;
 		line->channel = NULL;
+		ast_module_unref(ast_module_info->self);
 	}
 
 	return 0;
@@ -1430,7 +1504,7 @@ static int sccp_answer(struct ast_channel *channel)
 	line = channel->tech_pvt;
 
 	if (line->rtp == NULL) {
-		transmit_connect(line);
+		start_rtp(line);
 	}
 
 	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, 0);
@@ -1443,18 +1517,28 @@ static int sccp_answer(struct ast_channel *channel)
 
 static struct ast_frame *sccp_read(struct ast_channel *channel)
 {
-	struct ast_frame *frame = NULL;
 	struct sccp_line *line = NULL;
+	struct ast_frame *frame = NULL;
 
 	line = channel->tech_pvt;
-	
+
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "Invalid line\n");
+		return &ast_null_frame;
+	}
+
+	if (line->rtp == NULL) {
+		ast_log(LOG_ERROR, "Invalid RTP\n");
+		return &ast_null_frame;
+	}
+
 	switch (channel->fdno) {
 	case 0:
-		frame = ast_rtp_read(line->rtp);
+		frame = ast_rtp_instance_read(line->rtp, 0);
 		break;
 
 	case 1:
-		frame = ast_rtcp_read(line->rtp);
+		frame = ast_rtp_instance_read(line->rtp, 1);
 		break;
 
 	default:
@@ -1462,8 +1546,8 @@ static struct ast_frame *sccp_read(struct ast_channel *channel)
 	}
 
 	if (frame->frametype == AST_FRAME_VOICE) {
-		if (frame->subclass != channel->nativeformats) {
-			channel->nativeformats = frame->subclass;
+		if (frame->subclass.codec != channel->nativeformats) {
+			channel->nativeformats = frame->subclass.codec;
 			ast_set_read_format(channel, channel->readformat);
 			ast_set_write_format(channel, channel->writeformat);
 		}
@@ -1474,6 +1558,8 @@ static struct ast_frame *sccp_read(struct ast_channel *channel)
 
 static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 {
+//	ast_log(LOG_NOTICE, "sccp_write\n");
+
 	int res = 0;
 	struct sccp_line *line = channel->tech_pvt;
 
@@ -1481,7 +1567,7 @@ static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 		return res;
 
 	if (line->rtp != NULL && line->state == SCCP_CONNECTED) {
-		res = ast_rtp_write(line->rtp, frame);
+		res = ast_rtp_instance_write(line->rtp, frame);
 	}
 
 	return res;
@@ -1574,10 +1660,6 @@ static int sccp_indicate(struct ast_channel *channel, int indicate, const void *
 		ast_log(LOG_DEBUG, "vid update\n");
 		break;
 
-	case AST_CONTROL_ATXFERCMD:
-		ast_log(LOG_DEBUG, "atxfer cmd\n");
-		break;
-
 	case AST_CONTROL_SRCUPDATE:
 		ast_log(LOG_DEBUG, "src update\n");
 		break;
@@ -1588,10 +1670,6 @@ static int sccp_indicate(struct ast_channel *channel, int indicate, const void *
 
 	case AST_CONTROL_END_OF_Q:
 		ast_log(LOG_DEBUG, "end of q\n");
-		break;
-
-	case AST_CONTROL_CONNECTEDLINE:
-		ast_log(LOG_DEBUG, "connected line\n");
 		break;
 
 	default:
@@ -1635,7 +1713,7 @@ void sccp_server_fini()
 		if (session_itr != NULL) {
 
 			ast_log(LOG_NOTICE, "Session del %s\n", session_itr->ipaddr);
-			AST_LIST_REMOVE_CURRENT(&list_session, list);
+			AST_LIST_REMOVE_CURRENT(list);
 
 			pthread_cancel(session_itr->tid);
 			pthread_kill(session_itr->tid, SIGURG);
@@ -1648,6 +1726,17 @@ void sccp_server_fini()
 
 	freeaddrinfo(sccp_srv.res);
 	shutdown(sccp_srv.sockfd, SHUT_RDWR);
+}
+
+void sccp_rtp_fini()
+{
+	ast_rtp_glue_unregister(&sccp_rtp_glue);
+}
+
+void sccp_rtp_init(struct ast_module_info *module_info)
+{
+	ast_module_info = module_info;
+	ast_rtp_glue_register(&sccp_rtp_glue);
 }
 
 int sccp_server_init(void)
@@ -1676,6 +1765,11 @@ int sccp_server_init(void)
 	if (ret == -1) {
 		ast_log(LOG_ERROR, "Failed to listen socket: %s\n", strerror(errno));
 		return -1;
+	}
+
+	sched = sched_context_create();
+	if (sched == NULL) {
+		ast_log(LOG_ERROR, "Unable to create schedule context\n");
 	}
 
 	ast_channel_register(&sccp_tech);

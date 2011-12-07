@@ -222,7 +222,7 @@ struct sccp_line {
 	int state;
 
 	struct ast_codec_pref codec_pref;
-	struct ast_rtp *rtp;
+	struct ast_rtp_instance *rtp;
 	struct ast_channel *channel;
 	struct sccp_device *device;
 
@@ -252,7 +252,7 @@ struct sccp_device {
 	uint32_t line_count;
 	uint32_t speeddial_count;
 
-	uint32_t codecs;
+	format_t codecs;
 	struct ast_codec_pref codec_pref;
 
 	void *session;
