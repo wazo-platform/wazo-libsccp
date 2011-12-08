@@ -392,10 +392,16 @@ static void sccp_newcall(struct ast_channel *channel)
 
 static void *sccp_lookup_exten(void *data)
 {
-	struct ast_channel *channel = data;
-	struct sccp_line *line = channel->tech_pvt;
+	struct ast_channel *channel = NULL;
+	struct sccp_line *line = NULL;
 	size_t len = 0;
 
+	if (data == NULL)
+		return NULL;
+
+	channel = (struct ast_channel*)data;
+	line = channel->tech_pvt;
+	
 	len = strlen(line->device->exten);
 	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
 		line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
@@ -412,8 +418,7 @@ static void *sccp_lookup_exten(void *data)
 		len = strlen(line->device->exten);
 	}
 
-	if (channel)
-		ast_hangup(channel);
+	ast_hangup(channel);
 
 	return NULL;
 }
