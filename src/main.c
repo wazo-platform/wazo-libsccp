@@ -24,6 +24,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #endif
 
 struct sccp_configs *sccp_config; /* global settings */
+static int config_load(char *config_file, struct sccp_configs *sccp_cfg);
 
 AST_TEST_DEFINE(sccp_test_config)
 {
@@ -64,16 +65,30 @@ AST_TEST_DEFINE(sccp_test_config)
 			"[devices]\n"
 			"[SEPACA016FDF235]\n"
 			"device=SEPACA016FDF235\n"
-			"line=100";
+			"line=200";
 
 	fwrite(conf, 1, strlen(conf), conf_file);
 	fclose(conf_file);
+
+	struct sccp_configs *sccp_cfg;
+
+	sccp_cfg = ast_calloc(1, sizeof(struct sccp_configs));
+	if (sccp_config == NULL) {
+		AST_MODULE_LOAD_DECLINE;
+	}
+
+	ret = config_load("/tmp/sccp.conf", sccp_cfg);
+
+
+cleanup:
+
+	ast_free(sccp_cfg);
 	remove("/tmp/sccp.conf");
 
 	return ret;
 }
 
-static int parse_config_devices(struct ast_config *cfg)
+static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
 	struct sccp_device *device, *device_itr;
@@ -92,7 +107,7 @@ static int parse_config_devices(struct ast_config *cfg)
 	/* handle eache devices */
 	while (category != NULL && strcasecmp(category, "general") && strcasecmp(category, "lines")) {
 		/* no duplicates allowed */
-		AST_LIST_TRAVERSE(&list_device, device_itr, list) {
+		AST_LIST_TRAVERSE(&sccp_cfg->list_device, device_itr, list) {
 			if (!strcasecmp(category, device_itr->name)) {
 				ast_log(LOG_WARNING, "Device [%s] already exist, instance ignored\n", category);
 				duplicate = 1;
@@ -114,13 +129,13 @@ static int parse_config_devices(struct ast_config *cfg)
 			device->session = NULL;
 
 			AST_LIST_HEAD_INIT(&device->lines);
-			AST_LIST_INSERT_HEAD(&list_device, device, list);
+			AST_LIST_INSERT_HEAD(&sccp_cfg->list_device, device, list);
 
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 				if (!strcasecmp(var->name, "line")) {
 					/* attach lines to the device */
-					AST_LIST_TRAVERSE(&list_line, line_itr, list) {
+					AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 						if (!strcasecmp(var->value, line_itr->name)) {
 							/* we found a line */
 							if (line_itr->device == NULL) {
@@ -165,7 +180,7 @@ static int parse_config_devices(struct ast_config *cfg)
 	return 0;
 }
 		
-static int parse_config_lines(struct ast_config *cfg)
+static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
 	struct sccp_line *line, *line_itr;
@@ -181,7 +196,7 @@ static int parse_config_lines(struct ast_config *cfg)
 	/* handle each lines */
 	while (category != NULL && strcasecmp(category, "general") && strcasecmp(category, "devices")) {
 		/* no duplicates allowed */
-		AST_LIST_TRAVERSE(&list_line, line_itr, list) {
+		AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 			if (!strcasecmp(category, line_itr->name)) {
 				ast_log(LOG_WARNING, "Line [%s] already exist, line ignored\n", category);
 				duplicate = 1;
@@ -194,7 +209,7 @@ static int parse_config_lines(struct ast_config *cfg)
 			line = ast_calloc(1, sizeof(struct sccp_line));
 			ast_copy_string(line->name, category, 80);
 	
-			AST_LIST_INSERT_HEAD(&list_line, line, list);
+			AST_LIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
 
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 				ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
@@ -254,14 +269,14 @@ static void config_unload(void)
 	struct sccp_device *device_itr;
 	struct sccp_line *line_itr;
 
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_device, device_itr, list) {
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&sccp_config->list_device, device_itr, list) {
 
 		ast_mutex_destroy(&device_itr->lock);
 		AST_LIST_REMOVE_CURRENT(list);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
 
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_line, line_itr, list) {
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&sccp_config->list_line, line_itr, list) {
 
 		ast_mutex_destroy(&line_itr->lock);
 		AST_LIST_REMOVE_CURRENT(list);
@@ -283,17 +298,17 @@ static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 	}
 
 	parse_config_general(cfg, sccp_cfg);
-	parse_config_lines(cfg);
-	parse_config_devices(cfg);
+	parse_config_lines(cfg, sccp_cfg);
+	parse_config_devices(cfg, sccp_cfg);
 
 	struct sccp_line *line_itr;
 	struct sccp_device *device_itr;
 
-	AST_LIST_TRAVERSE(&list_line, line_itr, list) {
+	AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 		ast_log(LOG_NOTICE, "Line [%s] \n", line_itr->name);
 	}
 
-	AST_LIST_TRAVERSE(&list_device, device_itr, list) {
+	AST_LIST_TRAVERSE(&sccp_cfg->list_device, device_itr, list) {
 		ast_log(LOG_NOTICE, "Device [%s] : \n", device_itr->name);
 
 		AST_LIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {

@@ -2,6 +2,7 @@
 #define SCCP_H
 
 #include <asterisk/linkedlists.h>
+#include "device.h"
 
 #define SCCP_DEFAULT_AUTH_TIMEOUT 30
 #define SCCP_MAX_PACKET_SZ 2000
@@ -21,6 +22,9 @@ struct sccp_configs {
 	char dateformat[6];
 	int keepalive;
 	int authtimeout;
+
+	struct list_line list_line;
+	struct list_device list_device;	
 };
 
 struct sccp_session {

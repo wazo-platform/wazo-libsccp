@@ -230,7 +230,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	struct sccp_device *device_itr = NULL;
 	int ret = 0;
 
-	AST_LIST_TRAVERSE(&list_device, device_itr, list) {
+	AST_LIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
 
 		if (!strcasecmp(device_itr->name, msg->data.reg.name)) {
 

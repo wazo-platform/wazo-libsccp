@@ -269,9 +269,6 @@ struct sccp_device {
 AST_LIST_HEAD(list_line, sccp_line);
 AST_LIST_HEAD(list_device, sccp_device);
 
-extern struct list_line list_line;	/* global */
-extern struct list_device list_device;	/* global */
-
 void device_unregister(struct sccp_device *device);
 void device_register(struct sccp_device *device,
 			int8_t protoVersion,
