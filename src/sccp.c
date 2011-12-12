@@ -1331,7 +1331,7 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 				"cause: %d\n",
 				type, ast_getformatname(format), (char *)destination, *cause);
 
-	line = find_line_by_name((char *)destination);
+	line = find_line_by_name((char *)destination, sccp_config);
 
 	if (line == NULL) {
 		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", (char *)destination);

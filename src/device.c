@@ -60,14 +60,14 @@ void device_prepare(struct sccp_device *device)
 	return;
 }
 
-struct sccp_line *find_line_by_name(char *name)
+struct sccp_line *find_line_by_name(char *name, struct list_line *list_line)
 {
 	struct sccp_line *line_itr = NULL;
 
 	if (name == NULL)
 		return NULL;
 
-	AST_LIST_TRAVERSE(&list_line, line_itr, list) {
+	AST_LIST_TRAVERSE(list_line, line_itr, list) {
 		ast_log(LOG_DEBUG, "line_itr->name [%s] name[%s]\n", line_itr->name, name);
 		if (!strncmp(line_itr->name, name, sizeof(line_itr->name))) {
 			break;

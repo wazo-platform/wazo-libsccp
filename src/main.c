@@ -25,10 +25,15 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 
 struct sccp_configs *sccp_config; /* global settings */
 static int config_load(char *config_file, struct sccp_configs *sccp_cfg);
+static void config_unload(struct sccp_configs *sccp_cfg);
 
 AST_TEST_DEFINE(sccp_test_config)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
+	struct sccp_configs *sccp_cfg = NULL;
+	FILE *conf_file = NULL;
+	char *conf = NULL;
+	struct sccp_line *line = NULL;
 
 	switch (cmd) {
 	case TEST_INIT:
@@ -45,43 +50,84 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	ast_test_status_update(test, "Executing sccp test config...\n");
 
-	FILE *conf_file = fopen("/tmp/sccp.conf", "w");
+	sccp_cfg = ast_calloc(1, sizeof(struct sccp_configs));
+	if (sccp_config == NULL) {
+		ast_test_status_update(test, "ast_calloc failed\n");
+		return AST_TEST_FAIL;
+	}
+	AST_LIST_HEAD_INIT(&sccp_cfg->list_device);
+	AST_LIST_HEAD_INIT(&sccp_cfg->list_line);
+
+	conf_file = fopen("/tmp/sccp.conf", "w");
 	if (conf_file == NULL) {
 		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
 		return AST_TEST_FAIL;
 	}
 
-	char *conf =	"[general]\n"
-			"bindaddr=0.0.0.0\n"
-			"dateformat=D.M.Y\n"
-			"keepalive=10\n"
-			"authtimeout=10\n"
-			"\n"
-			"[lines]\n"
-			"[200]\n"
-			"cid_num=200\n"
-			"cid_name=Bob\n"
-			"\n"
-			"[devices]\n"
-			"[SEPACA016FDF235]\n"
-			"device=SEPACA016FDF235\n"
-			"line=200";
+	conf =	"[general]\n"
+		"bindaddr=0.0.0.0\n"
+		"dateformat=D.M.Y\n"
+		"keepalive=10\n"
+		"authtimeout=10\n"
+		"\n"
+		"[lines]\n"
+		"[200]\n"
+		"cid_num=200\n"
+		"cid_name=Bob\n"
+		"\n"
+		"[devices]\n"
+		"[SEPACA016FDF235]\n"
+		"device=SEPACA016FDF235\n"
+		"line=200";
 
 	fwrite(conf, 1, strlen(conf), conf_file);
 	fclose(conf_file);
 
-	struct sccp_configs *sccp_cfg;
+	config_load("/tmp/sccp.conf", sccp_cfg);
 
-	sccp_cfg = ast_calloc(1, sizeof(struct sccp_configs));
-	if (sccp_config == NULL) {
-		AST_MODULE_LOAD_DECLINE;
+	if (strcmp(sccp_cfg->bindaddr, "0.0.0.0")) {
+		ast_test_status_update(test, "bindaddr %s != %s\n", sccp_cfg->bindaddr, "0.0.0.0");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
 	}
 
-	ret = config_load("/tmp/sccp.conf", sccp_cfg);
+	if (strcmp(sccp_cfg->dateformat, "D.M.Y")) {
+		ast_test_status_update(test, "dateformat %s != %s\n", sccp_cfg->dateformat, "D.M.Y");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
 
+	if (sccp_cfg->keepalive != 10) {
+		ast_test_status_update(test, "keepalive %i != %i\n", sccp_cfg->keepalive, 10);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (sccp_cfg->authtimeout != 10) {
+		ast_test_status_update(test, "authtimeout %i != %i\n", sccp_cfg->authtimeout, 10);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	line = find_line_by_name("200", &sccp_cfg->list_line);
+	if (line == NULL) {
+		ast_test_status_update(test, "line name %s != %s\n", line->name, "200");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (line->device == NULL) {
+		ast_test_status_update(test, "line %s has no device\n", line->name);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
 
 cleanup:
 
+	AST_LIST_HEAD_DESTROY(&sccp_cfg->list_device);
+	AST_LIST_HEAD_DESTROY(&sccp_cfg->list_line);
+
+	config_unload(sccp_cfg);
 	ast_free(sccp_cfg);
 	remove("/tmp/sccp.conf");
 
@@ -262,21 +308,21 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	return 0;
 }
 
-static void config_unload(void)
+static void config_unload(struct sccp_configs *sccp_cfg)
 {
 	ast_free(sccp_config->bindaddr);
 
 	struct sccp_device *device_itr;
 	struct sccp_line *line_itr;
 
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&sccp_config->list_device, device_itr, list) {
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_device, device_itr, list) {
 
 		ast_mutex_destroy(&device_itr->lock);
 		AST_LIST_REMOVE_CURRENT(list);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
 
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&sccp_config->list_line, line_itr, list) {
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_line, line_itr, list) {
 
 		ast_mutex_destroy(&line_itr->lock);
 		AST_LIST_REMOVE_CURRENT(list);
@@ -351,6 +397,9 @@ static int load_module(void)
 		AST_MODULE_LOAD_DECLINE;
 	}
 
+	AST_LIST_HEAD_INIT(&sccp_config->list_device);
+	AST_LIST_HEAD_INIT(&sccp_config->list_line);
+
 	ret = config_load("sccp.conf", sccp_config);
 	if (ret == -1) {
 		return AST_MODULE_LOAD_DECLINE;
@@ -375,9 +424,12 @@ static int unload_module(void)
 
 	sccp_server_fini();
 	sccp_rtp_fini();
-	config_unload();
+	config_unload(sccp_config);
 
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+
+	AST_LIST_HEAD_DESTROY(&sccp_config->list_device);
+	AST_LIST_HEAD_DESTROY(&sccp_config->list_line);
 	ast_free(sccp_config);
 
 	AST_TEST_UNREGISTER(sccp_test_config);
