@@ -6,7 +6,12 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include <asterisk/cli.h>
 #include <asterisk/logger.h>
 #include <asterisk/module.h>
+#include <asterisk/test.h>
 #include <asterisk/utils.h>
+
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "sccp.h"
 #include "message.h"
@@ -18,8 +23,55 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #define AST_MODULE "chan_sccp"
 #endif
 
-static const char sccp_config[] = "sccp.conf";
-struct sccp_configs sccp_cfg; /* global settings */
+struct sccp_configs *sccp_config; /* global settings */
+
+AST_TEST_DEFINE(sccp_test_config)
+{
+	enum ast_test_result_state ret = AST_TEST_PASS;
+
+	switch (cmd) {
+	case TEST_INIT:
+		info->name = "sccp_test_config";
+		info->category = "/channel/sccp/";
+		info->summary = "test sccp config";
+		info->description = "Test wether the sccp configuration is parsed properly.";
+
+		return AST_TEST_NOT_RUN;
+
+	case TEST_EXECUTE:
+		break;
+	}
+
+	ast_test_status_update(test, "Executing sccp test config...\n");
+
+	FILE *conf_file = fopen("/tmp/sccp.conf", "w");
+	if (conf_file == NULL) {
+		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
+		return AST_TEST_FAIL;
+	}
+
+	char *conf =	"[general]\n"
+			"bindaddr=0.0.0.0\n"
+			"dateformat=D.M.Y\n"
+			"keepalive=10\n"
+			"authtimeout=10\n"
+			"\n"
+			"[lines]\n"
+			"[200]\n"
+			"cid_num=200\n"
+			"cid_name=Bob\n"
+			"\n"
+			"[devices]\n"
+			"[SEPACA016FDF235]\n"
+			"device=SEPACA016FDF235\n"
+			"line=100";
+
+	fwrite(conf, 1, strlen(conf), conf_file);
+	fclose(conf_file);
+	remove("/tmp/sccp.conf");
+
+	return ret;
+}
 
 static int parse_config_devices(struct ast_config *cfg)
 {
@@ -165,29 +217,29 @@ static int parse_config_lines(struct ast_config *cfg)
 	return 0;
 }
 
-static int parse_config_general(struct ast_config *cfg)
+static int parse_config_general(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;	
 
 	for (var = ast_variable_browse(cfg, "general"); var != NULL; var = var->next) {
 
 		if (!strcasecmp(var->name, "bindaddr")) {
-			sccp_cfg.bindaddr = ast_strdup(var->value);
+			sccp_cfg->bindaddr = ast_strdup(var->value);
 			ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
 			continue;
 
 		} else if (!strcasecmp(var->name, "dateformat")) {
-			ast_copy_string(sccp_cfg.dateformat, var->value, sizeof(sccp_cfg.dateformat));
+			ast_copy_string(sccp_cfg->dateformat, var->value, sizeof(sccp_cfg->dateformat));
 			continue;
 
 		} else if (!strcasecmp(var->name, "keepalive")) {
-			sccp_cfg.keepalive = atoi(var->value);
+			sccp_cfg->keepalive = atoi(var->value);
 			continue;
 		
 		} else if (!strcasecmp(var->name, "authtimeout")) {
-			sccp_cfg.authtimeout = atoi(var->value);
-			if (sccp_cfg.authtimeout < 10)
-				sccp_cfg.authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
+			sccp_cfg->authtimeout = atoi(var->value);
+			if (sccp_cfg->authtimeout < 10)
+				sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
 			continue;
 		}
 	}
@@ -197,7 +249,7 @@ static int parse_config_general(struct ast_config *cfg)
 
 static void config_unload(void)
 {
-	ast_free(sccp_cfg.bindaddr);
+	ast_free(sccp_config->bindaddr);
 
 	struct sccp_device *device_itr;
 	struct sccp_line *line_itr;
@@ -217,20 +269,20 @@ static void config_unload(void)
 	AST_LIST_TRAVERSE_SAFE_END;
 }
 
-static int config_load(void)
+static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 {
 	struct ast_config *cfg;
 	struct ast_flags config_flags = { 0 };
 
-	ast_log(LOG_NOTICE, "Configuring sccp from %s...\n", sccp_config);
+	ast_log(LOG_NOTICE, "Configuring sccp from %s...\n", config_file);
 
-	cfg = ast_config_load(sccp_config, config_flags);
+	cfg = ast_config_load(config_file, config_flags);
 	if (!cfg) {
-		ast_log(LOG_ERROR, "Unable to load configuration file '%s'\n", sccp_config);
+		ast_log(LOG_ERROR, "Unable to load configuration file '%s'\n", config_file);
 		return -1;
 	}
 
-	parse_config_general(cfg);
+	parse_config_general(cfg, sccp_cfg);
 	parse_config_lines(cfg);
 	parse_config_devices(cfg);
 
@@ -279,19 +331,25 @@ static int load_module(void)
 	int ret = 0;
 	ast_verbose("sccp channel loading...\n");
 
-	ret = config_load();
+	sccp_config = ast_calloc(1, sizeof(struct sccp_configs));
+	if (sccp_config == NULL) {
+		AST_MODULE_LOAD_DECLINE;
+	}
+
+	ret = config_load("sccp.conf", sccp_config);
 	if (ret == -1) {
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
-	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
-
-	ret = sccp_server_init();
+	ret = sccp_server_init(sccp_config);
 	if (ret == -1) {
 		ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 		return AST_MODULE_LOAD_DECLINE;
 	}
 	sccp_rtp_init(ast_module_info);
+
+	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+	AST_TEST_REGISTER(sccp_test_config);
 
 	return AST_MODULE_LOAD_SUCCESS;
 }
@@ -305,6 +363,9 @@ static int unload_module(void)
 	config_unload();
 
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+	ast_free(sccp_config);
+
+	AST_TEST_UNREGISTER(sccp_test_config);
 
 	return 0;
 }

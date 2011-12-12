@@ -28,7 +28,7 @@
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
 
-extern struct sccp_configs sccp_cfg; /* global */
+static struct sccp_configs *sccp_config; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct sched_context *sched = NULL;
 
@@ -913,8 +913,8 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return -1;
 	}
 
-        msg->data.regack.keepAlive = htolel(sccp_cfg.keepalive);
-        memcpy(msg->data.regack.dateTemplate, sccp_cfg.dateformat, sizeof(msg->data.regack.dateTemplate));
+        msg->data.regack.keepAlive = htolel(sccp_config->keepalive);
+        memcpy(msg->data.regack.dateTemplate, sccp_config->dateformat, sizeof(msg->data.regack.dateTemplate));
 
 	if (session->device->protoVersion <= 3) {
 
@@ -941,7 +941,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		msg->data.regack.unknown3 = 0xFF;
 	}
 
-        msg->data.regack.secondaryKeepAlive = htolel(sccp_cfg.keepalive);
+        msg->data.regack.secondaryKeepAlive = htolel(sccp_config->keepalive);
 
         ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -1161,8 +1161,8 @@ static int fetch_data(struct sccp_session *session)
 	time(&now);
 	/* if no device or device is not registered and time has elapsed */
 	if ((session->device == NULL || (session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE))
-		&& now > session->start_time + sccp_cfg.authtimeout) {
-		ast_log(LOG_WARNING, "Time has elapsed [%d]\n", sccp_cfg.authtimeout);
+		&& now > session->start_time + sccp_config->authtimeout) {
+		ast_log(LOG_WARNING, "Time has elapsed [%d]\n", sccp_config->authtimeout);
 		return -1;
 	}
 
@@ -1171,7 +1171,7 @@ static int fetch_data(struct sccp_session *session)
 	fds[0].revents = 0;
 
 	/* wait N times the keepalive frequence */
-	nfds = ast_poll(fds, 1, sccp_cfg.keepalive * 1000 * 2);
+	nfds = ast_poll(fds, 1, sccp_config->keepalive * 1000 * 2);
 	if (nfds == -1) { /* something wrong happend */
 		ast_log(LOG_WARNING, "Failed to poll socket: %s\n", strerror(errno));
 		return -1;
@@ -1309,7 +1309,7 @@ static void *thread_accept(void *data)
 
 static int sccp_devicestate(void *data)
 {
-	ast_log(LOG_NOTICE, "sccp devicestate %s\n", data);
+	ast_log(LOG_NOTICE, "sccp devicestate %s\n", (char *)data);
 
 	int state = AST_DEVICE_UNKNOWN;
 
@@ -1750,18 +1750,20 @@ void sccp_rtp_init(struct ast_module_info *module_info)
 	ast_rtp_glue_register(&sccp_rtp_glue);
 }
 
-int sccp_server_init(void)
+int sccp_server_init(struct sccp_configs *sccp_cfg)
 {
 	struct addrinfo hints = {0};
 	const int flag_reuse = 1;
 	int ret = 0;
+
+	sccp_config = sccp_cfg;
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_NUMERICHOST;
 
-	getaddrinfo(sccp_cfg.bindaddr, SCCP_PORT, &hints, &sccp_srv.res);
+	getaddrinfo(sccp_config->bindaddr, SCCP_PORT, &hints, &sccp_srv.res);
 
 	sccp_srv.sockfd = socket(sccp_srv.res->ai_family, sccp_srv.res->ai_socktype, sccp_srv.res->ai_protocol);
 	setsockopt(sccp_srv.sockfd, SOL_SOCKET, SO_REUSEADDR, &flag_reuse, sizeof(flag_reuse));

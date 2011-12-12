@@ -40,7 +40,7 @@ struct sccp_session {
 };
 
 int codec_ast2sccp(format_t);
-int sccp_server_init(void);
+int sccp_server_init(struct sccp_configs *sccp_cfg);
 void sccp_server_fini(void);
 
 #endif /* SCCP */
