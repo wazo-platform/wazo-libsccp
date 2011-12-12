@@ -1339,6 +1339,12 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 		return NULL;
 	}
 
+	if (line->device == NULL) {
+		ast_log(LOG_NOTICE, "This line has no device: %s\n", (char *)destination);
+		*cause = AST_CAUSE_UNREGISTERED;
+		return NULL;
+	}
+
 	if (line->device->registered == DEVICE_REGISTERED_FALSE) {
 		ast_log(LOG_NOTICE, "Line [%s] belong to an unregistered device [%s]\n", line->name, line->device->name);
 		*cause = AST_CAUSE_UNREGISTERED;
