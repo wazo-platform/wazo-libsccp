@@ -234,7 +234,12 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 		if (!strcasecmp(device_itr->name, msg->data.reg.name)) {
 
-			if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
+			if (device_itr->line_count == 0) {
+
+				ast_log(LOG_NOTICE, "Device [%s] has no valid line\n", device_itr->name);
+				ret = -1;
+
+			} else if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
 
 				ast_log(LOG_NOTICE, "Device already registered [%s]\n", device_itr->name);
 				ret = -1;
@@ -256,7 +261,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	}
 
 	if (ret == 0)
-		ast_log(LOG_NOTICE, "Device not found [%s]\n", device_itr->name);
+		ast_log(LOG_NOTICE, "Device not found [%s]\n", msg->data.reg.name);
 
 	return ret;
 }
@@ -1331,7 +1336,7 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 				"cause: %d\n",
 				type, ast_getformatname(format), (char *)destination, *cause);
 
-	line = find_line_by_name((char *)destination, sccp_config);
+	line = find_line_by_name((char *)destination, &sccp_config->list_line);
 
 	if (line == NULL) {
 		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", (char *)destination);

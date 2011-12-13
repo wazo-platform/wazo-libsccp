@@ -183,7 +183,8 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 					/* attach lines to the device */
 					AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 						if (!strcasecmp(var->value, line_itr->name)) {
-							/* we found a line */
+							/* We found a line */
+							found_line = 1;
 							if (line_itr->device == NULL) {
 
 								/* initialize the line instance */
@@ -205,7 +206,6 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 								ast_log(LOG_WARNING, "Line [%s] is already attach to device [%s]\n",
 									line_itr->name, line_itr->device->name);
 							}
-							found_line = 1;
 						}
 					}
 					if (!found_line) {
@@ -214,10 +214,10 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 					}
 				}
 
-
 				found_line = 0;
 			}
 		}
+
 		duplicate = 0;
 		line_instance = 1;
 		category = ast_category_browse(cfg, category);
