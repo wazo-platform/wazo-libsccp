@@ -11,6 +11,7 @@
 struct sccp_msg *msg_alloc(size_t data_length, int message_id);
 int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 int transmit_speaker_mode(struct sccp_session *session, int mode);
+int transmit_activatecallplane(struct sccp_line *line);
 int transmit_close_receive_channel(struct sccp_line *line);
 int transmit_stop_media_transmission(struct sccp_line *line);
 int transmit_connect(struct sccp_line *line);
@@ -417,6 +418,11 @@ struct softkey_set_definition {
         uint16_t softKeyInfoIndex[16];
 };
 
+#define ACTIVATE_CALL_PLANE_MESSAGE 0x0116
+struct activate_call_plane_message {
+        uint32_t lineInstance;
+};
+
 #define START_MEDIA_TRANSMISSION_ACK_MESSAGE 0x0159
 
 struct softkey_set_res_message {
@@ -454,6 +460,7 @@ union sccp_data {
 	struct call_state_message callstate;
 	struct keypad_button_message keypad;
         struct softkey_event_message softkeyevent;
+        struct activate_call_plane_message activatecallplane;
         struct softkey_set_res_message softkeysets;
 	struct softkey_template_res_message softkeytemplate;
         struct select_soft_keys_message selectsoftkey;

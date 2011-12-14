@@ -77,6 +77,38 @@ int transmit_speaker_mode(struct sccp_session *session, int mode)
 	return 0;
 }
 
+int transmit_activatecallplane(struct sccp_line *line)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "Invalid line\n");
+		return -1;
+	}
+
+	if (line->device == NULL) {
+		ast_log(LOG_ERROR, "Invalid device\n");
+		return -1;
+	}
+
+	if (line->device->session == NULL) {
+		ast_log(LOG_ERROR, "Invalid session\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct activate_call_plane_message), ACTIVATE_CALL_PLANE_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.activatecallplane.lineInstance = htolel(line->instance);
+	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_close_receive_channel(struct sccp_line *line)
 {
 	struct sccp_msg *msg = NULL;

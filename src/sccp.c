@@ -555,6 +555,32 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	return 0;
 }
 
+static int handle_softkey_transfer(int line_instance, struct sccp_session *session)
+{
+	struct sccp_line *line;
+	line = device_get_line(session->device, line_instance);
+
+	/* put on hold */
+	transmit_callstate(session, line_instance, SCCP_HOLD, line->callid);
+	transmit_selectsoftkeys(session, line_instance, line->callid, KEYDEF_ONHOLD);
+
+	/* close our speaker */
+	transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+
+	/* stop audio stream */
+
+	/*** XXX ***/
+
+	transmit_callstate(session, line_instance, SCCP_OFFHOOK, line->callid+1);
+	transmit_selectsoftkeys(session, line_instance, line->callid+1, KEYDEF_DADFD);
+
+	/* open new dialing box */
+	transmit_activatecallplane(line);
+
+	/* start dial tone */
+	transmit_tone(session, SCCP_TONE_DIAL, line->instance+1, 0);
+}
+
 static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
@@ -582,6 +608,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_TRNSFER:
+		handle_softkey_transfer(msg->data.softkeyevent.instance, session);
 		break;
 
 	case SOFTKEY_CFWDALL:
