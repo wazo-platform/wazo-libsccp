@@ -575,7 +575,7 @@ static int handle_softkey_transfer(int line_instance, struct sccp_session *sessi
 	transmit_selectsoftkeys(session, line_instance, line->callid+1, KEYDEF_DADFD);
 
 	/* open new dialing box */
-	transmit_activatecallplane(line);
+//	transmit_activatecallplane(line);
 
 	/* start dial tone */
 	transmit_tone(session, SCCP_TONE_DIAL, line->instance+1, 0);
