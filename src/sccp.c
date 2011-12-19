@@ -400,6 +400,7 @@ static void *sccp_lookup_exten(void *data)
 	struct ast_channel *channel = NULL;
 	struct sccp_line *line = NULL;
 	size_t len = 0;
+	int call_now = 0;
 
 	if (data == NULL)
 		return NULL;
@@ -411,8 +412,14 @@ static void *sccp_lookup_exten(void *data)
 	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
 		line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
 
-		if (ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
-			if (!ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
+		/* when pound key is pressed, call the extension without further waiting */
+		if (len > 0 && line->device->exten[len-1] == '#') {
+			line->device->exten[len-1] = '\0';
+			call_now = 1;
+		}
+
+		if (call_now || ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
+			if (call_now || !ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 
 				sccp_newcall(channel);
 				return NULL;
