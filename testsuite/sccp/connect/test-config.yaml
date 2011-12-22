@@ -1,0 +1,9 @@
+testinfo:
+    summary:     'Check to see if the libsccp is loaded'
+    description: |
+        'This test verify that the chan_sccp.so is properly loaded'
+
+properties:
+    minversion: '1.4'
+    dependencies:
+    - app : 'bash'
