@@ -14,6 +14,11 @@ AUTHOR:
 
  Nicolas Bouliane <nbouliane at avencall.com>
 
+GETTING STARTED:
+
+ git://git.xivo.fr/official/xivo-libsccp.git
+ https://wiki.xivo.fr/index.php/Sccp
+
 LICENSE: GPLv3
 
  libsccp is Copyright (C) Avencall, See the file LICENSE
