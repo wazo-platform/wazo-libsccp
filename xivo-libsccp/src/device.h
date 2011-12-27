@@ -211,6 +211,14 @@ struct button_definition_template {
 	uint8_t buttonDefinition;
 };
 
+struct sccp_subchannel {
+
+	uint32_t id;
+	struct ast_rtp_instance *rtp;
+	struct sccp_line *line;
+	struct ast_channel *channel;
+};
+
 struct sccp_line {
 
 	ast_mutex_t lock;
@@ -219,13 +227,14 @@ struct sccp_line {
 	char cid_num[80];
 	char cid_name[80];
 
-	uint32_t callid;
+	uint32_t serial_callid;
 	int instance;
 	int state;
 
+	uint32_t count_subchan;
+	struct sccp_subchannel *active_subchan;
+
 	struct ast_codec_pref codec_pref;
-	struct ast_rtp_instance *rtp;
-	struct ast_channel *channel;
 	struct sccp_device *device;
 
 	TAILQ_ENTRY(sccp_line) qline;

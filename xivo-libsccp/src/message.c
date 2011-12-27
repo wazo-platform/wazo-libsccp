@@ -109,7 +109,7 @@ int transmit_activatecallplane(struct sccp_line *line)
 	return 0;
 }
 
-int transmit_close_receive_channel(struct sccp_line *line)
+int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid)
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
@@ -134,7 +134,7 @@ int transmit_close_receive_channel(struct sccp_line *line)
 		return -1;
 
 	msg->data.closereceivechannel.conferenceId = htolel(0);
-	msg->data.closereceivechannel.partyId = htolel(line->callid ^ 0xFFFFFFFF);
+	msg->data.closereceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.closereceivechannel.conferenceId1 = htolel(0);
 
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
@@ -144,7 +144,7 @@ int transmit_close_receive_channel(struct sccp_line *line)
 	return 0;
 }
 
-int transmit_stop_media_transmission(struct sccp_line *line)
+int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;	
@@ -169,7 +169,7 @@ int transmit_stop_media_transmission(struct sccp_line *line)
 		return -1;
 
 	msg->data.stopmedia.conferenceId = htolel(0);
-	msg->data.stopmedia.partyId = htolel(line->callid ^ 0xFFFFFFFF);
+	msg->data.stopmedia.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.stopmedia.conferenceId1 = htolel(0); 
  
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
@@ -179,7 +179,7 @@ int transmit_stop_media_transmission(struct sccp_line *line)
 	return 0;
 }
 
-int transmit_connect(struct sccp_line *line)
+int transmit_connect(struct sccp_line *line, uint32_t callid)
 {
 	struct ast_format_list fmt = {0};
 	struct sccp_msg *msg = NULL;
@@ -207,7 +207,7 @@ int transmit_connect(struct sccp_line *line)
 		return -1;
 
 	msg->data.openreceivechannel.conferenceId = htolel(0);
-	msg->data.openreceivechannel.partyId = htolel(line->callid ^ 0xFFFFFFFF);
+	msg->data.openreceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.openreceivechannel.packets = htolel(fmt.cur_ms);
 	msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(fmt.bits));
 	msg->data.openreceivechannel.echo = htolel(0);
@@ -253,7 +253,7 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 	return 0;
 }
 
-int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid)
+int transmit_callstate(struct sccp_session *session, int instance, int state, uint32_t callid)
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;

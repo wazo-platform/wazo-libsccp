@@ -194,9 +194,9 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 								line_itr->instance = line_instance++;
 								device->line_count++;
 								line_itr->device = device;
-								line_itr->channel = NULL;
-								line_itr->callid = 0;
-								line_itr->rtp = NULL;
+								line_itr->serial_callid = 0;
+								line_itr->count_subchan = 0;
+								line_itr->active_subchan = NULL;
 								
 								/* set the device default line */
 								if (line_itr->instance == 1)

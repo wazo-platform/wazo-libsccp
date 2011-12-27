@@ -16,8 +16,8 @@ void device_unregister(struct sccp_device *device)
 	device->registered = DEVICE_REGISTERED_FALSE;
 
 	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
-		if (line_itr->channel != NULL)
-			ast_queue_hangup(line_itr->channel);
+		if (line_itr->active_subchan->channel != NULL)
+			ast_queue_hangup(line_itr->active_subchan->channel);
 	}
 
 	return;
