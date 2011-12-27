@@ -22,7 +22,7 @@ class SccpTest(TestCase):
         for ast in self.ast:
             ast.cli_exec("module load chan_sccp.so")
 
-        cmd = [ 'sccpp', '127.0.0.1', '2000', '0' ]
+        cmd = [ 'sccpp', '-c', '0' ]
 
         try:
             retcode = subprocess.call(cmd)
