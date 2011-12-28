@@ -197,6 +197,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 								line_itr->serial_callid = 0;
 								line_itr->count_subchan = 0;
 								line_itr->active_subchan = NULL;
+								AST_LIST_HEAD_INIT(&line_itr->subchans);
 								
 								/* set the device default line */
 								if (line_itr->instance == 1)

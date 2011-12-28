@@ -214,9 +214,11 @@ struct button_definition_template {
 struct sccp_subchannel {
 
 	uint32_t id;
+	uint32_t state;
 	struct ast_rtp_instance *rtp;
 	struct sccp_line *line;
 	struct ast_channel *channel;
+	AST_LIST_ENTRY(sccp_subchannel) list;
 };
 
 struct sccp_line {
@@ -228,11 +230,12 @@ struct sccp_line {
 	char cid_name[80];
 
 	uint32_t serial_callid;
-	int instance;
-	int state;
+	uint32_t instance;
+	uint32_t state;
 
 	uint32_t count_subchan;
 	struct sccp_subchannel *active_subchan;
+	AST_LIST_HEAD(, sccp_subchannel) subchans;
 
 	struct ast_codec_pref codec_pref;
 	struct sccp_device *device;
@@ -290,6 +293,9 @@ struct sccp_line *find_line_by_name(char *name, struct list_line *list_line);
 struct sccp_line *device_get_line(struct sccp_device *device, int instance);
 int device_type_is_supported(int device_type);
 int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl);
+
+void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan);
+void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 void set_line_state(struct sccp_line *line, int state);
 void device_enqueue_line(struct sccp_device *device, struct sccp_line *line);
 void device_release_line(struct sccp_device *device, struct sccp_line *line);

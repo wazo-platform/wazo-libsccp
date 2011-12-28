@@ -142,12 +142,31 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	return err;
 }
 
+void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
+{
+	if (line->active_subchan) {
+		line->active_subchan->state = line->state;
+		line->state = subchan->state;
+	}
+	/* switch subchan */
+	line->active_subchan = subchan;
+}
+
+void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan_itr;
+	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {	
+		if (subchan_itr->id == subchan_id) {
+			line_select_subchan(line, subchan_itr);
+			break;
+		}
+	}
+}
+
 void set_line_state(struct sccp_line *line, int state)
 {
 	ast_mutex_lock(&line->lock);
-
 	line->state = state;
-
 	ast_mutex_unlock(&line->lock);
 }
 
