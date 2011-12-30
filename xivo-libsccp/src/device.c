@@ -144,10 +144,9 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 
 void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
 {
-	if (line->active_subchan) {
+	if (line->active_subchan)
 		line->active_subchan->state = line->state;
-		line->state = subchan->state;
-	}
+
 	/* switch subchan */
 	line->active_subchan = subchan;
 }

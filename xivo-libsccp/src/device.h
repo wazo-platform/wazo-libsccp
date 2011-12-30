@@ -218,6 +218,7 @@ struct sccp_subchannel {
 	struct ast_rtp_instance *rtp;
 	struct sccp_line *line;
 	struct ast_channel *channel;
+	struct sccp_subchannel *related;
 	AST_LIST_ENTRY(sccp_subchannel) list;
 };
 

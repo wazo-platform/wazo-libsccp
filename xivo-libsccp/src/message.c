@@ -179,6 +179,43 @@ int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
 	return 0;
 }
 
+int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid)
+{
+	struct sccp_msg *msg = NULL;
+	struct sockaddr_in local = {0};
+	struct ast_sockaddr local_tmp;
+	struct ast_format_list fmt = {0};
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
+	ast_sockaddr_to_sin(&local_tmp, &local);
+
+	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
+
+	msg->data.startmedia.conferenceId = htolel(0);
+	msg->data.startmedia.passThruPartyId = htolel(callid ^ 0xFFFFFFFF);
+	msg->data.startmedia.remoteIp = htolel(local.sin_addr.s_addr);
+	msg->data.startmedia.remotePort = htolel(ntohs(local.sin_port));
+	msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
+	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(fmt.bits));
+	msg->data.startmedia.qualifier.precedence = htolel(127);
+	msg->data.startmedia.qualifier.vad = htolel(0);
+	msg->data.startmedia.qualifier.packets = htolel(0);
+	msg->data.startmedia.qualifier.bitRate = htolel(0);
+	msg->data.startmedia.conferenceId1 = htolel(0);
+	msg->data.startmedia.rtpTimeout = htolel(10);
+
+	ret = transmit_message(msg, line->device->session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_connect(struct sccp_line *line, uint32_t callid)
 {
 	struct ast_format_list fmt = {0};

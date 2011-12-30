@@ -14,6 +14,7 @@ int transmit_speaker_mode(struct sccp_session *session, int mode);
 int transmit_activatecallplane(struct sccp_line *line);
 int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid);
 int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid);
+int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid);
 int transmit_connect(struct sccp_line *line, uint32_t callid);
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
 			const char *to_name, const char *to_num, int instance, int callid, int calltype);
