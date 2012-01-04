@@ -158,7 +158,7 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 {
 	struct button_definition_template btl[42] = {0};
 	int button_count = 0;
-	int line_instance = 1;
+	uint32_t line_instance = 1;
 	/*int speeddial_instance = 0;*/
 	struct sccp_line *line_itr = NULL;
 	int ret = 0;
@@ -304,20 +304,14 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line, const char *
 		return NULL;
 	}
 
+	/* initialise subchannel and add it to the list */
+	subchan->related = NULL;
 	subchan->state = SCCP_OFFHOOK;
 	subchan->line = line;
 	subchan->id = line->serial_callid++;
 	subchan->channel = channel;
 
 	AST_LIST_INSERT_HEAD(&line->subchans, subchan, list);
-
-	ast_log(LOG_NOTICE, "newsubchan [%i]\n", subchan->id);
-	/* SHOW OFF */
-	struct sccp_subchannel *subchan_itr;
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&line->subchans, subchan_itr, list) {
-		ast_log(LOG_NOTICE, "list subchan [%i]\n", subchan_itr->id);
-	} AST_LIST_TRAVERSE_SAFE_END;
-
 	line_select_subchan(line, subchan);
 
 	channel->tech = &sccp_tech;
@@ -465,6 +459,7 @@ static void *sccp_lookup_exten(void *data)
 		ast_safe_sleep(channel, 500);
 		len = strlen(line->device->exten);
 	}
+
 	ast_hangup(channel);
 
 	return NULL;
@@ -477,6 +472,8 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	struct sccp_device *device = NULL;
 	struct ast_channel *channel = NULL;
 	int ret = 0;
+
+	ast_log(LOG_NOTICE, "handle_offhook_message\n");
 
 	device = session->device;
 	line = device_get_active_line(device);
@@ -504,6 +501,10 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 			return -1;
 
 		ret = transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_CONNECTED);
 		if (ret == -1)
 			return -1;
 
@@ -556,11 +557,9 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 
 	line = device_get_active_line(session->device);
 	if (line->state == SCCP_ONHOOK)
-		return;
+		return 0;
 
-	subchan = line->active_subchan;
-
-	ast_log(LOG_NOTICE, "on hook line[%i] subchan[%i]\n", line->instance, subchan->id);
+	ast_log(LOG_NOTICE, "on hook line[%i]\n", line->instance);
 
 	device_release_line(line->device, line);
 	set_line_state(line, SCCP_ONHOOK);
@@ -572,7 +571,14 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		pthread_join(session->device->lookup_thread, NULL);
 	else
 		session->device->lookup = 0;
-	
+
+	subchan = line->active_subchan;
+	if (subchan == NULL) {
+		ast_log(LOG_WARNING, "line instance [%i] has no active subchannel\n", line->instance);
+		return 0;
+	}
+	ast_log(LOG_NOTICE, "subchan [%i]\n", line->instance);
+
 	if (line->active_subchan && line->active_subchan->channel) {
 
 		transmit_close_receive_channel(line, line->active_subchan->id);
@@ -592,6 +598,10 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 
 	if (line->active_subchan != NULL) {
 
+		ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
+		if (ret == -1)
+			return -1;
+
 		ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
 		if (ret == -1)
 			return -1;
@@ -603,9 +613,34 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		AST_LIST_REMOVE(&line->subchans, subchan, list);
 
 		line->active_subchan->channel = NULL;
+
+		if (line->active_subchan->related) {
+			line->active_subchan->related->related = NULL;
+		}
+
 		ast_free(line->active_subchan);
 		line->active_subchan = NULL;
 	}
+
+	return 0;
+}
+
+static int handle_softkey_hold(uint32_t line_instance, struct sccp_session *session)
+{
+	struct sccp_line *line = NULL;
+
+	line = device_get_line(session->device, line_instance);
+
+	/* put on hold */
+	transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
+	transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
+
+	/* close our speaker */
+	transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+
+	/* stop audio stream */
+	transmit_close_receive_channel(line, line->active_subchan->id);
+	transmit_stop_media_transmission(line, line->active_subchan->id);
 
 	return 0;
 }
@@ -618,9 +653,14 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	line_select_subchan_id(line, subchan_id);
 	set_line_state(line, SCCP_CONNECTED); 
 
+	/* put on connected */
 	transmit_callstate(session, line_instance, SCCP_CONNECTED, subchan_id);
 	transmit_selectsoftkeys(session, line_instance, subchan_id, KEYDEF_CONNECTED);
 
+	/* open our speaker */
+	transmit_speaker_mode(session, SCCP_SPEAKERON);
+
+	/* start audio stream */
 	transmit_connect(line, subchan_id);
 	transmit_start_media_transmission(line, subchan_id);
 
@@ -632,21 +672,43 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	struct sccp_subchannel *subchan;
 	struct ast_channel *channel;
 	struct sccp_line *line;
+	int ret = 0;
 
 	line = device_get_line(session->device, line_instance);
+	if (line == NULL) {
+		ast_log(LOG_WARNING, "line instance [%i] doesn't exist\n", line_instance);
+		return -1;
+	}
+
+	if (line->active_subchan == NULL) {
+		ast_log(LOG_WARNING, "line instance [%i] has no active subchannel\n", line_instance);
+		return -1;
+	}
 
 	if (line->active_subchan->related == NULL) {
 
 		/* put on hold */
-		transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
-		transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
+		ret = transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
+		if (ret == -1)
+			return -1;
 
 		/* close our speaker */
-		transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+		ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+		if (ret == -1)
+			return -1;
 
 		/* stop audio stream */
-		transmit_close_receive_channel(line, line->active_subchan->id);
-		transmit_stop_media_transmission(line, line->active_subchan->id);
+		ret = transmit_close_receive_channel(line, line->active_subchan->id);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_stop_media_transmission(line, line->active_subchan->id);
+		if (ret == -1)
+			return -1;
 
 		/* */
 		subchan = line->active_subchan;	
@@ -658,11 +720,18 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 		set_line_state(line, SCCP_OFFHOOK);
 
-		transmit_callstate(session, line_instance, SCCP_OFFHOOK, line->active_subchan->id);
-		transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_CONNWITHTRANS);
+		ret = transmit_callstate(session, line_instance, SCCP_OFFHOOK, line->active_subchan->id);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_CONNINTRANSFER);
+		if (ret == -1)
+			return -1;
 
 		/* start dial tone */
-		transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
+		ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
+		if (ret == -1)
+			return -1;
 
 		if (ast_pthread_create(&line->device->lookup_thread, NULL, sccp_lookup_exten, channel)) {
 			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
@@ -673,26 +742,16 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	} else {
 
 		subchan = line->active_subchan->related;
-		ast_channel_masquerade(line->active_subchan->related->channel, ast_bridged_channel(line->active_subchan->channel));
+
+		if (ast_bridged_channel(line->active_subchan->channel)) {
+			ast_channel_masquerade(line->active_subchan->related->channel, ast_bridged_channel(line->active_subchan->channel));
+		}
+		else {
+			ast_channel_masquerade(line->active_subchan->channel, ast_bridged_channel(line->active_subchan->related->channel));
+			ast_queue_hangup(line->active_subchan->related->channel);
+		}
 
 		ast_log(LOG_NOTICE, "subchan id %d\n", line->active_subchan->id);
-
-		//sleep(1);
-		//line_select_subchan(line, subchan);
-		//set_line_state(line, SCCP_OFFHOOK);
-/*
-		transmit_callstate(session, line->instance, SCCP_ONHOOK, line->active_subchan->id);
-		transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_ONHOOK);
-		
-		AST_LIST_REMOVE(&line->subchans, line->active_subchan, list);
-		AST_LIST_REMOVE(&line->subchans, line->active_subchan->related, list);
-
-		line->active_subchan->channel->tech_pvt = NULL;
-		line->active_subchan->channel = NULL;
-		ast_free(line->active_subchan);
-		line->active_subchan = NULL;
-*/	
-		//set_line_state(line, SCCP_ONHOOK);	
 	}
 
 	return 0;
@@ -722,10 +781,14 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_HOLD:
+
+		handle_softkey_hold(msg->data.softkeyevent.instance, session);
 		break;
 
 	case SOFTKEY_TRNSFER:
-		handle_softkey_transfer(msg->data.softkeyevent.instance, session);
+		ret = handle_softkey_transfer(msg->data.softkeyevent.instance, session);
+		if (ret == -1)
+			return -1;
 		break;
 
 	case SOFTKEY_CFWDALL:
@@ -759,6 +822,10 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_ANSWER:
+
+		transmit_speaker_mode(session, SCCP_SPEAKERON);
+		handle_offhook_message(NULL, session);
+
 		break;
 
 	case SOFTKEY_INFO:
@@ -944,6 +1011,15 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	int ret = 0;
 
 	line = device_get_active_line(session->device);
+	if (line == NULL) {
+		ast_log(LOG_NOTICE, "device has no active line\n");
+		return 0;
+	}
+
+	if (line->active_subchan == NULL) {
+		ast_log(LOG_NOTICE, "line has no active subchan\n");
+		return 0;
+	}
 
 	addr = msg->data.openreceivechannelack.ipAddr;
 	port = letohl(msg->data.openreceivechannelack.port);
@@ -1485,7 +1561,12 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 		return NULL;
 	}
 
-	if (line->state != SCCP_ONHOOK || (line->active_subchan != NULL && line->active_subchan->channel != NULL)) {
+	if (line->state != SCCP_ONHOOK) {
+		*cause = AST_CAUSE_BUSY;
+		return NULL;
+	}
+
+	if (line->active_subchan != NULL && line->active_subchan->channel != NULL) {
 		*cause = AST_CAUSE_BUSY;
 		return NULL;
 	}
@@ -1540,7 +1621,6 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	}
 
 	device_enqueue_line(device, line);
-//	subchan->channel = channel;
 
 	ret = transmit_callstate(session, line->instance, SCCP_RINGIN, subchan->id);
 	if (ret == -1)
@@ -1641,28 +1721,33 @@ static int sccp_hangup(struct ast_channel *channel)
 		ast_queue_hangup(channel);
 		ast_module_unref(ast_module_info->self);
 	}
-/*
-	if (line->active_subchan != NULL) {
-*/
-		ret = transmit_callstate(line->device->session, line->instance, SCCP_ONHOOK, subchan->id);
-		if (ret == -1)
-			return -1;
 
-		ret = transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_ONHOOK);
-		if (ret == -1)
-			return -1;
+	/* clean the subchannel */
+	ret = transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
+	if (ret == -1)
+		return -1;
 
-		AST_LIST_REMOVE(&line->subchans, subchan, list);
+	ret = transmit_callstate(line->device->session, line->instance, SCCP_ONHOOK, subchan->id);
+	if (ret == -1)
+		return -1;
 
-		if (line->active_subchan == subchan)
-			line->active_subchan = NULL;
+	set_line_state(line, SCCP_ONHOOK);
 
-		ast_free(subchan);
-		
-//		line->active_subchan->channel = NULL;
-//		ast_free(line->active_subchan);
-//		line->active_subchan = NULL;
+	ret = transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_ONHOOK);
+	if (ret == -1)
+		return -1;
 
+	AST_LIST_REMOVE(&line->subchans, subchan, list);
+
+	if (line->active_subchan == subchan) {
+		if (subchan->related) {
+			/* unlink the related subchannel */
+			line->active_subchan->related->related = NULL;
+		}
+		line->active_subchan = NULL;
+	}
+
+	ast_free(subchan);
 
 	return 0;
 }
@@ -1682,6 +1767,7 @@ static int sccp_answer(struct ast_channel *channel)
 	}
 
 	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
+	transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_CONNECTED);
 
 	ast_setstate(channel, AST_STATE_UP);
 	set_line_state(line, SCCP_CONNECTED);

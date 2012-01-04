@@ -89,7 +89,7 @@
 #define KEYDEF_ONHOLD			2
 #define KEYDEF_RINGIN			3
 #define KEYDEF_OFFHOOK			4
-#define KEYDEF_CONNWITHTRANS		5
+#define KEYDEF_CONNINTRANSFER		5
 #define KEYDEF_DADFD			6	/* Digits After Dialing First Digit */
 #define KEYDEF_CONNWITHCONF		7
 #define KEYDEF_RINGOUT			8
@@ -123,51 +123,32 @@ struct softkey_definitions {
 };
 
 static const uint8_t softkey_default_onhook[] = {
-	SOFTKEY_REDIAL,
 	SOFTKEY_NEWCALL,
-	SOFTKEY_CFWDALL,
-	SOFTKEY_CFWDBUSY,
-	/*SOFTKEY_GPICKUP,
-	SOFTKEY_CONFRN, */
 };
 
 static const uint8_t softkey_default_connected[] = {
 	SOFTKEY_HOLD,
 	SOFTKEY_ENDCALL,
 	SOFTKEY_TRNSFER,
-	SOFTKEY_PARK,
-	SOFTKEY_CFWDALL,
-	SOFTKEY_CFWDBUSY,
 };
 
 static const uint8_t softkey_default_onhold[] = {
 	SOFTKEY_RESUME,
-	SOFTKEY_NEWCALL,
 	SOFTKEY_ENDCALL,
-	SOFTKEY_TRNSFER,
 };
 
 static const uint8_t softkey_default_ringin[] = {
 	SOFTKEY_ANSWER,
 	SOFTKEY_ENDCALL,
-	SOFTKEY_TRNSFER,
 };
 
 static const uint8_t softkey_default_offhook[] = {
-	SOFTKEY_REDIAL,
 	SOFTKEY_ENDCALL,
-	SOFTKEY_CFWDALL,
-	SOFTKEY_CFWDBUSY,
-	/*SOFTKEY_GPICKUP, */
 };
 
-static const uint8_t softkey_default_connwithtrans[] = {
-	SOFTKEY_HOLD,
+static const uint8_t softkey_default_connintransfer[] = {
 	SOFTKEY_ENDCALL,
 	SOFTKEY_TRNSFER,
-	SOFTKEY_PARK,
-	SOFTKEY_CFWDALL,
-	SOFTKEY_CFWDBUSY,
 };
 
 static const uint8_t softkey_default_dadfd[] = {
@@ -199,7 +180,7 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_ONHOLD, softkey_default_onhold, sizeof(softkey_default_onhold) / sizeof(uint8_t)},
 	{KEYDEF_RINGIN, softkey_default_ringin, sizeof(softkey_default_ringin) / sizeof(uint8_t)},
 	{KEYDEF_OFFHOOK, softkey_default_offhook, sizeof(softkey_default_offhook) / sizeof(uint8_t)},
-	{KEYDEF_CONNWITHTRANS, softkey_default_connwithtrans, sizeof(softkey_default_connwithtrans) / sizeof(uint8_t)},
+	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, sizeof(softkey_default_connintransfer) / sizeof(uint8_t)},
 	{KEYDEF_DADFD, softkey_default_dadfd, sizeof(softkey_default_dadfd) / sizeof(uint8_t)},
 	{KEYDEF_CONNWITHCONF, softkey_default_connwithconf, sizeof(softkey_default_connwithconf) / sizeof(uint8_t)},
 	{KEYDEF_RINGOUT, softkey_default_ringout, sizeof(softkey_default_ringout) / sizeof(uint8_t)},
