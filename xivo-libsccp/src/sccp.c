@@ -317,7 +317,8 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line, const char *
 	channel->tech = &sccp_tech;
 	channel->tech_pvt = subchan;
 
-	channel->nativeformats = line->device->codecs;
+	/* if there is no codec, set a default one */
+	channel->nativeformats = line->device->codecs ? line->device->codecs: SCCP_CODEC_G711_ULAW;
 	audio_format = ast_best_codec(channel->nativeformats);
 
 	channel->writeformat = audio_format;
@@ -625,22 +626,22 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	return 0;
 }
 
-static int handle_softkey_hold(uint32_t line_instance, struct sccp_session *session)
+static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
 
 	line = device_get_line(session->device, line_instance);
 
 	/* put on hold */
-	transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
-	transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
+	transmit_callstate(session, line_instance, SCCP_HOLD, subchan_id);
+	transmit_selectsoftkeys(session, line_instance, subchan_id, KEYDEF_ONHOLD);
 
 	/* close our speaker */
 	transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 
 	/* stop audio stream */
-	transmit_close_receive_channel(line, line->active_subchan->id);
-	transmit_stop_media_transmission(line, line->active_subchan->id);
+	transmit_close_receive_channel(line, subchan_id);
+	transmit_stop_media_transmission(line, subchan_id);
 
 	return 0;
 }
@@ -650,6 +651,26 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	struct sccp_line *line = NULL;
 
 	line = device_get_line(session->device, line_instance); 
+
+	/* XXX a prototype to see how I could handle the subchannel switching in the future  */
+	if (line->active_subchan) {
+		/* if another channel is already active */
+		if (line->active_subchan->id != subchan_id) {
+
+			/* set tone to none */
+			transmit_tone(session, SCCP_TONE_NONE, line->instance, line->active_subchan->id);
+
+			/* put on hold */
+			transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
+			transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
+
+			/* stop audio stream */
+			transmit_close_receive_channel(line, line->active_subchan->id);
+			transmit_stop_media_transmission(line, line->active_subchan->id);
+		}
+	}
+	/**/
+
 	line_select_subchan_id(line, subchan_id);
 	set_line_state(line, SCCP_CONNECTED); 
 
@@ -662,7 +683,6 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	/* start audio stream */
 	transmit_connect(line, subchan_id);
-	transmit_start_media_transmission(line, subchan_id);
 
 	return 0;
 }
@@ -782,7 +802,9 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 	case SOFTKEY_HOLD:
 
-		handle_softkey_hold(msg->data.softkeyevent.instance, session);
+		handle_softkey_hold(msg->data.softkeyevent.instance,
+					msg->data.softkeyevent.callreference,
+					 session);
 		break;
 
 	case SOFTKEY_TRNSFER:
@@ -919,23 +941,13 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	return 0;
 }
 
-enum sccp_codecs {
-	SCCP_CODEC_ALAW = 2,
-	SCCP_CODEC_ULAW = 4,
-	SCCP_CODEC_G723_1 = 9,
-	SCCP_CODEC_G729A = 12,
-	SCCP_CODEC_G726_32 = 82,
-	SCCP_CODEC_H261 = 100,
-	SCCP_CODEC_H263 = 101
-};
-
 int codec_ast2sccp(format_t astcodec)
 {
         switch (astcodec) {
         case AST_FORMAT_ALAW:
-                return SCCP_CODEC_ALAW;
+                return SCCP_CODEC_G711_ALAW;
         case AST_FORMAT_ULAW:
-                return SCCP_CODEC_ULAW;
+                return SCCP_CODEC_G711_ULAW;
         case AST_FORMAT_G723_1:
                 return SCCP_CODEC_G723_1;
         case AST_FORMAT_G729A:
@@ -954,9 +966,9 @@ int codec_ast2sccp(format_t astcodec)
 static format_t codec_sccp2ast(enum sccp_codecs sccp_codec)
 {
 	switch (sccp_codec) {
-	case SCCP_CODEC_ALAW:
+	case SCCP_CODEC_G711_ALAW:
 		return AST_FORMAT_ALAW;
-	case SCCP_CODEC_ULAW:
+	case SCCP_CODEC_G711_ULAW:
 		return AST_FORMAT_ULAW;
 	case SCCP_CODEC_G723_1:
 		return AST_FORMAT_G723_1;

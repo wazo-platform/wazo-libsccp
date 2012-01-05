@@ -116,6 +116,16 @@
 #define SOFTKEY_PICKUP			0x11
 #define SOFTKEY_GPICKUP			0x12
 
+enum sccp_codecs {
+	SCCP_CODEC_G711_ALAW = 2,
+	SCCP_CODEC_G711_ULAW = 4,
+	SCCP_CODEC_G723_1 = 9,
+	SCCP_CODEC_G729A = 12,
+	SCCP_CODEC_G726_32 = 82,
+	SCCP_CODEC_H261 = 100,
+	SCCP_CODEC_H263 = 101
+};
+
 struct softkey_definitions {
 	const uint8_t mode;
 	const uint8_t *defaults;
