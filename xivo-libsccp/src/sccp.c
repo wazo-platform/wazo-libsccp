@@ -704,7 +704,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	if (line->active_subchan == NULL) {
 		ast_log(LOG_DEBUG, "line instance [%i] has no active subchannel\n", line_instance);
-		return -1;
+		return 0;
 	}
 
 	/* first time we press transfer */
@@ -764,7 +764,6 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		}
 
 	} else {
-
 		subchan = line->active_subchan->related;
 
 		if (ast_bridged_channel(line->active_subchan->channel)) {
@@ -773,6 +772,9 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		else if (ast_bridged_channel(line->active_subchan->related->channel)) {
 			ast_channel_masquerade(line->active_subchan->channel, ast_bridged_channel(line->active_subchan->related->channel));
 			ast_queue_hangup(line->active_subchan->related->channel);
+		} else {
+			ast_queue_hangup(line->active_subchan->channel);
+			return 0;
 		}
 	}
 
@@ -1412,7 +1414,6 @@ static int fetch_data(struct sccp_session *session)
 
 		/* fetch the field that contain the packet length */
 		nbyte = read(session->sockfd, session->inbuf, 4);
-		ast_log(LOG_DEBUG, "nbyte %d\n", nbyte);
 		if (nbyte < 0) { /* something wrong happend */
 			ast_log(LOG_WARNING, "Failed to read socket: %s\n", strerror(errno));
 			return -1;
@@ -1427,7 +1428,6 @@ static int fetch_data(struct sccp_session *session)
 		}
 
 		msg_len = letohl(*((int *)session->inbuf));
-		ast_log(LOG_DEBUG, "msg_len %d\n", msg_len);
 		if (msg_len > SCCP_MAX_PACKET_SZ || msg_len < 0) {
 			ast_log(LOG_WARNING, "Packet length is out of bounds: 0 > %d > %d\n", msg_len, SCCP_MAX_PACKET_SZ);
 			return -1;
@@ -1435,7 +1435,6 @@ static int fetch_data(struct sccp_session *session)
 
 		/* bypass the length field and fetch the payload */
 		nbyte = read(session->sockfd, session->inbuf+4, msg_len+4);
-		ast_log(LOG_DEBUG, "nbyte %d\n", nbyte);
 		if (nbyte < 0) {
 			ast_log(LOG_WARNING, "Failed to read socket: %s\n", strerror(errno));
 			return -1;
@@ -1698,7 +1697,7 @@ static int sccp_hangup(struct ast_channel *channel)
 
 		transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
 
-		if (line->device->active_line_cnt <= 1)
+	// FIXME	if (line->device->active_line_cnt <= 1)
 			ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
 
 		ret = transmit_lamp_indication(line->device->session, subchan->id, line->instance, SCCP_LAMP_OFF);
@@ -1752,16 +1751,16 @@ static int sccp_hangup(struct ast_channel *channel)
 
 	AST_LIST_REMOVE(&line->subchans, subchan, list);
 
+	if (subchan->related) {
+		/* unlink the related subchannel */
+		subchan->related->related = NULL;
+	}
+
 	if (line->active_subchan == subchan) {
-		if (subchan->related) {
-			/* unlink the related subchannel */
-			line->active_subchan->related->related = NULL;
-		}
 		line->active_subchan = NULL;
 	}
 
 	ast_free(subchan);
-
 	return 0;
 }
 
