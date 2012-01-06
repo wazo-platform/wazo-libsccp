@@ -159,7 +159,6 @@ static int handle_button_template_req_message(struct sccp_msg *msg, struct sccp_
 	struct button_definition_template btl[42] = {0};
 	int button_count = 0;
 	uint32_t line_instance = 1;
-	/*int speeddial_instance = 0;*/
 	struct sccp_line *line_itr = NULL;
 	int ret = 0;
 	int i = 0;
@@ -236,12 +235,12 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 			if (device_itr->line_count == 0) {
 
-				ast_log(LOG_NOTICE, "Device [%s] has no valid line\n", device_itr->name);
+				ast_log(LOG_WARNING, "Device [%s] has no valid line\n", device_itr->name);
 				ret = -1;
 
 			} else if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
 
-				ast_log(LOG_NOTICE, "Device already registered [%s]\n", device_itr->name);
+				ast_log(LOG_WARNING, "Device already registered [%s]\n", device_itr->name);
 				ret = -1;
 
 			} else {
@@ -261,7 +260,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	}
 
 	if (ret == 0)
-		ast_log(LOG_NOTICE, "Device not found [%s]\n", msg->data.reg.name);
+		ast_log(LOG_WARNING, "Device not found [%s]\n", msg->data.reg.name);
 
 	return ret;
 }
@@ -273,7 +272,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line, const char *
 	int audio_format = 0;
 
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "Invalid line\n");
+		ast_log(LOG_DEBUG, "line is NULL\n");
 		return NULL;
 	}
 
@@ -338,9 +337,15 @@ static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, s
 	struct sccp_subchannel *subchan = NULL;
 	subchan = channel->tech_pvt;
 
-	if (subchan == NULL || subchan->rtp == NULL)
-		ast_log(LOG_DEBUG, "subchan is not valid\n");
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return AST_RTP_GLUE_RESULT_FORBID;
+	}
+
+	if (subchan->rtp == NULL) {
+		ast_log(LOG_DEBUG, "rtp is NULL\n");
+		return AST_RTP_GLUE_RESULT_FORBID;
+	}
 
 	ao2_ref(subchan->rtp, +1);
 	*instance = subchan->rtp;
@@ -483,7 +488,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 		subchan = line->active_subchan;
 		if (subchan == NULL) {
-			ast_log(LOG_ERROR, "line has no active subchan\n");
+			ast_log(LOG_DEBUG, "line has no active subchan\n");
 			return -1;
 		}
 
@@ -560,8 +565,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	if (line->state == SCCP_ONHOOK)
 		return 0;
 
-	ast_log(LOG_NOTICE, "on hook line[%i]\n", line->instance);
-
 	device_release_line(line->device, line);
 	set_line_state(line, SCCP_ONHOOK);
 
@@ -575,10 +578,9 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 
 	subchan = line->active_subchan;
 	if (subchan == NULL) {
-		ast_log(LOG_WARNING, "line instance [%i] has no active subchannel\n", line->instance);
+		ast_log(LOG_DEBUG, "line instance [%i] has no active subchannel\n", line->instance);
 		return 0;
 	}
-	ast_log(LOG_NOTICE, "subchan [%i]\n", line->instance);
 
 	if (line->active_subchan && line->active_subchan->channel) {
 
@@ -669,7 +671,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 			transmit_stop_media_transmission(line, line->active_subchan->id);
 		}
 	}
-	/**/
+	/* */
 
 	line_select_subchan_id(line, subchan_id);
 	set_line_state(line, SCCP_CONNECTED); 
@@ -696,15 +698,16 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
-		ast_log(LOG_WARNING, "line instance [%i] doesn't exist\n", line_instance);
+		ast_log(LOG_DEBUG, "line instance [%i] doesn't exist\n", line_instance);
 		return -1;
 	}
 
 	if (line->active_subchan == NULL) {
-		ast_log(LOG_WARNING, "line instance [%i] has no active subchannel\n", line_instance);
+		ast_log(LOG_DEBUG, "line instance [%i] has no active subchannel\n", line_instance);
 		return -1;
 	}
 
+	/* first time we press transfer */
 	if (line->active_subchan->related == NULL) {
 
 		/* put on hold */
@@ -730,7 +733,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ret == -1)
 			return -1;
 
-		/* */
+		/* spawn a new subchannel instance and mark both as related */
 		subchan = line->active_subchan;	
 		channel = sccp_new_channel(line, NULL);
 
@@ -759,6 +762,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		} else {
 			line->device->lookup = 1;
 		}
+
 	} else {
 
 		subchan = line->active_subchan->related;
@@ -766,12 +770,10 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ast_bridged_channel(line->active_subchan->channel)) {
 			ast_channel_masquerade(line->active_subchan->related->channel, ast_bridged_channel(line->active_subchan->channel));
 		}
-		else {
+		else if (ast_bridged_channel(line->active_subchan->related->channel)) {
 			ast_channel_masquerade(line->active_subchan->channel, ast_bridged_channel(line->active_subchan->related->channel));
 			ast_queue_hangup(line->active_subchan->related->channel);
 		}
-
-		ast_log(LOG_NOTICE, "subchan id %d\n", line->active_subchan->id);
 	}
 
 	return 0;
@@ -925,7 +927,6 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	int ret = 0;
 
 	instance = letohl(msg->data.forward.lineNumber);
-	ast_log(LOG_NOTICE, "Forward status line %d\n", instance);
 
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
 	if (msg == NULL)
@@ -1024,12 +1025,12 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	line = device_get_active_line(session->device);
 	if (line == NULL) {
-		ast_log(LOG_NOTICE, "device has no active line\n");
+		ast_log(LOG_DEBUG, "device has no active line\n");
 		return 0;
 	}
 
 	if (line->active_subchan == NULL) {
-		ast_log(LOG_NOTICE, "line has no active subchan\n");
+		ast_log(LOG_DEBUG, "line has no active subchan\n");
 		return 0;
 	}
 
@@ -1061,7 +1062,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "Line instance [%d] is not attached to device [%s]\n", line_instance, session->device->name);
+		ast_log(LOG_DEBUG, "Line instance [%d] is not attached to device [%s]\n", line_instance, session->device->name);
 		return -1;
 	}
 
@@ -1206,7 +1207,7 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 
 	line = device_get_line(session->device, instance);
 	if (line == NULL) {
-		ast_log(LOG_WARNING, "Device [%s] has no line instance [%d]\n", session->device->name, instance);
+		ast_log(LOG_DEBUG, "Device [%s] has no line instance [%d]\n", session->device->name, instance);
 		return 0;
 	}
 
@@ -1511,8 +1512,10 @@ static void *thread_accept(void *data)
 		/* session constructor */	
 		session = ast_calloc(1, sizeof(struct sccp_session));
 		if (session == NULL) {
+			ast_log(LOG_ERROR, "Failed to allocate new session, "
+						"the main thread is going down now\n");
 			close(new_sockfd);
-			continue;
+			return NULL;
 		}
 
 		session->tid = AST_PTHREADT_NULL; 
@@ -1603,25 +1606,25 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
-		ast_log(LOG_ERROR, "channel has no valid tech_pvt\n");
+		ast_log(LOG_DEBUG, "channel has no valid tech_pvt\n");
 		return -1;
 	}
 
 	line = subchan->line;
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "subchan has no valid line\n");
+		ast_log(LOG_DEBUG, "subchan has no valid line\n");
 		return -1;
 	}
 
 	device = line->device;
 	if (device == NULL) {
-		ast_log(LOG_ERROR, "Line [%s] is attached to no device\n", device->name);
+		ast_log(LOG_DEBUG, "Line [%s] is attached to no device\n", device->name);
 		return -1;
 	}
 
 	session = device->session;
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "Device [%s] has no active session\n", device->name);
+		ast_log(LOG_DEBUG, "Device [%s] has no active session\n", device->name);
 		return -1;
 	}
 
@@ -1684,11 +1687,9 @@ static int sccp_hangup(struct ast_channel *channel)
 
 	line = subchan->line;
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "subchan has no valid line\n");
+		ast_log(LOG_DEBUG, "subchan has no valid line\n");
 		return -1;
 	}
-
-	ast_log(LOG_NOTICE, "drop line[%i] subchaid[%i]\n", line->instance, subchan->id);
 
 	if (line->state == SCCP_RINGIN || line->state == SCCP_CONNECTED) {
 
@@ -1775,6 +1776,7 @@ static int sccp_answer(struct ast_channel *channel)
 	line = subchan->line;
 
 	if (subchan->rtp == NULL) {
+		ast_log(LOG_DEBUG, "rtp is NULL\n");
 		start_rtp(subchan);
 	}
 
@@ -1795,18 +1797,18 @@ static struct ast_frame *sccp_read(struct ast_channel *channel)
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
-		ast_log(LOG_ERROR, "channel has no valid tech_pvt\n");
+		ast_log(LOG_DEBUG, "channel has no valid tech_pvt\n");
 		return &ast_null_frame;
 	}
 
 	line = subchan->line;
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "Invalid line\n");
+		ast_log(LOG_DEBUG, "line is NULL\n");
 		return &ast_null_frame;
 	}
 
 	if (subchan->rtp == NULL) {
-		ast_log(LOG_ERROR, "Invalid RTP\n");
+		ast_log(LOG_DEBUG, "rtp is NULL\n");
 		return &ast_null_frame;
 	}
 
@@ -1842,14 +1844,14 @@ static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
-		ast_log(LOG_ERROR, "channel has no tech_pvt\n");
-		return res;
+		ast_log(LOG_DEBUG, "channel has no tech_pvt\n");
+		return 0;
 	}
 
 	line = subchan->line;
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "subchan has no valid line\n");
-		return res;
+		ast_log(LOG_DEBUG, "subchan has no valid line\n");
+		return 0;
 	}
 
 	if (subchan->rtp != NULL && line->state == SCCP_CONNECTED) {
@@ -1868,13 +1870,13 @@ static int sccp_indicate(struct ast_channel *channel, int indicate, const void *
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
-		ast_log(LOG_NOTICE, "subchan is NULL\n");
+		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return 0;
 	}
 
 	line = subchan->line;
 	if (line == NULL) {
-		ast_log(LOG_NOTICE, "line is NULL\n");
+		ast_log(LOG_DEBUG, "line is NULL\n");
 		return 0;
 	}
 
