@@ -134,6 +134,37 @@ cleanup:
 	return ret;
 }
 
+static void initialize_device(struct sccp_device *device, const char *name)
+{
+	ast_mutex_init(&device->lock);
+	ast_copy_string(device->name, name, 80);
+	TAILQ_INIT(&device->qline);
+	device->active_line = NULL;
+	device->active_line_cnt = 0;
+	device->lookup = 0;
+	device->registered = DEVICE_REGISTERED_FALSE;
+	device->session = NULL;
+
+	AST_LIST_HEAD_INIT(&device->lines);
+}
+
+static void initialize_line(struct sccp_line *line, uint32_t instance, struct sccp_device *device)
+{
+	ast_mutex_init(&line->lock);
+	line->state = SCCP_ONHOOK;
+	line->instance = instance;
+	line->device = device;
+	line->serial_callid = 0;
+	line->count_subchan = 0;
+	line->active_subchan = NULL;
+	AST_LIST_HEAD_INIT(&line->subchans);
+
+	/* set the device default line */
+	if (line->instance == 1)
+		device->default_line = line;
+}
+
+
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
@@ -162,47 +193,30 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 		}
 
 		if (!duplicate) {
-			/* initialize the new device */
+			/* create the new device */
 			device = ast_calloc(1, sizeof(struct sccp_device));
+			initialize_device(device, category);
 
-			ast_mutex_init(&device->lock);
-			ast_copy_string(device->name, category, 80);
-			TAILQ_INIT(&device->qline);
-			device->active_line = NULL;
-			device->active_line_cnt = 0;
-			device->lookup = 0;
-			device->registered = DEVICE_REGISTERED_FALSE;
-			device->session = NULL;
-
-			AST_LIST_HEAD_INIT(&device->lines);
+			/* add it to the device list */
 			AST_LIST_INSERT_HEAD(&sccp_cfg->list_device, device, list);
 
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 				if (!strcasecmp(var->name, "line")) {
-					/* attach lines to the device */
+
 					AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 						if (!strcasecmp(var->value, line_itr->name)) {
+
 							/* We found a line */
 							found_line = 1;
 							if (line_itr->device == NULL) {
 
-								/* initialize the line instance */
+								/* link the line to the device */
 								AST_LIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
-								ast_mutex_init(&line_itr->lock);
-								line_itr->state = SCCP_ONHOOK;
-								line_itr->instance = line_instance++;
 								device->line_count++;
-								line_itr->device = device;
-								line_itr->serial_callid = 0;
-								line_itr->count_subchan = 0;
-								line_itr->active_subchan = NULL;
-								AST_LIST_HEAD_INIT(&line_itr->subchans);
-								
-								/* set the device default line */
-								if (line_itr->instance == 1)
-									device->default_line = line_itr;
 
+								/* initialize the line instance */
+								initialize_line(line_itr, line_instance++, device);
 							} else {
 								ast_log(LOG_WARNING, "Line [%s] is already attach to device [%s]\n",
 									line_itr->name, line_itr->device->name);
