@@ -16,10 +16,10 @@ AUTHOR:
 
 GETTING STARTED:
 
- git://git.xivo.fr/official/xivo-libsccp.git
  https://wiki.xivo.fr/index.php/Sccp
+ git://git.xivo.fr/official/xivo-libsccp.git
 
-LICENSE: GPLv3
+LICENSE: GPLv2/GPLv3
 
  libsccp is Copyright (C) Avencall, See the file LICENSE
  for information of licensing and distribution.

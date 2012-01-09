@@ -704,7 +704,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	if (line->active_subchan == NULL) {
 		ast_log(LOG_DEBUG, "line instance [%i] has no active subchannel\n", line_instance);
-		return 0;
+		return -1;
 	}
 
 	/* first time we press transfer */
