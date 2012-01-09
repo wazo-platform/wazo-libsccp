@@ -183,6 +183,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	category = ast_category_browse(cfg, "devices");
 	/* handle eache devices */
 	while (category != NULL && strcasecmp(category, "general") && strcasecmp(category, "lines")) {
+
 		/* no duplicates allowed */
 		AST_LIST_TRAVERSE(&sccp_cfg->list_device, device_itr, list) {
 			if (!strcasecmp(category, device_itr->name)) {
@@ -193,6 +194,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 		}
 
 		if (!duplicate) {
+
 			/* create the new device */
 			device = ast_calloc(1, sizeof(struct sccp_device));
 			initialize_device(device, category);
@@ -204,6 +206,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 				if (!strcasecmp(var->name, "line")) {
 
+					/* we are looking for the line that match with 'var->name' */
 					AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 						if (!strcasecmp(var->value, line_itr->name)) {
 
@@ -256,6 +259,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 	category = ast_category_browse(cfg, "lines");
 	/* handle each lines */
 	while (category != NULL && strcasecmp(category, "general") && strcasecmp(category, "devices")) {
+
 		/* no duplicates allowed */
 		AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 			if (!strcasecmp(category, line_itr->name)) {
