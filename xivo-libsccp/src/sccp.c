@@ -303,10 +303,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line, const char *
 		return NULL;
 	}
 
-	if (linkedid == NULL) {
-		return NULL;
-	}
-
 	subchan = ast_calloc(1, sizeof(struct sccp_subchannel));
 	if (subchan == NULL) {
 		ast_log(LOG_ERROR, "subchan allocation failed\n");
@@ -2276,13 +2272,14 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
+/*
 	retptr = sccp_new_channel((void*)0xFF, NULL);
 	if (retptr != NULL) {
 		ast_test_status_update(test, "failed: sccp_new_channel(0xFF, NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
-
+*/
 	if (sccp_get_rtp_peer(NULL, (void*)0xFF) != AST_RTP_GLUE_RESULT_FORBID) {
 		ast_test_status_update(test, "failed: sccp_get_rtp_peer(NULL, 0xFF)\n");
 		result = AST_TEST_FAIL;
