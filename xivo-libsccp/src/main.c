@@ -181,7 +181,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	}
 
 	category = ast_category_browse(cfg, "devices");
-	/* handle eache devices */
+	/* handle each device */
 	while (category != NULL && strcasecmp(category, "general") && strcasecmp(category, "lines")) {
 
 		/* no duplicates allowed */

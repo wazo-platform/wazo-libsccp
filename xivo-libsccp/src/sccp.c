@@ -1763,11 +1763,15 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	struct sccp_session *session = NULL;
 	int ret = 0;
 
-	if (channel == NULL)
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return -1;
+	}
 
-	if (dest == NULL)
+	if (dest == NULL) {
+		ast_log(LOG_DEBUG, "dest is NULL\n");
 		return -1;
+	}
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
@@ -1844,8 +1848,10 @@ static int sccp_hangup(struct ast_channel *channel)
 	struct sccp_line *line = NULL;
 	int ret = 0;
 
-	if (channel == NULL)
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return -1;
+	}
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
@@ -1940,8 +1946,10 @@ static int sccp_answer(struct ast_channel *channel)
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
-	if (channel == NULL)
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return -1;
+	}
 
 	subchan = channel->tech_pvt;
 	line = subchan->line;
@@ -1966,8 +1974,10 @@ static struct ast_frame *sccp_read(struct ast_channel *channel)
 	struct sccp_line *line = NULL;
 	struct ast_frame *frame = NULL;
 
-	if (channel == NULL)
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return NULL;
+	}
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
@@ -2016,11 +2026,15 @@ static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
-	if (channel == NULL)
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return -1;
+	}
 
-	if (frame == NULL)
+	if (frame == NULL) {
+		ast_log(LOG_DEBUG, "frame is NULL\n");
 		return -1;
+	}
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
