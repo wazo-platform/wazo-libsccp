@@ -316,7 +316,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line, const char *
 					line->cid_name,		/* cid_name */
 					"code",			/* acctcode */
 					line->device->exten,	/* exten */
-					"default",		/* context */
+					sccp_config->context,	/* context */
 					linkedid,		/* linked ID */
 					0,			/* amaflag */
 					"sccp/%s@%s-%d",	/* format */

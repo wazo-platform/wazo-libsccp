@@ -321,6 +321,11 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 			if (sccp_cfg->authtimeout < 10)
 				sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
 			continue;
+
+		} else if (!strcasecmp(var->name, "context")) {
+			sccp_cfg->context = ast_strdup(var->value);
+			ast_log(LOG_DEBUG, "context {%s}\n", var->value);
+			continue;
 		}
 	}
 
@@ -386,6 +391,34 @@ static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 	return 0;
 }
 
+static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show config";
+		e->usage = "Usage: sccp show config\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	struct sccp_line *line_itr;
+	struct sccp_device *device_itr;
+
+	ast_cli(a->fd, "\nConfigured device\n----------------------------\n");
+
+	AST_LIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
+		ast_cli(a->fd, "Device: [%s]\n", device_itr->name);
+
+		AST_LIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
+			ast_cli(a->fd, "Line extension: <%s> instance: (%d)\n", line_itr->name, line_itr->instance);
+		}
+		ast_cli(a->fd, "\n");
+	}
+
+	return CLI_SUCCESS;
+}
+
 static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	switch (cmd) {
@@ -404,6 +437,7 @@ static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_
 
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_version, "Show the version of the sccp channel"),
+	AST_CLI_DEFINE(sccp_show_config, "Show the configured devices"),
 };
 
 static int load_module(void)
