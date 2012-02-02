@@ -344,7 +344,11 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line, const char *
 	channel->tech_pvt = subchan;
 
 	/* if there is no codec, set a default one */
-	channel->nativeformats = line->device->codecs ? line->device->codecs: SCCP_CODEC_G711_ULAW;
+	if (line->device->codecs == -1)
+		channel->nativeformats = SCCP_CODEC_G711_ULAW;
+	else
+		channel->nativeformats = line->device->codecs;
+
 	audio_format = ast_best_codec(channel->nativeformats);
 
 	channel->writeformat = audio_format;
