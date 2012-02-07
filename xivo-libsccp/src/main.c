@@ -405,7 +405,13 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	struct sccp_line *line_itr;
 	struct sccp_device *device_itr;
 
-	ast_cli(a->fd, "\nConfigured device\n----------------------------\n");
+	ast_cli(a->fd, "\n");
+	ast_cli(a->fd, "bindaddr = %s\n", sccp_config->bindaddr);
+	ast_cli(a->fd, "dateformat = %s\n", sccp_config->dateformat);
+	ast_cli(a->fd, "keepalive = %d\n", sccp_config->keepalive);
+	ast_cli(a->fd, "authtimeout = %d\n", sccp_config->authtimeout);
+	ast_cli(a->fd, "context = %s\n", sccp_config->context);
+	ast_cli(a->fd, "\n");
 
 	AST_LIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
 		ast_cli(a->fd, "Device: [%s]\n", device_itr->name);

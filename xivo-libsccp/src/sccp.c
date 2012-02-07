@@ -1,6 +1,7 @@
 #include <asterisk.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
+#include <asterisk/cli.h>
 #include <asterisk/devicestate.h>
 #include <asterisk/io.h>
 #include <asterisk/linkedlists.h>
@@ -2629,19 +2630,44 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
-
-
-
 cleanup:
 	return result;
 }
 
+static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_device *device_itr = NULL;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show devices";
+		e->usage = "Usage: sccp show devices\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ast_cli(a->fd, "%-17s %-8s %s\n", "Device", "Type", "Reg.state");
+	ast_cli(a->fd, "===============   ======   ==========\n");
+	AST_LIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
+		ast_cli(a->fd, "%-17s %-8s %s\n", device_itr->name,
+							device_type_str(device_itr->type),
+							device_regstate_str(device_itr->registered));
+	}
+
+
+	return CLI_SUCCESS;
+}
+static struct ast_cli_entry cli_sccp[] = {
+	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
+};
 
 void sccp_server_fini()
 {
 	struct sccp_session *session_itr = NULL;
 
 	AST_TEST_UNREGISTER(sccp_test_null_arguments);
+	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	ast_channel_unregister(&sccp_tech);
 
@@ -2686,6 +2712,7 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	int ret = 0;
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
+	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	sccp_config = sccp_cfg;
 

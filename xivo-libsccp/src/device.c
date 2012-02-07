@@ -89,6 +89,36 @@ struct sccp_line *device_get_line(struct sccp_device *device, int instance)
 	return NULL;
 }
 
+char *device_type_str(int device_type)
+{
+	switch (device_type) {
+	case SCCP_DEVICE_7940:
+		return "7940";
+	case SCCP_DEVICE_7941:
+		return "7941";
+	case SCCP_DEVICE_7941GE:
+		return "7941GE";
+	case SCCP_DEVICE_7960:
+		return "7960";
+	case SCCP_DEVICE_7961:
+		return "7961";
+	default:
+		return "unknown";
+	}
+}
+
+char *device_regstate_str(int device_state)
+{
+	switch (device_state) {
+	case DEVICE_REGISTERED_TRUE:
+		return "Registered";
+	case DEVICE_REGISTERED_FALSE:
+		return "Unregistered";
+	default:
+		return "unknown";
+	}
+}
+
 int device_type_is_supported(int device_type)
 {
 	int supported = 0;
