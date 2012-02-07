@@ -287,7 +287,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	}
 
 	if (ret == 0)
-		ast_log(LOG_WARNING, "Device not found [%s]\n", msg->data.reg.name);
+		ast_log(LOG_WARNING, "Device is not configured [%s]\n", msg->data.reg.name);
 
 	return ret;
 }
@@ -1411,9 +1411,14 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	if (session == NULL)
 		return -1;
 
+	/* Device is not configured */
+	if (session->device == NULL &&
+		(msg->id != REGISTER_MESSAGE && msg->id != ALARM_MESSAGE)) {
+			return -1;
+	}
+
 	/* Prevent unregistered phone from sending non-registering messages */
-	if ((session->device == NULL ||
-		(session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE)) &&
+	if (((session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE)) &&
 		(msg->id != REGISTER_MESSAGE && msg->id != ALARM_MESSAGE)) {
 
 			ast_log(LOG_ERROR, "Session from [%s::%d] sending non-registering messages\n",
@@ -1540,7 +1545,7 @@ static int fetch_data(struct sccp_session *session)
 	/* if no device or device is not registered and time has elapsed */
 	if ((session->device == NULL || (session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE))
 		&& now > session->start_time + sccp_config->authtimeout) {
-		ast_log(LOG_WARNING, "Time has elapsed [%d]\n", sccp_config->authtimeout);
+		ast_log(LOG_WARNING, "Time has elapsed [%dsec]\n", sccp_config->authtimeout);
 		return -1;
 	}
 
