@@ -1822,6 +1822,10 @@ static int sccp_autoanswer_call(void *data)
 	if (ret == -1)
 		return -1;
 
+	ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
+	if (ret == -1)
+		return -1;
+
 	start_rtp(subchan);
 
 	ast_setstate(subchan->channel, AST_STATE_UP);
