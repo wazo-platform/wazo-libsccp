@@ -12,18 +12,18 @@ struct sccp_msg *msg_alloc(size_t data_length, int message_id);
 int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 int transmit_speaker_mode(struct sccp_session *session, int mode);
 int transmit_activatecallplane(struct sccp_line *line);
-int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid);
-int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid);
-int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid);
-int transmit_connect(struct sccp_line *line, uint32_t callid);
+int transmit_close_receive_channel(struct sccp_line *line, uint32_t callInstance);
+int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callInstance);
+int transmit_start_media_transmission(struct sccp_line *line, uint32_t callInstance);
+int transmit_connect(struct sccp_line *line, uint32_t callInstance);
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
-			const char *to_name, const char *to_num, int instance, int callid, int calltype);
-int transmit_callstate(struct sccp_session *session, int instance, int state, unsigned callid);
-int transmit_displaymessage(struct sccp_session *session, const char *text, int instance, int reference);
-int transmit_tone(struct sccp_session *session, int tone, int instance, int reference);
-int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication);
+			const char *to_name, const char *to_num, int lineInstance, int callInstance, int calltype);
+int transmit_callstate(struct sccp_session *session, int lineInstance, int state, unsigned callInstance);
+int transmit_displaymessage(struct sccp_session *session, const char *text, int lineInstance, int callInstance);
+int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
+int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, int state);
 int transmit_ringer_mode(struct sccp_session *session, int mode);
-int transmit_selectsoftkeys(struct sccp_session *session, int instance, int callid, int softkey);
+int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);
 
 #define KEEP_ALIVE_MESSAGE 0x0000
 
@@ -31,7 +31,7 @@ int transmit_selectsoftkeys(struct sccp_session *session, int instance, int call
 struct register_message {
 	char name[16];
 	uint32_t userId;
-	uint32_t instance;
+	uint32_t lineInstance;
 	uint32_t ip;
 	uint32_t type;
 	uint32_t maxStreams;
@@ -47,8 +47,8 @@ struct ip_port_message {
 #define KEYPAD_BUTTON_MESSAGE 0x0003
 struct keypad_button_message {
 	uint32_t button;
-	uint32_t instance;
-	uint32_t callId;
+	uint32_t lineInstance;
+	uint32_t callInstance;
 };
 
 #define OFFHOOK_MESSAGE 0x0006
@@ -65,7 +65,7 @@ struct onhook_message {
 
 #define FORWARD_STATUS_REQ_MESSAGE 0x0009
 struct forward_status_req_message {
-	uint32_t lineNumber;
+	uint32_t lineInstance;
 };
 
 #define CAPABILITIES_RES_MESSAGE 0x0010
@@ -86,7 +86,7 @@ struct capabilities_res_message {
 
 #define LINE_STATUS_REQ_MESSAGE 0x000B
 struct line_status_req_message {
-	uint32_t lineNumber;
+	uint32_t lineInstance;
 };
 
 #define CONFIG_STATUS_REQ_MESSAGE 0x000C
@@ -116,15 +116,15 @@ struct open_receive_channel_ack_message_v17 {
 	uint32_t port;
 	uint32_t passThruId;
 	uint32_t space[4];
-	uint32_t callId;
+	uint32_t callInstance;
 };
 
 #define SOFTKEY_SET_REQ_MESSAGE 0x0025
 #define SOFTKEY_EVENT_MESSAGE 0x0026
 struct softkey_event_message {
         uint32_t softKeyEvent;
-        uint32_t instance;
-        uint32_t callreference;
+        uint32_t lineInstance;
+        uint32_t callInstance;
 };
 
 #define SOFTKEY_TEMPLATE_REQ_MESSAGE 0x0028
@@ -146,14 +146,14 @@ struct register_ack_message {
 struct start_tone_message {
 	uint32_t tone;
 	uint32_t space;
-	uint32_t instance;
-	uint32_t reference;
+	uint32_t lineInstance;
+	uint32_t callInstance;
 };
 
 #define STOP_TONE_MESSAGE 0x0083
 struct stop_tone_message {
-	uint32_t instance;
-	uint32_t reference;
+	uint32_t lineInstance;
+	uint32_t callInstance;
 };
 
 #define SET_RINGER_MESSAGE 0x0085
@@ -166,9 +166,9 @@ struct set_ringer_message {
 
 #define SET_LAMP_MESSAGE 0x0086
 struct set_lamp_message {
-	uint32_t stimulus;
-	uint32_t stimulusInstance;
-	uint32_t deviceStimulus;
+	uint32_t callInstance;
+	uint32_t lineInstance;
+	uint32_t state;
 };
 
 #define SET_SPEAKER_MESSAGE 0X0088
@@ -230,8 +230,8 @@ struct call_info_message {
 	char callingParty[24];
 	char calledPartyName[40];
 	char calledParty[24];
-	uint32_t instance;
-	uint32_t reference;
+	uint32_t lineInstance;
+	uint32_t callInstance;
 	uint32_t type;
 	char originalCalledPartyName[40];
 	char originalCalledParty[24];
@@ -249,7 +249,7 @@ struct call_info_message {
 #define FORWARD_STATUS_RES_MESSAGE 0x0090
 struct forward_status_res_message {
 	uint32_t status;
-	uint32_t lineNumber;
+	uint32_t lineInstance;
 	uint32_t cfwdAllStatus;
 	char cfwdAllNumber[24];
 	uint32_t cfwdBusyStatus;
@@ -292,7 +292,7 @@ struct time_date_res_message {
 
 #define BUTTON_TEMPLATE_RES_MESSAGE 0x0097
 struct button_definition {
-        uint8_t instanceNumber;
+        uint8_t lineInstance;
         uint8_t buttonDefinition;
 };
 
@@ -391,8 +391,8 @@ struct close_receive_channel_message {
 
 #define SELECT_SOFT_KEYS_MESSAGE 0x0110
 struct select_soft_keys_message {
-        uint32_t instance;
-        uint32_t reference;
+        uint32_t lineInstance;
+        uint32_t callInstance;
         uint32_t softKeySetIndex;
         uint32_t validKeyMask;
 };

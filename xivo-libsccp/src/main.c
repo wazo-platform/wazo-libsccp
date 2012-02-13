@@ -142,6 +142,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
 	device->lookup = 0;
+	device->autoanswer = 0;
 	device->registered = DEVICE_REGISTERED_FALSE;
 	device->session = NULL;
 
@@ -453,7 +454,7 @@ static int load_module(void)
 
 	sccp_config = ast_calloc(1, sizeof(struct sccp_configs));
 	if (sccp_config == NULL) {
-		AST_MODULE_LOAD_DECLINE;
+		return AST_MODULE_LOAD_DECLINE;
 	}
 
 	AST_LIST_HEAD_INIT(&sccp_config->list_device);
@@ -461,12 +462,14 @@ static int load_module(void)
 
 	ret = config_load("sccp.conf", sccp_config);
 	if (ret == -1) {
+		ast_free(sccp_config);
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
 	ret = sccp_server_init(sccp_config);
 	if (ret == -1) {
 		ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+		ast_free(sccp_config);
 		return AST_MODULE_LOAD_DECLINE;
 	}
 	sccp_rtp_init(ast_module_info);

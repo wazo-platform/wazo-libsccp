@@ -279,8 +279,8 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 	ast_copy_string(msg->data.callinfo.calledPartyName, to_name ? to_name: "", sizeof(msg->data.callinfo.calledPartyName));
 	ast_copy_string(msg->data.callinfo.calledParty, to_num ? to_num: "", sizeof(msg->data.callinfo.calledParty));
 
-	msg->data.callinfo.instance = htolel(instance);
-	msg->data.callinfo.reference = htolel(callid);
+	msg->data.callinfo.lineInstance = htolel(instance);
+	msg->data.callinfo.callInstance = htolel(callid);
 	msg->data.callinfo.type = htolel(calltype);
 
 	ret = transmit_message(msg, session);
@@ -337,8 +337,8 @@ int transmit_tone(struct sccp_session *session, int tone, int instance, int refe
 		return -1;
 
 	msg->data.starttone.tone = htolel(tone);
-	msg->data.starttone.instance = htolel(instance);
-	msg->data.starttone.reference = htolel(reference);
+	msg->data.starttone.lineInstance = htolel(instance);
+	msg->data.starttone.callInstance = htolel(reference);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -347,7 +347,7 @@ int transmit_tone(struct sccp_session *session, int tone, int instance, int refe
 	return 0;
 }
 
-int transmit_lamp_indication(struct sccp_session *session, int stimulus, int instance, int indication)
+int transmit_lamp_state(struct sccp_session *session, int stimulus, int instance, int indication)
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
@@ -361,9 +361,9 @@ int transmit_lamp_indication(struct sccp_session *session, int stimulus, int ins
 	if (msg == NULL)
 		return -1;
 
-	msg->data.setlamp.stimulus = htolel(stimulus);
-	msg->data.setlamp.stimulusInstance = htolel(instance);
-	msg->data.setlamp.deviceStimulus = htolel(indication);
+	msg->data.setlamp.callInstance = htolel(stimulus);
+	msg->data.setlamp.lineInstance = htolel(instance);
+	msg->data.setlamp.state = htolel(indication);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -411,8 +411,8 @@ int transmit_selectsoftkeys(struct sccp_session *session, int instance, int call
 	if (msg == NULL)
 		return -1;
 
-        msg->data.selectsoftkey.instance = htolel(instance);
-        msg->data.selectsoftkey.reference = htolel(callid);
+        msg->data.selectsoftkey.lineInstance = htolel(instance);
+        msg->data.selectsoftkey.callInstance = htolel(callid);
         msg->data.selectsoftkey.softKeySetIndex = htolel(softkey);
         msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
 

@@ -13,6 +13,7 @@
 #define SCCP_DEVICE_7941	115
 #define SCCP_DEVICE_7941GE	309
 #define SCCP_DEVICE_7960	7
+#define SCCP_DEVICE_7912	30007
 #define SCCP_DEVICE_7961	30018
 
 #define SCCP_SPEAKERON		1
@@ -91,11 +92,11 @@
 #define KEYDEF_RINGIN			3
 #define KEYDEF_OFFHOOK			4
 #define KEYDEF_CONNINTRANSFER		5
-#define KEYDEF_DADFD			6	/* Digits After Dialing First Digit */
-#define KEYDEF_CONNWITHCONF		7
-#define KEYDEF_RINGOUT			8
-#define KEYDEF_OFFHOOKWITHFEAT		9
-#define KEYDEF_UNKNOWN			10
+//#define KEYDEF_DADFD			6	/* Digits After Dialing First Digit */
+//#define KEYDEF_CONNWITHCONF		7
+//#define KEYDEF_RINGOUT			8
+#define KEYDEF_AUTOANSWER		9
+//#define KEYDEF_UNKNOWN			10
 
 #define SOFTKEY_NONE			0x00
 #define SOFTKEY_REDIAL			0x01
@@ -162,28 +163,27 @@ static const uint8_t softkey_default_connintransfer[] = {
 	SOFTKEY_TRNSFER,
 };
 
-static const uint8_t softkey_default_dadfd[] = {
+/*static const uint8_t softkey_default_dadfd[] = {
 	SOFTKEY_BKSPC,
 	SOFTKEY_ENDCALL,
-};
+};*/
 
-static const uint8_t softkey_default_connwithconf[] = {
+/*static const uint8_t softkey_default_connwithconf[] = {
 	SOFTKEY_NONE,
-};
+};*/
 
-static const uint8_t softkey_default_ringout[] = {
+/*static const uint8_t softkey_default_ringout[] = {
 	SOFTKEY_NONE,
 	SOFTKEY_ENDCALL,
-};
+};*/
 
-static const uint8_t softkey_default_offhookwithfeat[] = {
-	SOFTKEY_REDIAL,
-	SOFTKEY_ENDCALL,
-};
-
-static const uint8_t softkey_default_unknown[] = {
+static const uint8_t softkey_default_autoanswer[] = {
 	SOFTKEY_NONE,
 };
+
+/*static const uint8_t softkey_default_unknown[] = {
+	SOFTKEY_NONE,
+};*/
 
 static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_ONHOOK, softkey_default_onhook, sizeof(softkey_default_onhook) / sizeof(uint8_t)},
@@ -192,11 +192,11 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_RINGIN, softkey_default_ringin, sizeof(softkey_default_ringin) / sizeof(uint8_t)},
 	{KEYDEF_OFFHOOK, softkey_default_offhook, sizeof(softkey_default_offhook) / sizeof(uint8_t)},
 	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, sizeof(softkey_default_connintransfer) / sizeof(uint8_t)},
-	{KEYDEF_DADFD, softkey_default_dadfd, sizeof(softkey_default_dadfd) / sizeof(uint8_t)},
-	{KEYDEF_CONNWITHCONF, softkey_default_connwithconf, sizeof(softkey_default_connwithconf) / sizeof(uint8_t)},
-	{KEYDEF_RINGOUT, softkey_default_ringout, sizeof(softkey_default_ringout) / sizeof(uint8_t)},
-	{KEYDEF_OFFHOOKWITHFEAT, softkey_default_offhookwithfeat, sizeof(softkey_default_offhookwithfeat) / sizeof(uint8_t)},
-	{KEYDEF_UNKNOWN, softkey_default_unknown, sizeof(softkey_default_unknown) / sizeof(uint8_t)}
+//	{KEYDEF_DADFD, softkey_default_dadfd, sizeof(softkey_default_dadfd) / sizeof(uint8_t)},
+//	{KEYDEF_CONNWITHCONF, softkey_default_connwithconf, sizeof(softkey_default_connwithconf) / sizeof(uint8_t)},
+//	{KEYDEF_RINGOUT, softkey_default_ringout, sizeof(softkey_default_ringout) / sizeof(uint8_t)},
+	{KEYDEF_AUTOANSWER, softkey_default_autoanswer, sizeof(softkey_default_autoanswer) / sizeof(uint8_t)},
+//	{KEYDEF_UNKNOWN, softkey_default_unknown, sizeof(softkey_default_unknown) / sizeof(uint8_t)}
 };
 
 struct button_definition_template {
@@ -255,6 +255,8 @@ struct sccp_device {
 	pthread_t lookup_thread;
 	int lookup;
 
+	uint8_t autoanswer; /* Default mic off */
+
 	uint8_t registered;
 	uint32_t line_count;
 	uint32_t speeddial_count;
@@ -293,5 +295,7 @@ void set_line_state(struct sccp_line *line, int state);
 void device_enqueue_line(struct sccp_device *device, struct sccp_line *line);
 void device_release_line(struct sccp_device *device, struct sccp_line *line);
 struct sccp_line *device_get_active_line(struct sccp_device *device);
+char *device_regstate_str(int device_state);
+int device_type_is_supported(int device_type);
 
 #endif /* SCCP_DEVICE_H */

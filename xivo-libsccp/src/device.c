@@ -92,6 +92,8 @@ struct sccp_line *device_get_line(struct sccp_device *device, int instance)
 char *device_type_str(int device_type)
 {
 	switch (device_type) {
+	case SCCP_DEVICE_7912:
+		return "7912";
 	case SCCP_DEVICE_7940:
 		return "7940";
 	case SCCP_DEVICE_7941:
@@ -124,6 +126,10 @@ int device_type_is_supported(int device_type)
 	int supported = 0;
 
 	switch (device_type) {
+	case SCCP_DEVICE_7912:
+		supported = 1;
+		break;
+
 	case SCCP_DEVICE_7940:
 	case SCCP_DEVICE_7941:
 	case SCCP_DEVICE_7941GE:
@@ -151,6 +157,11 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	ast_log(LOG_DEBUG, "Device type %d\n", device->type);
 
 	switch (device->type) {
+	case SCCP_DEVICE_7912:
+		(btl++)->buttonDefinition = BT_LINE;
+		(btl++)->buttonDefinition = BT_HOLD;
+		break;
+
 	case SCCP_DEVICE_7940:
 	case SCCP_DEVICE_7941:
 	case SCCP_DEVICE_7941GE:

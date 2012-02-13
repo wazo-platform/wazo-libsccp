@@ -46,7 +46,7 @@ static int sccp_fixup(struct ast_channel *oldchan, struct ast_channel *newchan);
 static int sccp_senddigit_begin(struct ast_channel *ast, char digit);
 static int sccp_senddigit_end(struct ast_channel *ast, char digit, unsigned int duration);
 static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance);
-static enum ast_rtp_glue_result sccp_get_vrtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance);
+//static enum ast_rtp_glue_result sccp_get_vrtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance);
 static int sccp_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *rtp,
 				struct ast_rtp_instance *vrtp,
@@ -194,12 +194,12 @@ static int handle_button_template_req_message(struct sccp_session *session)
 			case BT_CUST_LINESPEEDDIAL:
 
 				msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
-				msg->data.buttontemplate.definition[i].instanceNumber = htolel(0);
+				msg->data.buttontemplate.definition[i].lineInstance = htolel(0);
 
 				AST_LIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
 					if (line_itr->instance == line_instance) {
 						msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
-						msg->data.buttontemplate.definition[i].instanceNumber = htolel(line_instance);
+						msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
 
 						line_instance++;
 						button_count++;
@@ -211,7 +211,7 @@ static int handle_button_template_req_message(struct sccp_session *session)
 			case BT_NONE:
 			default:
 				msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
-				msg->data.buttontemplate.definition[i].instanceNumber = htolel(0);
+				msg->data.buttontemplate.definition[i].lineInstance = htolel(0);
 				break;
 		}
 	}
@@ -570,11 +570,15 @@ static int handle_offhook_message(struct sccp_session *session)
 	} else if (line->state == SCCP_ONHOOK) {
 
 		channel = sccp_new_channel(line, NULL);
+		if (channel == NULL) {
+			ast_log(LOG_ERROR, "unable to create new subchannel\n");
+			return -1;
+		}
 
 		ast_setstate(channel, AST_STATE_DOWN);
 		set_line_state(line, SCCP_OFFHOOK);
 
-		ret = transmit_lamp_indication(session, 1, line->instance, SCCP_LAMP_ON);
+		ret = transmit_lamp_state(session, 1, line->instance, SCCP_LAMP_ON);
 		if (ret == -1)
 			return -1;
 
@@ -872,8 +876,8 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		return -1;
 
 	ast_log(LOG_NOTICE, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
-	ast_log(LOG_NOTICE, "instance: %d\n", msg->data.softkeyevent.instance);
-	ast_log(LOG_NOTICE, "callreference: %d\n", msg->data.softkeyevent.callreference);
+	ast_log(LOG_NOTICE, "instance: %d\n", msg->data.softkeyevent.lineInstance);
+	ast_log(LOG_NOTICE, "callid: %d\n", msg->data.softkeyevent.callInstance);
 
 	switch (letohl(msg->data.softkeyevent.softKeyEvent)) {
 	case SOFTKEY_NONE:
@@ -894,13 +898,13 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 	case SOFTKEY_HOLD:
 
-		handle_softkey_hold(msg->data.softkeyevent.instance,
-					msg->data.softkeyevent.callreference,
+		handle_softkey_hold(msg->data.softkeyevent.lineInstance,
+					msg->data.softkeyevent.callInstance,
 					 session);
 		break;
 
 	case SOFTKEY_TRNSFER:
-		ret = handle_softkey_transfer(msg->data.softkeyevent.instance, session);
+		ret = handle_softkey_transfer(msg->data.softkeyevent.lineInstance, session);
 		if (ret == -1)
 			return -1;
 		break;
@@ -932,8 +936,8 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_RESUME:
-		ret = handle_softkey_resume(msg->data.softkeyevent.instance,
-					msg->data.softkeyevent.callreference,
+		ret = handle_softkey_resume(msg->data.softkeyevent.lineInstance,
+					msg->data.softkeyevent.callInstance,
 					session);
 		if (ret == -1)
 			return -1;
@@ -1035,14 +1039,14 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	if (session == NULL)
 		return -1;
 
-	instance = letohl(msg->data.forward.lineNumber);
+	instance = letohl(msg->data.forward.lineInstance);
 
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
 	if (msg == NULL)
 		return -1;
 
 	msg->data.forwardstatus.status = 0;
-	msg->data.forwardstatus.lineNumber = htolel(instance);
+	msg->data.forwardstatus.lineInstance = htolel(instance);
 	
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -1185,7 +1189,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	if (session == NULL)
 		return -1;
 
-	line_instance = letohl(msg->data.line.lineNumber);
+	line_instance = letohl(msg->data.line.lineInstance);
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
@@ -1212,7 +1216,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 
 	msg->data.forwardstatus.status = 0;
-	msg->data.forwardstatus.lineNumber = htolel(line_instance);
+	msg->data.forwardstatus.lineInstance = htolel(line_instance);
 	
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -1230,6 +1234,13 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 	if (session == NULL)
 		return -1;
+
+	ast_log(LOG_NOTICE, "name %s\n", msg->data.reg.name);
+	ast_log(LOG_NOTICE, "userId %d\n", msg->data.reg.userId);
+	ast_log(LOG_NOTICE, "lineInstance %d\n", msg->data.reg.lineInstance);
+	ast_log(LOG_NOTICE, "maxStream %d\n", msg->data.reg.maxStreams);
+	ast_log(LOG_NOTICE, "activeStreams %d\n", msg->data.reg.activeStreams);
+	ast_log(LOG_NOTICE, "protoVersion %d\n", msg->data.reg.protoVersion);
 
 	ret = device_type_is_supported(msg->data.reg.type);
 	if (ret == 0) {
@@ -1336,7 +1347,7 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	char digit;
 	int button;
 	int instance;
-	int callId;
+	int callid;
 	size_t len;
 	int ret = 0;
 
@@ -1347,8 +1358,8 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 		return -1;
 
 	button = letohl(msg->data.keypad.button);
-	instance = letohl(msg->data.keypad.instance);
-	callId = letohl(msg->data.keypad.callId);
+	instance = letohl(msg->data.keypad.lineInstance);
+	callid = letohl(msg->data.keypad.callInstance);
 
 	line = device_get_line(session->device, instance);
 	if (line == NULL) {
@@ -1688,6 +1699,8 @@ static void *thread_accept(void *data)
 		ast_log(LOG_NOTICE, "A new device has connected from: %s\n", session->ipaddr);
 		ast_pthread_create_background(&session->tid, NULL, thread_session, session);
 	}
+
+	return NULL;
 }
 
 static int sccp_devicestate(void *data)
@@ -1706,6 +1719,7 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 
 	struct sccp_line *line = NULL;
 	struct ast_channel *channel = NULL;
+	char *option = NULL;
 
 	if (type == NULL)
 		return NULL;
@@ -1719,11 +1733,18 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 	if (cause == NULL)
 		return NULL;
 
+	option = strchr(destination, '/');
+	if (option != NULL) {
+		*option = '\0';
+		option++;
+	}
+
 	ast_log(LOG_NOTICE, "type: %s "
 				"format: %s "
 				"destination: %s "
+				"option: %s "
 				"cause: %d\n",
-				type, ast_getformatname(format), (char *)destination, *cause);
+				type, ast_getformatname(format), (char *)destination, option? option: "", *cause);
 
 	line = find_line_by_name((char *)destination, &sccp_config->list_line);
 
@@ -1755,12 +1776,58 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 		return NULL;
 	}
 
+	if (option != NULL && !strncmp(option, "autoanswer", 10)) {
+		line->device->autoanswer = 1;
+	}
+
 	channel = sccp_new_channel(line, requestor ? requestor->linkedid : NULL);
 
 	if (line->active_subchan->channel)
 		ast_setstate(line->active_subchan->channel, AST_STATE_DOWN);
 
 	return channel;
+}
+
+static int sccp_autoanswer_call(void *data)
+{
+	int ret = 0;
+	struct sccp_subchannel *subchan = NULL;
+	struct sccp_line *line = NULL;
+	struct sccp_session *session = NULL;
+
+	subchan = data;
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "sbuchan is NULL\n");
+		return 0;
+	}
+
+	line = device_get_active_line(subchan->line->device);
+	session = line->device->session;
+
+	ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
+
+	ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_AUTOANSWER);
+	if (ret == -1)
+		return -1;
+
+	start_rtp(subchan);
+
+	ast_setstate(subchan->channel, AST_STATE_UP);
+	set_line_state(line, SCCP_CONNECTED);
+
+	return 0;
 }
 
 static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
@@ -1807,6 +1874,8 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 		return -1;
 	}
 
+	ast_log(LOG_DEBUG, "destination: %s\n", dest);
+
 	if (line->state != SCCP_ONHOOK) {
 		channel->hangupcause = AST_CONTROL_BUSY;
 		ast_setstate(channel, AST_CONTROL_BUSY);
@@ -1833,19 +1902,26 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_lamp_indication(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
+
+	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 	if (ret == -1)
 		return -1;
+
+	set_line_state(line, SCCP_RINGIN);
+	ast_setstate(channel, AST_STATE_RINGING);
+	ast_queue_control(channel, AST_CONTROL_RINGING);
+
+	if (line->device->autoanswer == 1) {
+		line->device->autoanswer = 0;
+		sccp_autoanswer_call(subchan);
+		return 0;
+	}
 
 	if (device->active_line == NULL) {
 		ret = transmit_ringer_mode(session, SCCP_RING_INSIDE);
 		if (ret == -1)
 			return -1;
 	}
-
-	set_line_state(line, SCCP_RINGIN);
-	ast_setstate(channel, AST_STATE_RINGING);
-	ast_queue_control(channel, AST_CONTROL_RINGING);
 
 	return 0;
 }
@@ -1885,7 +1961,7 @@ static int sccp_hangup(struct ast_channel *channel)
 	// FIXME	if (line->device->active_line_cnt <= 1)
 			ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
 
-		ret = transmit_lamp_indication(line->device->session, subchan->id, line->instance, SCCP_LAMP_OFF);
+		ret = transmit_lamp_state(line->device->session, subchan->id, line->instance, SCCP_LAMP_OFF);
 		if (ret == -1)
 			return -1;
 
@@ -2699,7 +2775,7 @@ void sccp_rtp_fini()
 	ast_rtp_glue_unregister(&sccp_rtp_glue);
 }
 
-void sccp_rtp_init(struct ast_module_info *module_info)
+void sccp_rtp_init(const struct ast_module_info *module_info)
 {
 	ast_module_info = module_info;
 	ast_rtp_glue_register(&sccp_rtp_glue);

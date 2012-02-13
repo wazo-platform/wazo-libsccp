@@ -1,7 +1,10 @@
 #ifndef SCCP_H
 #define SCCP_H
 
+#include <asterisk.h>
 #include <asterisk/linkedlists.h>
+#include <asterisk/module.h>
+
 #include "device.h"
 
 #define SCCP_DEFAULT_AUTH_TIMEOUT 30
@@ -47,5 +50,7 @@ struct sccp_session {
 int codec_ast2sccp(format_t);
 int sccp_server_init(struct sccp_configs *sccp_cfg);
 void sccp_server_fini(void);
+void sccp_rtp_fini();
+void sccp_rtp_init(const struct ast_module_info *module_info);
 
 #endif /* SCCP */
