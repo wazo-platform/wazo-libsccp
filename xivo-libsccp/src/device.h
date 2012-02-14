@@ -9,10 +9,13 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
+#define SCCP_DEVICE_7960	7
 #define SCCP_DEVICE_7940	8
 #define SCCP_DEVICE_7941	115
+#define SCCP_DEVICE_7911	307
 #define SCCP_DEVICE_7941GE	309
-#define SCCP_DEVICE_7960	7
+#define SCCP_DEVICE_7906	369
+#define SCCP_DEVICE_7905	20000
 #define SCCP_DEVICE_7912	30007
 #define SCCP_DEVICE_7961	30018
 
@@ -297,5 +300,6 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line);
 struct sccp_line *device_get_active_line(struct sccp_device *device);
 char *device_regstate_str(int device_state);
 int device_type_is_supported(int device_type);
+char *device_type_str(int device_type);
 
 #endif /* SCCP_DEVICE_H */
