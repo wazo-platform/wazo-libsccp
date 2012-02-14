@@ -504,5 +504,6 @@ struct softkey_template_definition softkey_template_default[] = {
 	{"MeetMe",	0x10},
 	{"PickUp",	0x11},
 	{"GPickUp",	0x12},
+	{"Dial",	0x13},
 };
 #endif /* SCCP_MESSAGE_H */

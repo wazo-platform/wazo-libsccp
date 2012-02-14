@@ -120,6 +120,7 @@
 #define SOFTKEY_MEETME			0x10
 #define SOFTKEY_PICKUP			0x11
 #define SOFTKEY_GPICKUP			0x12
+#define SOFTKEY_DIAL			0x13
 
 enum sccp_codecs {
 	SCCP_CODEC_G711_ALAW = 2,
@@ -159,6 +160,7 @@ static const uint8_t softkey_default_ringin[] = {
 
 static const uint8_t softkey_default_offhook[] = {
 	SOFTKEY_ENDCALL,
+	SOFTKEY_DIAL,
 };
 
 static const uint8_t softkey_default_connintransfer[] = {
