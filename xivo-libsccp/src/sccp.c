@@ -688,6 +688,30 @@ static int handle_onhook_message(struct sccp_session *session)
 	return 0;
 }
 
+
+handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
+{
+	struct sccp_line *line = NULL;
+	size_t len = 0;
+	int ret = 0;
+
+	if (session == NULL)
+		return -1;
+
+	line = device_get_line(session->device, line_instance);
+	if (line == NULL)
+		return -1;
+
+	if (line->state == SCCP_OFFHOOK) {
+		len = strlen(line->device->exten);
+		if (len < sizeof(line->device->exten) - 1) {
+			line->device->exten[len] = '#';
+			line->device->exten[len+1] = '\0';
+		}
+	}
+}	
+
+
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
@@ -884,6 +908,14 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_REDIAL:
+		break;
+
+	case SOFTKEY_DIAL:
+
+		handle_softkey_dial(msg->data.softkeyevent.lineInstance,
+					msg->data.softkeyevent.callInstance,
+					session);		
+
 		break;
 
 	case SOFTKEY_NEWCALL:
@@ -1339,6 +1371,31 @@ static int handle_ipport_message(struct sccp_msg *msg, struct sccp_session *sess
 	return 0;
 }
 
+static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	struct sccp_device *device = NULL;
+	struct sccp_line *line = NULL;
+	size_t len;
+
+	if (msg == NULL)
+		return -1;
+
+	if (session == NULL)
+		return -1;
+
+	device = session->device;
+	line = device_get_active_line(device);
+
+	ast_log(LOG_NOTICE, "enbloc extension %s\n", msg->data.enbloc.extension);
+
+	if (line->state == SCCP_OFFHOOK) {
+		len = strlen(msg->data.enbloc.extension);
+		strncpy(line->device->exten, msg->data.enbloc.extension, len);
+		line->device->exten[len+1] = '#';
+		line->device->exten[len+2] = '\0';
+	}
+}
+
 static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
@@ -1452,6 +1509,11 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	case IP_PORT_MESSAGE:
 		ast_log(LOG_DEBUG, "Ip port message\n");
 		ret = handle_ipport_message(msg, session);
+		break;
+
+	case ENBLOC_CALL_MESSAGE:
+		ast_log(LOG_DEBUG, "Enbloc call message\n");
+		ret = handle_enbloc_call_message(msg, session);
 		break;
 
 	case KEYPAD_BUTTON_MESSAGE:

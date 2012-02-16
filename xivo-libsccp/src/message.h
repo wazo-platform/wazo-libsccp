@@ -44,6 +44,11 @@ struct ip_port_message {
 	uint32_t stationIpPort;
 };
 
+#define ENBLOC_CALL_MESSAGE 0x0004
+struct enbloc_call_message {
+	char extension[24];
+};
+
 #define KEYPAD_BUTTON_MESSAGE 0x0003
 struct keypad_button_message {
 	uint32_t button;
@@ -450,6 +455,7 @@ union sccp_data {
 	struct forward_status_req_message forward;
 	struct forward_status_res_message forwardstatus;
 	struct capabilities_res_message caps;
+	struct enbloc_call_message enbloc;
 	struct ip_port_message ipport;
 	struct button_template_res_message buttontemplate;
 	struct line_status_req_message line;
