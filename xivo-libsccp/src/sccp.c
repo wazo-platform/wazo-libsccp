@@ -467,7 +467,6 @@ static int sccp_newcall(struct ast_channel *channel)
 	ast_party_name_free(&channel->connected.id.name);
 	ast_party_name_init(&channel->connected.id.name);
 
-	start_rtp(subchan);
 	ast_pbx_start(channel);
 
 	return 0;
@@ -709,7 +708,7 @@ handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_ses
 			line->device->exten[len+1] = '\0';
 		}
 	}
-}	
+}
 
 
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
@@ -914,7 +913,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 		handle_softkey_dial(msg->data.softkeyevent.lineInstance,
 					msg->data.softkeyevent.callInstance,
-					session);		
+					session);
 
 		break;
 
@@ -1222,8 +1221,8 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 
 	line_instance = letohl(msg->data.line.lineInstance);
-
 	line = device_get_line(session->device, line_instance);
+
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "Line instance [%d] is not attached to device [%s]\n", line_instance, session->device->name);
 		return -1;
@@ -1417,6 +1416,10 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	button = letohl(msg->data.keypad.button);
 	instance = letohl(msg->data.keypad.lineInstance);
 	callid = letohl(msg->data.keypad.callInstance);
+
+	if (session->device->type == SCCP_DEVICE_7912) {
+		instance = 1;
+	}
 
 	line = device_get_line(session->device, instance);
 	if (line == NULL) {
