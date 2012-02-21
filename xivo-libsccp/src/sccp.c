@@ -477,8 +477,9 @@ static void *sccp_lookup_exten(void *data)
 	struct ast_channel *channel = NULL;
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
-	size_t len = 0;
+	size_t len = 0, next_len = 0;
 	int call_now = 0;
+	int timeout = sccp_config->dialtimeout * 2; /* Each 500ms */
 
 	if (data == NULL)
 		return NULL;
@@ -497,6 +498,9 @@ static void *sccp_lookup_exten(void *data)
 			call_now = 1;
 		}
 
+		if (timeout == 0)
+			call_now = 1;
+
 		if (call_now || ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 			if (call_now || !ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 
@@ -507,7 +511,17 @@ static void *sccp_lookup_exten(void *data)
 		}
 
 		ast_safe_sleep(channel, 500);
-		len = strlen(line->device->exten);
+
+		next_len = strlen(line->device->exten);
+		if (len == next_len) {
+			if (len == 0)
+				len = next_len;
+			else
+				timeout--;
+		} else {
+			timeout = sccp_config->dialtimeout * 2; /* Each 500ms */
+			len = next_len;
+		}
 	}
 
 	ast_hangup(channel);

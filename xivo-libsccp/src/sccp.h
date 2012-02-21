@@ -25,6 +25,7 @@ struct sccp_configs {
 	char dateformat[6];
 	int keepalive;
 	int authtimeout;
+	int dialtimeout;
 	char *context;
 
 	struct list_line list_line;

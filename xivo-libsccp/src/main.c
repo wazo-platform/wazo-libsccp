@@ -323,6 +323,10 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 				sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
 			continue;
 
+		} else if (!strcasecmp(var->name, "dialtimeout")) {
+			sccp_cfg->dialtimeout = atoi(var->value);
+			continue;
+
 		} else if (!strcasecmp(var->name, "context")) {
 			sccp_cfg->context = ast_strdup(var->value);
 			ast_log(LOG_DEBUG, "context {%s}\n", var->value);
