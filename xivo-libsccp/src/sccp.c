@@ -1412,6 +1412,7 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 		line->device->exten[len+1] = '#';
 		line->device->exten[len+2] = '\0';
 	}
+	return 0;
 }
 
 static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_session *session)
