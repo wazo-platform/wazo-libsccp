@@ -322,6 +322,30 @@ int transmit_displaymessage(struct sccp_session *session, const char *text, int 
 	return 0;
 }
 
+int transmit_stop_tone(struct sccp_session *session, int instance, int reference)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "Invalid session\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct stop_tone_message), STOP_TONE_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.stop_tone.lineInstance = htolel(instance);
+	msg->data.stop_tone.callInstance = htolel(reference);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_tone(struct sccp_session *session, int tone, int instance, int reference)
 {
 	struct sccp_msg *msg = NULL;

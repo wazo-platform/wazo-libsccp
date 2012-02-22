@@ -599,11 +599,11 @@ static int handle_offhook_message(struct sccp_session *session)
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
+		ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_OFFHOOK);
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_OFFHOOK);
+		ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
 		if (ret == -1)
 			return -1;
 
@@ -674,15 +674,19 @@ static int handle_onhook_message(struct sccp_session *session)
 
 	if (line->active_subchan != NULL) {
 
-		ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
-		if (ret == -1)
-			return -1;
-
 		ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
 		if (ret == -1)
 			return -1;
 
 		ret = transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_ONHOOK);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_stop_tone(session, line->instance, subchan->id);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
 		if (ret == -1)
 			return -1;
 
@@ -702,7 +706,7 @@ static int handle_onhook_message(struct sccp_session *session)
 }
 
 
-handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
+int handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
 	size_t len = 0;
@@ -722,6 +726,7 @@ handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_ses
 			line->device->exten[len+1] = '\0';
 		}
 	}
+	return 0;
 }
 
 

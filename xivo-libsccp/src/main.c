@@ -155,7 +155,7 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 	line->state = SCCP_ONHOOK;
 	line->instance = instance;
 	line->device = device;
-	line->serial_callid = 0;
+	line->serial_callid = 1;
 	line->count_subchan = 0;
 	line->active_subchan = NULL;
 	AST_LIST_HEAD_INIT(&line->subchans);

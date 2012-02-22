@@ -22,6 +22,7 @@ int transmit_callstate(struct sccp_session *session, int lineInstance, int state
 int transmit_displaymessage(struct sccp_session *session, const char *text, int lineInstance, int callInstance);
 int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
 int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, int state);
+int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
 int transmit_ringer_mode(struct sccp_session *session, int mode);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);
 
@@ -463,6 +464,7 @@ union sccp_data {
 	struct time_date_res_message timedate;
 	struct config_status_res_message configstatus;
 	struct set_lamp_message setlamp;
+	struct stop_tone_message stop_tone;
 	struct set_ringer_message setringer;
 	struct call_state_message callstate;
 	struct keypad_button_message keypad;
