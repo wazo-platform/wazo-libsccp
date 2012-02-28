@@ -1,8 +1,10 @@
 #include <asterisk.h>
+#include <asterisk/app.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
 #include <asterisk/cli.h>
 #include <asterisk/devicestate.h>
+#include <asterisk/event.h>
 #include <asterisk/io.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/module.h>
@@ -78,6 +80,55 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.get_rtp_info = sccp_get_rtp_peer,
 	.update_peer = sccp_set_rtp_peer,
 };
+
+static void mwi_event_cb(const struct ast_event *event, void *data)
+{
+	int new_msgs = 0;
+	int old_msgs = 0;
+	struct sccp_device *device = data;
+
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return;
+	}
+
+	if (event != NULL)
+		new_msgs = ast_event_get_ie_uint(event, AST_EVENT_IE_NEWMSGS);
+	else
+		ast_app_inboxcount(device->voicemail, &new_msgs, &old_msgs);
+
+
+	if (new_msgs > 0)
+		transmit_lamp_state(device->session, STIMULUS_VOICEMAIL, 0, SCCP_LAMP_ON);
+
+	else if (event != NULL)
+		transmit_lamp_state(device->session, STIMULUS_VOICEMAIL, 0, SCCP_LAMP_OFF);
+}
+
+static void mwi_subscribe(struct sccp_device *device)
+{
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return;
+	}
+
+	device->mwi_event_sub = ast_event_subscribe(AST_EVENT_MWI, mwi_event_cb, "sccp mwi subsciption", device,
+		AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, device->voicemail,
+		AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, sccp_config->context,
+		AST_EVENT_IE_NEWMSGS, AST_EVENT_IE_PLTYPE_EXISTS,
+		AST_EVENT_IE_END);
+}
+
+static void post_register_check(struct sccp_session *session)
+{
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return;
+	}
+
+	if (session->device->mwi_event_sub)
+		mwi_event_cb(NULL, session->device);
+}
 
 static int handle_softkey_template_req_message(struct sccp_session *session)
 {
@@ -279,8 +330,8 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 						letohl(msg->data.reg.protoVersion),
 						letohl(msg->data.reg.type),
 						session);
-
 				session->device = device_itr;
+				mwi_subscribe(device_itr);
 				ret = 1;
 			}
 			break;
@@ -1373,6 +1424,8 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1; 
+
+	post_register_check(session);
 
 	return 0;
 }

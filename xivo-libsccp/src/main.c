@@ -139,6 +139,8 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	ast_mutex_init(&device->lock);
 	ast_copy_string(device->name, name, 80);
 	TAILQ_INIT(&device->qline);
+	device->voicemail[0] = '\0';
+	device->mwi_event_sub = NULL;
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
 	device->lookup = 0;
@@ -177,8 +179,8 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	int line_instance = 1;
 
 	/* get the default settings for the devices */
-	for (var = ast_variable_browse(cfg, "devices"); var != NULL; var = var->next) {
-		ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);	
+	for (var = ast_variable_browse(cfg, "lines"); var != NULL; var = var->next) {
+		ast_log(LOG_DEBUG, "var name {%s} value {%s} \n", var->name, var->value);
 	}
 
 	category = ast_category_browse(cfg, "devices");
@@ -205,6 +207,11 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
+
+				if (!strcasecmp(var->name, "voicemail")) {
+					strncpy(device->voicemail, var->value, strlen(var->value));
+				}
+
 				if (!strcasecmp(var->name, "line")) {
 
 					/* we are looking for the line that match with 'var->name' */
@@ -254,7 +261,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 	/* get the default settings for the lines */
 	for (var = ast_variable_browse(cfg, "lines"); var != NULL; var = var->next) {
-		ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);	
+		ast_log(LOG_DEBUG, "var name {%s} value {%s} \n", var->name, var->value);
 	}
 
 	category = ast_category_browse(cfg, "lines");

@@ -3,6 +3,7 @@
 
 #include <asterisk.h>
 #include <asterisk/channel.h>
+#include <asterisk/event.h>
 #include <asterisk/lock.h>
 #include <asterisk/linkedlists.h>
 
@@ -255,6 +256,9 @@ struct sccp_device {
 	int state;
 	uint8_t protoVersion;
 	uint32_t station_port;
+
+	char voicemail[AST_MAX_EXTENSION];
+	struct ast_event_sub *mwi_event_sub;
 
 	char exten[AST_MAX_EXTENSION];
 	pthread_t lookup_thread;
