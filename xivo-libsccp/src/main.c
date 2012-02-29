@@ -322,7 +322,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	for (var = ast_variable_browse(cfg, "general"); var != NULL; var = var->next) {
 
 		if (!strcasecmp(var->name, "bindaddr")) {
-			ast_copy_string(sccp_cfg->bindaddr, var->value, strlen(var->value));
+			ast_copy_string(sccp_cfg->bindaddr, var->value, strlen(var->value)+1);
 			ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
 			continue;
 
@@ -347,7 +347,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 			continue;
 
 		} else if (!strcasecmp(var->name, "context")) {
-			ast_copy_string(sccp_cfg->context, var->value, strlen(var->value));
+			ast_copy_string(sccp_cfg->context, var->value, strlen(var->value)+1);
 			ast_log(LOG_DEBUG, "context {%s}\n", var->value);
 			continue;
 		}
