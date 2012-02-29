@@ -309,10 +309,20 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 {
 	struct ast_variable *var;	
 
+	/* Default configuration */
+	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0\0", 8);
+	ast_copy_string(sccp_cfg->dateformat, "D.M.Y\0", 6);
+	ast_copy_string(sccp_cfg->context, "default\0", 8);
+
+	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
+	sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
+	sccp_cfg->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
+
+	/* Custom configuration and handle lower bound */
 	for (var = ast_variable_browse(cfg, "general"); var != NULL; var = var->next) {
 
 		if (!strcasecmp(var->name, "bindaddr")) {
-			sccp_cfg->bindaddr = ast_strdup(var->value);
+			ast_copy_string(sccp_cfg->bindaddr, var->value, strlen(var->value));
 			ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
 			continue;
 
@@ -332,10 +342,12 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 
 		} else if (!strcasecmp(var->name, "dialtimeout")) {
 			sccp_cfg->dialtimeout = atoi(var->value);
+			if (sccp_cfg->dialtimeout <= 0)
+				sccp_cfg->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
 			continue;
 
 		} else if (!strcasecmp(var->name, "context")) {
-			sccp_cfg->context = ast_strdup(var->value);
+			ast_copy_string(sccp_cfg->context, var->value, strlen(var->value));
 			ast_log(LOG_DEBUG, "context {%s}\n", var->value);
 			continue;
 		}
@@ -422,6 +434,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	ast_cli(a->fd, "dateformat = %s\n", sccp_config->dateformat);
 	ast_cli(a->fd, "keepalive = %d\n", sccp_config->keepalive);
 	ast_cli(a->fd, "authtimeout = %d\n", sccp_config->authtimeout);
+	ast_cli(a->fd, "dialtimeout = %d\n", sccp_config->dialtimeout);
 	ast_cli(a->fd, "context = %s\n", sccp_config->context);
 	ast_cli(a->fd, "\n");
 

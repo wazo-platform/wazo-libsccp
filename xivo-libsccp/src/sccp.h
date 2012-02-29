@@ -7,7 +7,10 @@
 
 #include "device.h"
 
-#define SCCP_DEFAULT_AUTH_TIMEOUT 30
+#define SCCP_DEFAULT_KEEPALIVE 10
+#define SCCP_DEFAULT_AUTH_TIMEOUT 5
+#define SCCP_DEFAULT_DIAL_TIMEOUT 1
+
 #define SCCP_MAX_PACKET_SZ 2000
 
 static struct sccp_server {
@@ -21,12 +24,12 @@ static struct sccp_server {
 
 struct sccp_configs {
 
-	char *bindaddr;
+	char bindaddr[16];
 	char dateformat[6];
 	int keepalive;
 	int authtimeout;
 	int dialtimeout;
-	char *context;
+	char context[AST_MAX_EXTENSION];
 
 	struct list_line list_line;
 	struct list_device list_device;	

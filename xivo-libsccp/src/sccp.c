@@ -2939,7 +2939,11 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_NUMERICHOST;
 
-	getaddrinfo(sccp_config->bindaddr, SCCP_PORT, &hints, &sccp_srv.res);
+	ret = getaddrinfo(sccp_config->bindaddr, SCCP_PORT, &hints, &sccp_srv.res);
+	if (ret != 0) {
+		ast_log(LOG_ERROR, "getaddrinfo: %s: '%s'\n", gai_strerror(ret), sccp_config->bindaddr);
+		return -1;
+	}
 
 	sccp_srv.sockfd = socket(sccp_srv.res->ai_family, sccp_srv.res->ai_socktype, sccp_srv.res->ai_protocol);
 	setsockopt(sccp_srv.sockfd, SOL_SOCKET, SO_REUSEADDR, &flag_reuse, sizeof(flag_reuse));
