@@ -164,8 +164,7 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	case SCCP_DEVICE_7906:
 	case SCCP_DEVICE_7911:
 	case SCCP_DEVICE_7912:
-		(btl++)->buttonDefinition = BT_LINE;
-		(btl++)->buttonDefinition = BT_HOLD;
+		(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
 		break;
 
 	case SCCP_DEVICE_7940:
