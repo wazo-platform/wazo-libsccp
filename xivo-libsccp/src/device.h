@@ -23,6 +23,10 @@
 #define SCCP_SPEAKERON		1
 #define SCCP_SPEAKEROFF		2
 
+#define SCCP_CFWD_UNACTIVE	1
+#define SCCP_CFWD_INPUTEXTEN	2
+#define SCCP_CFWD_ACTIVE	3
+
 #define SCCP_OFFHOOK		1
 #define SCCP_ONHOOK		2
 #define SCCP_RINGOUT		3
@@ -96,7 +100,7 @@
 #define KEYDEF_RINGIN			3
 #define KEYDEF_OFFHOOK			4
 #define KEYDEF_CONNINTRANSFER		5
-//#define KEYDEF_DADFD			6	/* Digits After Dialing First Digit */
+#define KEYDEF_CALLFWD			6
 //#define KEYDEF_CONNWITHCONF		7
 //#define KEYDEF_RINGOUT			8
 #define KEYDEF_AUTOANSWER		9
@@ -122,6 +126,7 @@
 #define SOFTKEY_PICKUP			0x11
 #define SOFTKEY_GPICKUP			0x12
 #define SOFTKEY_DIAL			0x13
+#define SOFTKEY_CANCEL			0x14
 
 enum sccp_codecs {
 	SCCP_CODEC_G711_ALAW = 2,
@@ -141,6 +146,7 @@ struct softkey_definitions {
 
 static const uint8_t softkey_default_onhook[] = {
 	SOFTKEY_NEWCALL,
+	SOFTKEY_CFWDALL,
 };
 
 static const uint8_t softkey_default_connected[] = {
@@ -169,10 +175,10 @@ static const uint8_t softkey_default_connintransfer[] = {
 	SOFTKEY_TRNSFER,
 };
 
-/*static const uint8_t softkey_default_dadfd[] = {
-	SOFTKEY_BKSPC,
-	SOFTKEY_ENDCALL,
-};*/
+static const uint8_t softkey_default_callfwd[] = {
+	SOFTKEY_CANCEL,
+	SOFTKEY_CFWDALL,
+};
 
 /*static const uint8_t softkey_default_connwithconf[] = {
 	SOFTKEY_NONE,
@@ -198,7 +204,7 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_RINGIN, softkey_default_ringin, sizeof(softkey_default_ringin) / sizeof(uint8_t)},
 	{KEYDEF_OFFHOOK, softkey_default_offhook, sizeof(softkey_default_offhook) / sizeof(uint8_t)},
 	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, sizeof(softkey_default_connintransfer) / sizeof(uint8_t)},
-//	{KEYDEF_DADFD, softkey_default_dadfd, sizeof(softkey_default_dadfd) / sizeof(uint8_t)},
+	{KEYDEF_CALLFWD, softkey_default_callfwd, sizeof(softkey_default_callfwd) / sizeof(uint8_t)},
 //	{KEYDEF_CONNWITHCONF, softkey_default_connwithconf, sizeof(softkey_default_connwithconf) / sizeof(uint8_t)},
 //	{KEYDEF_RINGOUT, softkey_default_ringout, sizeof(softkey_default_ringout) / sizeof(uint8_t)},
 	{KEYDEF_AUTOANSWER, softkey_default_autoanswer, sizeof(softkey_default_autoanswer) / sizeof(uint8_t)},
@@ -231,6 +237,10 @@ struct sccp_line {
 	uint32_t serial_callid;
 	uint32_t instance;
 	uint32_t state;
+
+	uint8_t callfwd;
+	uint32_t callfwd_id;
+	char callfwd_exten[AST_MAX_EXTENSION];
 
 	uint32_t count_subchan;
 	struct sccp_subchannel *active_subchan;

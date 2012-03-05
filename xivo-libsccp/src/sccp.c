@@ -408,6 +408,9 @@ static struct ast_channel *sccp_new_channel(struct sccp_line *line, const char *
 	channel->readformat = audio_format;
 	channel->rawreadformat = audio_format;
 
+	if (line->callfwd == SCCP_CFWD_ACTIVE)
+		ast_string_field_set(channel, call_forward, line->callfwd_exten);
+
 	ast_module_ref(ast_module_info->self);
 
 	return channel;
@@ -958,6 +961,93 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	return 0;
 }
 
+static int handle_callforward(struct sccp_session *session, uint32_t softkey)
+{
+	struct sccp_line *line = NULL;
+	int ret = 0;
+	int line_instance = 1; /* Callforward is statically linked to line 1 */
+	char info_fwd[24];
+
+	if (session == NULL)
+		return -1;
+
+	line = device_get_line(session->device, line_instance);
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return -1;
+	}
+
+	switch (line->callfwd) {
+	case SCCP_CFWD_UNACTIVE:
+
+		line->callfwd_id = line->serial_callid++;
+
+		ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, line->callfwd_id);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_CALLFWD);
+		if (ret == -1)
+			return -1;
+
+		set_line_state(line, SCCP_OFFHOOK);
+		line->callfwd = SCCP_CFWD_INPUTEXTEN;
+
+		break;
+
+	case SCCP_CFWD_INPUTEXTEN:
+
+		ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_ONHOOK);
+		if (ret == -1)
+			return -1;
+
+		set_line_state(line, SCCP_ONHOOK);
+
+		if (softkey == SOFTKEY_CANCEL || line->device->exten[0] == '\0') {
+			line->callfwd = SCCP_CFWD_UNACTIVE;
+
+		} else if (softkey == SOFTKEY_CFWDALL) {
+
+			strncpy(line->callfwd_exten, line->device->exten, sizeof(line->callfwd_exten));
+			snprintf(info_fwd, sizeof(info_fwd), "\200\5: %s", line->callfwd_exten);
+
+			ret = transmit_forward_status_message(session, line->instance, line->callfwd_exten, 1);
+			if (ret == -1)
+				return -1;
+
+			ret = transmit_displaymessage(session, info_fwd);
+			if (ret == -1)
+				return -1;
+
+			line->callfwd = SCCP_CFWD_ACTIVE;
+		}
+
+		line->device->exten[0] = '\0';
+
+		break;
+
+	case SCCP_CFWD_ACTIVE:
+
+		ret = transmit_forward_status_message(session, line->instance, line->callfwd_exten, 0);
+		if (ret == -1)
+			return -1;
+
+		ret = transmit_displaymessage(session, "");
+		if (ret == -1)
+			return -1;
+
+		line->callfwd = SCCP_CFWD_UNACTIVE;
+
+		break;
+	}
+
+	return 0;
+}
+
 static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
@@ -1011,6 +1101,15 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_CFWDALL:
+		ret = handle_callforward(session, SOFTKEY_CFWDALL);
+		if (ret == -1)
+			return -1;
+		break;
+
+	case SOFTKEY_CANCEL:
+		ret = handle_callforward(session, SOFTKEY_CANCEL);
+		if (ret == -1)
+			return -1;
 		break;
 
 	case SOFTKEY_CFWDBUSY:

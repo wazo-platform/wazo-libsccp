@@ -19,7 +19,7 @@ int transmit_connect(struct sccp_line *line, uint32_t callInstance);
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
 			const char *to_name, const char *to_num, int lineInstance, int callInstance, int calltype);
 int transmit_callstate(struct sccp_session *session, int lineInstance, int state, unsigned callInstance);
-int transmit_displaymessage(struct sccp_session *session, const char *text, int lineInstance, int callInstance);
+int transmit_displaymessage(struct sccp_session *session, const char *text);
 int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
 int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, int state);
 int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
@@ -172,7 +172,7 @@ struct set_ringer_message {
 
 #define SET_LAMP_MESSAGE 0x0086
 struct set_lamp_message {
-	uint32_t callInstance;
+	uint32_t stimulus;
 	uint32_t lineInstance;
 	uint32_t state;
 };
@@ -395,6 +395,18 @@ struct close_receive_channel_message {
 	uint32_t conferenceId1;
 };
 
+#define SOFTKEY_TEMPLATE_RES_MESSAGE 0x0108
+struct softkey_template_definition {
+	char softKeyLabel[16];
+	uint32_t softKeyEvent;
+};
+
+#define SOFTKEY_SET_RES_MESSAGE 0x0109
+struct softkey_set_definition {
+        uint8_t softKeyTemplateIndex[16];
+        uint16_t softKeyInfoIndex[16];
+};
+
 #define SELECT_SOFT_KEYS_MESSAGE 0x0110
 struct select_soft_keys_message {
         uint32_t lineInstance;
@@ -413,16 +425,10 @@ struct call_state_message {
 	uint32_t unknown;
 };
 
-#define SOFTKEY_TEMPLATE_RES_MESSAGE 0x0108
-struct softkey_template_definition {
-	char softKeyLabel[16];
-	uint32_t softKeyEvent;
-};
-
-#define SOFTKEY_SET_RES_MESSAGE 0x0109
-struct softkey_set_definition {
-        uint8_t softKeyTemplateIndex[16];
-        uint16_t softKeyInfoIndex[16];
+#define DISPLAY_NOTIFY_MESSAGE 0x0114
+struct display_notify_message {
+        uint32_t displayTimeout;
+        char displayMessage[100];
 };
 
 #define ACTIVATE_CALL_PLANE_MESSAGE 0x0116
@@ -466,6 +472,7 @@ union sccp_data {
 	struct set_lamp_message setlamp;
 	struct stop_tone_message stop_tone;
 	struct set_ringer_message setringer;
+	struct display_notify_message notify;
 	struct call_state_message callstate;
 	struct keypad_button_message keypad;
         struct softkey_event_message softkeyevent;
@@ -513,5 +520,6 @@ struct softkey_template_definition softkey_template_default[] = {
 	{"PickUp",	0x11},
 	{"GPickUp",	0x12},
 	{"Dial",	0x13},
+	{"Cancel",	0x14},
 };
 #endif /* SCCP_MESSAGE_H */

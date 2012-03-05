@@ -160,6 +160,7 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 	line->serial_callid = 1;
 	line->count_subchan = 0;
 	line->active_subchan = NULL;
+	line->callfwd = SCCP_CFWD_UNACTIVE;
 	AST_LIST_HEAD_INIT(&line->subchans);
 
 	/* set the device default line */

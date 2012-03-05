@@ -290,6 +290,32 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 	return 0;
 }
 
+int transmit_forward_status_message(struct sccp_session *session , int instance, const char *extension, int status)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.forwardstatus.status = htolel(status);
+	msg->data.forwardstatus.lineInstance = htolel(instance);
+	msg->data.forwardstatus.cfwdAllStatus = htolel(status);
+	strncpy(msg->data.forwardstatus.cfwdAllNumber, extension, strlen(extension));
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_callstate(struct sccp_session *session, int instance, int state, uint32_t callid)
 {
 	struct sccp_msg *msg = NULL;
@@ -317,8 +343,28 @@ int transmit_callstate(struct sccp_session *session, int instance, int state, ui
 	return 0;
 }
 
-int transmit_displaymessage(struct sccp_session *session, const char *text, int instance, int reference)
+int transmit_displaymessage(struct sccp_session *session, const char *text)
 {
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct display_notify_message), DISPLAY_NOTIFY_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+
+	msg->data.notify.displayTimeout = htolel(0);
+        ast_copy_string(msg->data.notify.displayMessage, text, strlen(text)+1);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
 	return 0;
 }
 
@@ -385,7 +431,7 @@ int transmit_lamp_state(struct sccp_session *session, int stimulus, int instance
 	if (msg == NULL)
 		return -1;
 
-	msg->data.setlamp.callInstance = htolel(stimulus);
+	msg->data.setlamp.stimulus = htolel(stimulus);
 	msg->data.setlamp.lineInstance = htolel(instance);
 	msg->data.setlamp.state = htolel(indication);
 
