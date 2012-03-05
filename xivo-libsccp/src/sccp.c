@@ -2124,7 +2124,16 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 		return 0;
 	}
 
+	ast_setstate(channel, AST_STATE_RINGING);
+	ast_queue_control(channel, AST_CONTROL_RINGING);
+
+	if (line->callfwd == SCCP_CFWD_ACTIVE) {
+		ast_log(LOG_DEBUG, "CFwdALL: %s\n", line->callfwd_exten);
+		return 0;
+	}
+
 	device_enqueue_line(device, line);
+	set_line_state(line, SCCP_RINGIN);
 
 	ret = transmit_callstate(session, line->instance, SCCP_RINGIN, subchan->id);
 	if (ret == -1)
@@ -2143,14 +2152,9 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	if (ret == -1)
 		return -1;
 
-
 	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 	if (ret == -1)
 		return -1;
-
-	set_line_state(line, SCCP_RINGIN);
-	ast_setstate(channel, AST_STATE_RINGING);
-	ast_queue_control(channel, AST_CONTROL_RINGING);
 
 	if (line->device->autoanswer == 1) {
 		line->device->autoanswer = 0;
