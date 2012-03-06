@@ -520,6 +520,6 @@ struct softkey_template_definition softkey_template_default[] = {
 	{"PickUp",	0x11},
 	{"GPickUp",	0x12},
 	{"Dial",	0x13},
-	{"Cancel",	0x14},
+	{"Cancel",	0x08},
 };
 #endif /* SCCP_MESSAGE_H */

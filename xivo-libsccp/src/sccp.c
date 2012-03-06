@@ -990,6 +990,8 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 		if (ret == -1)
 			return -1;
 
+		ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
+
 		set_line_state(line, SCCP_OFFHOOK);
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
 
@@ -1026,13 +1028,14 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 			line->callfwd = SCCP_CFWD_ACTIVE;
 		}
 
+		ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 		line->device->exten[0] = '\0';
 
 		break;
 
 	case SCCP_CFWD_ACTIVE:
 
-		ret = transmit_forward_status_message(session, line->instance, line->callfwd_exten, 0);
+		ret = transmit_forward_status_message(session, line->instance, "", 0);
 		if (ret == -1)
 			return -1;
 
@@ -1118,8 +1121,8 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 	case SOFTKEY_CFWDNOANSWER:
 		break;
 
-	case SOFTKEY_BKSPC:
-		break;
+	//case SOFTKEY_BKSPC:
+	//	break;
 
 	case SOFTKEY_ENDCALL:
 		ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
@@ -1588,10 +1591,6 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	button = letohl(msg->data.keypad.button);
 	instance = letohl(msg->data.keypad.lineInstance);
 	callid = letohl(msg->data.keypad.callInstance);
-
-	if (session->device->type == SCCP_DEVICE_7912) {
-		instance = 1;
-	}
 
 	line = device_get_line(session->device, instance);
 	if (line == NULL) {

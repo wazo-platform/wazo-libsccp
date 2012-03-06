@@ -518,7 +518,7 @@ static int unload_module(void)
 	AST_LIST_HEAD_DESTROY(&sccp_config->list_device);
 	AST_LIST_HEAD_DESTROY(&sccp_config->list_line);
 	ast_free(sccp_config);
-
+	sccp_config = NULL;
 	AST_TEST_UNREGISTER(sccp_test_config);
 
 	return 0;

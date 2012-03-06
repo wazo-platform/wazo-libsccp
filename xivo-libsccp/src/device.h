@@ -126,7 +126,7 @@
 #define SOFTKEY_PICKUP			0x11
 #define SOFTKEY_GPICKUP			0x12
 #define SOFTKEY_DIAL			0x13
-#define SOFTKEY_CANCEL			0x14
+#define SOFTKEY_CANCEL			0x08
 
 enum sccp_codecs {
 	SCCP_CODEC_G711_ALAW = 2,
