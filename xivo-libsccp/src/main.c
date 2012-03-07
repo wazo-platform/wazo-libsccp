@@ -69,6 +69,8 @@ AST_TEST_DEFINE(sccp_test_config)
 		"dateformat=D.M.Y\n"
 		"keepalive=10\n"
 		"authtimeout=10\n"
+		"dialtimeout=3\n"
+		"context=default\n"
 		"\n"
 		"[lines]\n"
 		"[200]\n"
@@ -105,6 +107,18 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	if (sccp_cfg->authtimeout != 10) {
 		ast_test_status_update(test, "authtimeout %i != %i\n", sccp_cfg->authtimeout, 10);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (sccp_cfg->dialtimeout != 3) {
+		ast_test_status_update(test, "dialtimeout %i != %i\n", sccp_cfg->dialtimeout, 3);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(sccp_cfg->context, "default")) {
+		ast_test_status_update(test, "context %s != %s\n", sccp_cfg->context, "default");
 		ret = AST_TEST_FAIL;
 		goto cleanup;
 	}
