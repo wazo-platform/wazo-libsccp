@@ -316,6 +316,11 @@ struct register_rej_message {
 	char errMsg[33];
 };
 
+#define RESET_MESSAGE 0x009F
+struct reset_message {
+	uint32_t type;
+};
+
 #define KEEP_ALIVE_ACK_MESSAGE 0x0100
 
 #define OPEN_RECEIVE_CHANNEL_MESSAGE 0x0105
@@ -469,6 +474,7 @@ union sccp_data {
 	struct line_status_res_message linestatus;
 	struct time_date_res_message timedate;
 	struct config_status_res_message configstatus;
+	struct reset_message reset;
 	struct set_lamp_message setlamp;
 	struct stop_tone_message stop_tone;
 	struct set_ringer_message setringer;

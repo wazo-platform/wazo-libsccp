@@ -61,12 +61,43 @@ void device_prepare(struct sccp_device *device)
 	return;
 }
 
-struct sccp_line *find_line_by_name(char *name, struct list_line *list_line)
+struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device)
+{
+	struct sccp_device *device_itr = NULL;
+
+	if (name == NULL) {
+		ast_log(LOG_DEBUG, "name is NULL\n");
+		return NULL;
+	}
+
+	if (list_device == NULL) {
+		ast_log(LOG_DEBUG, "list_device is NULL\n");
+		return NULL;
+	}
+
+	AST_LIST_TRAVERSE(list_device, device_itr, list) {
+		ast_log(LOG_DEBUG, "device_itr->name [%s] name[%s]\n", device_itr->name, name);
+		if (!strncmp(device_itr->name, name, sizeof(device_itr->name))) {
+			break;
+		}
+	}
+
+	return device_itr;
+}
+
+struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line)
 {
 	struct sccp_line *line_itr = NULL;
 
-	if (name == NULL)
+	if (name == NULL) {
+		ast_log(LOG_DEBUG, "name is NULL\n");
 		return NULL;
+	}
+
+	if (list_line == NULL) {
+		ast_log(LOG_DEBUG, "list_line is NULL\n");
+		return NULL;
+	}
 
 	AST_LIST_TRAVERSE(list_line, line_itr, list) {
 		ast_log(LOG_DEBUG, "line_itr->name [%s] name[%s]\n", line_itr->name, name);

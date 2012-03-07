@@ -430,7 +430,6 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	struct sccp_line *line_itr;
 	struct sccp_device *device_itr;
 
-	ast_cli(a->fd, "\n");
 	ast_cli(a->fd, "bindaddr = %s\n", sccp_config->bindaddr);
 	ast_cli(a->fd, "dateformat = %s\n", sccp_config->dateformat);
 	ast_cli(a->fd, "keepalive = %d\n", sccp_config->keepalive);

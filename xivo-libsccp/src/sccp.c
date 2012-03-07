@@ -2616,14 +2616,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-/*
-	retptr = sccp_new_channel((void*)0xFF, NULL);
-	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: sccp_new_channel(0xFF, NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-*/
 	if (sccp_get_rtp_peer(NULL, (void*)0xFF) != AST_RTP_GLUE_RESULT_FORBID) {
 		ast_test_status_update(test, "failed: sccp_get_rtp_peer(NULL, 0xFF)\n");
 		result = AST_TEST_FAIL;
@@ -2978,8 +2970,42 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 
 	return CLI_SUCCESS;
 }
+
+static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	int restart = 0;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp reset";
+		e->usage = "Usage: sccp reset <device> [restart]\n"
+				"Cause a SCCP device to reset itself, optionally with a full restart\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	struct sccp_device *device = NULL;
+	device = find_device_by_name(a->argv[2], &sccp_config->list_device);
+	if (device == NULL)
+		return CLI_FAILURE;
+
+	if (a->argc == 4 && !strcasecmp(a->argv[3], "restart"))
+		restart = 1;
+
+	if (restart == 1)
+		transmit_reset(device->session, 1);
+	else
+		transmit_reset(device->session, 2);
+
+	device_unregister(device);
+
+	return CLI_SUCCESS;
+}
+
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
+	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
 };
 
 void sccp_server_fini()
@@ -2998,7 +3024,7 @@ void sccp_server_fini()
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_session, session_itr, list) {
 		if (session_itr != NULL) {
 
-			ast_log(LOG_NOTICE, "Session del %s\n", session_itr->ipaddr);
+			ast_log(LOG_DEBUG, "Session del %s\n", session_itr->ipaddr);
 			AST_LIST_REMOVE_CURRENT(list);
 
 			pthread_cancel(session_itr->tid);

@@ -442,6 +442,37 @@ int transmit_lamp_state(struct sccp_session *session, int stimulus, int instance
 	return 0;
 }
 
+int transmit_reset(struct sccp_session *session, uint32_t type)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	/* 2 => fullrestart
+	 * 1 => reset
+	 */
+	if (type != 1 && type != 2) {
+		ast_log(LOG_ERROR, "reset type is out of range\n");
+		type = 1;
+	}
+
+	msg = msg_alloc(sizeof(struct reset_message), RESET_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	msg->data.reset.type = htolel(type);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_ringer_mode(struct sccp_session *session, int mode)
 {
 	struct sccp_msg *msg = NULL;
