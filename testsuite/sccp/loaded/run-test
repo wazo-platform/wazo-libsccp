@@ -17,9 +17,12 @@ class SccpTest(TestCase):
 
         for ast in self.ast:
             ast.cli_exec("module load chan_sccp.so")
+            ast.cli_exec("module unload chan_sccp.so")
+            ast.cli_exec("module reload chan_sccp.so")
+            ast.cli_exec("module load chan_sccp.so")
             sccp_version = ast.cli_exec("sccp show version")
 
-            if "SCCP library 0.9 <nbouliane@avencall.com>" in sccp_version:
+            if "SCCP library" in sccp_version:
                 self.passed = True
             else:
                 self.passed = False
