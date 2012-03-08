@@ -515,7 +515,7 @@ struct softkey_template_definition softkey_template_default[] = {
 	{"CFwdAll",	0x05},
 	{"CFwdBusy",	0x06},
 	{"CFwdNoAnswer",0x07},
-	{"<<",		0x08},
+	{"Cancel",	0x08},
 	{"EndCall",	0x09},
 	{"Resume",	0x0A},
 	{"Answer",	0x0B},
@@ -527,6 +527,5 @@ struct softkey_template_definition softkey_template_default[] = {
 	{"PickUp",	0x11},
 	{"GPickUp",	0x12},
 	{"Dial",	0x13},
-	{"Cancel",	0x08},
 };
 #endif /* SCCP_MESSAGE_H */
