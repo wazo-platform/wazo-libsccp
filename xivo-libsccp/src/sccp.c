@@ -324,12 +324,19 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 			} else {
 
+				struct sockaddr_in localip;
+				socklen_t slen;
+
+				getsockname(session->sockfd, (struct sockaddr *)&localip, &slen);
+
 				ast_log(LOG_NOTICE, "Device found [%s]\n", device_itr->name);
 				device_prepare(device_itr);
 				device_register(device_itr,
 						letohl(msg->data.reg.protoVersion),
 						letohl(msg->data.reg.type),
-						session);
+						session,
+						localip);
+
 				session->device = device_itr;
 				mwi_subscribe(device_itr);
 				ret = 1;
@@ -1014,7 +1021,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 
 		} else if (softkey == SOFTKEY_CFWDALL) {
 
-			strncpy(line->callfwd_exten, line->device->exten, sizeof(line->callfwd_exten));
+			ast_copy_string(line->callfwd_exten, line->device->exten, sizeof(line->callfwd_exten));
 			snprintf(info_fwd, sizeof(info_fwd), "\200\5: %s", line->callfwd_exten);
 
 			ret = transmit_forward_status_message(session, line->instance, line->callfwd_exten, 1);
@@ -1559,11 +1566,11 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 	device = session->device;
 	line = device_get_active_line(device);
 
-	ast_log(LOG_NOTICE, "enbloc extension %s\n", msg->data.enbloc.extension);
-
+	/* Extension Block, contain all the digits entered before pressing 'Dial' */
 	if (line->state == SCCP_OFFHOOK) {
 		len = strlen(msg->data.enbloc.extension);
-		strncpy(line->device->exten, msg->data.enbloc.extension, len);
+		ast_copy_string(line->device->exten, msg->data.enbloc.extension,
+					sizeof(line->device->exten));
 		line->device->exten[len+1] = '#';
 		line->device->exten[len+2] = '\0';
 	}

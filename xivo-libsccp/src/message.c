@@ -182,6 +182,7 @@ int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
 int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid)
 {
 	struct sccp_msg *msg = NULL;
+	struct sockaddr_in localip;
 	struct sockaddr_in local = {0};
 	struct ast_sockaddr local_tmp;
 	struct ast_format_list fmt = {0};
@@ -193,6 +194,10 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid)
 
 	ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
 	ast_sockaddr_to_sin(&local_tmp, &local);
+
+	/* we listen to 0.0.0.0, but we need our true ip */
+	if (local.sin_addr.s_addr == 0)
+		local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
 
 	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
 
@@ -307,7 +312,9 @@ int transmit_forward_status_message(struct sccp_session *session , int instance,
 	msg->data.forwardstatus.status = htolel(status);
 	msg->data.forwardstatus.lineInstance = htolel(instance);
 	msg->data.forwardstatus.cfwdAllStatus = htolel(status);
-	strncpy(msg->data.forwardstatus.cfwdAllNumber, extension, strlen(extension));
+
+	ast_copy_string(msg->data.forwardstatus.cfwdAllNumber, extension,
+				sizeof(msg->data.forwardstatus.cfwdAllNumber));
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -359,7 +366,8 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 
 
 	msg->data.notify.displayTimeout = htolel(0);
-        ast_copy_string(msg->data.notify.displayMessage, text, strlen(text)+1);
+        ast_copy_string(msg->data.notify.displayMessage, text,
+				sizeof(msg->data.notify.displayMessage));
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)

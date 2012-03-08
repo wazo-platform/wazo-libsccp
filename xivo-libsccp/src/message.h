@@ -18,6 +18,7 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callInsta
 int transmit_connect(struct sccp_line *line, uint32_t callInstance);
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
 			const char *to_name, const char *to_num, int lineInstance, int callInstance, int calltype);
+int transmit_forward_status_message(struct sccp_session *session , int instance, const char *extension, int status);
 int transmit_callstate(struct sccp_session *session, int lineInstance, int state, unsigned callInstance);
 int transmit_displaymessage(struct sccp_session *session, const char *text);
 int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);

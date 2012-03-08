@@ -266,6 +266,7 @@ struct sccp_device {
 	int state;
 	uint8_t protoVersion;
 	uint32_t station_port;
+	struct sockaddr_in localip;
 
 	char voicemail[AST_MAX_EXTENSION];
 	struct ast_event_sub *mwi_event_sub;
@@ -301,7 +302,8 @@ void device_unregister(struct sccp_device *device);
 void device_register(struct sccp_device *device,
 			int8_t protoVersion,
 			int type,
-			void *session);
+			void *session,
+			struct sockaddr_in localip);
 void device_prepare(struct sccp_device *device);
 struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line);
 struct sccp_line *device_get_line(struct sccp_device *device, int instance);

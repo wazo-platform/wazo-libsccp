@@ -151,7 +151,7 @@ cleanup:
 static void initialize_device(struct sccp_device *device, const char *name)
 {
 	ast_mutex_init(&device->lock);
-	ast_copy_string(device->name, name, 80);
+	ast_copy_string(device->name, name, sizeof(device->name));
 	TAILQ_INIT(&device->qline);
 	device->voicemail[0] = '\0';
 	device->mwi_event_sub = NULL;
@@ -224,7 +224,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 
 				if (!strcasecmp(var->name, "voicemail")) {
-					strncpy(device->voicemail, var->value, strlen(var->value));
+					ast_copy_string(device->voicemail, var->value, sizeof(device->voicemail));
 				}
 
 				if (!strcasecmp(var->name, "line")) {
@@ -295,7 +295,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 		if (!duplicate) {
 			/* configure a new line */
 			line = ast_calloc(1, sizeof(struct sccp_line));
-			ast_copy_string(line->name, category, 80);
+			ast_copy_string(line->name, category, sizeof(line->name));
 	
 			AST_LIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
 
@@ -325,9 +325,9 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	struct ast_variable *var;	
 
 	/* Default configuration */
-	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0\0", 8);
-	ast_copy_string(sccp_cfg->dateformat, "D.M.Y\0", 6);
-	ast_copy_string(sccp_cfg->context, "default\0", 8);
+	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0\0", sizeof(sccp_cfg->bindaddr));
+	ast_copy_string(sccp_cfg->dateformat, "D.M.Y\0", sizeof(sccp_cfg->dateformat));
+	ast_copy_string(sccp_cfg->context, "default\0", sizeof(sccp_cfg->context));
 
 	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
 	sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
@@ -337,7 +337,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	for (var = ast_variable_browse(cfg, "general"); var != NULL; var = var->next) {
 
 		if (!strcasecmp(var->name, "bindaddr")) {
-			ast_copy_string(sccp_cfg->bindaddr, var->value, strlen(var->value)+1);
+			ast_copy_string(sccp_cfg->bindaddr, var->value, sizeof(sccp_cfg->bindaddr));
 			ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
 			continue;
 
@@ -362,7 +362,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 			continue;
 
 		} else if (!strcasecmp(var->name, "context")) {
-			ast_copy_string(sccp_cfg->context, var->value, strlen(var->value)+1);
+			ast_copy_string(sccp_cfg->context, var->value, sizeof(sccp_cfg->context));
 			ast_log(LOG_DEBUG, "context {%s}\n", var->value);
 			continue;
 		}
@@ -373,8 +373,6 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 
 static void config_unload(struct sccp_configs *sccp_cfg)
 {
-	ast_free(sccp_config->bindaddr);
-
 	struct sccp_device *device_itr;
 	struct sccp_line *line_itr;
 

@@ -27,12 +27,14 @@ void device_unregister(struct sccp_device *device)
 void device_register(struct sccp_device *device,
 			int8_t protoVersion,
 			int type,
-			void *session)
+			void *session,
+			struct sockaddr_in localip)
 {
 	device->registered = DEVICE_REGISTERED_TRUE;
 	device->protoVersion = protoVersion;
 	device->type = type;
 	device->session = session;
+	device->localip = localip;
 
 	return;
 }
