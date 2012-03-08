@@ -1599,6 +1599,10 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	instance = letohl(msg->data.keypad.lineInstance);
 	callid = letohl(msg->data.keypad.callInstance);
 
+	if (session->device->type == SCCP_DEVICE_7912) {
+		instance = 1;
+	}
+
 	line = device_get_line(session->device, instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "Device [%s] has no line instance [%d]\n", session->device->name, instance);
