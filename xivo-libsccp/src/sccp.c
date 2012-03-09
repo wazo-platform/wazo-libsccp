@@ -2115,7 +2115,7 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 	device = line->device;
 	if (device == NULL) {
-		ast_log(LOG_DEBUG, "Line [%s] is attached to no device\n", device->name);
+		ast_log(LOG_DEBUG, "Line [%s] is attached to no device\n", line->name);
 		return -1;
 	}
 

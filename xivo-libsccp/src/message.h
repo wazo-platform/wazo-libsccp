@@ -24,6 +24,7 @@ int transmit_displaymessage(struct sccp_session *session, const char *text);
 int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
 int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, int state);
 int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
+int transmit_reset(struct sccp_session *session, uint32_t type);
 int transmit_ringer_mode(struct sccp_session *session, int mode);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);
 

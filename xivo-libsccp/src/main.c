@@ -125,7 +125,7 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	line = find_line_by_name("200", &sccp_cfg->list_line);
 	if (line == NULL) {
-		ast_test_status_update(test, "line name %s != %s\n", line->name, "200");
+		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
 		ret = AST_TEST_FAIL;
 		goto cleanup;
 	}
