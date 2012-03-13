@@ -1,8 +1,8 @@
 #include "device.h"
 #include "sccp.h"
 
-struct list_line list_line = AST_LIST_HEAD_INIT_VALUE;
-struct list_device list_device = AST_LIST_HEAD_INIT_VALUE;
+//struct list_line list_line = AST_LIST_HEAD_INIT_VALUE;
+//struct list_device list_device = AST_LIST_HEAD_INIT_VALUE;
 
 void device_unregister(struct sccp_device *device)
 {

@@ -766,7 +766,6 @@ static int handle_onhook_message(struct sccp_session *session)
 	return 0;
 }
 
-
 int handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
@@ -789,7 +788,6 @@ int handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp
 	}
 	return 0;
 }
-
 
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
@@ -1548,6 +1546,7 @@ static int handle_ipport_message(struct sccp_msg *msg, struct sccp_session *sess
 		return -1;
 
 	session->device->station_port = msg->data.ipport.stationIpPort;
+
 	return 0;
 }
 

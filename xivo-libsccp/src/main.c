@@ -32,8 +32,9 @@ AST_TEST_DEFINE(sccp_test_config)
 	enum ast_test_result_state ret = AST_TEST_PASS;
 	struct sccp_configs *sccp_cfg = NULL;
 	FILE *conf_file = NULL;
-	char *conf = NULL;
+	char *conf = NULL, *conf2 = NULL;
 	struct sccp_line *line = NULL;
+	struct sccp_device *device = NULL;
 
 	switch (cmd) {
 	case TEST_INIT:
@@ -136,6 +137,97 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
+	device = find_device_by_name("SEPACA016FDF235", &sccp_cfg->list_device);
+	if (device == NULL) {
+		ast_test_status_update(test, "device name %s doesn't exist\n", "SEPACA016FDF235");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	line = find_line_by_name("201", &sccp_cfg->list_line);
+	if (line != NULL) {
+		ast_test_status_update(test, "line 201 doesn't exist...\n");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	conf_file = fopen("/tmp/sccp.conf", "w");
+	if (conf_file == NULL) {
+		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
+		return AST_TEST_FAIL;
+	}
+
+	conf =	"[general]\n"
+		"bindaddr=0.0.0.0\n"
+		"dateformat=D.M.Y\n"
+		"keepalive=10\n"
+		"authtimeout=10\n"
+		"dialtimeout=3\n"
+		"context=default\n"
+		"\n"
+		"[lines]\n"
+		"[201]\n"
+		"cid_num=201\n"
+		"cid_name=Alice\n"
+		"\n"
+		"[devices]\n"
+		"[SEPACA016FDF236]\n"
+		"device=SEPACA016FDF236\n"
+		"line=201";
+
+	fwrite(conf, 1, strlen(conf), conf_file);
+	fclose(conf_file);
+
+	config_load("/tmp/sccp.conf", sccp_cfg);
+
+	/* We removed line 200 and its associated device.
+	 * We add line 201 with a new device.
+	 *
+	 * Expectation:
+	 * Line 201 must be added to the list.
+	 * Line 200 must still be in the list.
+	 */
+
+	line = find_line_by_name("200", &sccp_cfg->list_line);
+	if (line == NULL) {
+		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (line->device == NULL) {
+		ast_test_status_update(test, "line %s has no device\n", line->name);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	device = find_device_by_name("SEPACA016FDF235", &sccp_cfg->list_device);
+	if (device == NULL) {
+		ast_test_status_update(test, "device name %s doesn't exist\n", "SEPACA016FDF235");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	line = find_line_by_name("201", &sccp_cfg->list_line);
+	if (line == NULL) {
+		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (line->device == NULL) {
+		ast_test_status_update(test, "line %s has no device\n", line->name);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	device = find_device_by_name("SEPACA016FDF236", &sccp_cfg->list_device);
+	if (device == NULL) {
+		ast_test_status_update(test, "device name %s doesn't exist\n", "SEPACA016FDF236");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
 cleanup:
 
 	AST_LIST_HEAD_DESTROY(&sccp_cfg->list_device);
@@ -182,7 +274,6 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 		device->default_line = line;
 }
 
-
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
@@ -191,6 +282,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	char *category;
 	int duplicate = 0;
 	int found_line = 0;
+	int err = 0;
 	int line_instance = 1;
 
 	/* get the default settings for the devices */
@@ -217,9 +309,6 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 			device = ast_calloc(1, sizeof(struct sccp_device));
 			initialize_device(device, category);
 
-			/* add it to the device list */
-			AST_LIST_INSERT_HEAD(&sccp_cfg->list_device, device, list);
-
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 
@@ -232,24 +321,19 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 					/* we are looking for the line that match with 'var->name' */
 					AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 						if (!strcasecmp(var->value, line_itr->name)) {
-
 							/* We found a line */
 							found_line = 1;
-							if (line_itr->device == NULL) {
 
-								/* link the line to the device */
-								AST_LIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
-								device->line_count++;
+							/* link the line to the device */
+							AST_LIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
+							device->line_count++;
 
-								/* initialize the line instance */
-								initialize_line(line_itr, line_instance++, device);
-							} else {
-								ast_log(LOG_WARNING, "Line [%s] is already attach to device [%s]\n",
-									line_itr->name, line_itr->device->name);
-							}
+							/* initialize the line instance */
+							initialize_line(line_itr, line_instance++, device);
 						}
 					}
 					if (!found_line) {
+						err = 1;
 						ast_log(LOG_WARNING, "Can't attach invalid line [%s] to device [%s]\n",
 							var->value, category);
 					}
@@ -257,6 +341,16 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 
 				found_line = 0;
 			}
+
+			/* Add the device to the list only if no error occured and
+			 * at least one line is present */
+			if (!err && device->line_count > 0) {
+				AST_LIST_INSERT_HEAD(&sccp_cfg->list_device, device, list);
+			}
+			else {
+				ast_free(device);
+			}
+			err = 0;
 		}
 
 		duplicate = 0;
@@ -274,10 +368,10 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 	char *category;
 	int duplicate = 0;
 
-	/* get the default settings for the lines */
+	/* get the default settings for the lines
 	for (var = ast_variable_browse(cfg, "lines"); var != NULL; var = var->next) {
 		ast_log(LOG_DEBUG, "var name {%s} value {%s} \n", var->name, var->value);
-	}
+	} */
 
 	category = ast_category_browse(cfg, "lines");
 	/* handle each lines */
@@ -300,7 +394,6 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 			AST_LIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
 
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
-				ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
 
 				if (!strcasecmp(var->name, "cid_num")) {
 					ast_copy_string(line->cid_num, var->value, sizeof(line->cid_num));
@@ -325,9 +418,9 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	struct ast_variable *var;	
 
 	/* Default configuration */
-	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0\0", sizeof(sccp_cfg->bindaddr));
-	ast_copy_string(sccp_cfg->dateformat, "D.M.Y\0", sizeof(sccp_cfg->dateformat));
-	ast_copy_string(sccp_cfg->context, "default\0", sizeof(sccp_cfg->context));
+	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0", sizeof(sccp_cfg->bindaddr));
+	ast_copy_string(sccp_cfg->dateformat, "D.M.Y", sizeof(sccp_cfg->dateformat));
+	ast_copy_string(sccp_cfg->context, "default", sizeof(sccp_cfg->context));
 
 	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
 	sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
@@ -338,7 +431,6 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 
 		if (!strcasecmp(var->name, "bindaddr")) {
 			ast_copy_string(sccp_cfg->bindaddr, var->value, sizeof(sccp_cfg->bindaddr));
-			ast_log(LOG_NOTICE, "var name {%s} value {%s} \n", var->name, var->value);
 			continue;
 
 		} else if (!strcasecmp(var->name, "dateformat")) {
@@ -410,7 +502,7 @@ static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 
 	struct sccp_line *line_itr;
 	struct sccp_device *device_itr;
-
+/*
 	AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 		ast_log(LOG_NOTICE, "Line [%s] \n", line_itr->name);
 	}
@@ -422,10 +514,37 @@ static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 			ast_log(LOG_NOTICE, "[%s] [%d]\n", line_itr->name, line_itr->instance);
 		}
 	}
-
+*/
 	ast_config_destroy(cfg);
 
 	return 0;
+}
+
+static char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	int ret = 0;
+	struct sccp_configs *sccp_cfg; /* global settings */
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp update config";
+		e->usage = "Usage: sccp update config\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	sccp_cfg = ast_calloc(1, sizeof(struct sccp_configs));
+	if (sccp_cfg == NULL) {
+		return CLI_FAILURE;
+	}
+
+	ret = config_load("sccp.conf", sccp_config);
+	if (ret == -1) {
+		return CLI_FAILURE;
+	}
+
+	return CLI_SUCCESS;
 }
 
 static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
@@ -454,7 +573,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 		ast_cli(a->fd, "Device: [%s]\n", device_itr->name);
 
 		AST_LIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
-			ast_cli(a->fd, "Line extension: <%s> instance: (%d)\n", line_itr->name, line_itr->instance);
+			ast_cli(a->fd, "Line extension: (%d) <%s> <%s>\n", line_itr->instance, line_itr->name, line_itr->cid_name);
 		}
 		ast_cli(a->fd, "\n");
 	}
@@ -481,6 +600,7 @@ static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_version, "Show the version of the sccp channel"),
 	AST_CLI_DEFINE(sccp_show_config, "Show the configured devices"),
+	AST_CLI_DEFINE(sccp_update_config, "Update the configuration"),
 };
 
 static int load_module(void)
