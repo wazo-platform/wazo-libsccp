@@ -24,6 +24,8 @@ static struct sccp_server {
 
 struct sccp_configs {
 
+	int set;
+
 	char bindaddr[16];
 	char dateformat[6];
 	int keepalive;

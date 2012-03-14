@@ -291,12 +291,12 @@ struct sccp_device {
 	uint32_t active_line_cnt;
 
 	TAILQ_HEAD(, SCCP_LINE) qline;
-	AST_LIST_HEAD(, sccp_line) lines;
+	AST_RWLIST_HEAD(, sccp_line) lines;
 	AST_LIST_ENTRY(sccp_device) list;
 };
 
-AST_LIST_HEAD(list_line, sccp_line);
-AST_LIST_HEAD(list_device, sccp_device);
+AST_RWLIST_HEAD(list_line, sccp_line);
+AST_RWLIST_HEAD(list_device, sccp_device);
 
 void device_unregister(struct sccp_device *device);
 void device_register(struct sccp_device *device,

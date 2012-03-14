@@ -56,8 +56,8 @@ AST_TEST_DEFINE(sccp_test_config)
 		ast_test_status_update(test, "ast_calloc failed\n");
 		return AST_TEST_FAIL;
 	}
-	AST_LIST_HEAD_INIT(&sccp_cfg->list_device);
-	AST_LIST_HEAD_INIT(&sccp_cfg->list_line);
+	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_device);
+	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_line);
 
 	conf_file = fopen("/tmp/sccp.conf", "w");
 	if (conf_file == NULL) {
@@ -230,8 +230,8 @@ AST_TEST_DEFINE(sccp_test_config)
 
 cleanup:
 
-	AST_LIST_HEAD_DESTROY(&sccp_cfg->list_device);
-	AST_LIST_HEAD_DESTROY(&sccp_cfg->list_line);
+	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
+	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
 
 	config_unload(sccp_cfg);
 	ast_free(sccp_cfg);
@@ -254,7 +254,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	device->registered = DEVICE_REGISTERED_FALSE;
 	device->session = NULL;
 
-	AST_LIST_HEAD_INIT(&device->lines);
+	AST_RWLIST_HEAD_INIT(&device->lines);
 }
 
 static void initialize_line(struct sccp_line *line, uint32_t instance, struct sccp_device *device)
@@ -295,13 +295,15 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	while (category != NULL && strcasecmp(category, "general") && strcasecmp(category, "lines")) {
 
 		/* no duplicates allowed */
-		AST_LIST_TRAVERSE(&sccp_cfg->list_device, device_itr, list) {
+		AST_RWLIST_RDLOCK(&sccp_cfg->list_device);
+		AST_RWLIST_TRAVERSE(&sccp_cfg->list_device, device_itr, list) {
 			if (!strcasecmp(category, device_itr->name)) {
 				ast_log(LOG_WARNING, "Device [%s] already exist, instance ignored\n", category);
 				duplicate = 1;
 				break;
 			}
 		}
+		AST_RWLIST_UNLOCK(&sccp_cfg->list_device);
 
 		if (!duplicate) {
 
@@ -319,19 +321,24 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 				if (!strcasecmp(var->name, "line")) {
 
 					/* we are looking for the line that match with 'var->name' */
-					AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
+					AST_RWLIST_RDLOCK(&sccp_cfg->list_line);
+					AST_RWLIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 						if (!strcasecmp(var->value, line_itr->name)) {
 							/* We found a line */
 							found_line = 1;
 
 							/* link the line to the device */
-							AST_LIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
+							AST_RWLIST_WRLOCK(&device->lines);
+							AST_RWLIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
+							AST_RWLIST_UNLOCK(&device->lines);
 							device->line_count++;
 
 							/* initialize the line instance */
 							initialize_line(line_itr, line_instance++, device);
 						}
 					}
+					AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
+
 					if (!found_line) {
 						err = 1;
 						ast_log(LOG_WARNING, "Can't attach invalid line [%s] to device [%s]\n",
@@ -345,7 +352,9 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 			/* Add the device to the list only if no error occured and
 			 * at least one line is present */
 			if (!err && device->line_count > 0) {
-				AST_LIST_INSERT_HEAD(&sccp_cfg->list_device, device, list);
+				AST_RWLIST_WRLOCK(&sccp_cfg->list_device);
+				AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_device, device, list);
+				AST_RWLIST_UNLOCK(&sccp_cfg->list_device);
 			}
 			else {
 				ast_free(device);
@@ -378,20 +387,24 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 	while (category != NULL && strcasecmp(category, "general") && strcasecmp(category, "devices")) {
 
 		/* no duplicates allowed */
-		AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
+		AST_RWLIST_RDLOCK(&sccp_cfg->list_line);
+		AST_RWLIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 			if (!strcasecmp(category, line_itr->name)) {
 				ast_log(LOG_WARNING, "Line [%s] already exist, line ignored\n", category);
 				duplicate = 1;
 				break;
 			}
 		}
+		AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
 
 		if (!duplicate) {
 			/* configure a new line */
 			line = ast_calloc(1, sizeof(struct sccp_line));
 			ast_copy_string(line->name, category, sizeof(line->name));
-	
-			AST_LIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
+
+			AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
+			AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
+			AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
 
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 
@@ -415,7 +428,15 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 static int parse_config_general(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
-	struct ast_variable *var;	
+	struct ast_variable *var;
+
+	/* Do not parse it twice */
+	if (sccp_cfg->set == 1) {
+		return 0;
+	}
+	else {
+		sccp_cfg->set = 1;
+	}
 
 	/* Default configuration */
 	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0", sizeof(sccp_cfg->bindaddr));
@@ -468,19 +489,23 @@ static void config_unload(struct sccp_configs *sccp_cfg)
 	struct sccp_device *device_itr;
 	struct sccp_line *line_itr;
 
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_device, device_itr, list) {
+	AST_RWLIST_WRLOCK(&sccp_cfg->list_device);
+	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_device, device_itr, list) {
 
 		ast_mutex_destroy(&device_itr->lock);
-		AST_LIST_REMOVE_CURRENT(list);
+		AST_RWLIST_REMOVE_CURRENT(list);
 	}
-	AST_LIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_UNLOCK(&sccp_cfg->list_device);
 
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_line, line_itr, list) {
+	AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
+	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_line, line_itr, list) {
 
 		ast_mutex_destroy(&line_itr->lock);
-		AST_LIST_REMOVE_CURRENT(list);
+		AST_RWLIST_REMOVE_CURRENT(list);
 	}
-	AST_LIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
 }
 
 static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
@@ -500,9 +525,9 @@ static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 	parse_config_lines(cfg, sccp_cfg);
 	parse_config_devices(cfg, sccp_cfg);
 
+/*
 	struct sccp_line *line_itr;
 	struct sccp_device *device_itr;
-/*
 	AST_LIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
 		ast_log(LOG_NOTICE, "Line [%s] \n", line_itr->name);
 	}
@@ -569,14 +594,18 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	ast_cli(a->fd, "context = %s\n", sccp_config->context);
 	ast_cli(a->fd, "\n");
 
-	AST_LIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
+	AST_RWLIST_RDLOCK(&sccp_config->list_device);
+	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
 		ast_cli(a->fd, "Device: [%s]\n", device_itr->name);
 
-		AST_LIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
+		AST_RWLIST_RDLOCK(&device_itr->lines);
+		AST_RWLIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
 			ast_cli(a->fd, "Line extension: (%d) <%s> <%s>\n", line_itr->instance, line_itr->name, line_itr->cid_name);
 		}
+		AST_RWLIST_UNLOCK(&device_itr->lines);
 		ast_cli(a->fd, "\n");
 	}
+	AST_RWLIST_UNLOCK(&sccp_config->list_device);
 
 	return CLI_SUCCESS;
 }
@@ -613,8 +642,8 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
-	AST_LIST_HEAD_INIT(&sccp_config->list_device);
-	AST_LIST_HEAD_INIT(&sccp_config->list_line);
+	AST_RWLIST_HEAD_INIT(&sccp_config->list_device);
+	AST_RWLIST_HEAD_INIT(&sccp_config->list_line);
 
 	ret = config_load("sccp.conf", sccp_config);
 	if (ret == -1) {
@@ -646,8 +675,8 @@ static int unload_module(void)
 
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
-	AST_LIST_HEAD_DESTROY(&sccp_config->list_device);
-	AST_LIST_HEAD_DESTROY(&sccp_config->list_line);
+	AST_RWLIST_HEAD_DESTROY(&sccp_config->list_device);
+	AST_RWLIST_HEAD_DESTROY(&sccp_config->list_line);
 	ast_free(sccp_config);
 	sccp_config = NULL;
 	AST_TEST_UNREGISTER(sccp_test_config);

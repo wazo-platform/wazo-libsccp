@@ -247,7 +247,8 @@ static int handle_button_template_req_message(struct sccp_session *session)
 				msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
 				msg->data.buttontemplate.definition[i].lineInstance = htolel(0);
 
-				AST_LIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
+				AST_RWLIST_RDLOCK(&session->device->lines);
+				AST_RWLIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
 					if (line_itr->instance == line_instance) {
 						msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
 						msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
@@ -256,6 +257,7 @@ static int handle_button_template_req_message(struct sccp_session *session)
 						button_count++;
 					}
 				}
+				AST_RWLIST_UNLOCK(&session->device->lines);
 
 				break;
 
@@ -308,7 +310,8 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	if (session == NULL)
 		return -1;
 
-	AST_LIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
+	AST_RWLIST_RDLOCK(&sccp_config->list_device);
+	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
 
 		if (!strcasecmp(device_itr->name, msg->data.reg.name)) {
 
@@ -344,6 +347,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			break;
 		}
 	}
+	AST_RWLIST_UNLOCK(&sccp_config->list_device);
 
 	if (ret == 0)
 		ast_log(LOG_WARNING, "Device is not configured [%s]\n", msg->data.reg.name);
@@ -2971,11 +2975,13 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 
 	ast_cli(a->fd, "%-17s %-8s %s\n", "Device", "Type", "Reg.state");
 	ast_cli(a->fd, "===============   ======   ==========\n");
-	AST_LIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
+	AST_RWLIST_RDLOCK(&sccp_config->list_device);
+	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
 		ast_cli(a->fd, "%-17s %-8s %s\n", device_itr->name,
 							device_type_str(device_itr->type),
 							device_regstate_str(device_itr->registered));
 	}
+	AST_RWLIST_UNLOCK(&sccp_config->list_device);
 
 
 	return CLI_SUCCESS;

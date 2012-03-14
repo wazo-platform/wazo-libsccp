@@ -1,9 +1,6 @@
 #include "device.h"
 #include "sccp.h"
 
-//struct list_line list_line = AST_LIST_HEAD_INIT_VALUE;
-//struct list_device list_device = AST_LIST_HEAD_INIT_VALUE;
-
 void device_unregister(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
@@ -15,11 +12,13 @@ void device_unregister(struct sccp_device *device)
 
 	device->registered = DEVICE_REGISTERED_FALSE;
 
-	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
+	AST_RWLIST_RDLOCK(&device->lines);
+	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
 		if (line_itr->active_subchan != NULL)
 			if (line_itr->active_subchan->channel != NULL)
 				ast_queue_hangup(line_itr->active_subchan->channel);
 	}
+	AST_RWLIST_UNLOCK(&device->lines);
 
 	return;
 }
@@ -56,9 +55,11 @@ void device_prepare(struct sccp_device *device)
 
 	ast_mutex_unlock(&device->lock);
 
-	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
+	AST_RWLIST_RDLOCK(&device->lines);
+	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
 		set_line_state(line_itr, SCCP_ONHOOK);
 	}
+	AST_RWLIST_UNLOCK(&device->lines);
 
 	return;
 }
@@ -77,12 +78,14 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 		return NULL;
 	}
 
-	AST_LIST_TRAVERSE(list_device, device_itr, list) {
+	AST_RWLIST_RDLOCK(list_device);
+	AST_RWLIST_TRAVERSE(list_device, device_itr, list) {
 		ast_log(LOG_DEBUG, "device_itr->name [%s] name[%s]\n", device_itr->name, name);
 		if (!strncmp(device_itr->name, name, sizeof(device_itr->name))) {
 			break;
 		}
 	}
+	AST_RWLIST_UNLOCK(list_device);
 
 	return device_itr;
 }
@@ -101,12 +104,14 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 		return NULL;
 	}
 
-	AST_LIST_TRAVERSE(list_line, line_itr, list) {
+	AST_RWLIST_RDLOCK(list_line);
+	AST_RWLIST_TRAVERSE(list_line, line_itr, list) {
 		ast_log(LOG_DEBUG, "line_itr->name [%s] name[%s]\n", line_itr->name, name);
 		if (!strncmp(line_itr->name, name, sizeof(line_itr->name))) {
 			break;
 		}
 	}
+	AST_RWLIST_UNLOCK(list_line);
 
 	return line_itr;
 }
@@ -114,10 +119,13 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 struct sccp_line *device_get_line(struct sccp_device *device, int instance)
 {
 	struct sccp_line *line_itr;
-	AST_LIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
+
+	AST_RWLIST_RDLOCK(&device->lines);
+	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
 		if (line_itr->instance == instance)
 			return line_itr;
 	}
+	AST_RWLIST_UNLOCK(&device->lines);
 	
 	return NULL;
 }
