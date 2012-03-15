@@ -1602,7 +1602,9 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	instance = letohl(msg->data.keypad.lineInstance);
 	callid = letohl(msg->data.keypad.callInstance);
 
-	if (session->device->type == SCCP_DEVICE_7912) {
+	if (session->device->type == SCCP_DEVICE_7912
+		|| session->device->type == SCCP_DEVICE_7905) {
+
 		instance = 1;
 	}
 
