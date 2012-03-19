@@ -6,10 +6,6 @@ ABOUT:
  This work is based on the Asterisk chan_skinny originally
  written by Jeremy McNamara & Florian Overkamp.
 
-STATE:
-
- version 0.91alpha, testing
-
 AUTHOR:
 
  Nicolas Bouliane <nbouliane at avencall.com>

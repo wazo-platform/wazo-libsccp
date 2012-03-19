@@ -2,7 +2,7 @@
 #
 
 AC_PREREQ(2.61)
-AC_INIT([SCCP library], [0.99alpha], [nbouliane@avencall.com], [libsccp], [http://wiki.xivo.fr])
+AC_INIT([SCCP library], [1.0beta], [nbouliane@avencall.com], [libsccp], [http://wiki.xivo.fr])
 
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 #LT_PREREQ([1.5])
