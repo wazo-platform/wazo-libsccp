@@ -628,6 +628,10 @@ static int handle_offhook_message(struct sccp_session *session)
 		if (ret == -1)
 			return -1;
 
+		ret = transmit_stop_tone(session, line->instance, subchan->id);
+		if (ret == -1)
+			return -1;
+
 		ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
 		if (ret == -1)
 			return -1;
@@ -880,6 +884,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	struct sccp_subchannel *subchan;
 	struct ast_channel *channel;
 	struct sccp_line *line;
+
 	int ret = 0;
 
 	if (session == NULL)
@@ -1868,6 +1873,7 @@ static int fetch_data(struct sccp_session *session)
 		return nbyte;
 	}
 
+
 	return -1;	
 }
 
@@ -2256,17 +2262,21 @@ static int sccp_hangup(struct ast_channel *channel)
 	}
 
 	/* clean the subchannel */
-	ret = transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
+	ret = transmit_callstate(line->device->session, line->instance, SCCP_ONHOOK, subchan->id);
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_callstate(line->device->session, line->instance, SCCP_ONHOOK, subchan->id);
+	ret = transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_ONHOOK);
 	if (ret == -1)
 		return -1;
 
 	set_line_state(line, SCCP_ONHOOK);
 
-	ret = transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_ONHOOK);
+	ret = transmit_stop_tone(line->device->session, line->instance, subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
 	if (ret == -1)
 		return -1;
 
@@ -2282,6 +2292,7 @@ static int sccp_hangup(struct ast_channel *channel)
 	}
 
 	ast_free(subchan);
+
 	return 0;
 }
 
