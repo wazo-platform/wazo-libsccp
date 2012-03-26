@@ -112,6 +112,11 @@ static void mwi_subscribe(struct sccp_device *device)
 		return;
 	}
 
+	if (device->voicemail[0] == '\0') {
+		ast_log(LOG_DEBUG, "no voicemail set\n");
+		return;
+	}
+
 	device->mwi_event_sub = ast_event_subscribe(AST_EVENT_MWI, mwi_event_cb, "sccp mwi subsciption", device,
 		AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, device->voicemail,
 		AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, sccp_config->context,
@@ -1658,11 +1663,16 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 
 static void destroy_session(struct sccp_session **session)
 {
-	/* XXX check if session is NULL .. set it to NULL */
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return;
+	}
+
 	ast_mutex_destroy(&(*session)->lock);
 	ast_free((*session)->ipaddr);
 	close((*session)->sockfd);
 	ast_free(*session);
+	*session = NULL;
 }
 
 static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
