@@ -1,5 +1,6 @@
 #include <asterisk.h>
 #include <asterisk/app.h>
+#include <asterisk/astdb.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
 #include <asterisk/cli.h>
@@ -55,6 +56,8 @@ static int sccp_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *trtp,
 				format_t codecs,
 				int nat_active);
+
+static int handle_callforward(struct sccp_session *session, uint32_t softkey);
 
 static const struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
@@ -124,12 +127,34 @@ static void mwi_subscribe(struct sccp_device *device)
 		AST_EVENT_IE_END);
 }
 
+static void post_line_register_check(struct sccp_session *session)
+{
+	int result = 0;
+	char exten[AST_MAX_EXTENSION];
+	struct sccp_line *line = NULL;
+
+	/* If an entry exist, update the device callfoward status */
+	line = session->device->default_line;
+	result = ast_db_get("sccp/cfwdall", line->name, exten, sizeof(exten));
+
+	if (result == 0) {
+		line->callfwd_id = line->serial_callid++;
+		line->callfwd = SCCP_CFWD_INPUTEXTEN;
+		ast_copy_string(line->device->exten, exten, sizeof(exten));
+		handle_callforward(session, SOFTKEY_CFWDALL);
+	}
+}
+
 static void post_register_check(struct sccp_session *session)
 {
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return;
 	}
+
+	/* Make sure the display is clean */
+	transmit_displaymessage(session, "");
+
 
 	if (session->device->mwi_event_sub)
 		mwi_event_cb(NULL, session->device);
@@ -1045,6 +1070,8 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 				return -1;
 
 			line->callfwd = SCCP_CFWD_ACTIVE;
+
+			ast_db_put("sccp/cfwdall", line->name, line->callfwd_exten);
 		}
 
 		ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
@@ -1063,6 +1090,8 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 			return -1;
 
 		line->callfwd = SCCP_CFWD_UNACTIVE;
+
+		ast_db_del("sccp/cfwdall", line->name);
 
 		break;
 	}
@@ -1252,28 +1281,8 @@ static int handle_softkey_set_req_message(struct sccp_session *session)
 
 static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	uint32_t instance = 0;
-	int ret = 0;
-
-	if (msg == NULL)
-		return -1;
-
-	if (session == NULL)
-		return -1;
-
-	instance = letohl(msg->data.forward.lineInstance);
-
-	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL)
-		return -1;
-
-	msg->data.forwardstatus.status = 0;
-	msg->data.forwardstatus.lineInstance = htolel(instance);
-	
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
+	/* Do nothing here, not all phone query the forward status,
+		instead handle it globally in the post_line_register_check() */
 	return 0;
 }
 
@@ -1443,6 +1452,8 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1;
+
+	post_line_register_check(session);
 
 	return 0; 
 }

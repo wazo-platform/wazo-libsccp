@@ -106,7 +106,7 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 
 	AST_RWLIST_RDLOCK(list_line);
 	AST_RWLIST_TRAVERSE(list_line, line_itr, list) {
-		ast_log(LOG_DEBUG, "line_itr->name [%s] name[%s]\n", line_itr->name, name);
+		//ast_log(LOG_DEBUG, "line_itr->name [%s] name[%s]\n", line_itr->name, name);
 		if (!strncmp(line_itr->name, name, sizeof(line_itr->name))) {
 			break;
 		}

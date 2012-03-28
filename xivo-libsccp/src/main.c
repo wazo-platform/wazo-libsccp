@@ -2,6 +2,7 @@
 
 ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 
+#include <asterisk/astdb.h>
 #include <asterisk/channel.h>
 #include <asterisk/cli.h>
 #include <asterisk/logger.h>
@@ -600,6 +601,26 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_update_config, "Update the configuration"),
 };
 
+static garbage_ast_database()
+{
+	struct ast_db_entry *db_tree;
+	struct ast_db_entry *entry;
+	char *line_name;
+
+	db_tree = ast_db_gettree("sccp/cfwdall", NULL);
+
+	/* Remove orphan entries */
+	for (entry = db_tree; entry; entry = entry->next) {
+
+		line_name = entry->key + strlen("/sccp/cfwdall/");
+
+		if (find_line_by_name(line_name, &sccp_config->list_line) == NULL) {
+			ast_db_del("sccp/cfwdall", line_name);
+			ast_log(LOG_DEBUG, "/sccp/cfwdall/%s... removed\n", line_name);
+		}
+	}
+}
+
 static int load_module(void)
 {
 	int ret = 0;
@@ -618,6 +639,8 @@ static int load_module(void)
 		ast_free(sccp_config);
 		return AST_MODULE_LOAD_DECLINE;
 	}
+
+	garbage_ast_database();
 
 	ret = sccp_server_init(sccp_config);
 	if (ret == -1) {
