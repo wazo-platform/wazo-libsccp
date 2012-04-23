@@ -3004,13 +3004,14 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		return NULL;
 	}
 
-	ast_cli(a->fd, "%-17s %-8s %s\n", "Device", "Type", "Reg.state");
-	ast_cli(a->fd, "===============   ======   ==========\n");
+	ast_cli(a->fd, "%-17s %-8s %-13s %s\n", "Device", "Type", "Reg.state", "Proto.Version");
+	ast_cli(a->fd, "===============   ======   ==========    ==============\n");
 	AST_RWLIST_RDLOCK(&sccp_config->list_device);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
-		ast_cli(a->fd, "%-17s %-8s %s\n", device_itr->name,
+		ast_cli(a->fd, "%-17s %-8s %-13s %d\n", device_itr->name,
 							device_type_str(device_itr->type),
-							device_regstate_str(device_itr->registered));
+							device_regstate_str(device_itr->registered),
+							device_itr->protoVersion);
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_device);
 
