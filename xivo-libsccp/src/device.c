@@ -133,6 +133,11 @@ struct sccp_line *device_get_line(struct sccp_device *device, int instance)
 {
 	struct sccp_line *line_itr;
 
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return NULL;
+	}
+
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
 		if (line_itr->instance == instance)
@@ -265,6 +270,11 @@ void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 	}
 }
 
+void subchan_set_state(struct sccp_subchannel *subchan, int state)
+{
+	subchan->state = state;
+}
+
 void set_line_state(struct sccp_line *line, int state)
 {
 	ast_mutex_lock(&line->lock);
@@ -289,8 +299,13 @@ void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
 
 void device_release_line(struct sccp_device *device, struct sccp_line *line)
 {
-	if (device == NULL || line == NULL) {
-		ast_log(LOG_WARNING, "Invalid parameter\n");
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL");
+		return;
+	}
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
 		return;
 	}
 
@@ -303,7 +318,6 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line)
 	}
 
 	device->active_line_cnt--;
-
 	ast_mutex_unlock(&device->lock);
 }
 

@@ -67,8 +67,8 @@ struct offhook_message {
 
 #define ONHOOK_MESSAGE 0x0007
 struct onhook_message {
-	uint32_t unknown1;
-	uint32_t unknown2;
+	uint32_t lineInstance;
+	uint32_t callInstance;
 };
 
 #define FORWARD_STATUS_REQ_MESSAGE 0x0009
@@ -466,6 +466,7 @@ union sccp_data {
 	struct register_ack_message regack;
 	struct register_rej_message regrej;
 	struct offhook_message offhook;
+	struct onhook_message onhook;
 	struct start_tone_message starttone;
 	struct forward_status_req_message forward;
 	struct forward_status_res_message forwardstatus;

@@ -532,6 +532,8 @@ static int start_rtp(struct sccp_subchannel *subchan)
 
 static int sccp_newcall(struct ast_channel *channel)
 {
+	ast_log(LOG_DEBUG, "sccp_newcall\n");
+
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
@@ -811,7 +813,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		line_instance = line->instance;
 
 		subchan = line_get_next_ringin_subchan(line);
-		if (subchan && subchan->state == SCCP_RINGIN) {
+		if (subchan) {
 			subchan_id = subchan->id;
 			do_answer(line_instance, subchan_id, session);
 		}
@@ -823,32 +825,35 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	return 0;
 }
 
-static int handle_onhook_message(struct sccp_session *session)
+static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	ast_log(LOG_NOTICE, "handle_onhook_message\n");
+	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
 	int ret = 0;
+	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = NULL;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
 		return -1;
+	}
 
-	line = device_get_active_line(session->device);
-	if (line->state == SCCP_ONHOOK)
-		return 0;
+	line = device_get_line(session->device, line_instance);
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "line is NULL\n");
+		return -1;
+	}
 
-	device_release_line(line->device, line);
-	set_line_state(line, SCCP_ONHOOK);
-
-	line->device->exten[0] = '\0';
+	set_line_state(line, SCCP_ONHOOK); /* This will terminate the sccp_lookup_exten thread */
 
 	/* wait for lookup thread to terminate */
-	if (session->device->lookup == 1)
+	if (session->device->lookup == 1) {
 		pthread_join(session->device->lookup_thread, NULL);
-	else
 		session->device->lookup = 0;
+		line->device->exten[0] = '\0';
+	}
 
+	line_select_subchan_id(line, subchan_id);
 	subchan = line->active_subchan;
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "line instance [%i] has no active subchannel\n", line->instance);
@@ -910,8 +915,64 @@ static int handle_onhook_message(struct sccp_session *session)
 	return 0;
 }
 
+static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	ast_log(LOG_NOTICE, "handle_onhook_message\n");
+
+	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = NULL;
+
+	uint32_t line_instance = 0;
+	uint32_t subchan_id = 0;
+
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
+		return -1;
+	}
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	if (session->device->protoVersion == 11) {
+		/* Newest protocols provide these informations */
+
+		line_instance = msg->data.offhook.lineInstance;
+		subchan_id = msg->data.offhook.callInstance;
+
+		ast_log(LOG_NOTICE, "line_instance: %d\n", line_instance);
+		ast_log(LOG_NOTICE, "subchan_id %d\n", subchan_id);
+
+		do_hangup(line_instance, subchan_id, session);
+	}
+	else {
+		/* With older protocols, we manually get the line and the subchannel */
+		line = device_get_active_line(session->device);
+		if (line == NULL) {
+			ast_log(LOG_DEBUG, "line is NULL\n");
+			return -1;
+		}
+
+		subchan = line->active_subchan;
+		if (subchan == NULL) {
+			ast_log(LOG_DEBUG, "suchan is NULL\n");
+			return -1;
+		}
+
+		line_instance = line->instance;
+		subchan_id = subchan->id;
+
+		do_hangup(line_instance, subchan_id, session);
+	}
+
+	return 0;
+}
+
 int handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
+	ast_log(LOG_DEBUG, "handle_softkey_dial\n");
+
 	struct sccp_line *line = NULL;
 	size_t len = 0;
 	int ret = 0;
@@ -1289,7 +1350,9 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		if (ret == -1)
 			return -1;
 
-		ret = handle_onhook_message(session);
+		ret = do_hangup(msg->data.softkeyevent.lineInstance,
+				msg->data.softkeyevent.callInstance,
+				session);
 		if (ret == -1)
 			return -1;
 		break;
@@ -1854,7 +1917,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	case ONHOOK_MESSAGE:
 		ast_log(LOG_DEBUG, "Onhook message\n");
-		ret = handle_onhook_message(session);
+		ret = handle_onhook_message(msg, session);
 		break;
 
 	case FORWARD_STATUS_REQ_MESSAGE:
@@ -2152,16 +2215,6 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 		return NULL;
 	}
 
-	if (line->state != SCCP_ONHOOK) {
-		*cause = AST_CAUSE_BUSY;
-		return NULL;
-	}
-
-	if (line->active_subchan != NULL && line->active_subchan->channel != NULL) {
-		*cause = AST_CAUSE_BUSY;
-		return NULL;
-	}
-
 	if (option != NULL && !strncmp(option, "autoanswer", 10)) {
 		line->device->autoanswer = 1;
 	}
@@ -2266,13 +2319,6 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 	ast_log(LOG_DEBUG, "destination: %s\n", dest);
 
-	if (line->state != SCCP_ONHOOK) {
-		channel->hangupcause = AST_CONTROL_BUSY;
-		ast_setstate(channel, AST_CONTROL_BUSY);
-		ast_queue_control(channel, AST_CONTROL_BUSY);
-		return 0;
-	}
-
 	ast_setstate(channel, AST_STATE_RINGING);
 	ast_queue_control(channel, AST_CONTROL_RINGING);
 
@@ -2283,6 +2329,7 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 	device_enqueue_line(device, line);
 	set_line_state(line, SCCP_RINGIN);
+	subchan_set_state(subchan, SCCP_RINGIN);
 
 	ret = transmit_callstate(session, line->instance, SCCP_RINGIN, subchan->id);
 	if (ret == -1)
@@ -2322,8 +2369,8 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 static int sccp_hangup(struct ast_channel *channel)
 {
-	ast_log(LOG_NOTICE, "sccp hangup\n");
-	
+	ast_log(LOG_ERROR, "sccp hangup\n");
+
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 	int ret = 0;
@@ -2347,10 +2394,8 @@ static int sccp_hangup(struct ast_channel *channel)
 
 	if (line->state == SCCP_RINGIN || line->state == SCCP_CONNECTED) {
 
-		device_release_line(line->device, line);
-		set_line_state(line, SCCP_ONHOOK);
-
 		transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
+		set_line_state(line, SCCP_ONHOOK);
 
 	// FIXME	if (line->device->active_line_cnt <= 1)
 			ret = transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
@@ -2811,7 +2856,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	ret = handle_onhook_message(NULL);
+	ret = handle_onhook_message(NULL, NULL);
 	if (ret != -1) {
 		ast_test_status_update(test, "failed: handle_onhook_message(NULL)\n");
 		result = AST_TEST_FAIL;
