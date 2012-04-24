@@ -90,6 +90,19 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 	return device_itr;
 }
 
+struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line)
+{
+	struct sccp_subchannel *subchan_itr;
+
+	AST_LIST_LOCK(&line->subchans);
+	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+		if (subchan_itr != NULL && subchan_itr->state == SCCP_RINGIN) {
+			return subchan_itr;
+		}
+	}
+	AST_LIST_UNLOCK(&line->subchans);
+}
+
 struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line)
 {
 	struct sccp_line *line_itr = NULL;

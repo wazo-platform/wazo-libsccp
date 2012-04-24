@@ -61,8 +61,8 @@ struct keypad_button_message {
 
 #define OFFHOOK_MESSAGE 0x0006
 struct offhook_message {
-	uint32_t unknown1;
-	uint32_t unknown2;
+	uint32_t lineInstance;
+	uint32_t callInstance;
 };
 
 #define ONHOOK_MESSAGE 0x0007
@@ -465,6 +465,7 @@ union sccp_data {
 	struct register_message reg;
 	struct register_ack_message regack;
 	struct register_rej_message regrej;
+	struct offhook_message offhook;
 	struct start_tone_message starttone;
 	struct forward_status_req_message forward;
 	struct forward_status_res_message forwardstatus;

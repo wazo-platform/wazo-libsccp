@@ -624,96 +624,202 @@ static void *sccp_lookup_exten(void *data)
 	return NULL;
 }
 
-static int handle_offhook_message(struct sccp_session *session)
+static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	ast_log(LOG_NOTICE, "handle_offhook_message\n");
+	ast_log(LOG_NOTICE, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
-	struct sccp_device *device = NULL;
-	struct ast_channel *channel = NULL;
 	int ret = 0;
+	struct sccp_device *device = NULL;
+	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = NULL;
+	struct ast_channel *channel = NULL;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
 		return -1;
+	}
 
 	device = session->device;
+	if (device == NULL) {
+		ast_log(LOG_ERROR, "device is NULL\n");
+		return -1;
+	}
+
 	line = device_get_active_line(device);
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "line is NULL\n");
+		return -1;
+	}
 
-	if (line && line->state == SCCP_RINGIN) {
+	channel = sccp_new_channel(line, NULL);
+	if (channel == NULL) {
+		ast_log(LOG_ERROR, "channel is NULL\n");
+		return -1;
+	}
 
-		subchan = line->active_subchan;
-		if (subchan == NULL) {
-			ast_log(LOG_DEBUG, "line has no active subchan\n");
-			return -1;
+	subchan = channel->tech_pvt;
+	if (subchan == NULL) {
+		ast_log(LOG_ERROR, "subchan is NULL\n");
+		return -1;
+	}
+
+	line_select_subchan(line, subchan);
+
+	ast_setstate(channel, AST_STATE_DOWN);
+	set_line_state(line, SCCP_OFFHOOK);
+
+	ret = transmit_lamp_state(session, 1, line->instance, SCCP_LAMP_ON);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, line->active_subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_OFFHOOK);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
+	if (ret == -1)
+		return -1;
+
+	if (ast_pthread_create(&device->lookup_thread, NULL, sccp_lookup_exten, channel)) {
+		ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
+		ast_hangup(channel);
+	} else {
+		device->lookup = 1;
+	}
+
+	return 0;
+}
+
+static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
+{
+	ast_log(LOG_DEBUG, "\n");
+	int ret = 0;
+	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = NULL;
+
+	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	line = device_get_line(session->device, line_instance);
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "line is NULL\n");
+		return -1;
+	}
+
+	line_select_subchan_id(line, subchan_id);
+	subchan = line->active_subchan;
+	if (subchan == NULL) {
+		ast_log(LOG_ERROR, "subchan is NULL\n");
+		return -1;
+	}
+
+	ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
+
+	ret = transmit_ringer_mode(session, SCCP_RING_OFF);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_stop_tone(session, line->instance, subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_CONNECTED);
+	if (ret == -1)
+		return -1;
+
+	start_rtp(subchan);
+
+	ast_setstate(subchan->channel, AST_STATE_UP);
+	set_line_state(line, SCCP_CONNECTED);
+
+	return 0;
+}
+
+static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	int ret = 0;
+	struct sccp_line *line = NULL;
+	struct sccp_device *device = NULL;
+	struct sccp_subchannel *subchan = NULL;
+	struct ast_channel *channel = NULL;
+
+	uint32_t line_instance = 0;
+	uint32_t subchan_id = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
+		return -1;
+	}
+
+	device = session->device;
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return -1;
+	}
+
+	line = device_get_active_line(device);
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return -1;
+	}
+
+	if (session->device->protoVersion == 11) {
+		/* Newest protocols provide these informations */
+		line_instance = msg->data.offhook.lineInstance;
+		subchan_id = msg->data.offhook.callInstance;
+
+		if (line_instance == 0) { /* no active line */
+			do_newcall(line_instance, subchan_id, session);
 		}
-
-		ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
-
-		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, subchan->id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_stop_tone(session, line->instance, subchan->id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_CONNECTED);
-		if (ret == -1)
-			return -1;
-
-		start_rtp(subchan);
-
-		ast_setstate(subchan->channel, AST_STATE_UP);
-		set_line_state(line, SCCP_CONNECTED);
-
-	} else if (line->state == SCCP_ONHOOK) {
-
-		channel = sccp_new_channel(line, NULL);
-		if (channel == NULL) {
-			ast_log(LOG_ERROR, "unable to create new subchannel\n");
-			return -1;
-		}
-
-		ast_setstate(channel, AST_STATE_DOWN);
-		set_line_state(line, SCCP_OFFHOOK);
-
-		ret = transmit_lamp_state(session, 1, line->instance, SCCP_LAMP_ON);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, line->active_subchan->id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_OFFHOOK);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
-		if (ret == -1)
-			return -1;
-
-		if (ast_pthread_create(&device->lookup_thread, NULL, sccp_lookup_exten, channel)) {
-			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
-			ast_hangup(channel);
-		} else {
-			device->lookup = 1;
+		else {
+			do_answer(line_instance, subchan_id, session);
 		}
 	}
-	
+	else {
+		/* With older protocols, we manually get the line and the subchannel */
+		line = device_get_active_line(session->device);
+		if (line == NULL) {
+			ast_log(LOG_DEBUG, "line is NULL\n");
+			return -1;
+		}
+
+		line_instance = line->instance;
+
+		subchan = line_get_next_ringin_subchan(line);
+		if (subchan && subchan->state == SCCP_RINGIN) {
+			subchan_id = subchan->id;
+			do_answer(line_instance, subchan_id, session);
+		}
+		else {
+			do_newcall(line_instance, 0, session);
+		}
+	}
+
 	return 0;
 }
 
@@ -1133,7 +1239,9 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		if (ret == -1)
 			return -1;
 
-		ret = handle_offhook_message(session);
+		ret = do_newcall(msg->data.softkeyevent.lineInstance,
+				msg->data.softkeyevent.callInstance,
+				session);
 		if (ret == -1)
 			return -1;
 		break;
@@ -1200,7 +1308,9 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		if (ret == -1)
 			return -1;
 
-		ret = handle_offhook_message(session);
+		ret = do_answer(msg->data.softkeyevent.lineInstance,
+				msg->data.softkeyevent.callInstance,
+				session);
 		if (ret == -1)
 			return -1;
 
@@ -1739,7 +1849,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	case OFFHOOK_MESSAGE:
 		ast_log(LOG_DEBUG, "Offhook message\n");
-		ret = handle_offhook_message(session);
+		ret = handle_offhook_message(msg, session);
 		break;
 
 	case ONHOOK_MESSAGE:
@@ -2694,9 +2804,9 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	ret = handle_offhook_message(NULL);
+	ret = handle_offhook_message(NULL, NULL);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_offhook_message(NULL)\n");
+		ast_test_status_update(test, "failed: handle_offhook_message(NULL, NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
