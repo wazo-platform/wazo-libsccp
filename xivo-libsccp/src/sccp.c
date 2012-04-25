@@ -2837,7 +2837,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 
 	ret = sccp_start_the_call(NULL);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_newcall(NULL)\n");
+		ast_test_status_update(test, "failed: sccp_start_the_call(NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
