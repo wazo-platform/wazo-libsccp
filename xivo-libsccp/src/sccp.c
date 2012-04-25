@@ -530,9 +530,9 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	return 0;
 }
 
-static int sccp_newcall(struct ast_channel *channel)
+static int sccp_start_the_call(struct ast_channel *channel)
 {
-	ast_log(LOG_DEBUG, "sccp_newcall\n");
+	ast_log(LOG_DEBUG, "sccp_start_the_call\n");
 
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
@@ -601,7 +601,7 @@ static void *sccp_lookup_exten(void *data)
 		if (call_now || ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 			if (call_now || !ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
 
-				sccp_newcall(channel);
+				sccp_start_the_call(channel);
 				line->device->exten[0] = '\0';
 				return NULL;
 			}
@@ -2835,7 +2835,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	ret = sccp_newcall(NULL);
+	ret = sccp_start_the_call(NULL);
 	if (ret != -1) {
 		ast_test_status_update(test, "failed: sccp_newcall(NULL)\n");
 		result = AST_TEST_FAIL;
