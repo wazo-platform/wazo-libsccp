@@ -101,6 +101,8 @@ struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line)
 		}
 	}
 	AST_LIST_UNLOCK(&line->subchans);
+
+	return NULL;
 }
 
 struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line)
@@ -252,6 +254,16 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 
 void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
 {
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return;
+	}
+
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "subchan is NULL\n");
+		return;
+	}
+
 	if (line->active_subchan)
 		line->active_subchan->state = line->state;
 
@@ -259,8 +271,30 @@ void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan
 	line->active_subchan = subchan;
 }
 
+struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id)
+{
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return NULL;
+	}
+
+	struct sccp_subchannel *subchan_itr;
+	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+		if (subchan_itr->id == subchan_id) {
+			return subchan_itr;
+		}
+	}
+
+	return NULL;
+}
+
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 {
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return;
+	}
+
 	struct sccp_subchannel *subchan_itr;
 	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {	
 		if (subchan_itr->id == subchan_id) {

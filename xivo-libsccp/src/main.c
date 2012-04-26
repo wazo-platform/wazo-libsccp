@@ -601,7 +601,7 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_update_config, "Update the configuration"),
 };
 
-static garbage_ast_database()
+static void garbage_ast_database()
 {
 	struct ast_db_entry *db_tree;
 	struct ast_db_entry *entry;

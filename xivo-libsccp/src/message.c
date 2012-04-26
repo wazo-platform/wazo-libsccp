@@ -48,7 +48,7 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 		ast_log(LOG_ERROR, "Message transmit failed %s\n", strerror(errno));
 	}
 
-	ast_log(LOG_DEBUG, "write %d bytes\n", nbyte);
+	/*ast_log(LOG_DEBUG, "write %d bytes\n", nbyte);*/
 	ast_free(msg);
 
 	return nbyte;
