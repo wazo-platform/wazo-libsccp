@@ -37,6 +37,7 @@ static struct sccp_configs *sccp_config; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct sched_context *sched = NULL;
 
+static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
 static struct ast_channel *sccp_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause);
 static int sccp_call(struct ast_channel *ast, char *dest, int timeout);
 static int sccp_devicestate(void *data);
@@ -408,7 +409,6 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
 	subchan->related = NULL;
 
 	AST_LIST_INSERT_HEAD(&line->subchans, subchan, list);
-	line_select_subchan(line, subchan);
 
 	return subchan;
 }
@@ -720,12 +720,19 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 		return -1;
 	}
 
-	line_select_subchan_id(line, subchan_id);
-	subchan = line->active_subchan;
+	subchan = line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_log(LOG_ERROR, "subchan is NULL\n");
 		return -1;
 	}
+
+	/* If a subchannel is already active, put it on hold */
+	if (line->active_subchan != NULL) {
+		handle_softkey_hold(line_instance, line->active_subchan->id, session);
+	}
+
+	/* Now, set the newly answered subchannel as active */
+	line_select_subchan(line, subchan);
 
 	ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
 
@@ -1016,12 +1023,18 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	struct sccp_line *line = NULL;
 	int ret = 0;
 
-	if (session == NULL)
+	ast_log(LOG_DEBUG, "handle_softkey_hold: line_instance(%i) subchan_id(%i)\n", line_instance, subchan_id);
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	line = device_get_line(session->device, line_instance);
-	if (line == NULL)
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
 		return -1;
+	}
 
 	/* put on hold */
 	ret = transmit_callstate(session, line_instance, SCCP_HOLD, subchan_id);
@@ -1145,15 +1158,11 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ret == -1)
 			return -1;
 
-		/* We keep a copy of the active subchannel what will
-		 * be tranfered, because sccp_new_subchannel overwrite
-		 * the active channel.
-		 */
-		xfer_subchan = line->active_subchan;
-
 		/* spawn a new subchannel instance and mark both as related */
 		subchan = sccp_new_subchannel(line);
-		channel = sccp_new_channel(subchan, NULL);
+		xfer_subchan = line->active_subchan;
+
+		line_select_subchan(line, subchan);
 
 		xfer_subchan->related = line->active_subchan;
 		line->active_subchan->related = xfer_subchan;
@@ -2351,8 +2360,18 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	}
 
 	device_enqueue_line(device, line);
-	set_line_state(line, SCCP_RINGIN);
 	subchan_set_state(subchan, SCCP_RINGIN);
+
+	/* If the line has an active subchannel, it means that
+	 * a call is already ongoing.
+	 */
+	if (line->active_subchan == NULL) {
+		set_line_state(line, SCCP_RINGIN);
+
+		ret = transmit_ringer_mode(session, SCCP_RING_INSIDE);
+		if (ret == -1)
+			return -1;
+	}
 
 	ret = transmit_callstate(session, line->instance, SCCP_RINGIN, subchan->id);
 	if (ret == -1)
@@ -2380,10 +2399,6 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 		sccp_autoanswer_call(subchan);
 		return 0;
 	}
-
-	ret = transmit_ringer_mode(session, SCCP_RING_INSIDE);
-	if (ret == -1)
-		return -1;
 
 	return 0;
 }
