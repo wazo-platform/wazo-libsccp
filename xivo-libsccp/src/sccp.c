@@ -672,7 +672,14 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		return -1;
 	}
 
+	/* If a subchannel is already active, put it on hold */
+	if (line->active_subchan != NULL) {
+		handle_softkey_hold(line_instance, line->active_subchan->id, session);
+	}
+
+	/* Now, set the new call instance as active */
 	line_select_subchan(line, subchan);
+
 	set_line_state(line, SCCP_OFFHOOK);
 
 	ret = transmit_lamp_state(session, 1, line->instance, SCCP_LAMP_ON);
@@ -717,13 +724,13 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_ERROR, "line is NULL\n");
-		return -1;
+		return 0;
 	}
 
 	subchan = line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_log(LOG_ERROR, "subchan is NULL\n");
-		return -1;
+		return 0;
 	}
 
 	/* If a subchannel is already active, put it on hold */
@@ -868,6 +875,10 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		subchan->rtp = NULL;
 	}
 
+	ret = transmit_ringer_mode(session, SCCP_RING_OFF);
+	if (ret == -1)
+		return -1;
+
 	ret = transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
 	if (ret == -1)
 		return -1;
@@ -909,14 +920,14 @@ static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	struct sccp_subchannel *subchan = NULL;
 
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "session is NULL\n");
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "line is NULL\n");
-		return -1;
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return 0;
 	}
 
 	set_line_state(line, SCCP_ONHOOK); /* This will terminate the sccp_lookup_exten thread */
@@ -1375,13 +1386,6 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 	//	break;
 
 	case SOFTKEY_ENDCALL:
-		ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_ringer_mode(session, SCCP_RING_OFF);
-		if (ret == -1)
-			return -1;
 
 		ret = do_hangup(msg->data.softkeyevent.lineInstance,
 				msg->data.softkeyevent.callInstance,
@@ -1579,11 +1583,15 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	uint32_t passthruid = 0;
 	int ret = 0;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	line = device_get_active_line(session->device);
 	if (line == NULL) {
@@ -1596,20 +1604,27 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		return 0;
 	}
 
-	addr = msg->data.openreceivechannelack.ipAddr;
-	port = letohl(msg->data.openreceivechannelack.port);
-	passthruid = letohl(msg->data.openreceivechannelack.passThruId);
+	if (line->active_subchan->rtp) {
 
-	remote.sin_family = AF_INET;
-	remote.sin_addr.s_addr = addr;
-	remote.sin_port = htons(port);
+		addr = msg->data.openreceivechannelack.ipAddr;
+		port = letohl(msg->data.openreceivechannelack.port);
+		passthruid = letohl(msg->data.openreceivechannelack.passThruId);
 
-	ast_sockaddr_from_sin(&remote_tmp, &remote);
-	ast_rtp_instance_set_remote_address(line->active_subchan->rtp, &remote_tmp);
+		remote.sin_family = AF_INET;
+		remote.sin_addr.s_addr = addr;
+		remote.sin_port = htons(port);
 
-	ret = transmit_start_media_transmission(line, line->active_subchan->id);
-	if (ret == -1)
+		ast_sockaddr_from_sin(&remote_tmp, &remote);
+		ast_rtp_instance_set_remote_address(line->active_subchan->rtp, &remote_tmp);
+
+		ret = transmit_start_media_transmission(line, line->active_subchan->id);
+		if (ret == -1)
+			return -1;
+	}
+	else {
+		ast_log(LOG_DEBUG, "line->active_subchan->rtp is NULL\n");
 		return -1;
+	}
 
 	return 0;
 }
@@ -2405,7 +2420,7 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 
 static int sccp_hangup(struct ast_channel *channel)
 {
-	ast_log(LOG_NOTICE, "sccp hangup 2\n");
+	ast_log(LOG_DEBUG, "sccp hangup\n");
 
 	struct sccp_subchannel *subchan = NULL;
 

@@ -150,12 +150,14 @@ static const uint8_t softkey_default_onhook[] = {
 };
 
 static const uint8_t softkey_default_connected[] = {
+	SOFTKEY_NEWCALL,
 	SOFTKEY_HOLD,
 	SOFTKEY_ENDCALL,
 	SOFTKEY_TRNSFER,
 };
 
 static const uint8_t softkey_default_onhold[] = {
+	SOFTKEY_NEWCALL,
 	SOFTKEY_RESUME,
 	SOFTKEY_ENDCALL,
 };
