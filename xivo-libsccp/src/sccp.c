@@ -2003,9 +2003,6 @@ static struct ast_channel *sccp_request(const char *type, format_t format, const
 	if (type == NULL)
 		return NULL;
 
-	if (requestor == NULL)
-		return NULL;
-
 	if (destination == NULL)
 		return NULL;
 
