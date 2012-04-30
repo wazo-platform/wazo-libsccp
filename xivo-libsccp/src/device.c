@@ -7,7 +7,7 @@ void device_unregister(struct sccp_device *device)
 	struct sccp_subchannel *subchan = NULL;
 
 	if (device == NULL) {
-		ast_log(LOG_ERROR, "Invalid parameter\n");
+		ast_log(LOG_DEBUG, "device is NULL\n");
 		return;
 	}
 
@@ -35,6 +35,11 @@ void device_register(struct sccp_device *device,
 			void *session,
 			struct sockaddr_in localip)
 {
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return;
+	}
+
 	device->registered = DEVICE_REGISTERED_TRUE;
 	device->protoVersion = protoVersion;
 	device->type = type;
@@ -47,6 +52,11 @@ void device_register(struct sccp_device *device,
 void device_prepare(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
+
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return;
+	}
 
 //	ast_mutex_lock(&device->lock);
 
@@ -86,10 +96,8 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 
 	AST_RWLIST_RDLOCK(list_device);
 	AST_RWLIST_TRAVERSE(list_device, device_itr, list) {
-		ast_log(LOG_DEBUG, "device_itr->name [%s] name[%s]\n", device_itr->name, name);
-		if (!strncmp(device_itr->name, name, sizeof(device_itr->name))) {
+		if (!strncmp(device_itr->name, name, sizeof(device_itr->name)))
 			break;
-		}
 	}
 	AST_RWLIST_UNLOCK(list_device);
 
@@ -98,17 +106,21 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 
 struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line)
 {
-	struct sccp_subchannel *subchan_itr;
+	struct sccp_subchannel *subchan_itr = NULL;
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return NULL;
+	}
 
 	AST_LIST_LOCK(&line->subchans);
 	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr != NULL && subchan_itr->state == SCCP_RINGIN) {
-			return subchan_itr;
-		}
+		if (subchan_itr != NULL && subchan_itr->state == SCCP_RINGIN)
+			break;
 	}
 	AST_LIST_UNLOCK(&line->subchans);
 
-	return NULL;
+	return subchan_itr;
 }
 
 struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line)
@@ -127,10 +139,8 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 
 	AST_RWLIST_RDLOCK(list_line);
 	AST_RWLIST_TRAVERSE(list_line, line_itr, list) {
-		//ast_log(LOG_DEBUG, "line_itr->name [%s] name[%s]\n", line_itr->name, name);
-		if (!strncmp(line_itr->name, name, sizeof(line_itr->name))) {
+		if (!strncmp(line_itr->name, name, sizeof(line_itr->name)))
 			break;
-		}
 	}
 	AST_RWLIST_UNLOCK(list_line);
 
@@ -139,21 +149,21 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 
 struct sccp_line *device_get_line(struct sccp_device *device, int instance)
 {
-	struct sccp_line *line_itr;
+	struct sccp_line *line_itr = NULL;
 
 	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return NULL;
 	}
 
-//	AST_RWLIST_RDLOCK(&device->lines);
+	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
 		if (line_itr->instance == instance)
-			return line_itr;
+			break;
 	}
-//	AST_RWLIST_UNLOCK(&device->lines);
+	AST_RWLIST_UNLOCK(&device->lines);
 	
-	return NULL;
+	return line_itr;
 }
 
 char *device_type_str(int device_type)
@@ -224,6 +234,16 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	int err = 0;
 	int i = 0;
 
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return -1;
+	}
+
+	if (btl == NULL) {
+		ast_log(LOG_DEBUG, "button definition template is NULL\n");
+		return -1;
+	}
+
 	ast_log(LOG_DEBUG, "Device type %d\n", device->type);
 
 	switch (device->type) {
@@ -273,26 +293,24 @@ void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan
 	if (line->active_subchan)
 		line->active_subchan->state = line->state;
 
-	/* switch subchan */
 	line->active_subchan = subchan;
 }
 
 struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id)
 {
+	struct sccp_subchannel *subchan_itr = NULL;
+
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return NULL;
 	}
 
-	struct sccp_subchannel *subchan_itr;
 	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		ast_log(LOG_NOTICE, "subchan_itr->id(%d)\n", subchan_itr->id);
-		if (subchan_itr->id == subchan_id) {
-			return subchan_itr;
-		}
+		if (subchan_itr->id == subchan_id)
+			break;
 	}
 
-	return NULL;
+	return subchan_itr;
 }
 
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
@@ -323,9 +341,14 @@ void set_line_state(struct sccp_line *line, int state)
 
 void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
 {
-	if (device == NULL || line == NULL) {
-		ast_log(LOG_WARNING, "Invalid parameter\n");
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
 		return;
+	}
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return ;
 	}
 
 //	ast_mutex_lock(&device->lock);
@@ -363,7 +386,7 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line)
 struct sccp_line *device_get_active_line(struct sccp_device *device)
 {
 	if (device == NULL) {
-		ast_log(LOG_WARNING, "Invalid parameter\n");
+		ast_log(LOG_DEBUG, "device is NULL\n");
 		return NULL;
 	}
 

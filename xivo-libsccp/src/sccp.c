@@ -1,3 +1,4 @@
+
 #include <asterisk.h>
 #include <asterisk/app.h>
 #include <asterisk/astdb.h>
@@ -37,52 +38,52 @@ static struct sccp_configs *sccp_config; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct sched_context *sched = NULL;
 
+static int handle_callforward(struct sccp_session *session, uint32_t softkey);
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
-static struct ast_channel *sccp_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause);
-static int sccp_call(struct ast_channel *ast, char *dest, int timeout);
-static int sccp_devicestate(void *data);
-static int sccp_hangup(struct ast_channel *ast);
-static int sccp_answer(struct ast_channel *ast);
-static struct ast_frame *sccp_read(struct ast_channel *ast);
-static int sccp_write(struct ast_channel *ast, struct ast_frame *frame);
-static int sccp_indicate(struct ast_channel *ast, int ind, const void *data, size_t datalen);
-static int sccp_fixup(struct ast_channel *oldchan, struct ast_channel *newchan);
-static int sccp_senddigit_begin(struct ast_channel *ast, char digit);
-static int sccp_senddigit_end(struct ast_channel *ast, char digit, unsigned int duration);
-static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance);
-//static enum ast_rtp_glue_result sccp_get_vrtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance);
-static int sccp_set_rtp_peer(struct ast_channel *channel,
+
+static struct ast_channel *cb_ast_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause);
+static int cb_ast_call(struct ast_channel *ast, char *dest, int timeout);
+static int cb_ast_devicestate(void *data);
+static int cb_ast_hangup(struct ast_channel *ast);
+static int cb_ast_answer(struct ast_channel *ast);
+static struct ast_frame *cb_ast_read(struct ast_channel *ast);
+static int cb_ast_write(struct ast_channel *ast, struct ast_frame *frame);
+static int cb_ast_indicate(struct ast_channel *ast, int ind, const void *data, size_t datalen);
+static int cb_ast_fixup(struct ast_channel *oldchan, struct ast_channel *newchan);
+static int cb_ast_senddigit_begin(struct ast_channel *ast, char digit);
+static int cb_ast_senddigit_end(struct ast_channel *ast, char digit, unsigned int duration);
+static enum ast_rtp_glue_result cb_ast_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance);
+static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *rtp,
 				struct ast_rtp_instance *vrtp,
 				struct ast_rtp_instance *trtp,
 				format_t codecs,
 				int nat_active);
 
-static int handle_callforward(struct sccp_session *session, uint32_t softkey);
 
 static const struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
 	.description = "Skinny Client Control Protocol",
 	.capabilities = AST_FORMAT_AUDIO_MASK,
 	.properties = AST_CHAN_TP_WANTSJITTER | AST_CHAN_TP_CREATESJITTER,
-	.requester = sccp_request,
-	.devicestate = sccp_devicestate,
-	.call = sccp_call,
-	.hangup = sccp_hangup,
-	.answer = sccp_answer,
-	.read = sccp_read,
-	.write = sccp_write,
-	.indicate = sccp_indicate,
-	.fixup = sccp_fixup,
-	.send_digit_begin = sccp_senddigit_begin,
-	.send_digit_end = sccp_senddigit_end,
+	.requester = cb_ast_request,
+	.devicestate = cb_ast_devicestate,
+	.call = cb_ast_call,
+	.hangup = cb_ast_hangup,
+	.answer = cb_ast_answer,
+	.read = cb_ast_read,
+	.write = cb_ast_write,
+	.indicate = cb_ast_indicate,
+	.fixup = cb_ast_fixup,
+	.send_digit_begin = cb_ast_senddigit_begin,
+	.send_digit_end = cb_ast_senddigit_end,
 	.bridge = ast_rtp_instance_bridge,
 };
 
 static struct ast_rtp_glue sccp_rtp_glue = {
 	.type = "sccp",
-	.get_rtp_info = sccp_get_rtp_peer,
-	.update_peer = sccp_set_rtp_peer,
+	.get_rtp_info = cb_ast_get_rtp_peer,
+	.update_peer = cb_ast_set_rtp_peer,
 };
 
 static void mwi_event_cb(const struct ast_event *event, void *data)
@@ -163,15 +164,19 @@ static void post_register_check(struct sccp_session *session)
 
 static int handle_softkey_template_req_message(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
 	int ret = 0;
+	struct sccp_msg *msg = NULL;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct softkey_template_res_message), SOFTKEY_TEMPLATE_RES_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
+	}
 
 	msg->data.softkeytemplate.softKeyOffset = htolel(0);
 	msg->data.softkeytemplate.softKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
@@ -187,15 +192,19 @@ static int handle_softkey_template_req_message(struct sccp_session *session)
 
 static int handle_config_status_req_message(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
 	int ret = 0;
+	struct sccp_msg *msg = NULL;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct config_status_res_message), CONFIG_STATUS_RES_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
+	}
 
 	memcpy(msg->data.configstatus.deviceName, session->device->name, sizeof(msg->data.configstatus.deviceName));
 	msg->data.configstatus.stationUserId = htolel(0);
@@ -216,17 +225,21 @@ static int handle_config_status_req_message(struct sccp_session *session)
 
 static int handle_time_date_req_message(struct sccp_session *session)
 {
+	int ret = 0;
 	struct sccp_msg *msg = NULL;
 	time_t now = 0;
 	struct tm *cmtime = NULL;
-	int ret = 0;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct time_date_res_message), DATE_TIME_RES_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
+	}
 
 	now = time(NULL);
 	cmtime = localtime(&now);
@@ -252,20 +265,24 @@ static int handle_time_date_req_message(struct sccp_session *session)
 
 static int handle_button_template_req_message(struct sccp_session *session)
 {
+	int ret = 0;
 	struct sccp_msg *msg = NULL;
 	struct button_definition_template btl[42] = {0};
 	int button_count = 0;
 	uint32_t line_instance = 1;
 	struct sccp_line *line_itr = NULL;
-	int ret = 0;
 	int i = 0;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct button_template_res_message), BUTTON_TEMPLATE_RES_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
+	}
 
 	ret = device_get_button_template(session->device, btl);
 	if (ret == -1)
@@ -313,15 +330,19 @@ static int handle_button_template_req_message(struct sccp_session *session)
 
 static int handle_keep_alive_message(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
 	int ret = 0;
+	struct sccp_msg *msg = NULL;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	msg = msg_alloc(0, KEEP_ALIVE_ACK_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
+	}
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -332,53 +353,55 @@ static int handle_keep_alive_message(struct sccp_session *session)
 
 static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_device *device_itr = NULL;
 	int ret = 0;
+	struct sccp_device *device_itr = NULL;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	AST_RWLIST_RDLOCK(&sccp_config->list_device);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
-
-		if (!strcasecmp(device_itr->name, msg->data.reg.name)) {
-
-			if (device_itr->line_count == 0) {
-
-				ast_log(LOG_WARNING, "Device [%s] has no valid line\n", device_itr->name);
-				ret = -1;
-
-			} else if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
-
-				ast_log(LOG_WARNING, "Device already registered [%s]\n", device_itr->name);
-				ret = -1;
-
-			} else {
-
-				struct sockaddr_in localip;
-				socklen_t slen;
-
-				getsockname(session->sockfd, (struct sockaddr *)&localip, &slen);
-
-				ast_log(LOG_NOTICE, "Device found [%s]\n", device_itr->name);
-				device_prepare(device_itr);
-				device_register(device_itr,
-						letohl(msg->data.reg.protoVersion),
-						letohl(msg->data.reg.type),
-						session,
-						localip);
-
-				session->device = device_itr;
-				mwi_subscribe(device_itr);
-				ret = 1;
-			}
+		if (!strcasecmp(device_itr->name, msg->data.reg.name))
 			break;
-		}
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_device);
+
+	if (device_itr->line_count == 0) {
+
+		ast_log(LOG_WARNING, "Device [%s] has no valid line\n", device_itr->name);
+		ret = -1;
+
+	} else if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
+
+		ast_log(LOG_WARNING, "Device already registered [%s]\n", device_itr->name);
+		ret = -1;
+
+	} else {
+
+		struct sockaddr_in localip;
+		socklen_t slen;
+
+		getsockname(session->sockfd, (struct sockaddr *)&localip, &slen);
+
+		ast_log(LOG_NOTICE, "Device found [%s]\n", device_itr->name);
+		device_prepare(device_itr);
+		device_register(device_itr,
+				letohl(msg->data.reg.protoVersion),
+				letohl(msg->data.reg.type),
+				session,
+				localip);
+
+		session->device = device_itr;
+		mwi_subscribe(device_itr);
+		ret = 1;
+	}
 
 	if (ret == 0)
 		ast_log(LOG_WARNING, "Device is not configured [%s]\n", msg->data.reg.name);
@@ -418,7 +441,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	struct ast_channel *channel = NULL;
 	int audio_format = 0;
 
-	/* XXX replace hardcoded values */
 	channel = ast_channel_alloc(	1,				/* needqueue */
 					AST_STATE_DOWN,			/* state */
 					subchan->line->cid_num,		/* cid_num */
@@ -464,16 +486,19 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	return channel;
 }
 
-static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance)
+static enum ast_rtp_glue_result cb_ast_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance)
 {
-	ast_log(LOG_NOTICE, "sccp_get_rtp_peer\n");
 	struct sccp_subchannel *subchan = NULL;
 
-	if (channel == NULL)
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return AST_RTP_GLUE_RESULT_FORBID;
+	}
 
-	if (instance == NULL)
+	if (instance == NULL) {
+		ast_log(LOG_DEBUG, "instance is NULL\n");
 		return AST_RTP_GLUE_RESULT_FORBID;
+	}
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
@@ -492,7 +517,7 @@ static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, s
 	return AST_RTP_GLUE_RESULT_LOCAL;
 }
 
-static int sccp_set_rtp_peer(struct ast_channel *channel,
+static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *rtp,
 				struct ast_rtp_instance *vrtp,
 				struct ast_rtp_instance *trtp,
@@ -511,8 +536,10 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	struct sccp_session *session = NULL;
 	struct ast_sockaddr bindaddr_tmp;
 
-	if (subchan == NULL)
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return -1;
+	}
 
 	session = subchan->line->device->session;
 
@@ -539,13 +566,13 @@ static int start_rtp(struct sccp_subchannel *subchan)
 
 static int sccp_start_the_call(struct ast_channel *channel)
 {
-	ast_log(LOG_DEBUG, "sccp_start_the_call\n");
-
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
-	if (channel == NULL)
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return -1;
+	}
 
 	subchan = channel->tech_pvt;
 	line = subchan->line;
@@ -642,12 +669,12 @@ static void *sccp_lookup_exten(void *data)
 
 static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	ast_log(LOG_NOTICE, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
-
 	int ret = 0;
 	struct sccp_device *device = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
+
+	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
 	if (session == NULL) {
 		ast_log(LOG_ERROR, "session is NULL\n");
@@ -709,7 +736,6 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 
 static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	ast_log(LOG_DEBUG, "\n");
 	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
@@ -847,8 +873,6 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 static int do_clear_subchannel(struct sccp_subchannel *subchan)
 {
-	ast_log(LOG_NOTICE, "do_clear_subchannel\n");
-
 	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sccp_session *session = NULL;
@@ -913,11 +937,11 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
-
 	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
+
+	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
@@ -953,8 +977,6 @@ static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 
 static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	ast_log(LOG_NOTICE, "handle_onhook_message\n");
-
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
@@ -1006,18 +1028,20 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 
 int handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	ast_log(LOG_DEBUG, "handle_softkey_dial\n");
-
+	int ret = 0;
 	struct sccp_line *line = NULL;
 	size_t len = 0;
-	int ret = 0;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	line = device_get_line(session->device, line_instance);
-	if (line == NULL)
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
 		return -1;
+	}
 
 	if (line->state == SCCP_OFFHOOK) {
 		len = strlen(line->device->exten);
@@ -1031,8 +1055,8 @@ int handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp
 
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	struct sccp_line *line = NULL;
 	int ret = 0;
+	struct sccp_line *line = NULL;
 
 	ast_log(LOG_DEBUG, "handle_softkey_hold: line_instance(%i) subchan_id(%i)\n", line_instance, subchan_id);
 
@@ -1077,12 +1101,17 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 {
 	struct sccp_line *line = NULL;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
-	line = device_get_line(session->device, line_instance); 
+	line = device_get_line(session->device, line_instance);
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return -1;
+	}
 
-	/* XXX a prototype to see how I could handle the subchannel switching in the future  */
 	if (line->active_subchan) {
 		/* if another channel is already active */
 		if (line->active_subchan->id != subchan_id) {
@@ -1099,7 +1128,6 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 			transmit_stop_media_transmission(line, line->active_subchan->id);
 		}
 	}
-	/* */
 
 	line_select_subchan_id(line, subchan_id);
 	set_line_state(line, SCCP_CONNECTED); 
@@ -1119,13 +1147,12 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *session)
 {
-	ast_log(LOG_NOTICE, "handle_softkey_transfer: line_instance(%i)\n", line_instance);
-
+	int ret = 0;
 	struct sccp_subchannel *subchan, *xfer_subchan;
 	struct ast_channel *channel;
 	struct sccp_line *line;
 
-	int ret = 0;
+	ast_log(LOG_DEBUG, "handle_softkey_transfer: line_instance(%i)\n", line_instance);
 
 	if (session == NULL)
 		return -1;
@@ -1143,8 +1170,6 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	/* first time we press transfer */
 	if (line->active_subchan->related == NULL) {
-
-		ast_log(LOG_NOTICE, "first time\n");
 
 		/* put on hold */
 		ret = transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
@@ -1218,8 +1243,8 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 {
-	struct sccp_line *line = NULL;
 	int ret = 0;
+	struct sccp_line *line = NULL;
 	int line_instance = 1; /* Callforward is statically linked to line 1 */
 	char info_fwd[24];
 
@@ -1314,11 +1339,15 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 {
 	int ret = 0;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	ast_log(LOG_NOTICE, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
 	ast_log(LOG_NOTICE, "instance: %d\n", msg->data.softkeyevent.lineInstance);
@@ -1446,19 +1475,23 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 static int handle_softkey_set_req_message(struct sccp_session *session)
 {
+	int ret = 0;
 	const struct softkey_definitions *softkeymode = softkey_default_definitions;
 	struct sccp_msg *msg = NULL;
 	int keyset_count = 0;
 	int i = 0;
 	int j = 0;
-	int ret = 0;
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	msg = msg_alloc(sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
+	}
 
 	keyset_count = sizeof(softkey_default_definitions) / sizeof(struct softkey_definitions);
 
@@ -1545,13 +1578,21 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	int i = 0;
 	struct sccp_device *device = NULL;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	device = session->device;
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return -1;
+	}
 
 	count = letohl(msg->data.caps.count);
 	ast_log(LOG_NOTICE, "Received %d capabilities\n", count);
@@ -1575,13 +1616,13 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 
 static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sockaddr_in remote = {0};
 	struct ast_sockaddr remote_tmp;
 	uint32_t addr = 0;
 	uint32_t port = 0;
 	uint32_t passthruid = 0;
-	int ret = 0;
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -1631,15 +1672,19 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int line_instance;
-	struct sccp_line *line;
 	int ret = 0;
+	int line_instance = 0;
+	struct sccp_line *line = NULL;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	line_instance = letohl(msg->data.line.lineInstance);
 	line = device_get_line(session->device, line_instance);
@@ -1650,8 +1695,10 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	}
 
 	msg = msg_alloc(sizeof(struct line_status_res_message), LINE_STATUS_RES_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
+	}
 
 	msg->data.linestatus.lineNumber = letohl(line_instance);
 
@@ -1664,8 +1711,10 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
+	}
 
 	msg->data.forwardstatus.status = 0;
 	msg->data.forwardstatus.lineInstance = htolel(line_instance);
@@ -1683,11 +1732,15 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 {
 	int ret = 0;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	ast_log(LOG_NOTICE, "name %s\n", msg->data.reg.name);
 	ast_log(LOG_NOTICE, "userId %d\n", msg->data.reg.userId);
@@ -1732,6 +1785,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 	msg = msg_alloc(sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
 	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
 	}
 
@@ -1771,6 +1825,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 	msg = msg_alloc(0, CAPABILITIES_REQ_MESSAGE);
 	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;
 	}
 
@@ -1785,11 +1840,15 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 static int handle_ipport_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	session->device->station_port = msg->data.ipport.stationIpPort;
 
@@ -1800,16 +1859,25 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 {
 	struct sccp_device *device = NULL;
 	struct sccp_line *line = NULL;
-	size_t len;
+	size_t len = 0;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	device = session->device;
 	line = device_get_active_line(device);
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return -1;
+	}
 
 	/* Extension Block, contain all the digits entered before pressing 'Dial' */
 	if (line->state == SCCP_OFFHOOK) {
@@ -1824,6 +1892,7 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 
 static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct ast_frame frame = { AST_FRAME_DTMF, };
 
@@ -1832,13 +1901,16 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	int instance;
 	int callid;
 	size_t len;
-	int ret = 0;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	button = letohl(msg->data.keypad.button);
 	instance = letohl(msg->data.keypad.lineInstance);
@@ -1896,7 +1968,7 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 static void destroy_session(struct sccp_session **session)
 {
 	if (session == NULL) {
-		ast_log(LOG_ERROR, "session is NULL\n");
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return;
 	}
 
@@ -1911,11 +1983,15 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
 
-	if (msg == NULL)
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
 		return -1;
+	}
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	/* Device is not configured */
 	if (session->device == NULL &&
@@ -2121,10 +2197,10 @@ static int fetch_data(struct sccp_session *session)
 
 static void *thread_session(void *data)
 {
+	int ret = 0;
 	struct sccp_session *session = data;
 	struct sccp_msg *msg = NULL;
 	int connected = 1;
-	int ret = 0;
 
 	while (connected) {
 
@@ -2203,9 +2279,9 @@ static void *thread_accept(void *data)
 	return NULL;
 }
 
-static int sccp_devicestate(void *data)
+static int cb_ast_devicestate(void *data)
 {
-	ast_log(LOG_NOTICE, "sccp devicestate %s\n", (char *)data);
+	ast_log(LOG_NOTICE, "devicestate %s\n", (char *)data);
 
 	int state = AST_DEVICE_UNKNOWN;
 	state = AST_DEVICE_NOT_INUSE;
@@ -2213,10 +2289,8 @@ static int sccp_devicestate(void *data)
 	return state;
 }
 
-static struct ast_channel *sccp_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause)
+static struct ast_channel *cb_ast_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause)
 {
-	ast_log(LOG_NOTICE, "sccp request\n");
-
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 	struct ast_channel *channel = NULL;
@@ -2320,15 +2394,13 @@ static int sccp_autoanswer_call(void *data)
 	return 0;
 }
 
-static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
+static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 {
-	ast_log(LOG_NOTICE, "sccp call\n");
-
+	int ret = 0;
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_device *device = NULL;
 	struct sccp_session *session = NULL;
-	int ret = 0;
 
 	if (channel == NULL) {
 		ast_log(LOG_DEBUG, "channel is NULL\n");
@@ -2418,10 +2490,8 @@ static int sccp_call(struct ast_channel *channel, char *dest, int timeout)
 	return 0;
 }
 
-static int sccp_hangup(struct ast_channel *channel)
+static int cb_ast_hangup(struct ast_channel *channel)
 {
-	ast_log(LOG_DEBUG, "sccp hangup\n");
-
 	struct sccp_subchannel *subchan = NULL;
 
 	subchan = channel->tech_pvt;
@@ -2437,10 +2507,8 @@ static int sccp_hangup(struct ast_channel *channel)
 	return 0;
 }
 
-static int sccp_answer(struct ast_channel *channel)
+static int cb_ast_answer(struct ast_channel *channel)
 {
-	ast_log(LOG_NOTICE, "sccp answer\n");
-
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
@@ -2466,7 +2534,7 @@ static int sccp_answer(struct ast_channel *channel)
 	return 0;
 }
 
-static struct ast_frame *sccp_read(struct ast_channel *channel)
+static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 {
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
@@ -2518,7 +2586,7 @@ static struct ast_frame *sccp_read(struct ast_channel *channel)
 	return frame;
 }
 
-static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
+static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 {
 	int res = 0;
 	struct sccp_subchannel *subchan = NULL;
@@ -2553,18 +2621,20 @@ static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
 	return res;
 }
 
-static int sccp_indicate(struct ast_channel *channel, int indicate, const void *data, size_t datalen)
+static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void *data, size_t datalen)
 {
-	ast_log(LOG_NOTICE, "sccp indicate\n");
-
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
-	if (channel == NULL)
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return -1;
+	}
 
-	if (data == NULL)
+	if (data == NULL) {
+		ast_log(LOG_DEBUG, "data is NULL\n");
 		return -1;
+	}
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
@@ -2678,16 +2748,19 @@ static int sccp_indicate(struct ast_channel *channel, int indicate, const void *
 	return 0;
 }
 
-static int sccp_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
+static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
 {
-	ast_log(LOG_NOTICE, "sccp fixup\n");
 	struct sccp_subchannel *subchan = NULL;
 
-	if (oldchannel == NULL)
+	if (oldchannel == NULL) {
+		ast_log(LOG_DEBUG, "oldchannel is NULL\n");
 		return -1;
+	}
 
-	if (newchannel == NULL)
+	if (newchannel == NULL) {
+		ast_log(LOG_DEBUG, "newchannel is NULL\n");
 		return -1;
+	}
 
 	subchan = newchannel->tech_pvt;
 	subchan->channel = newchannel;
@@ -2695,22 +2768,22 @@ static int sccp_fixup(struct ast_channel *oldchannel, struct ast_channel *newcha
 	return 0;
 }
 
-static int sccp_senddigit_begin(struct ast_channel *channel, char digit)
+static int cb_ast_senddigit_begin(struct ast_channel *channel, char digit)
 {
-	ast_log(LOG_NOTICE, "sccp senddigit begin\n");
+	ast_log(LOG_DEBUG, "senddigit begin\n");
 	return 0;
 }
 
-static int sccp_senddigit_end(struct ast_channel *channel, char digit, unsigned int duration)
+static int cb_ast_senddigit_end(struct ast_channel *channel, char digit, unsigned int duration)
 {
-	ast_log(LOG_NOTICE, "sccp senddigit end\n");
+	ast_log(LOG_DEBUG, "senddigit end\n");
 	return 0;
 }
 
 AST_TEST_DEFINE(sccp_test_null_arguments)
 {
-	enum ast_test_result_state result = AST_TEST_PASS;
 	int ret = 0;
+	enum ast_test_result_state result = AST_TEST_PASS;
 	void *retptr = NULL;
 
 	switch (cmd) {
@@ -2784,14 +2857,14 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	if (sccp_get_rtp_peer(NULL, (void*)0xFF) != AST_RTP_GLUE_RESULT_FORBID) {
-		ast_test_status_update(test, "failed: sccp_get_rtp_peer(NULL, 0xFF)\n");
+	if (cb_ast_get_rtp_peer(NULL, (void*)0xFF) != AST_RTP_GLUE_RESULT_FORBID) {
+		ast_test_status_update(test, "failed: cb_ast_get_rtp_peer(NULL, 0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	if (sccp_get_rtp_peer((void*)0xFF, NULL) != AST_RTP_GLUE_RESULT_FORBID) {
-		ast_test_status_update(test, "failed: sccp_get_rtp_peer(0xFF, NULL)\n");
+	if (cb_ast_get_rtp_peer((void*)0xFF, NULL) != AST_RTP_GLUE_RESULT_FORBID) {
+		ast_test_status_update(test, "failed: cb_ast_get_rtp_peer(0xFF, NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
@@ -3006,110 +3079,111 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	retptr = sccp_request(NULL, 0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF);
+	retptr = cb_ast_request(NULL, 0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF);
 	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: sccp_request(NULL, 0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF)\n");
+		ast_test_status_update(test, "failed: cb_ast_request(NULL, 0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	retptr = sccp_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF);
+	retptr = cb_ast_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF);
 	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: sccp_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF)\n");
+		ast_test_status_update(test, "failed: cb_ast_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	retptr = sccp_request((void*)0xFF, 0xFF, (void*)0xFF, NULL, (void*)0xFF);
+	retptr = cb_ast_request((void*)0xFF, 0xFF, (void*)0xFF, NULL, (void*)0xFF);
 	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: sccp_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF)\n");
+		ast_test_status_update(test, "failed: cb_ast_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	retptr = sccp_request((void*)0xFF, 0xFF, (void*)0xFF, (void*)0xFF, NULL);
+	retptr = cb_ast_request((void*)0xFF, 0xFF, (void*)0xFF, (void*)0xFF, NULL);
 	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: sccp_request((void*)0xFF, 0xFF, (void*)0xFF, (void*)0xFF, NULL)\n");
+		ast_test_status_update(test, "failed: cb_ast_request((void*)0xFF, 0xFF, (void*)0xFF, (void*)0xFF, NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_call(NULL, (void*)0xFF, 0);
+	ret = cb_ast_call(NULL, (void*)0xFF, 0);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_call(NULL, (void*)0xFF, 0)\n");
+		ast_test_status_update(test, "failed: cb_ast_call(NULL, (void*)0xFF, 0)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_call((void*)0xFF, NULL, 0);
+	ret = cb_ast_call((void*)0xFF, NULL, 0);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_call((void*)0xFF, NULL, 0)\n");
+		ast_test_status_update(test, "failed: cb_ast_call((void*)0xFF, NULL, 0)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_hangup(NULL);
+	ret = cb_ast_hangup(NULL);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_hangup(NULL)\n");
+		ast_test_status_update(test, "failed: cb_ast_hangup(NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_answer(NULL);
+	ret = cb_ast_answer(NULL);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_answer(NULL)\n");
+		ast_test_status_update(test, "failed: cb_ast_answer(NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	retptr = sccp_read(NULL);
+	retptr = cb_ast_read(NULL);
 	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: sccp_read(NULL)\n");
+		ast_test_status_update(test, "failed: cb_ast_read(NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_write(NULL, (void*)0xFF);
+	ret = cb_ast_write(NULL, (void*)0xFF);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_write(NULL, (void*)0xFF)\n");
+		ast_test_status_update(test, "failed: cb_ast_write(NULL, (void*)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_write((void*)0xFF, NULL);
+	ret = cb_ast_write((void*)0xFF, NULL);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_write((void*)0xFF, NULL)\n");
+		ast_test_status_update(test, "failed: cb_ast_write((void*)0xFF, NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_indicate(NULL, 0xFF, (void*)0xFF, 0xFF);
+	ret = cb_ast_indicate(NULL, 0xFF, (void*)0xFF, 0xFF);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_indicate(NULL, 0xFF, (void*)0xFF, 0xFF)\n");
+		ast_test_status_update(test, "failed: cb_ast_indicate(NULL, 0xFF, (void*)0xFF, 0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_indicate((void*)0xFF, 0xFF, NULL, 0xFF);
+	ret = cb_ast_indicate((void*)0xFF, 0xFF, NULL, 0xFF);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_indicate((void*)0xFF, 0xFF, NULL, 0xFF)\n");
+		ast_test_status_update(test, "failed: cb_ast_indicate((void*)0xFF, 0xFF, NULL, 0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_fixup(NULL, (void*)0xFF);
+	ret = cb_ast_fixup(NULL, (void*)0xFF);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_fixup(NULL, (void*)0xFF)\n");
+		ast_test_status_update(test, "failed: cb_ast_fixup(NULL, (void*)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	ret = sccp_fixup((void*)0xFF, NULL);
+	ret = cb_ast_fixup((void*)0xFF, NULL);
 	if (ret != -1) {
-		ast_test_status_update(test, "failed: sccp_fixup((void*)0xFF, NULL)\n");
+		ast_test_status_update(test, "failed: cb_ast_fixup((void*)0xFF, NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
+
 cleanup:
 	return result;
 }
@@ -3152,6 +3226,7 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		e->usage = "Usage: sccp reset <device> [restart]\n"
 				"Cause a SCCP device to reset itself, optionally with a full restart\n";
 		return NULL;
+
 	case CLI_GENERATE:
 		return NULL;
 	}
@@ -3224,9 +3299,9 @@ void sccp_rtp_init(const struct ast_module_info *module_info)
 
 int sccp_server_init(struct sccp_configs *sccp_cfg)
 {
+	int ret = 0;
 	struct addrinfo hints = {0};
 	const int flag_reuse = 1;
-	int ret = 0;
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
