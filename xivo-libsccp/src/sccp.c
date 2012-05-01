@@ -441,6 +441,11 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	struct ast_channel *channel = NULL;
 	int audio_format = 0;
 
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "subchan is NULL\n");
+		return NULL;
+	}
+
 	channel = ast_channel_alloc(	1,				/* needqueue */
 					AST_STATE_DOWN,			/* state */
 					subchan->line->cid_num,		/* cid_num */
@@ -454,12 +459,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 					subchan->line->name,		/* name */
 					subchan->line->device->name,	/* name */
 					1);				/* callnums */
-
-	if (channel == NULL) {
-		ast_log(LOG_ERROR, "channel allocation failed\n");
-		ast_free(subchan);
-		return NULL;
-	}
 
 	channel->tech = &sccp_tech;
 	channel->tech_pvt = subchan;
@@ -530,8 +529,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 static int start_rtp(struct sccp_subchannel *subchan)
 {
-	ast_log(LOG_NOTICE, "start_rtp\n");
-
 	struct ast_codec_pref default_prefs = {0};
 	struct sccp_session *session = NULL;
 	struct ast_sockaddr bindaddr_tmp;
@@ -540,6 +537,8 @@ static int start_rtp(struct sccp_subchannel *subchan)
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return -1;
 	}
+
+	ast_log(LOG_DEBUG, "start rtp\n");
 
 	session = subchan->line->device->session;
 
@@ -2494,6 +2493,11 @@ static int cb_ast_hangup(struct ast_channel *channel)
 {
 	struct sccp_subchannel *subchan = NULL;
 
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
+		return -1;
+	}
+
 	subchan = channel->tech_pvt;
 	if (subchan != NULL) {
 		do_clear_subchannel(subchan);
@@ -2946,20 +2950,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	ret = handle_forward_status_req_message(NULL, (void*)0xFF);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_forward_status_req_message(NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_forward_status_req_message((void*)0xFF, NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_forward_status_req_message((void*)0xFF, NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
 	ret = codec_ast2sccp(0xFF);
 	if (ret != -1) {
 		ast_test_status_update(test, "failed: codec_ast2sccp(0xFF)\n");
@@ -3082,13 +3072,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	retptr = cb_ast_request(NULL, 0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF);
 	if (retptr != NULL) {
 		ast_test_status_update(test, "failed: cb_ast_request(NULL, 0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	retptr = cb_ast_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF);
-	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: cb_ast_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
