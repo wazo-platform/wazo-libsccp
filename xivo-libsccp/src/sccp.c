@@ -373,7 +373,12 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_device);
 
-	if (device_itr->line_count == 0) {
+	if (device_itr == NULL) {
+
+		ast_log(LOG_WARNING, "Device is not configured [%s]\n", msg->data.reg.name);
+		ret = -1;
+
+	} else if (device_itr->line_count == 0) {
 
 		ast_log(LOG_WARNING, "Device [%s] has no valid line\n", device_itr->name);
 		ret = -1;
