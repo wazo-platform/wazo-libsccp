@@ -2536,6 +2536,7 @@ static int cb_ast_answer(struct ast_channel *channel)
 
 	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
 	transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_CONNECTED);
+	transmit_callstate(line->device->session, line->instance, SCCP_CONNECTED, subchan->id);
 
 	ast_setstate(channel, AST_STATE_UP);
 	set_line_state(line, SCCP_CONNECTED);
