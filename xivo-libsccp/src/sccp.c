@@ -933,7 +933,9 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		subchan->related->related = NULL;
 	}
 
-	subchan->line->active_subchan = NULL;
+	if (subchan == line->active_subchan)
+		subchan->line->active_subchan = NULL;
+
 	ast_free(subchan);
 
 	return 0;
