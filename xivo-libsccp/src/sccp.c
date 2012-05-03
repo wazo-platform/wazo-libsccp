@@ -1232,6 +1232,18 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	} else {
 
+		ast_log(LOG_DEBUG, "line->active_subchan->channel->_state: %d\n",
+					line->active_subchan->channel->_state);
+
+		ast_log(LOG_DEBUG, "line->active_subchan->related->channel->_state: %d\n",
+					line->active_subchan->related->channel->_state);
+
+		if (line->active_subchan->channel->_state == AST_STATE_DOWN
+			|| line->active_subchan->related->channel->_state == AST_STATE_DOWN) {
+			ast_log(LOG_DEBUG, "channel state AST_STATE_DOWN\n");
+			return 0;
+		}
+
 		if (ast_bridged_channel(line->active_subchan->channel)) {
 			ast_channel_masquerade(line->active_subchan->related->channel, ast_bridged_channel(line->active_subchan->channel));
 		}
