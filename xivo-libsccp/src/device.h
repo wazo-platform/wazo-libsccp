@@ -292,7 +292,7 @@ struct sccp_device {
 	struct sccp_line *active_line;
 	uint32_t active_line_cnt;
 
-	TAILQ_HEAD(, SCCP_LINE) qline;
+	TAILQ_HEAD(, sccp_line) qline;
 	AST_RWLIST_HEAD(, sccp_line) lines;
 	AST_LIST_ENTRY(sccp_device) list;
 };

@@ -18,6 +18,7 @@ void device_unregister(struct sccp_device *device)
 		if (line_itr->active_subchan != NULL)
 			if (line_itr->active_subchan->channel != NULL) {
 				subchan = line_itr->active_subchan;
+				line_itr->active_subchan = NULL;
 				break;
 			}
 	}
@@ -63,8 +64,8 @@ void device_prepare(struct sccp_device *device)
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
 
-	while ((line_itr = TAILQ_FIRST(&device->qline))) {
-		TAILQ_REMOVE(&device->qline, line_itr, qline);
+	while (device->qline.tqh_first != NULL) {
+		TAILQ_REMOVE(&device->qline, device->qline.tqh_first, qline);
 	}
 
 	device->exten[0] = '\0';

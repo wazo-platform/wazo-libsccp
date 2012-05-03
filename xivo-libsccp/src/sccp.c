@@ -2244,8 +2244,10 @@ static void *thread_session(void *data)
 		}
 	}
 
-	if (session)
+	if (session) {
+		transmit_reset(session, 2);
 		destroy_session(&session);
+	}
 
 	return 0;
 }
