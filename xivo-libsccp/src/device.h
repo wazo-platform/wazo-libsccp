@@ -251,7 +251,7 @@ struct sccp_line {
 	struct ast_codec_pref codec_pref;
 	struct sccp_device *device;
 
-	TAILQ_ENTRY(sccp_line) qline;
+	//TAILQ_ENTRY(sccp_line) qline;
 	AST_LIST_ENTRY(sccp_line) list;
 	AST_LIST_ENTRY(sccp_line) list_per_device;
 };
@@ -292,7 +292,7 @@ struct sccp_device {
 	struct sccp_line *active_line;
 	uint32_t active_line_cnt;
 
-	TAILQ_HEAD(, sccp_line) qline;
+	//TAILQ_HEAD(, sccp_line) qlines;
 	AST_RWLIST_HEAD(, sccp_line) lines;
 	AST_LIST_ENTRY(sccp_device) list;
 };

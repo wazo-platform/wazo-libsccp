@@ -64,9 +64,14 @@ void device_prepare(struct sccp_device *device)
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
 
-	while (device->qline.tqh_first != NULL) {
-		TAILQ_REMOVE(&device->qline, device->qline.tqh_first, qline);
+/*
+	while (device->qlines.tqh_first != NULL) {
+		line_itr = device->qlines.tqh_first;
+		ast_log(LOG_DEBUG, "line: %s\n", line_itr->name);
+		TAILQ_REMOVE(&(device->qlines), device->qlines.tqh_first, qline);
+		usleep(500);
 	}
+*/
 
 	device->exten[0] = '\0';
 
@@ -354,7 +359,7 @@ void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
 
 //	ast_mutex_lock(&device->lock);
 
-	TAILQ_INSERT_TAIL(&device->qline, line, qline);
+//	TAILQ_INSERT_TAIL(&device->qlines, line, qline);
 	device->active_line_cnt++;
 
 //	ast_mutex_unlock(&device->lock);
@@ -377,7 +382,7 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line)
 	if (device->active_line == line) {
 		device->active_line = NULL;
 	} else {
-		TAILQ_REMOVE(&device->qline, line, qline);
+		//TAILQ_REMOVE(&device->qlines, line, qline);
 	}
 
 	device->active_line_cnt--;
@@ -394,13 +399,15 @@ struct sccp_line *device_get_active_line(struct sccp_device *device)
 //	ast_mutex_lock(&device->lock);
 
 	if (device->active_line == NULL) {
-		if (device->qline.tqh_first != NULL) {
-			device->active_line = device->qline.tqh_first;
-			TAILQ_REMOVE(&device->qline, device->active_line, qline);
+		/*
+		if (device->qlines.tqh_first != NULL) {
+			device->active_line = device->qlines.tqh_first;
+			TAILQ_REMOVE(&device->qlines, device->active_line, qline);
 		} else {
+		*/
 			device->active_line = device->default_line;
 			device->active_line_cnt++;
-		}
+		//}
 	}
 
 //	ast_mutex_unlock(&device->lock);

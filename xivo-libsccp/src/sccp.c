@@ -396,6 +396,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 		getsockname(session->sockfd, (struct sockaddr *)&localip, &slen);
 
 		ast_log(LOG_NOTICE, "Device found [%s]\n", device_itr->name);
+
 		device_prepare(device_itr);
 		device_register(device_itr,
 				letohl(msg->data.reg.protoVersion),
@@ -1682,7 +1683,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	}
 	else {
 		ast_log(LOG_DEBUG, "line->active_subchan->rtp is NULL\n");
-		return -1;
+		return 0;
 	}
 
 	return 0;

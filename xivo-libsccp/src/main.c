@@ -245,7 +245,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 {
 	ast_mutex_init(&device->lock);
 	ast_copy_string(device->name, name, sizeof(device->name));
-	TAILQ_INIT(&device->qline);
+	//TAILQ_INIT(&device->qlines);
 	device->voicemail[0] = '\0';
 	device->mwi_event_sub = NULL;
 	device->active_line = NULL;
