@@ -2360,8 +2360,7 @@ static struct ast_channel *cb_ast_request(const char *type, format_t format, con
 	}
 
 	if (option != NULL && !strncmp(option, "autoanswer", 10)) {
-		ast_log(LOG_WARNING, "SCCP Autoanswer has been disabled, wait for the next version!\n");
-		line->device->autoanswer = 0;
+		line->device->autoanswer = 1;
 	}
 
 	subchan = sccp_new_subchannel(line);
@@ -2384,34 +2383,18 @@ static int sccp_autoanswer_call(void *data)
 	}
 
 	line = device_get_active_line(subchan->line->device);
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return 0;
+	}
+
 	session = line->device->session;
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return 0;
+	}
 
-	ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
-
-	ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_AUTOANSWER);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
-	if (ret == -1)
-		return -1;
-
-	start_rtp(subchan);
-
-	ast_setstate(subchan->channel, AST_STATE_UP);
-	set_line_state(line, SCCP_CONNECTED);
+	do_answer(line->instance, subchan->id, session);
 
 	return 0;
 }
@@ -2505,7 +2488,7 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 
 	if (line->device->autoanswer == 1) {
 		line->device->autoanswer = 0;
-		/* ast_log(LOG_DEBUG, "sched: %d\n", ast_sched_add(sched, 1000, sccp_autoanswer_call, subchan)); */
+		sccp_autoanswer_call(subchan);
 		return 0;
 	}
 

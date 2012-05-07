@@ -153,7 +153,7 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 	return line_itr;
 }
 
-struct sccp_line *device_get_line(struct sccp_device *device, int instance)
+struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
 {
 	struct sccp_line *line_itr = NULL;
 
