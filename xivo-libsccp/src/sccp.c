@@ -2360,7 +2360,8 @@ static struct ast_channel *cb_ast_request(const char *type, format_t format, con
 	}
 
 	if (option != NULL && !strncmp(option, "autoanswer", 10)) {
-		line->device->autoanswer = 1;
+		ast_log(LOG_WARNING, "SCCP Autoanswer has been disabled, wait for the next version!\n");
+		line->device->autoanswer = 0;
 	}
 
 	subchan = sccp_new_subchannel(line);
@@ -2504,7 +2505,7 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 
 	if (line->device->autoanswer == 1) {
 		line->device->autoanswer = 0;
-		sccp_autoanswer_call(subchan);
+		/* ast_log(LOG_DEBUG, "sched: %d\n", ast_sched_add(sched, 1000, sccp_autoanswer_call, subchan)); */
 		return 0;
 	}
 
