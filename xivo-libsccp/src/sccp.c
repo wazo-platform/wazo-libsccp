@@ -492,6 +492,9 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	channel->readformat = audio_format;
 	channel->rawreadformat = audio_format;
 
+	if (subchan->line->language[0] != '\0')
+		ast_string_field_set(channel, language, subchan->line->language);
+
 	if (subchan->line->callfwd == SCCP_CFWD_ACTIVE)
 		ast_string_field_set(channel, call_forward, subchan->line->callfwd_exten);
 

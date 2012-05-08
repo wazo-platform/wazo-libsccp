@@ -424,6 +424,11 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 				} else if (!strcasecmp(var->name, "setvar")) {
 					line->chanvars = add_var(var->value, line->chanvars);
+					continue;
+
+				} else if (!strcasecmp(var->name, "language")) {
+					ast_copy_string(line->language, var->value, sizeof(line->language));
+					continue;
 				}
 			}
 		}
