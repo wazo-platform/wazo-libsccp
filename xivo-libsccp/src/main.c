@@ -275,6 +275,21 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 		device->default_line = line;
 }
 
+static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
+{
+        struct ast_variable *tmpvar = NULL;
+        char *varname = ast_strdupa(buf), *varval = NULL;
+
+        if ((varval = strchr(varname, '='))) {
+                *varval++ = '\0';
+                if ((tmpvar = ast_variable_new(varname, varval, ""))) {
+                        tmpvar->next = list;
+                        list = tmpvar;
+                }
+        }
+        return list;
+}
+
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
@@ -406,6 +421,9 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 				} else if (!strcasecmp(var->name, "cid_name")) {
 					ast_copy_string(line->cid_name, var->value, sizeof(line->cid_name));
 					continue;
+
+				} else if (!strcasecmp(var->name, "setvar")) {
+					line->chanvars = add_var(var->value, line->chanvars);
 				}
 			}
 		}

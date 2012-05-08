@@ -236,6 +236,8 @@ struct sccp_line {
 	char cid_num[80];
 	char cid_name[80];
 
+	struct ast_variable *chanvars;
+
 	uint32_t serial_callid;
 	uint32_t instance;
 	uint32_t state;

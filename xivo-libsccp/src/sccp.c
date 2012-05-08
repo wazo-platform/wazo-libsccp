@@ -445,6 +445,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
 static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, const char *linkedid)
 {
 	struct ast_channel *channel = NULL;
+	struct ast_variable *var_itr = NULL;
 	int audio_format = 0;
 
 	if (subchan == NULL) {
@@ -475,6 +476,14 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		channel->nativeformats = SCCP_CODEC_G711_ULAW;
 	else
 		channel->nativeformats = subchan->line->device->codecs;
+
+	char valuebuf[1024];
+	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
+		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
+		ast_log(LOG_DEBUG, "var_name: %s  var_value: %s valuebuf: %s\n",
+					var_itr->name, var_itr->value, valuebuf);
+		pbx_builtin_setvar_helper(channel, var_itr->name, ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf)));
+	}
 
 	audio_format = ast_best_codec(channel->nativeformats);
 
