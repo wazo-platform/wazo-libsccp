@@ -78,6 +78,8 @@ AST_TEST_DEFINE(sccp_test_config)
 		"[200]\n"
 		"cid_num=200\n"
 		"cid_name=Bob\n"
+		"setvar=XIVO=10\n"
+		"language=fr_FR\n"
 		"\n"
 		"[devices]\n"
 		"[SEPACA016FDF235]\n"
@@ -134,6 +136,30 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	if (line->device == NULL) {
 		ast_test_status_update(test, "line %s has no device\n", line->name);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (line->chanvars == NULL) {
+		ast_test_status_update(test, "line %s varchars is NULL\n", line->name);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(line->chanvars->name, "XIVO")) {
+		ast_test_status_update(test, "line->chanvars->name %s != %s\n", line->chanvars->name, "XIVO");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(line->chanvars->value, "10")) {
+		ast_test_status_update(test, "line->chanvars->value %s != %s\n", line->chanvars->value, "10");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(line->language, "fr_FR")) {
+		ast_test_status_update(test, "language %s != %s\n", line->language, "fr_FR");
 		ret = AST_TEST_FAIL;
 		goto cleanup;
 	}
