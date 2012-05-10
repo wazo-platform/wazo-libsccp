@@ -511,24 +511,25 @@ struct sccp_msg {
 };
 
 struct softkey_template_definition softkey_template_default[] = {
-	{"Redial",	0x01},
-	{"NewCall",	0x02},
-	{"Hold",	0x03},
-	{"Trnsfer",	0x04},
-	{"CFwdAll",	0x05},
-	{"CFwdBusy",	0x06},
-	{"CFwdNoAnswer",0x07},
-	{"Cancel",	0x08},
-	{"EndCall",	0x09},
-	{"Resume",	0x0A},
-	{"Answer",	0x0B},
-	{"Info",	0x0C},
-	{"Confrn",	0x0D},
-	{"Park",	0x0E},
-	{"Join",	0x0F},
-	{"MeetMe",	0x10},
-	{"PickUp",	0x11},
-	{"GPickUp",	0x12},
-	{"Dial",	0x13},
+	{"\x80\x01", 0x01}, // Redial
+	{"\x80\x02", 0x02}, // NewCall
+	{"\x80\x03", 0x03}, // Hold
+	{"\x80\x04", 0x04}, // Trnsfer
+	{"\x80\x05", 0x05}, // CFwdAll
+	{"\x80\x06", 0x06}, // CFwdBusy
+	{"\x80\x07", 0x07}, // CFwdNoAnswer
+	{"\x80\x08", 0x08}, // Cancel
+	{"\x80\x09", 0x09}, // EndCall
+	{"\x80\x0A", 0x0A}, // Resume
+	{"\x80\x0B", 0x0B}, // Answer
+	{"\x80\x0C", 0x0C}, // Info
+	{"\x80\x0D", 0x0D}, // Confrn
+	{"\x80\x0E", 0x0E}, // Park
+	{"\x80\x0F", 0x0F}, // Join
+	{"\x80\x10", 0x10}, // MeetMe
+	{"\x80\x11", 0x11}, // PickUp
+	{"\x80\x12", 0x12}, // GPickUp
+	{"Dial", 0x13}, // Dial
 };
+
 #endif /* SCCP_MESSAGE_H */
