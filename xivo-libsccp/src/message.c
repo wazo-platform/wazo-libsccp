@@ -514,16 +514,17 @@ int transmit_selectsoftkeys(struct sccp_session *session, int instance, int call
 	if (session == NULL) {
 		ast_log(LOG_ERROR, "Invalid session\n");
 		return -1;
+
 	}
 
 	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
 	if (msg == NULL)
 		return -1;
 
-        msg->data.selectsoftkey.lineInstance = htolel(instance);
-        msg->data.selectsoftkey.callInstance = htolel(callid);
-        msg->data.selectsoftkey.softKeySetIndex = htolel(softkey);
-        msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
+	msg->data.selectsoftkey.lineInstance = htolel(instance);
+	msg->data.selectsoftkey.callInstance = htolel(callid);
+	msg->data.selectsoftkey.softKeySetIndex = htolel(softkey);
+	msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)

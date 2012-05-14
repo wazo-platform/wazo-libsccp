@@ -130,9 +130,9 @@ struct open_receive_channel_ack_message_v17 {
 #define SOFTKEY_SET_REQ_MESSAGE 0x0025
 #define SOFTKEY_EVENT_MESSAGE 0x0026
 struct softkey_event_message {
-        uint32_t softKeyEvent;
-        uint32_t lineInstance;
-        uint32_t callInstance;
+	uint32_t softKeyEvent;
+	uint32_t lineInstance;
+	uint32_t callInstance;
 };
 
 #define SOFTKEY_TEMPLATE_REQ_MESSAGE 0x0028
@@ -140,10 +140,10 @@ struct softkey_event_message {
 #define ACCESSORY_STATUS_MESSAGE 0x0049
 #define REGISTER_ACK_MESSAGE 0x0081
 struct register_ack_message {
-        uint32_t keepAlive;
-        char dateTemplate[6];
-        char res[2];
-        uint32_t secondaryKeepAlive;
+	uint32_t keepAlive;
+	char dateTemplate[6];
+	char res[2];
+	uint32_t secondaryKeepAlive;
 	uint8_t protoVersion;
 	uint8_t unknown1;
 	uint8_t unknown2;
@@ -300,15 +300,15 @@ struct time_date_res_message {
 
 #define BUTTON_TEMPLATE_RES_MESSAGE 0x0097
 struct button_definition {
-        uint8_t lineInstance;
-        uint8_t buttonDefinition;
+	uint8_t lineInstance;
+	uint8_t buttonDefinition;
 };
 
 struct button_template_res_message {
-        uint32_t buttonOffset;
-        uint32_t buttonCount;
-        uint32_t totalButtonCount;
-        struct button_definition definition[42];
+	uint32_t buttonOffset;
+	uint32_t buttonCount;
+	uint32_t totalButtonCount;
+	struct button_definition definition[42];
 };
 
 #define CAPABILITIES_REQ_MESSAGE 0x009B
@@ -410,16 +410,16 @@ struct softkey_template_definition {
 
 #define SOFTKEY_SET_RES_MESSAGE 0x0109
 struct softkey_set_definition {
-        uint8_t softKeyTemplateIndex[16];
-        uint16_t softKeyInfoIndex[16];
+	uint8_t softKeyTemplateIndex[16];
+	uint16_t softKeyInfoIndex[16];
 };
 
 #define SELECT_SOFT_KEYS_MESSAGE 0x0110
 struct select_soft_keys_message {
-        uint32_t lineInstance;
-        uint32_t callInstance;
-        uint32_t softKeySetIndex;
-        uint32_t validKeyMask;
+	uint32_t lineInstance;
+	uint32_t callInstance;
+	uint32_t softKeySetIndex;
+	uint32_t validKeyMask;
 };
 
 #define CALL_STATE_MESSAGE 0x0111
@@ -434,30 +434,37 @@ struct call_state_message {
 
 #define DISPLAY_NOTIFY_MESSAGE 0x0114
 struct display_notify_message {
-        uint32_t displayTimeout;
-        char displayMessage[100];
+	uint32_t displayTimeout;
+	char displayMessage[100];
 };
 
 #define ACTIVATE_CALL_PLANE_MESSAGE 0x0116
 struct activate_call_plane_message {
-        uint32_t lineInstance;
+	uint32_t lineInstance;
+};
+
+#define DIALED_NUMBER_MESSAGE 0x011d
+struct dialed_number_message {
+	char calledParty[24];
+	uint32_t lineInstance;
+	uint32_t callInstance;
 };
 
 #define START_MEDIA_TRANSMISSION_ACK_MESSAGE 0x0159
 
 struct softkey_set_res_message {
-        uint32_t softKeySetOffset;
-        uint32_t softKeySetCount;
-        uint32_t totalSoftKeySetCount;
-        struct softkey_set_definition softKeySetDefinition[16];
-        uint32_t res;
+	uint32_t softKeySetOffset;
+	uint32_t softKeySetCount;
+	uint32_t totalSoftKeySetCount;
+	struct softkey_set_definition softKeySetDefinition[16];
+	uint32_t res;
 };
 
 struct softkey_template_res_message {
-        uint32_t softKeyOffset;
-        uint32_t softKeyCount;
-        uint32_t totalSoftKeyCount;
-        struct softkey_template_definition softKeyTemplateDefinition[32];
+	uint32_t softKeyOffset;
+	uint32_t softKeyCount;
+	uint32_t totalSoftKeyCount;
+	struct softkey_template_definition softKeyTemplateDefinition[32];
 };
 
 union sccp_data {
@@ -485,11 +492,12 @@ union sccp_data {
 	struct display_notify_message notify;
 	struct call_state_message callstate;
 	struct keypad_button_message keypad;
-        struct softkey_event_message softkeyevent;
-        struct activate_call_plane_message activatecallplane;
-        struct softkey_set_res_message softkeysets;
+	struct softkey_event_message softkeyevent;
+	struct activate_call_plane_message activatecallplane;
+	struct softkey_set_res_message softkeysets;
 	struct softkey_template_res_message softkeytemplate;
-        struct select_soft_keys_message selectsoftkey;
+	struct select_soft_keys_message selectsoftkey;
+	struct dialed_number_message dialednumber;
 	struct stop_media_transmission_message stopmedia;
 	struct start_media_transmission_message startmedia;
 	struct start_media_transmission_message_v17 startmedia_v17;
