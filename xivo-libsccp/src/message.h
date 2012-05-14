@@ -26,6 +26,7 @@ int transmit_lamp_state(struct sccp_session *session, int callInstance, int line
 int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
 int transmit_reset(struct sccp_session *session, uint32_t type);
 int transmit_ringer_mode(struct sccp_session *session, int mode);
+int transmit_dialed_number(struct sccp_session *session, const char *extension, int instance, int callid);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);
 
 #define KEEP_ALIVE_MESSAGE 0x0000

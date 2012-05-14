@@ -506,6 +506,37 @@ int transmit_ringer_mode(struct sccp_session *session, int mode)
 	return 0;
 }
 
+int transmit_dialed_number(struct sccp_session *session, const char *extension, int instance, int callid)
+{
+	int ret = 0;
+	struct sccp_msg *msg = NULL;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	if (extension == NULL) {
+		ast_log(LOG_ERROR, "extension is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct dialed_number_message), DIALED_NUMBER_MESSAGE);
+	if (msg == NULL)
+		return -1;
+
+	ast_copy_string(msg->data.dialednumber.calledParty, extension, sizeof(msg->data.dialednumber.calledParty));
+
+	msg->data.dialednumber.lineInstance = htolel(instance);
+	msg->data.dialednumber.callInstance = htolel(callid);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_selectsoftkeys(struct sccp_session *session, int instance, int callid, int softkey)
 {
 	struct sccp_msg *msg = NULL;
