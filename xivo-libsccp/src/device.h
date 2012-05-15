@@ -169,7 +169,6 @@ static const uint8_t softkey_default_ringin[] = {
 
 static const uint8_t softkey_default_offhook[] = {
 	SOFTKEY_ENDCALL,
-	SOFTKEY_DIAL,
 };
 
 static const uint8_t softkey_default_connintransfer[] = {
