@@ -1046,33 +1046,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	return 0;
 }
 
-int handle_softkey_dial(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
-{
-	int ret = 0;
-	struct sccp_line *line = NULL;
-	size_t len = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	line = device_get_line(session->device, line_instance);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
-
-	if (line->state == SCCP_OFFHOOK) {
-		len = strlen(line->device->exten);
-		if (len < sizeof(line->device->exten) - 1) {
-			line->device->exten[len] = '#';
-			line->device->exten[len+1] = '\0';
-		}
-	}
-	return 0;
-}
-
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	int ret = 0;
@@ -1390,14 +1363,6 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_REDIAL:
-		break;
-
-	case SOFTKEY_DIAL:
-
-		handle_softkey_dial(msg->data.softkeyevent.lineInstance,
-					msg->data.softkeyevent.callInstance,
-					session);
-
 		break;
 
 	case SOFTKEY_NEWCALL:

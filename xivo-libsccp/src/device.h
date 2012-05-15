@@ -125,7 +125,6 @@
 #define SOFTKEY_MEETME			0x10
 #define SOFTKEY_PICKUP			0x11
 #define SOFTKEY_GPICKUP			0x12
-#define SOFTKEY_DIAL			0x13
 #define SOFTKEY_CANCEL			0x08
 
 enum sccp_codecs {
