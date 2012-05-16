@@ -785,6 +785,11 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	/* Now, set the newly answered subchannel as active */
 	line_select_subchan(line, subchan);
 
+	if (subchan->channel == NULL) {
+		ast_log(LOG_WARNING, "channel is NULL\n");
+		return 0;
+	}
+
 	ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
 
 	ret = transmit_ringer_mode(session, SCCP_RING_OFF);
