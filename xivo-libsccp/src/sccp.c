@@ -20,7 +20,6 @@
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <fcntl.h>
 #include <netdb.h>
 #include <signal.h>
 #include <string.h>
@@ -467,6 +466,11 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 					subchan->line->device->name,	/* name */
 					1);				/* callnums */
 
+	if (channel == NULL) {
+		ast_log(LOG_ERROR, "ast_channel_alloc failed !\n");
+		return NULL;
+	}
+
 	channel->tech = &sccp_tech;
 	channel->tech_pvt = subchan;
 	subchan->channel = channel;
@@ -643,6 +647,10 @@ static void *sccp_lookup_exten(void *data)
 	}
 
 	channel = sccp_new_channel(subchan, NULL);
+	if (channel == NULL) {
+		ast_log(LOG_ERROR, "channel is NULL\n");
+		return NULL;
+	}
 
 	len = strlen(line->device->exten);
 	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
@@ -918,6 +926,8 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		if (ret == -1)
 			return -1;
 
+
+		ast_rtp_instance_destroy(subchan->rtp);
 		ast_rtp_instance_destroy(subchan->rtp);
 		subchan->rtp = NULL;
 	}
@@ -2569,7 +2579,7 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 		frame = &ast_null_frame;
 	}
 
-	if (frame->frametype == AST_FRAME_VOICE) {
+	if (frame && frame->frametype == AST_FRAME_VOICE) {
 		if (frame->subclass.codec != channel->nativeformats) {
 			channel->nativeformats = frame->subclass.codec;
 			ast_set_read_format(channel, channel->readformat);
