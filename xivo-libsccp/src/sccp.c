@@ -926,8 +926,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		if (ret == -1)
 			return -1;
 
-
-		ast_rtp_instance_destroy(subchan->rtp);
+		ast_rtp_instance_stop(subchan->rtp);
 		ast_rtp_instance_destroy(subchan->rtp);
 		subchan->rtp = NULL;
 	}
