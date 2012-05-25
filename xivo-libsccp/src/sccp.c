@@ -431,6 +431,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
 
 	/* initialise subchannel and add it to the list */
 	subchan->state = SCCP_OFFHOOK;
+	subchan->on_hold = 0;
 	subchan->line = line;
 	subchan->id = line->serial_callid++;
 	subchan->channel = NULL;
@@ -866,6 +867,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	}
 
 	if (session->device->protoVersion == 11) {
+
 		/* Newest protocols provide these informations */
 		line_instance = msg->data.offhook.lineInstance;
 		subchan_id = msg->data.offhook.callInstance;
@@ -1052,9 +1054,11 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 
 		subchan = line->active_subchan;
 		if (subchan) {
-			line_instance = line->instance;
-			subchan_id = subchan->id;
-			do_hangup(line_instance, subchan_id, session);
+			if (!subchan->on_hold) {
+				line_instance = line->instance;
+				subchan_id = subchan->id;
+				do_hangup(line_instance, subchan_id, session);
+			}
 		}
 		else {
 			ast_log(LOG_DEBUG, "subchan is NULL\n");
@@ -1105,6 +1109,8 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	if (ret == -1)
 		return -1;
 
+	subchan_set_on_hold(line, subchan_id);
+
 	return 0;
 }
 
@@ -1152,6 +1158,8 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	/* start audio stream */
 	transmit_connect(line, subchan_id);
+
+	subchan_unset_on_hold(line, subchan_id);
 
 	return 0;
 }
@@ -3290,6 +3298,7 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	const int flag_reuse = 1;
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
+
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	sccp_config = sccp_cfg;

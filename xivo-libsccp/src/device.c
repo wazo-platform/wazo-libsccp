@@ -335,6 +335,34 @@ void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 	}
 }
 
+void subchan_set_on_hold(struct sccp_line *line, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan;
+
+	subchan = line_get_subchan(line, subchan_id);
+	if (subchan == NULL) {
+		ast_log(LOG_WARNING, "subchan is NULL\n");
+		return;
+	}
+
+	subchan->on_hold = 1;
+	ast_log(LOG_DEBUG, "subchan->on_hold (%d)\n", subchan->on_hold);
+}
+
+void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan;
+
+	subchan = line_get_subchan(line, subchan_id);
+	if (subchan == NULL) {
+		ast_log(LOG_WARNING, "subchan is NULL\n");
+		return;
+	}
+
+	subchan->on_hold = 0;
+	ast_log(LOG_DEBUG, "subchan->on_hold (%d)\n", subchan->on_hold);
+}
+
 void subchan_set_state(struct sccp_subchannel *subchan, int state)
 {
 	subchan->state = state;
