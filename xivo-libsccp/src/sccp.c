@@ -894,8 +894,12 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 			do_answer(line_instance, subchan_id, session);
 		}
 		else {
-			ast_log(LOG_DEBUG, "subchan not exist\n");
-			do_newcall(line_instance, 0, session);
+			ast_log(LOG_DEBUG, "line->active_subchan (%p)\n", line->active_subchan);
+
+			if (line->active_subchan == NULL) {
+				ast_log(LOG_DEBUG, "subchan not exist\n");
+				do_newcall(line_instance, 0, session);
+			}
 		}
 	}
 
