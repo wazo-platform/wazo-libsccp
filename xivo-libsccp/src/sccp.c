@@ -1878,6 +1878,22 @@ static int handle_ipport_message(struct sccp_msg *msg, struct sccp_session *sess
 	return 0;
 }
 
+static int handle_voicemail_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	struct sccp_line *line = NULL;
+
+	line = device_get_line(session->device, 1);
+	do_newcall(msg->data.voicemail.lineInstance, msg->data.voicemail.callInstance, session);
+
+	usleep(300);
+	ast_copy_string(line->device->exten, sccp_config->vmexten, sizeof(line->device->exten));
+
+	line->device->exten[3] = '#';
+	line->device->exten[4] = '\0';
+
+	return 0;
+}
+
 static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_device *device = NULL;
@@ -2050,6 +2066,11 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	case ENBLOC_CALL_MESSAGE:
 		ast_log(LOG_DEBUG, "Enbloc call message\n");
 		ret = handle_enbloc_call_message(msg, session);
+		break;
+
+	case VOICEMAIL_MESSAGE:
+		ast_log(LOG_DEBUG, "voicemail message\n");
+		ret = handle_voicemail_message(msg, session);
 		break;
 
 	case KEYPAD_BUTTON_MESSAGE:

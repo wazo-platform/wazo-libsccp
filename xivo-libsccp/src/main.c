@@ -73,6 +73,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		"authtimeout=10\n"
 		"dialtimeout=3\n"
 		"context=default\n"
+		"vmexten=*988\n"
 		"\n"
 		"[lines]\n"
 		"[200]\n"
@@ -123,6 +124,12 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	if (strcmp(sccp_cfg->context, "default")) {
 		ast_test_status_update(test, "context %s != %s\n", sccp_cfg->context, "default");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(sccp_cfg->vmexten, "*988")) {
+		ast_test_status_update(test, "vmexten '%s' != '%s'\n", sccp_cfg->vmexten, "*988");
 		ret = AST_TEST_FAIL;
 		goto cleanup;
 	}
@@ -482,6 +489,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0", sizeof(sccp_cfg->bindaddr));
 	ast_copy_string(sccp_cfg->dateformat, "D.M.Y", sizeof(sccp_cfg->dateformat));
 	ast_copy_string(sccp_cfg->context, "default", sizeof(sccp_cfg->context));
+	ast_copy_string(sccp_cfg->vmexten, "*98", sizeof(sccp_cfg->vmexten));
 
 	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
 	sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
@@ -516,6 +524,10 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 
 		} else if (!strcasecmp(var->name, "context")) {
 			ast_copy_string(sccp_cfg->context, var->value, sizeof(sccp_cfg->context));
+			continue;
+
+		} else if (!strcasecmp(var->name, "vmexten")) {
+			ast_copy_string(sccp_cfg->vmexten, var->value, sizeof(sccp_cfg->vmexten));
 			continue;
 		}
 	}

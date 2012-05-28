@@ -60,6 +60,12 @@ struct keypad_button_message {
 	uint32_t callInstance;
 };
 
+#define VOICEMAIL_MESSAGE 0x0005
+struct voicemail_message {
+	uint32_t lineInstance;
+	uint32_t callInstance;
+};
+
 #define OFFHOOK_MESSAGE 0x0006
 struct offhook_message {
 	uint32_t lineInstance;
@@ -473,6 +479,7 @@ union sccp_data {
 	struct register_message reg;
 	struct register_ack_message regack;
 	struct register_rej_message regrej;
+	struct voicemail_message voicemail;
 	struct offhook_message offhook;
 	struct onhook_message onhook;
 	struct start_tone_message starttone;
