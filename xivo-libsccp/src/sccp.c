@@ -1885,7 +1885,9 @@ static int handle_voicemail_message(struct sccp_msg *msg, struct sccp_session *s
 	line = device_get_line(session->device, 1);
 	do_newcall(msg->data.voicemail.lineInstance, msg->data.voicemail.callInstance, session);
 
-	usleep(300);
+	/* open our speaker */
+	transmit_speaker_mode(session, SCCP_SPEAKERON);
+
 	ast_copy_string(line->device->exten, sccp_config->vmexten, sizeof(line->device->exten));
 
 	line->device->exten[3] = '#';
