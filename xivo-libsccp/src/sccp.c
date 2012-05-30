@@ -1087,6 +1087,18 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	}
 
 	/* put on hold */
+	if (line->active_subchan && line->active_subchan->channel) {
+		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
+		ast_channel_set_fd(line->active_subchan->channel, 0, -1);
+		ast_channel_set_fd(line->active_subchan->channel, 1, -1);
+	}
+
+	if (line->active_subchan && line->active_subchan->rtp) {
+		ast_rtp_instance_stop(line->active_subchan->rtp);
+		ast_rtp_instance_destroy(line->active_subchan->rtp);
+		line->active_subchan->rtp = NULL;
+	}
+
 	ret = transmit_callstate(session, line_instance, SCCP_HOLD, subchan_id);
 	if (ret == -1)
 		return -1;
@@ -1111,6 +1123,9 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 	subchan_set_on_hold(line, subchan_id);
 
+	if (line->active_subchan && line->active_subchan->id == subchan_id)
+		line->active_subchan = NULL;
+
 	return 0;
 }
 
@@ -1132,17 +1147,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	if (line->active_subchan) {
 		/* if another channel is already active */
 		if (line->active_subchan->id != subchan_id) {
-
-			/* set tone to none */
-			transmit_tone(session, SCCP_TONE_NONE, line->instance, line->active_subchan->id);
-
-			/* put on hold */
-			transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
-			transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
-
-			/* stop audio stream */
-			transmit_close_receive_channel(line, line->active_subchan->id);
-			transmit_stop_media_transmission(line, line->active_subchan->id);
+			handle_softkey_hold(line->instance, line->active_subchan->id, session);
 		}
 	}
 
@@ -1157,7 +1162,8 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 	/* start audio stream */
-	transmit_connect(line, subchan_id);
+	start_rtp(line->active_subchan);
+	ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
 
 	subchan_unset_on_hold(line, subchan_id);
 
