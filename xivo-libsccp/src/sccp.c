@@ -1883,7 +1883,7 @@ static int handle_voicemail_message(struct sccp_msg *msg, struct sccp_session *s
 	struct sccp_line *line = NULL;
 
 	line = device_get_line(session->device, 1);
-	do_newcall(msg->data.voicemail.lineInstance, msg->data.voicemail.callInstance, session);
+	do_newcall(1, 0, session);
 
 	/* open our speaker */
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
