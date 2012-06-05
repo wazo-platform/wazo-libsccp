@@ -2427,6 +2427,8 @@ static int sccp_autoanswer_call(void *data)
 		return 0;
 	}
 
+	transmit_speaker_mode(session, SCCP_SPEAKERON);
+
 	do_answer(line->instance, subchan->id, session);
 
 	return 0;
