@@ -829,6 +829,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 
 	ast_setstate(subchan->channel, AST_STATE_UP);
 	set_line_state(line, SCCP_CONNECTED);
+	subchan_set_state(subchan, SCCP_CONNECTED);
 
 	return 0;
 }
