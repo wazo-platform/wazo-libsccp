@@ -2678,11 +2678,6 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		return -1;
 	}
 
-	if (data == NULL) {
-		ast_log(LOG_DEBUG, "data is NULL\n");
-		return -1;
-	}
-
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
@@ -2766,10 +2761,12 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 
 	case AST_CONTROL_HOLD:
 		ast_log(LOG_DEBUG, "hold\n");
+		ast_moh_start(channel, data, NULL);
 		break;
 
 	case AST_CONTROL_UNHOLD:
 		ast_log(LOG_DEBUG, "unhold\n");
+		ast_moh_stop(channel);
 		break;
 
 	case AST_CONTROL_VIDUPDATE:
