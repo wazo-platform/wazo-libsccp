@@ -189,10 +189,14 @@ char *device_type_str(int device_type)
 		return "7941";
 	case SCCP_DEVICE_7941GE:
 		return "7941GE";
+	case SCCP_DEVICE_7942:
+		return "7942";
 	case SCCP_DEVICE_7960:
 		return "7960";
 	case SCCP_DEVICE_7961:
 		return "7961";
+	case SCCP_DEVICE_7962:
+		return "7962";
 	default:
 		return "unknown";
 	}
@@ -222,8 +226,10 @@ int device_type_is_supported(int device_type)
 	case SCCP_DEVICE_7940:
 	case SCCP_DEVICE_7941:
 	case SCCP_DEVICE_7941GE:
+	case SCCP_DEVICE_7942:
 	case SCCP_DEVICE_7960:
 	case SCCP_DEVICE_7961:
+	case SCCP_DEVICE_7962:
 		supported = 1;
 		break;
 
@@ -263,6 +269,7 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	case SCCP_DEVICE_7940:
 	case SCCP_DEVICE_7941:
 	case SCCP_DEVICE_7941GE:
+	case SCCP_DEVICE_7942:
 		for (i = 0; i < 2; i++) {
 			(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
 		}
@@ -270,6 +277,7 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 
 	case SCCP_DEVICE_7960:
 	case SCCP_DEVICE_7961:
+	case SCCP_DEVICE_7962:
 		for (i = 0; i < 6; i++) {
 			(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
 		}
