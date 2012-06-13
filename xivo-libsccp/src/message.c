@@ -199,6 +199,8 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid)
 	if (local.sin_addr.s_addr == 0)
 		local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
 
+	ast_log(LOG_DEBUG, "local address: %s\n", ast_inet_ntoa(local.sin_addr));
+
 	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
 
 	msg->data.startmedia.conferenceId = htolel(0);

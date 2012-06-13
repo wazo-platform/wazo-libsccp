@@ -10,6 +10,7 @@
 #include <asterisk/io.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/module.h>
+#include <asterisk/musiconhold.h>
 #include <asterisk/netsock.h>
 #include <asterisk/pbx.h>
 #include <asterisk/poll-compat.h>
@@ -20,6 +21,7 @@
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <iconv.h>
 #include <netdb.h>
 #include <signal.h>
 #include <string.h>
@@ -2435,6 +2437,65 @@ static int sccp_autoanswer_call(void *data)
 	return 0;
 }
 
+char *utf8_to_iso88591(char *to_convert)
+{
+	iconv_t cd;
+
+	size_t len;
+	size_t outbytesleft;
+	size_t inbytesleft;
+	size_t iconv_value;
+
+	char *outbuf = NULL;
+	char *inbuf = NULL;
+	char *bufptr = NULL;
+
+	if (to_convert == NULL) {
+		ast_log(LOG_DEBUG, "to_convert is NULL\n");
+		return NULL;
+	}
+
+	cd = iconv_open("ISO-8859-1", "UTF-8");
+
+	len = strlen(to_convert);
+
+	outbuf = ast_calloc(1, len);
+	bufptr = outbuf;
+
+	outbytesleft = len;
+	inbytesleft = len;
+
+	bufptr = outbuf;
+	inbuf = ast_strdup(to_convert);
+
+	iconv(cd,
+		&inbuf,
+		&inbytesleft,
+		&outbuf,
+		&outbytesleft);
+
+	if (iconv_value == (size_t)-1) {
+
+		switch (errno) {
+		case EILSEQ:
+			ast_log(LOG_ERROR, "Invalid multibyte sequence\n");
+			break;
+		case EINVAL:
+			ast_log(LOG_ERROR, "Incomplete multibyte sequebec\n");
+			break;
+		case E2BIG:
+			ast_log(LOG_ERROR, "Not enough space in outbuf\n");
+			break;
+		}
+
+		return NULL;
+	}
+
+	iconv_close(cd);
+
+	return bufptr;
+}
+
 static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 {
 	int ret = 0;
@@ -2509,14 +2570,26 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_callinfo(session, channel->connected.id.name.str,
-					channel->connected.id.number.str,
+	char *namestr = NULL;
+	char *numberstr = NULL;
+
+	if (line->device->protoVersion <= 11) {
+		namestr = utf8_to_iso88591(channel->connected.id.name.str);
+		numberstr = utf8_to_iso88591(channel->connected.id.number.str);
+	}
+
+	ret = transmit_callinfo(session,
+				namestr ? namestr : channel->connected.id.name.str,
+				numberstr ? numberstr : channel->connected.id.number.str,
 					line->cid_name,
 					line->cid_num,
 					line->instance,
 					subchan->id, 1);
 	if (ret == -1)
 		return -1;
+
+	free(namestr);
+	free(numberstr);
 
 	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 	if (ret == -1)
@@ -2844,6 +2917,22 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	}
 
 	ast_test_status_update(test, "Executing sccp test null arguments...\n");
+
+	retptr = (void*)0x1;
+	retptr = (void*)utf8_to_iso88591(NULL);
+	if (retptr != NULL) {
+		ast_test_status_update(test, "failed: utf8_to_iso88591(NULL)\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	retptr = NULL;
+	retptr = utf8_to_iso88591("Ã©");
+	if (strcmp(retptr, "é")) {
+		ast_test_status_update(test, "failed: 'é' != %s\n", retptr);
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
 
 	ret = handle_softkey_template_req_message(NULL);
 	if (ret != -1) {
@@ -3182,13 +3271,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	ret = cb_ast_indicate(NULL, 0xFF, (void*)0xFF, 0xFF);
 	if (ret != -1) {
 		ast_test_status_update(test, "failed: cb_ast_indicate(NULL, 0xFF, (void*)0xFF, 0xFF)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = cb_ast_indicate((void*)0xFF, 0xFF, NULL, 0xFF);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: cb_ast_indicate((void*)0xFF, 0xFF, NULL, 0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
