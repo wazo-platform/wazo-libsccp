@@ -2468,11 +2468,11 @@ char *utf8_to_iso88591(char *to_convert)
 	bufptr = outbuf;
 	inbuf = ast_strdup(to_convert);
 
-	iconv(cd,
-		&inbuf,
-		&inbytesleft,
-		&outbuf,
-		&outbytesleft);
+	iconv_value = iconv(cd,
+			&inbuf,
+			&inbytesleft,
+			&outbuf,
+			&outbytesleft);
 
 	if (iconv_value == (size_t)-1) {
 
