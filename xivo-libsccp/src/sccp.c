@@ -136,6 +136,11 @@ static void post_line_register_check(struct sccp_session *session)
 	char exten[AST_MAX_EXTENSION];
 	struct sccp_line *line = NULL;
 
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return;
+	}
+
 	/* If an entry exist, update the device callfoward status */
 	line = session->device->default_line;
 	result = ast_db_get("sccp/cfwdall", line->name, exten, sizeof(exten));
@@ -2488,9 +2493,11 @@ char *utf8_to_iso88591(char *to_convert)
 			break;
 		}
 
-		return NULL;
+		free(bufptr);
+		bufptr = NULL;
 	}
 
+	free(inbuf);
 	iconv_close(cd);
 
 	return bufptr;
