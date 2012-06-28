@@ -2453,7 +2453,9 @@ char *utf8_to_iso88591(char *to_convert)
 
 	char *outbuf = NULL;
 	char *inbuf = NULL;
-	char *bufptr = NULL;
+
+	char *outbufptr = NULL;
+	char *inbufptr = NULL;
 
 	if (to_convert == NULL) {
 		ast_log(LOG_DEBUG, "to_convert is NULL\n");
@@ -2465,13 +2467,13 @@ char *utf8_to_iso88591(char *to_convert)
 	len = strlen(to_convert);
 
 	outbuf = ast_calloc(1, len);
-	bufptr = outbuf;
+	outbufptr = outbuf;
 
 	outbytesleft = len;
 	inbytesleft = len;
 
-	bufptr = outbuf;
 	inbuf = ast_strdup(to_convert);
+	inbufptr = inbuf;
 
 	iconv_value = iconv(cd,
 			&inbuf,
@@ -2493,14 +2495,14 @@ char *utf8_to_iso88591(char *to_convert)
 			break;
 		}
 
-		free(bufptr);
-		bufptr = NULL;
+		free(outbufptr);
+		outbufptr = NULL;
 	}
 
-	free(inbuf);
+	free(inbufptr);
 	iconv_close(cd);
 
-	return bufptr;
+	return outbufptr;
 }
 
 static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
@@ -2932,6 +2934,14 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
+
+        retptr = NULL;
+        retptr = utf8_to_iso88591("0sïkö Düô");
+        if (retptr == NULL) {
+                ast_test_status_update(test, "failed: retptr == NULL\n");
+                result = AST_TEST_FAIL;
+                goto cleanup;
+        }
 
 	retptr = NULL;
 	retptr = utf8_to_iso88591("Ã©");
