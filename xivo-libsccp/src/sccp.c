@@ -2405,7 +2405,7 @@ static struct ast_channel *cb_ast_request(const char *type, format_t format, con
 	}
 
 	subchan = sccp_new_subchannel(line);
-	channel = sccp_new_channel(subchan, NULL);
+	channel = sccp_new_channel(subchan, requestor ? requestor->linkedid : NULL);
 
 	return channel;
 }
