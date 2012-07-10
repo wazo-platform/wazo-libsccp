@@ -238,6 +238,7 @@ struct sccp_line {
 	char cid_name[80];
 
 	char language[MAX_LANGUAGE];
+	char context[AST_MAX_EXTENSION];
 	struct ast_variable *chanvars;
 
 	uint32_t serial_callid;

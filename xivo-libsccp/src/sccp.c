@@ -125,7 +125,7 @@ static void mwi_subscribe(struct sccp_device *device)
 
 	device->mwi_event_sub = ast_event_subscribe(AST_EVENT_MWI, mwi_event_cb, "sccp mwi subsciption", device,
 		AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, device->voicemail,
-		AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, sccp_config->context,
+		AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, device->default_line->context,
 		AST_EVENT_IE_NEWMSGS, AST_EVENT_IE_PLTYPE_EXISTS,
 		AST_EVENT_IE_END);
 }
@@ -466,7 +466,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 					subchan->line->cid_name,	/* cid_name */
 					"code",				/* acctcode */
 					subchan->line->device->exten,	/* exten */
-					sccp_config->context,		/* context */
+					subchan->line->context,		/* context */
 					linkedid,			/* linked ID */
 					0,				/* amaflag */
 					"sccp/%s@%s-%d",		/* format */

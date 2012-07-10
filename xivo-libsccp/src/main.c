@@ -81,6 +81,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		"cid_name=Bob\n"
 		"setvar=XIVO=10\n"
 		"language=fr_FR\n"
+		"context=a_context\n"
 		"\n"
 		"[devices]\n"
 		"[SEPACA016FDF235]\n"
@@ -167,6 +168,12 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	if (strcmp(line->language, "fr_FR")) {
 		ast_test_status_update(test, "language %s != %s\n", line->language, "fr_FR");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(line->context, "a_context")) {
+		ast_test_status_update(test, "context %s != %s\n", line->context, "a_context");
 		ret = AST_TEST_FAIL;
 		goto cleanup;
 	}
@@ -462,6 +469,10 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 				} else if (!strcasecmp(var->name, "language")) {
 					ast_copy_string(line->language, var->value, sizeof(line->language));
 					continue;
+
+				} else if (!strcasecmp(var->name, "context")) {
+					ast_copy_string(line->context, var->value, sizeof(line->language));
+					continue;
 				}
 			}
 		}
@@ -630,7 +641,8 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 
 		AST_RWLIST_RDLOCK(&device_itr->lines);
 		AST_RWLIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
-			ast_cli(a->fd, "Line extension: (%d) <%s> <%s>\n", line_itr->instance, line_itr->name, line_itr->cid_name);
+			ast_cli(a->fd, "Line extension: (%d) <%s> <%s> <%s>\n",
+				line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context);
 		}
 		AST_RWLIST_UNLOCK(&device_itr->lines);
 		ast_cli(a->fd, "\n");
