@@ -609,7 +609,7 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	set_line_state(line, SCCP_RINGOUT);
 	ast_setstate(channel, AST_STATE_RING);
 
-	transmit_callstate(line->device->session, line->instance, SCCP_RINGOUT, subchan->id);
+	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);
 	transmit_tone(line->device->session, SCCP_TONE_ALERT, line->instance, subchan->id);
 	transmit_callinfo(line->device->session, "", "", line->device->exten, line->device->exten, line->instance, subchan->id, 2);
 	transmit_dialed_number(line->device->session, line->device->exten, line->instance, subchan->id);
