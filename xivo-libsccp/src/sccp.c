@@ -614,8 +614,6 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	transmit_callinfo(line->device->session, "", "", line->device->exten, line->device->exten, line->instance, subchan->id, 2);
 	transmit_dialed_number(line->device->session, line->device->exten, line->instance, subchan->id);
 
-	ast_copy_string(channel->exten, line->device->exten, sizeof(channel->exten));
-
 	ast_set_callerid(channel,
 			line->cid_num,
 			line->cid_name,
@@ -654,12 +652,6 @@ static void *sccp_lookup_exten(void *data)
 		return NULL;
 	}
 
-	channel = sccp_new_channel(subchan, NULL);
-	if (channel == NULL) {
-		ast_log(LOG_ERROR, "channel is NULL\n");
-		return NULL;
-	}
-
 	len = strlen(line->device->exten);
 	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
 		line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
@@ -673,16 +665,19 @@ static void *sccp_lookup_exten(void *data)
 		if (timeout == 0)
 			call_now = 1;
 
-		if (call_now || ast_exists_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
-			if (call_now || !ast_matchmore_extension(channel, channel->context, line->device->exten, 1, line->cid_num)) {
+		if (call_now) {
+				channel = sccp_new_channel(subchan, NULL);
+				if (channel == NULL) {
+					ast_log(LOG_ERROR, "channel is NULL\n");
+					return NULL;
+				}
 
 				sccp_start_the_call(channel);
 				line->device->exten[0] = '\0';
 				return NULL;
-			}
 		}
 
-		ast_safe_sleep(channel, 500);
+		usleep(500000);
 
 		next_len = strlen(line->device->exten);
 		if (len == next_len) {
@@ -695,8 +690,6 @@ static void *sccp_lookup_exten(void *data)
 			len = next_len;
 		}
 	}
-
-	ast_hangup(channel);
 
 	return NULL;
 }
