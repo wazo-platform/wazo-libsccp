@@ -412,6 +412,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 		session->device = device_itr;
 		mwi_subscribe(device_itr);
+		ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", device_itr->default_line->name);
 		ret = 1;
 	}
 
@@ -758,6 +759,8 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		device->lookup = 1;
 	}
 
+	ast_devstate_changed(AST_DEVICE_INUSE, "SCCP/%s", line->name);
+
 	return 0;
 }
 
@@ -829,6 +832,8 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 
 	set_line_state(line, SCCP_CONNECTED);
 	subchan_set_state(subchan, SCCP_CONNECTED);
+
+	ast_devstate_changed(AST_DEVICE_INUSE, "SCCP/%s", line->name);
 
 	return 0;
 }
@@ -993,6 +998,8 @@ static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return 0;
 	}
+
+	ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
 
 	set_line_state(line, SCCP_ONHOOK); /* This will terminate the sccp_lookup_exten thread */
 
@@ -2272,6 +2279,7 @@ static void *thread_session(void *data)
 			if (session->device) {
 				ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
 				device_unregister(session->device);
+				ast_devstate_changed(AST_DEVICE_UNAVAILABLE, "SCCP/%s", session->device->default_line->name);
 			}
 
 			connected = 0;
