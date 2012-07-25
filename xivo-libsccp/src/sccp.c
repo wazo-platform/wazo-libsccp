@@ -977,6 +977,8 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 	ast_free(subchan);
 
+	ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
+
 	return 0;
 }
 
@@ -2611,6 +2613,8 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 		sccp_autoanswer_call(subchan);
 		return 0;
 	}
+
+	ast_devstate_changed(AST_DEVICE_RINGING, "SCCP/%s", line->name);
 
 	return 0;
 }
