@@ -1018,6 +1018,8 @@ static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 
 	if (subchan->channel)
 		ast_queue_hangup(subchan->channel);
+	else
+		do_clear_subchannel(subchan);
 
 	return 0;
 }
