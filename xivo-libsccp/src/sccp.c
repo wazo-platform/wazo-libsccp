@@ -1260,7 +1260,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 			line->device->lookup = 1;
 		}
 
-	} else {
+	} else if (line->active_subchan->channel) {
 
 		ast_log(LOG_DEBUG, "line->active_subchan->channel->_state: %d\n",
 					line->active_subchan->channel->_state);
