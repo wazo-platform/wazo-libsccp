@@ -1611,6 +1611,70 @@ static format_t codec_sccp2ast(enum sccp_codecs sccp_codec)
 	}
 }
 
+char *utf8_to_iso88591(char *to_convert)
+{
+	iconv_t cd;
+
+	size_t len;
+	size_t outbytesleft;
+	size_t inbytesleft;
+	size_t iconv_value;
+
+	char *outbuf = NULL;
+	char *inbuf = NULL;
+
+	char *outbufptr = NULL;
+	char *inbufptr = NULL;
+
+	if (to_convert == NULL) {
+		ast_log(LOG_DEBUG, "to_convert is NULL\n");
+		return NULL;
+	}
+
+	cd = iconv_open("ISO-8859-1", "UTF-8");
+
+	len = strlen(to_convert);
+
+	outbuf = ast_calloc(1, len);
+	outbufptr = outbuf;
+
+	outbytesleft = len;
+	inbytesleft = len;
+
+	inbuf = ast_strdup(to_convert);
+	inbufptr = inbuf;
+
+	iconv_value = iconv(cd,
+			&inbuf,
+			&inbytesleft,
+			&outbuf,
+			&outbytesleft);
+
+	if (iconv_value == (size_t)-1) {
+
+		switch (errno) {
+		case EILSEQ:
+			ast_log(LOG_ERROR, "Invalid multibyte sequence\n");
+			break;
+		case EINVAL:
+			ast_log(LOG_ERROR, "Incomplete multibyte sequebec\n");
+			break;
+		case E2BIG:
+			ast_log(LOG_ERROR, "Not enough space in outbuf\n");
+			break;
+		}
+
+		free(outbufptr);
+		outbufptr = NULL;
+	}
+
+	free(inbufptr);
+	iconv_close(cd);
+
+	return outbufptr;
+}
+
+
 static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int count = 0;
@@ -1742,8 +1806,14 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 
 	msg->data.linestatus.lineNumber = letohl(line_instance);
 
-	memcpy(msg->data.linestatus.lineDirNumber, line->name, sizeof(msg->data.linestatus.lineDirNumber));
-	memcpy(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
+	char *displayname = NULL;
+
+	if (line->device->protoVersion <= 11) {
+		displayname = utf8_to_iso88591(line->cid_name);
+	}
+
+	memcpy(msg->data.linestatus.lineDirNumber, line->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
+	memcpy(msg->data.linestatus.lineDisplayName, displayname ? displayname : line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
 	memcpy(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
 
 	ret = transmit_message(msg, session);
@@ -2446,69 +2516,6 @@ static int sccp_autoanswer_call(void *data)
 	return 0;
 }
 
-char *utf8_to_iso88591(char *to_convert)
-{
-	iconv_t cd;
-
-	size_t len;
-	size_t outbytesleft;
-	size_t inbytesleft;
-	size_t iconv_value;
-
-	char *outbuf = NULL;
-	char *inbuf = NULL;
-
-	char *outbufptr = NULL;
-	char *inbufptr = NULL;
-
-	if (to_convert == NULL) {
-		ast_log(LOG_DEBUG, "to_convert is NULL\n");
-		return NULL;
-	}
-
-	cd = iconv_open("ISO-8859-1", "UTF-8");
-
-	len = strlen(to_convert);
-
-	outbuf = ast_calloc(1, len);
-	outbufptr = outbuf;
-
-	outbytesleft = len;
-	inbytesleft = len;
-
-	inbuf = ast_strdup(to_convert);
-	inbufptr = inbuf;
-
-	iconv_value = iconv(cd,
-			&inbuf,
-			&inbytesleft,
-			&outbuf,
-			&outbytesleft);
-
-	if (iconv_value == (size_t)-1) {
-
-		switch (errno) {
-		case EILSEQ:
-			ast_log(LOG_ERROR, "Invalid multibyte sequence\n");
-			break;
-		case EINVAL:
-			ast_log(LOG_ERROR, "Incomplete multibyte sequebec\n");
-			break;
-		case E2BIG:
-			ast_log(LOG_ERROR, "Not enough space in outbuf\n");
-			break;
-		}
-
-		free(outbufptr);
-		outbufptr = NULL;
-	}
-
-	free(inbufptr);
-	iconv_close(cd);
-
-	return outbufptr;
-}
-
 static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 {
 	int ret = 0;
@@ -2598,11 +2605,12 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 					line->cid_num,
 					line->instance,
 					subchan->id, 1);
-	if (ret == -1)
-		return -1;
 
 	free(namestr);
 	free(numberstr);
+
+	if (ret == -1)
+		return -1;
 
 	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 	if (ret == -1)
