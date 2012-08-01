@@ -1743,8 +1743,8 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	msg->data.linestatus.lineNumber = letohl(line_instance);
 
 	memcpy(msg->data.linestatus.lineDirNumber, line->name, sizeof(msg->data.linestatus.lineDirNumber));
-	memcpy(msg->data.linestatus.lineDisplayName, session->device->name, sizeof(msg->data.linestatus.lineDisplayName));
-	memcpy(msg->data.linestatus.lineDisplayAlias, line->name, sizeof(msg->data.linestatus.lineDisplayAlias));
+	memcpy(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
+	memcpy(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
