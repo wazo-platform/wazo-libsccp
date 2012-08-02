@@ -59,23 +59,10 @@ void device_prepare(struct sccp_device *device)
 		return;
 	}
 
-//	ast_mutex_lock(&device->lock);
-
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
 
-/*
-	while (device->qlines.tqh_first != NULL) {
-		line_itr = device->qlines.tqh_first;
-		ast_log(LOG_DEBUG, "line: %s\n", line_itr->name);
-		TAILQ_REMOVE(&(device->qlines), device->qlines.tqh_first, qline);
-		usleep(500);
-	}
-*/
-
 	device->exten[0] = '\0';
-
-//	ast_mutex_unlock(&device->lock);
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
@@ -243,7 +230,7 @@ int device_type_is_supported(int device_type)
 
 int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl)
 {
-	int err = 0;
+	int ret = 0;
 	int i = 0;
 
 	if (device == NULL) {
@@ -284,12 +271,12 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 		break;
 
 	default:
-		ast_log(LOG_WARNING, "Unknown device type '%d'\n", device->type);
-		err = -1;
+		ast_log(LOG_WARNING, "Unknown device type (%d)\n", device->type);
+		ret = -1;
 		break;
 	}
 
-	return err;
+	return ret;
 }
 
 void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
@@ -354,7 +341,6 @@ void subchan_set_on_hold(struct sccp_line *line, uint32_t subchan_id)
 	}
 
 	subchan->on_hold = 1;
-	ast_log(LOG_DEBUG, "subchan->on_hold (%d)\n", subchan->on_hold);
 }
 
 void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id)
@@ -368,7 +354,6 @@ void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id)
 	}
 
 	subchan->on_hold = 0;
-	ast_log(LOG_DEBUG, "subchan->on_hold (%d)\n", subchan->on_hold);
 }
 
 void subchan_set_state(struct sccp_subchannel *subchan, int state)
@@ -393,12 +378,7 @@ void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
 		return ;
 	}
 
-//	ast_mutex_lock(&device->lock);
-
-//	TAILQ_INSERT_TAIL(&device->qlines, line, qline);
 	device->active_line_cnt++;
-
-//	ast_mutex_unlock(&device->lock);
 }
 
 void device_release_line(struct sccp_device *device, struct sccp_line *line)
@@ -413,16 +393,11 @@ void device_release_line(struct sccp_device *device, struct sccp_line *line)
 		return;
 	}
 
-//	ast_mutex_lock(&device->lock);
-
 	if (device->active_line == line) {
 		device->active_line = NULL;
-	} else {
-		//TAILQ_REMOVE(&device->qlines, line, qline);
 	}
 
 	device->active_line_cnt--;
-//	ast_mutex_unlock(&device->lock);
 }
 
 struct sccp_line *device_get_active_line(struct sccp_device *device)
@@ -432,21 +407,10 @@ struct sccp_line *device_get_active_line(struct sccp_device *device)
 		return NULL;
 	}
 
-//	ast_mutex_lock(&device->lock);
-
 	if (device->active_line == NULL) {
-		/*
-		if (device->qlines.tqh_first != NULL) {
-			device->active_line = device->qlines.tqh_first;
-			TAILQ_REMOVE(&device->qlines, device->active_line, qline);
-		} else {
-		*/
-			device->active_line = device->default_line;
-			device->active_line_cnt++;
-		//}
+		device->active_line = device->default_line;
+		device->active_line_cnt++;
 	}
-
-//	ast_mutex_unlock(&device->lock);
 
 	return device->active_line;
 }

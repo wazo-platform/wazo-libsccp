@@ -285,7 +285,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 {
 	ast_mutex_init(&device->lock);
 	ast_copy_string(device->name, name, sizeof(device->name));
-	//TAILQ_INIT(&device->qlines);
+
 	device->voicemail[0] = '\0';
 	device->mwi_event_sub = NULL;
 	device->active_line = NULL;
@@ -332,10 +332,10 @@ static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
 
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
-	struct ast_variable *var;
-	struct sccp_device *device, *device_itr;
-	struct sccp_line *line_itr;
-	char *category;
+	struct ast_variable *var = NULL;
+	struct sccp_device *device, *device_itr = NULL;
+	struct sccp_line *line_itr = NULL;
+	char *category = NULL;
 	int duplicate = 0;
 	int found_line = 0;
 	int err = 0;
@@ -486,7 +486,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 static int parse_config_general(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
-	struct ast_variable *var;
+	struct ast_variable *var = NULL;
 
 	/* Do not parse it twice */
 	if (sccp_cfg->set == 1) {
@@ -548,8 +548,8 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 
 static void config_unload(struct sccp_configs *sccp_cfg)
 {
-	struct sccp_device *device_itr;
-	struct sccp_line *line_itr;
+	struct sccp_device *device_itr = NULL;
+	struct sccp_line *line_itr = NULL;
 
 	AST_RWLIST_WRLOCK(&sccp_cfg->list_device);
 	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_device, device_itr, list) {
@@ -572,7 +572,7 @@ static void config_unload(struct sccp_configs *sccp_cfg)
 
 static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 {
-	struct ast_config *cfg;
+	struct ast_config *cfg = NULL;
 	struct ast_flags config_flags = { 0 };
 
 	ast_log(LOG_NOTICE, "Configuring sccp from %s...\n", config_file);
@@ -615,6 +615,9 @@ static char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli
 
 static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
+	struct sccp_line *line_itr = NULL;
+	struct sccp_device *device_itr = NULL;
+
 	switch (cmd) {
 	case CLI_INIT:
 		e->command = "sccp show config";
@@ -623,9 +626,6 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	case CLI_GENERATE:
 		return NULL;
 	}
-
-	struct sccp_line *line_itr;
-	struct sccp_device *device_itr;
 
 	ast_cli(a->fd, "bindaddr = %s\n", sccp_config->bindaddr);
 	ast_cli(a->fd, "dateformat = %s\n", sccp_config->dateformat);
@@ -676,9 +676,9 @@ static struct ast_cli_entry cli_sccp[] = {
 
 static void garbage_ast_database()
 {
-	struct ast_db_entry *db_tree;
-	struct ast_db_entry *entry;
-	char *line_name;
+	struct ast_db_entry *db_tree = NULL;
+	struct ast_db_entry *entry = NULL;
+	char *line_name = NULL;
 
 	db_tree = ast_db_gettree("sccp/cfwdall", NULL);
 
@@ -697,7 +697,7 @@ static void garbage_ast_database()
 static int load_module(void)
 {
 	int ret = 0;
-	ast_verbose("sccp channel loading...\n");
+	ast_log(LOG_NOTICE, "sccp channel loading...\n");
 
 	sccp_config = ast_calloc(1, sizeof(struct sccp_configs));
 	if (sccp_config == NULL) {
@@ -731,7 +731,7 @@ static int load_module(void)
 
 static int unload_module(void)
 {
-	ast_verbose("sccp channel unloading...\n");
+	ast_log(LOG_DEBUG, "sccp channel unloading...\n");
 
 	sccp_server_fini();
 	sccp_rtp_fini();

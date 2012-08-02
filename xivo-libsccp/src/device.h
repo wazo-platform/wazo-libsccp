@@ -182,22 +182,9 @@ static const uint8_t softkey_default_callfwd[] = {
 	SOFTKEY_CFWDALL,
 };
 
-/*static const uint8_t softkey_default_connwithconf[] = {
-	SOFTKEY_NONE,
-};*/
-
-/*static const uint8_t softkey_default_ringout[] = {
-	SOFTKEY_NONE,
-	SOFTKEY_ENDCALL,
-};*/
-
 static const uint8_t softkey_default_autoanswer[] = {
 	SOFTKEY_NONE,
 };
-
-/*static const uint8_t softkey_default_unknown[] = {
-	SOFTKEY_NONE,
-};*/
 
 static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_ONHOOK, softkey_default_onhook, sizeof(softkey_default_onhook) / sizeof(uint8_t)},
@@ -207,10 +194,7 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_OFFHOOK, softkey_default_offhook, sizeof(softkey_default_offhook) / sizeof(uint8_t)},
 	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, sizeof(softkey_default_connintransfer) / sizeof(uint8_t)},
 	{KEYDEF_CALLFWD, softkey_default_callfwd, sizeof(softkey_default_callfwd) / sizeof(uint8_t)},
-//	{KEYDEF_CONNWITHCONF, softkey_default_connwithconf, sizeof(softkey_default_connwithconf) / sizeof(uint8_t)},
-//	{KEYDEF_RINGOUT, softkey_default_ringout, sizeof(softkey_default_ringout) / sizeof(uint8_t)},
 	{KEYDEF_AUTOANSWER, softkey_default_autoanswer, sizeof(softkey_default_autoanswer) / sizeof(uint8_t)},
-//	{KEYDEF_UNKNOWN, softkey_default_unknown, sizeof(softkey_default_unknown) / sizeof(uint8_t)}
 };
 
 struct button_definition_template {
@@ -256,7 +240,6 @@ struct sccp_line {
 	struct ast_codec_pref codec_pref;
 	struct sccp_device *device;
 
-	//TAILQ_ENTRY(sccp_line) qline;
 	AST_LIST_ENTRY(sccp_line) list;
 	AST_LIST_ENTRY(sccp_line) list_per_device;
 };
@@ -282,7 +265,7 @@ struct sccp_device {
 	pthread_t lookup_thread;
 	int lookup;
 
-	uint8_t autoanswer; /* Default mic off */
+	uint8_t autoanswer;
 
 	uint8_t registered;
 	uint32_t line_count;
@@ -297,7 +280,6 @@ struct sccp_device {
 	struct sccp_line *active_line;
 	uint32_t active_line_cnt;
 
-	//TAILQ_HEAD(, sccp_line) qlines;
 	AST_RWLIST_HEAD(, sccp_line) lines;
 	AST_LIST_ENTRY(sccp_device) list;
 };

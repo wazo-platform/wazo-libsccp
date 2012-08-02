@@ -1,4 +1,3 @@
-
 #include <asterisk.h>
 #include <asterisk/app.h>
 #include <asterisk/astdb.h>
@@ -103,7 +102,6 @@ static void mwi_event_cb(const struct ast_event *event, void *data)
 	else
 		ast_app_inboxcount(device->voicemail, &new_msgs, &old_msgs);
 
-
 	if (new_msgs > 0)
 		transmit_lamp_state(device->session, STIMULUS_VOICEMAIL, 0, SCCP_LAMP_ON);
 
@@ -141,7 +139,7 @@ static void post_line_register_check(struct sccp_session *session)
 		return;
 	}
 
-	/* If an entry exist, update the device callfoward status */
+	/* if an entry exist, update the device callfoward status */
 	line = session->device->default_line;
 	result = ast_db_get("sccp/cfwdall", line->name, exten, sizeof(exten));
 
@@ -160,9 +158,7 @@ static void post_register_check(struct sccp_session *session)
 		return;
 	}
 
-	/* Make sure the display is clean */
 	transmit_displaymessage(session, "");
-
 
 	if (session->device->mwi_event_sub)
 		mwi_event_cb(NULL, session->device);
@@ -215,10 +211,6 @@ static int handle_config_status_req_message(struct sccp_session *session)
 	memcpy(msg->data.configstatus.deviceName, session->device->name, sizeof(msg->data.configstatus.deviceName));
 	msg->data.configstatus.stationUserId = htolel(0);
 	msg->data.configstatus.stationInstance = htolel(1);
-	/*
-	memcpy(msg->data.configstatus.userName, "userName", sizeof(msg->data.configstatus.userName));
-	memcpy(msg->data.configstatus.serverName, "serverName", sizeof(msg->data.configstatus.serverName));
-	*/
 	msg->data.configstatus.numberLines = htolel(session->device->line_count);
 	msg->data.configstatus.numberSpeedDials = htolel(session->device->speeddial_count);
 
@@ -476,7 +468,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 					1);				/* callnums */
 
 	if (channel == NULL) {
-		ast_log(LOG_ERROR, "ast_channel_alloc failed !\n");
+		ast_log(LOG_ERROR, "channel allocation failed\n");
 		return NULL;
 	}
 
@@ -492,10 +484,13 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 
 	char valuebuf[1024];
 	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
+
 		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
 		ast_log(LOG_DEBUG, "var_name: %s  var_value: %s valuebuf: %s\n",
 					var_itr->name, var_itr->value, valuebuf);
-		pbx_builtin_setvar_helper(channel, var_itr->name, ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf)));
+
+		pbx_builtin_setvar_helper(channel, var_itr->name,
+			ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf)));
 	}
 
 	audio_format = ast_best_codec(channel->nativeformats);
@@ -586,7 +581,8 @@ static int start_rtp(struct sccp_subchannel *subchan)
 		ast_rtp_instance_set_qos(subchan->rtp, 0, 0, "sccp rtp");
 		ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_NAT, 0);
 
-		ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, &subchan->line->codec_pref);
+		ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
+						subchan->rtp, &subchan->line->codec_pref);
 	}
 
 	transmit_connect(subchan->line, subchan->id);
@@ -639,7 +635,7 @@ static void *sccp_lookup_exten(void *data)
 	struct sccp_line *line = NULL;
 	size_t len = 0, next_len = 0;
 	int call_now = 0;
-	int timeout = sccp_config->dialtimeout * 2; /* Each 500ms */
+	int timeout = sccp_config->dialtimeout * 2;
 
 	if (data == NULL) {
 		ast_log(LOG_DEBUG, "data is NULL\n");
@@ -687,7 +683,7 @@ static void *sccp_lookup_exten(void *data)
 			else
 				timeout--;
 		} else {
-			timeout = sccp_config->dialtimeout * 2; /* Each 500ms */
+			timeout = sccp_config->dialtimeout * 2;
 			len = next_len;
 		}
 	}
@@ -904,7 +900,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 			ast_log(LOG_DEBUG, "line->active_subchan (%p)\n", line->active_subchan);
 
 			if (line->active_subchan == NULL) {
-				ast_log(LOG_DEBUG, "subchan not exist\n");
+				ast_log(LOG_DEBUG, "subchan do not exist\n");
 				do_newcall(line_instance, 0, session);
 			}
 		}
@@ -1003,7 +999,8 @@ static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 
 	ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
 
-	set_line_state(line, SCCP_ONHOOK); /* This will terminate the sccp_lookup_exten thread */
+	 /* this will cause the sccp_lookup_exten thread to terminate*/
+	set_line_state(line, SCCP_ONHOOK);
 
 	/* wait for lookup thread to terminate */
 	if (session->device->lookup == 1) {
@@ -1030,7 +1027,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 {
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
-
 	uint32_t line_instance = 0;
 	uint32_t subchan_id = 0;
 
@@ -1050,8 +1046,8 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		line_instance = msg->data.offhook.lineInstance;
 		subchan_id = msg->data.offhook.callInstance;
 
-		ast_log(LOG_NOTICE, "line_instance: %d\n", line_instance);
-		ast_log(LOG_NOTICE, "subchan_id %d\n", subchan_id);
+		ast_log(LOG_DEBUG, "line_instance: %d\n", line_instance);
+		ast_log(LOG_DEBUG, "subchan_id %d\n", subchan_id);
 
 		do_hangup(line_instance, subchan_id, session);
 	}
@@ -1190,8 +1186,10 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	ast_log(LOG_DEBUG, "handle_softkey_transfer: line_instance(%i)\n", line_instance);
 
-	if (session == NULL)
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
+	}
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
@@ -1397,9 +1395,9 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		return -1;
 	}
 
-	ast_log(LOG_NOTICE, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
-	ast_log(LOG_NOTICE, "instance: %d\n", msg->data.softkeyevent.lineInstance);
-	ast_log(LOG_NOTICE, "callid: %d\n", msg->data.softkeyevent.callInstance);
+	ast_log(LOG_DEBUG, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
+	ast_log(LOG_DEBUG, "instance: %d\n", msg->data.softkeyevent.lineInstance);
+	ast_log(LOG_DEBUG, "callid: %d\n", msg->data.softkeyevent.callInstance);
 
 	switch (letohl(msg->data.softkeyevent.softKeyEvent)) {
 	case SOFTKEY_NONE:
@@ -1450,9 +1448,6 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 	case SOFTKEY_CFWDNOANSWER:
 		break;
-
-	//case SOFTKEY_BKSPC:
-	//	break;
 
 	case SOFTKEY_ENDCALL:
 
@@ -1699,7 +1694,7 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	}
 
 	count = letohl(msg->data.caps.count);
-	ast_log(LOG_NOTICE, "Received %d capabilities\n", count);
+	ast_log(LOG_DEBUG, "Received %d capabilities\n", count);
 
 	if (count > SCCP_MAX_CAPABILITIES) {
 		count = SCCP_MAX_CAPABILITIES;
@@ -1724,9 +1719,9 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	struct sccp_line *line = NULL;
 	struct sockaddr_in remote = {0};
 	struct ast_sockaddr remote_tmp;
+	uint32_t passthruid = 0;
 	uint32_t addr = 0;
 	uint32_t port = 0;
-	uint32_t passthruid = 0;
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -1740,12 +1735,12 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	line = device_get_active_line(session->device);
 	if (line == NULL) {
-		ast_log(LOG_DEBUG, "device has no active line\n");
+		ast_log(LOG_DEBUG, "line is NULL\n");
 		return 0;
 	}
 
 	if (line->active_subchan == NULL) {
-		ast_log(LOG_DEBUG, "line has no active subchan\n");
+		ast_log(LOG_DEBUG, "active_subchan is NULL\n");
 		return 0;
 	}
 
@@ -1778,6 +1773,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 {
 	int ret = 0;
 	int line_instance = 0;
+	char *displayname = NULL;
 	struct sccp_line *line = NULL;
 
 	if (msg == NULL) {
@@ -1806,8 +1802,6 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 
 	msg->data.linestatus.lineNumber = letohl(line_instance);
 
-	char *displayname = NULL;
-
 	if (line->device->protoVersion <= 11) {
 		displayname = utf8_to_iso88591(line->cid_name);
 	}
@@ -1815,6 +1809,8 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	memcpy(msg->data.linestatus.lineDirNumber, line->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
 	memcpy(msg->data.linestatus.lineDisplayName, displayname ? displayname : line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
 	memcpy(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
+
+	free(displayname);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -1852,12 +1848,12 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return -1;
 	}
 
-	ast_log(LOG_NOTICE, "name %s\n", msg->data.reg.name);
-	ast_log(LOG_NOTICE, "userId %d\n", msg->data.reg.userId);
-	ast_log(LOG_NOTICE, "lineInstance %d\n", msg->data.reg.lineInstance);
-	ast_log(LOG_NOTICE, "maxStream %d\n", msg->data.reg.maxStreams);
-	ast_log(LOG_NOTICE, "activeStreams %d\n", msg->data.reg.activeStreams);
-	ast_log(LOG_NOTICE, "protoVersion %d\n", msg->data.reg.protoVersion);
+	ast_log(LOG_DEBUG, "name %s\n", msg->data.reg.name);
+	ast_log(LOG_DEBUG, "userId %d\n", msg->data.reg.userId);
+	ast_log(LOG_DEBUG, "lineInstance %d\n", msg->data.reg.lineInstance);
+	ast_log(LOG_DEBUG, "maxStream %d\n", msg->data.reg.maxStreams);
+	ast_log(LOG_DEBUG, "activeStreams %d\n", msg->data.reg.activeStreams);
+	ast_log(LOG_DEBUG, "protoVersion %d\n", msg->data.reg.protoVersion);
 
 	ret = device_type_is_supported(msg->data.reg.type);
 	if (ret == 0) {
@@ -1882,10 +1878,11 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
 
 		if (msg == NULL) {
+			ast_log(LOG_ERROR, "msg allocation failed\n");
 			return -1;
 		}
 
-		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Access denied: %s\n", msg->data.reg.name);
+		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Access denied [%s]\n", msg->data.reg.name);
 		ret = transmit_message(msg, session);
 		if (ret == -1)
 			return -1;
@@ -2007,7 +2004,7 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 		return -1;
 	}
 
-	/* Extension Block, contain all the digits entered before pressing 'Dial' */
+	/* contains all the digits entered before pressing 'Dial' */
 	if (line->state == SCCP_OFFHOOK) {
 		len = strlen(msg->data.enbloc.extension);
 		ast_copy_string(line->device->exten, msg->data.enbloc.extension,
@@ -2015,6 +2012,7 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 		line->device->exten[len+1] = '#';
 		line->device->exten[len+2] = '\0';
 	}
+
 	return 0;
 }
 
@@ -2262,6 +2260,7 @@ static int fetch_data(struct sccp_session *session)
 		return -1;
 	
 	time(&now);
+
 	/* if no device or device is not registered and time has elapsed */
 	if ((session->device == NULL || (session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE))
 		&& now > session->start_time + sccp_config->authtimeout) {
@@ -2323,7 +2322,6 @@ static int fetch_data(struct sccp_session *session)
 
 		return nbyte;
 	}
-
 
 	return -1;	
 }
@@ -2417,7 +2415,7 @@ static void *thread_accept(void *data)
 
 static int cb_ast_devicestate(void *data)
 {
-	ast_log(LOG_NOTICE, "devicestate %s\n", (char *)data);
+	ast_log(LOG_DEBUG, "devicestate %s\n", (char *)data);
 
 	int state = AST_DEVICE_UNKNOWN;
 	state = AST_DEVICE_NOT_INUSE;
@@ -2425,7 +2423,11 @@ static int cb_ast_devicestate(void *data)
 	return state;
 }
 
-static struct ast_channel *cb_ast_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause)
+static struct ast_channel *cb_ast_request(const char *type,
+					format_t format,
+					const struct ast_channel *requestor,
+					void *destination,
+					int *cause)
 {
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
@@ -2447,12 +2449,13 @@ static struct ast_channel *cb_ast_request(const char *type, format_t format, con
 		option++;
 	}
 
-	ast_log(LOG_NOTICE, "type: %s "
-				"format: %s "
-				"destination: %s "
-				"option: %s "
-				"cause: %d\n",
-				type, ast_getformatname(format), (char *)destination, option? option: "", *cause);
+	ast_log(LOG_DEBUG, "type: %s "
+			"format: %s "
+			"destination: %s "
+			"option: %s "
+			"cause: %d\n",
+			type, ast_getformatname(format),
+			(char *)destination, option? option: "", *cause);
 
 	line = find_line_by_name((char *)destination, &sccp_config->list_line);
 
@@ -2572,8 +2575,7 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 	subchan_set_state(subchan, SCCP_RINGIN);
 
 	/* If the line has an active subchannel, it means that
-	 * a call is already ongoing.
-	 */
+	 * a call is already ongoing. */
 	if (line->active_subchan == NULL) {
 		set_line_state(line, SCCP_RINGIN);
 
@@ -3354,6 +3356,7 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 
 static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
+	struct sccp_device *device = NULL;
 	int restart = 0;
 
 	switch (cmd) {
@@ -3367,7 +3370,6 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		return NULL;
 	}
 
-	struct sccp_device *device = NULL;
 	device = find_device_by_name(a->argv[2], &sccp_config->list_device);
 	if (device == NULL)
 		return CLI_FAILURE;
@@ -3440,7 +3442,6 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	const int flag_reuse = 1;
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
-
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	sccp_config = sccp_cfg;
