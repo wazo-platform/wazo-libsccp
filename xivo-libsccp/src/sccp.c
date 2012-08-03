@@ -1807,7 +1807,10 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	}
 
 	memcpy(msg->data.linestatus.lineDirNumber, line->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
-	memcpy(msg->data.linestatus.lineDisplayName, displayname ? displayname : line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
+	if (displayname)
+		memcpy(msg->data.linestatus.lineDisplayName, displayname, sizeof(msg->data.linestatus.lineDisplayName));
+	else
+		memcpy(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
 	memcpy(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
 
 	free(displayname);
