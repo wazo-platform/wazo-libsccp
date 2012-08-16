@@ -1245,6 +1245,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	/* start audio stream */
 	start_rtp(line->active_subchan);
+	//transmit_connect(line, line->active_subchan->id);
 
 	subchan_unset_on_hold(line, subchan_id);
 	return 0;
