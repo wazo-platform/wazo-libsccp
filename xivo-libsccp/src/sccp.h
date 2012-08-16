@@ -31,6 +31,7 @@ struct sccp_configs {
 	int keepalive;
 	int authtimeout;
 	int dialtimeout;
+	int directmedia;
 	char context[AST_MAX_EXTENSION];
 	char vmexten[AST_MAX_EXTENSION];
 

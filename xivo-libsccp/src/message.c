@@ -187,13 +187,9 @@ int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
 	return 0;
 }
 
-int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid)
+int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt)
 {
 	struct sccp_msg *msg = NULL;
-	struct sockaddr_in localip;
-	struct sockaddr_in local = {0};
-	struct ast_sockaddr local_tmp;
-	struct ast_format_list fmt = {0};
 	int ret = 0;
 
 	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
@@ -202,21 +198,10 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid)
 		return -1;
 	}
 
-	ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
-	ast_sockaddr_to_sin(&local_tmp, &local);
-
-	/* we listen to 0.0.0.0, but we need our true ip */
-	if (local.sin_addr.s_addr == 0)
-		local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
-
-	ast_log(LOG_DEBUG, "local address: %s\n", ast_inet_ntoa(local.sin_addr));
-
-	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
-
 	msg->data.startmedia.conferenceId = htolel(0);
 	msg->data.startmedia.passThruPartyId = htolel(callid ^ 0xFFFFFFFF);
-	msg->data.startmedia.remoteIp = htolel(local.sin_addr.s_addr);
-	msg->data.startmedia.remotePort = htolel(ntohs(local.sin_port));
+	msg->data.startmedia.remoteIp = htolel(endpoint.sin_addr.s_addr);
+	msg->data.startmedia.remotePort = htolel(ntohs(endpoint.sin_port));
 	msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
 	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(fmt.bits));
 	msg->data.startmedia.qualifier.precedence = htolel(127);

@@ -518,6 +518,8 @@ static enum ast_rtp_glue_result cb_ast_get_rtp_peer(struct ast_channel *channel,
 {
 	struct sccp_subchannel *subchan = NULL;
 
+	ast_log(LOG_DEBUG, "get RTP info\n");
+
 	if (channel == NULL) {
 		ast_log(LOG_DEBUG, "channel is NULL\n");
 		return AST_RTP_GLUE_RESULT_FORBID;
@@ -542,6 +544,9 @@ static enum ast_rtp_glue_result cb_ast_get_rtp_peer(struct ast_channel *channel,
 	ao2_ref(subchan->rtp, +1);
 	*instance = subchan->rtp;
 
+	if (sccp_config->directmedia)
+		return AST_RTP_GLUE_RESULT_REMOTE;
+
 	return AST_RTP_GLUE_RESULT_LOCAL;
 }
 
@@ -552,6 +557,56 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				format_t codecs,
 				int nat_active)
 {
+	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = NULL;
+	struct sockaddr_in endpoint = {0,};
+	struct ast_sockaddr endpoint_tmp;
+
+	struct sockaddr_in local = {0,};
+	struct ast_sockaddr local_tmp;
+
+	struct ast_format_list fmt = {0};
+
+	ast_log(LOG_DEBUG, "update peer\n");
+
+	subchan = channel->tech_pvt;
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "subchan is NULL\n");
+		return -1;
+	}
+
+	if (subchan->on_hold) {
+		return 0;
+	}
+
+	line = subchan->line;
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return -1;
+	}
+
+	transmit_stop_media_transmission(line, subchan->id);
+	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
+
+	if (sccp_config->directmedia && rtp) {
+
+		ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
+		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
+		ast_log(LOG_DEBUG, "endpoint %s:%d\n", ast_inet_ntoa(endpoint.sin_addr), ntohs(endpoint.sin_port));
+
+		transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
+
+	} else {
+
+		ast_rtp_instance_get_local_address(subchan->rtp, &local_tmp);
+		ast_sockaddr_to_sin(&local_tmp, &local);
+
+		if (local.sin_addr.s_addr == 0)
+			local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
+
+		transmit_start_media_transmission(line, subchan->id, local, fmt);
+	}
 
 	return 0;
 }
@@ -574,6 +629,7 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	ast_sockaddr_from_sin(&bindaddr_tmp, (struct sockaddr_in *)sccp_srv.res->ai_addr);
 	subchan->rtp = ast_rtp_instance_new("asterisk", sched, &bindaddr_tmp, NULL);
 
+
 	if (subchan->rtp) {
 
 		ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_RTCP, 1);
@@ -586,9 +642,9 @@ static int start_rtp(struct sccp_subchannel *subchan)
 
 		ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
 						subchan->rtp, &subchan->line->codec_pref);
-	}
 
-	transmit_connect(subchan->line, subchan->id);
+		transmit_connect(subchan->line, subchan->id);
+	}
 
 	return 0;
 }
@@ -1100,14 +1156,6 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	/* put on hold */
 	if (line->active_subchan && line->active_subchan->channel) {
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
-		ast_channel_set_fd(line->active_subchan->channel, 0, -1);
-		ast_channel_set_fd(line->active_subchan->channel, 1, -1);
-	}
-
-	if (line->active_subchan && line->active_subchan->rtp) {
-		ast_rtp_instance_stop(line->active_subchan->rtp);
-		ast_rtp_instance_destroy(line->active_subchan->rtp);
-		line->active_subchan->rtp = NULL;
 	}
 
 	ret = transmit_callstate(session, line_instance, SCCP_HOLD, subchan_id);
@@ -1173,9 +1221,9 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 	/* start audio stream */
-	start_rtp(line->active_subchan);
-	ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
+	transmit_connect(line, line->active_subchan->id);
 
+	ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
 	subchan_unset_on_hold(line, subchan_id);
 
 	return 0;
@@ -1232,6 +1280,8 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ret == -1)
 			return -1;
 
+		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
+
 		/* spawn a new subchannel instance and mark both as related */
 		subchan = sccp_new_subchannel(line);
 		xfer_subchan = line->active_subchan;
@@ -1275,6 +1325,8 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 			ast_log(LOG_DEBUG, "channel state AST_STATE_DOWN\n");
 			return 0;
 		}
+
+		ast_queue_control(line->active_subchan->related->channel, AST_CONTROL_UNHOLD);
 
 		if (ast_bridged_channel(line->active_subchan->channel)) {
 			ast_channel_masquerade(line->active_subchan->related->channel, ast_bridged_channel(line->active_subchan->channel));
@@ -1723,6 +1775,9 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	struct sccp_line *line = NULL;
 	struct sockaddr_in remote = {0};
 	struct ast_sockaddr remote_tmp;
+	struct sockaddr_in local = {0};
+	struct ast_sockaddr local_tmp;
+	struct ast_format_list fmt = {0};
 	uint32_t passthruid = 0;
 	uint32_t addr = 0;
 	uint32_t port = 0;
@@ -1761,14 +1816,25 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		ast_sockaddr_from_sin(&remote_tmp, &remote);
 		ast_rtp_instance_set_remote_address(line->active_subchan->rtp, &remote_tmp);
 
-		ret = transmit_start_media_transmission(line, line->active_subchan->id);
-		if (ret == -1)
-			return -1;
+		ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
+		ast_sockaddr_to_sin(&local_tmp, &local);
+
+		if (local.sin_addr.s_addr == 0)
+			local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
 	}
 	else {
 		ast_log(LOG_DEBUG, "line->active_subchan->rtp is NULL\n");
 		return 0;
 	}
+
+	ast_log(LOG_DEBUG, "local address %s:%d\n", ast_inet_ntoa(local.sin_addr), ntohs(local.sin_port));
+	ast_log(LOG_DEBUG, "remote address %s:%d\n", ast_inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+
+	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
+
+	ret = transmit_start_media_transmission(line, line->active_subchan->id, local, fmt);
+		if (ret == -1)
+			return -1;
 
 	return 0;
 }
@@ -2700,6 +2766,10 @@ static int cb_ast_answer(struct ast_channel *channel)
 	if (subchan->rtp == NULL) {
 		ast_log(LOG_DEBUG, "rtp is NULL\n");
 		start_rtp(subchan);
+
+		/* Wait for the phone to provide his ip:port information
+		   before the bridging is being done. */
+		usleep(500000);
 	}
 
 	if (subchan->on_hold) {
@@ -2896,11 +2966,15 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 
 	case AST_CONTROL_HOLD:
 		ast_log(LOG_DEBUG, "hold\n");
+
+		subchan_set_on_hold(line, subchan->id);
 		ast_moh_start(channel, data, NULL);
 		break;
 
 	case AST_CONTROL_UNHOLD:
 		ast_log(LOG_DEBUG, "unhold\n");
+
+		subchan_unset_on_hold(line, subchan->id);
 		ast_moh_stop(channel);
 		break;
 
@@ -2910,10 +2984,16 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 
 	case AST_CONTROL_SRCUPDATE:
 		ast_log(LOG_DEBUG, "src update\n");
+		if (subchan->rtp) {
+			ast_rtp_instance_update_source(subchan->rtp);
+		}
 		break;
 
 	case AST_CONTROL_SRCCHANGE:
 		ast_log(LOG_DEBUG, "src change\n");
+		if (subchan->rtp) {
+			ast_rtp_instance_change_source(subchan->rtp);
+		}
 		break;
 
 	case AST_CONTROL_END_OF_Q:
@@ -2931,6 +3011,8 @@ static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newc
 {
 	struct sccp_subchannel *subchan = NULL;
 
+	ast_log(LOG_DEBUG, "fixup channel\n");
+
 	if (oldchannel == NULL) {
 		ast_log(LOG_DEBUG, "oldchannel is NULL\n");
 		return -1;
@@ -2943,6 +3025,8 @@ static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newc
 
 	subchan = newchannel->tech_pvt;
 	subchan->channel = newchannel;
+
+	cb_ast_set_rtp_peer(newchannel, NULL, NULL, NULL, 0, 0);
 
 	return 0;
 }
@@ -3390,6 +3474,38 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 	return CLI_SUCCESS;
 }
 
+static char *sccp_set_directmedia_on(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp set directmedia on";
+		e->usage = "usage: sccp set directmedia on\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	sccp_config->directmedia = 1;
+
+	return CLI_SUCCESS;
+}
+
+static char *sccp_set_directmedia_off(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp set directmedia off";
+		e->usage = "usage: sccp set directmedia off\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	sccp_config->directmedia = 0;
+
+	return CLI_SUCCESS;
+}
+
 static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	struct sccp_device *device_itr = NULL;
@@ -3464,6 +3580,8 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
 	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
+	AST_CLI_DEFINE(sccp_set_directmedia_on, "Turn on direct media"),
+	AST_CLI_DEFINE(sccp_set_directmedia_off, "Turn off direct media"),
 };
 
 void sccp_server_fini()

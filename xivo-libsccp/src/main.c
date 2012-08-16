@@ -508,6 +508,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
 	sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
 	sccp_cfg->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
+	sccp_cfg->directmedia = 0; /* off by default */
 
 	/* Custom configuration and handle lower bound */
 	for (var = ast_variable_browse(cfg, "general"); var != NULL; var = var->next) {
@@ -542,6 +543,10 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 
 		} else if (!strcasecmp(var->name, "vmexten")) {
 			ast_copy_string(sccp_cfg->vmexten, var->value, sizeof(sccp_cfg->vmexten));
+			continue;
+
+		} else if (!strcasecmp(var->name, "directmedia")) {
+			sccp_cfg->directmedia = atoi(var->value);
 			continue;
 		}
 	}
@@ -636,6 +641,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	ast_cli(a->fd, "authtimeout = %d\n", sccp_config->authtimeout);
 	ast_cli(a->fd, "dialtimeout = %d\n", sccp_config->dialtimeout);
 	ast_cli(a->fd, "context = %s\n", sccp_config->context);
+	ast_cli(a->fd, "directmedia = %d\n", sccp_config->directmedia);
 	ast_cli(a->fd, "\n");
 
 	AST_RWLIST_RDLOCK(&sccp_config->list_device);
