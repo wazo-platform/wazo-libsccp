@@ -450,6 +450,8 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	struct ast_channel *channel = NULL;
 	struct ast_variable *var_itr = NULL;
 	int audio_format = 0;
+	char valuebuf[1024];
+	char dbgsub_buf[256];
 
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
@@ -485,7 +487,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	else
 		channel->nativeformats = subchan->line->device->codecs;
 
-	char valuebuf[1024];
 	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
 
 		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
@@ -502,6 +503,10 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	channel->rawwriteformat = audio_format;
 	channel->readformat = audio_format;
 	channel->rawreadformat = audio_format;
+
+	ast_log(LOG_DEBUG, "codec %s %s\n",
+		ast_getformatname_multiple(dbgsub_buf, sizeof(dbgsub_buf), channel->nativeformats),
+		ast_getformatname(audio_format));
 
 	if (subchan->line->language[0] != '\0')
 		ast_string_field_set(channel, language, subchan->line->language);
@@ -574,7 +579,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return -1;
 	}
-
 	if (subchan->on_hold) {
 		return 0;
 	}
@@ -616,6 +620,7 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	struct ast_codec_pref default_prefs = {0};
 	struct sccp_session *session = NULL;
 	struct ast_sockaddr bindaddr_tmp;
+	struct ast_sockaddr remote_tmp;
 
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
@@ -628,7 +633,6 @@ static int start_rtp(struct sccp_subchannel *subchan)
 
 	ast_sockaddr_from_sin(&bindaddr_tmp, (struct sockaddr_in *)sccp_srv.res->ai_addr);
 	subchan->rtp = ast_rtp_instance_new("asterisk", sched, &bindaddr_tmp, NULL);
-
 
 	if (subchan->rtp) {
 
@@ -643,7 +647,14 @@ static int start_rtp(struct sccp_subchannel *subchan)
 		ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
 						subchan->rtp, &subchan->line->codec_pref);
 
-		transmit_connect(subchan->line, subchan->id);
+		if (subchan->line->device->early_remote) {
+			ast_sockaddr_from_sin(&remote_tmp, &subchan->line->device->remote);
+			ast_rtp_instance_set_remote_address(subchan->rtp, &remote_tmp);
+			subchan->line->device->early_remote = 0;
+
+		} else {
+			transmit_connect(subchan->line, subchan->id);
+		}
 	}
 
 	return 0;
@@ -981,6 +992,9 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 	line = subchan->line;
 	session = line->device->session;
+
+
+	ast_log(LOG_WARNING, "DO CLEAR SUBCHANNEL");
 
 	if (subchan->rtp) {
 
@@ -1798,20 +1812,25 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		return 0;
 	}
 
+	addr = msg->data.openreceivechannelack.ipAddr;
+	port = letohl(msg->data.openreceivechannelack.port);
+	passthruid = letohl(msg->data.openreceivechannelack.passThruId);
+
+	remote.sin_family = AF_INET;
+	remote.sin_addr.s_addr = addr;
+	remote.sin_port = htons(port);
+
+	line->device->remote = remote;
+
+	ast_log(LOG_DEBUG, "remote address %s:%d\n", ast_inet_ntoa(line->device->remote.sin_addr),
+							ntohs(line->device->remote.sin_port));
+
 	if (line->active_subchan == NULL) {
 		ast_log(LOG_DEBUG, "active_subchan is NULL\n");
 		return 0;
 	}
 
 	if (line->active_subchan->rtp) {
-
-		addr = msg->data.openreceivechannelack.ipAddr;
-		port = letohl(msg->data.openreceivechannelack.port);
-		passthruid = letohl(msg->data.openreceivechannelack.passThruId);
-
-		remote.sin_family = AF_INET;
-		remote.sin_addr.s_addr = addr;
-		remote.sin_port = htons(port);
 
 		ast_sockaddr_from_sin(&remote_tmp, &remote);
 		ast_rtp_instance_set_remote_address(line->active_subchan->rtp, &remote_tmp);
@@ -2582,6 +2601,11 @@ static struct ast_channel *cb_ast_request(const char *type,
 
 	subchan = sccp_new_subchannel(line);
 	channel = sccp_new_channel(subchan, requestor ? requestor->linkedid : NULL);
+
+	if (!line->device->early_remote) {
+		line->device->early_remote = 1;
+		transmit_connect(line, subchan->id);
+	}
 
 	return channel;
 }

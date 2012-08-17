@@ -7,6 +7,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include <asterisk/cli.h>
 #include <asterisk/logger.h>
 #include <asterisk/module.h>
+#include <asterisk/netsock2.h>
 #include <asterisk/test.h>
 #include <asterisk/utils.h>
 
