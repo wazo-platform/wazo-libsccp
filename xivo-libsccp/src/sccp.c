@@ -584,7 +584,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	}
 
 	line = subchan->line;
-
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return -1;
@@ -601,7 +600,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 		transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
 
-	} else {
+	} else if (subchan->rtp) {
 
 		ast_rtp_instance_get_local_address(subchan->rtp, &local_tmp);
 		ast_sockaddr_to_sin(&local_tmp, &local);
