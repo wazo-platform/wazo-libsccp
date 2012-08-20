@@ -993,9 +993,6 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	line = subchan->line;
 	session = line->device->session;
 
-
-	ast_log(LOG_WARNING, "DO CLEAR SUBCHANNEL");
-
 	if (subchan->rtp) {
 
 		ret = transmit_close_receive_channel(line, subchan->id);
@@ -2602,7 +2599,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 	subchan = sccp_new_subchannel(line);
 	channel = sccp_new_channel(subchan, requestor ? requestor->linkedid : NULL);
 
-	if (!line->device->early_remote) {
+	if (!line->device->early_remote && sccp_config->directmedia) {
 		line->device->early_remote = 1;
 		transmit_connect(line, subchan->id);
 	}
