@@ -159,6 +159,40 @@ struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
 	return line_itr;
 }
 
+char *line_state_str(int line_state)
+{
+	switch (line_state) {
+	case SCCP_OFFHOOK:
+		return "Offhook";
+	case SCCP_ONHOOK:
+		return "Onhook";
+	case SCCP_RINGOUT:
+		return "Ringout";
+	case SCCP_RINGIN:
+		return "Ringin";
+	case SCCP_CONNECTED:
+		return "Connected";
+	case SCCP_BUSY:
+		return "Busy";
+	case SCCP_CONGESTION:
+		return "Congestion";
+	case SCCP_HOLD:
+		return "Hold";
+	case SCCP_CALLWAIT:
+		return "Callwait";
+	case SCCP_TRANSFER:
+		return "Transfer";
+	case SCCP_PARK:
+		return "Park";
+	case SCCP_PROGRESS:
+		return "Progress";
+	case SCCP_INVALID:
+		return "Invalid";
+	default:
+		return "Unknown";
+	}
+}
+
 char *device_type_str(int device_type)
 {
 	switch (device_type) {

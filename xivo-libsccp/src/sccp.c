@@ -974,6 +974,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	ast_free(subchan);
 
 	ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
+	set_line_state(line, SCCP_ONHOOK);
 
 	return 0;
 }
@@ -2420,9 +2421,26 @@ static int cb_ast_devicestate(void *data)
 {
 	ast_log(LOG_DEBUG, "devicestate %s\n", (char *)data);
 
+	struct sccp_line *line = NULL;
+	char *name = NULL;
+	char *ptr = NULL;
 	int state = AST_DEVICE_UNKNOWN;
-	state = AST_DEVICE_NOT_INUSE;
 
+	name = strdup(data);
+
+	ptr = strchr(name, '/');
+	if (ptr != NULL)
+		*ptr = '\0';
+
+	line = find_line_by_name(name, &sccp_config->list_line);
+	if (line != NULL) {
+		if (line->state == SCCP_ONHOOK)
+			state = AST_DEVICE_NOT_INUSE;
+		else
+			state = AST_DEVICE_INUSE;
+	}
+
+	free(name);
 	return state;
 }
 
@@ -3329,9 +3347,39 @@ cleanup:
 	return result;
 }
 
+static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_line *line_itr = NULL;
+	int line_cnt = 0;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show lines";
+		e->usage = "Usage: sccp show lines\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ast_cli(a->fd, "%-9s %-8s\n", "Line", "state");
+	ast_cli(a->fd, "=======   ==========\n");
+	AST_RWLIST_RDLOCK(&sccp_config->list_line);
+	AST_RWLIST_TRAVERSE(&sccp_config->list_line, line_itr, list) {
+		ast_cli(a->fd, "%-9s %-8s\n", line_itr->name, line_state_str(line_itr->state));
+		line_cnt++;
+	}
+	AST_RWLIST_UNLOCK(&sccp_config->list_line);
+	ast_cli(a->fd, "Total: %d line(s)\n", line_cnt);
+
+	return CLI_SUCCESS;
+}
+
 static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	struct sccp_device *device_itr = NULL;
+	struct sccp_session *session = NULL;
+	int dev_cnt = 0;
+	int reg_cnt = 0;
 
 	switch (cmd) {
 	case CLI_INIT:
@@ -3342,17 +3390,23 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		return NULL;
 	}
 
-	ast_cli(a->fd, "%-17s %-8s %-13s %s\n", "Device", "Type", "Reg.state", "Proto.Version");
-	ast_cli(a->fd, "===============   ======   ==========    ==============\n");
+	ast_cli(a->fd, "%-16s %-16s %-8s %-13s %s\n", "Device", "IP", "Type", "Reg.state", "Proto.Version");
+	ast_cli(a->fd, "===============  ===============  ======   ==========    ==============\n");
 	AST_RWLIST_RDLOCK(&sccp_config->list_device);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
-		ast_cli(a->fd, "%-17s %-8s %-13s %d\n", device_itr->name,
+		session = device_itr->session;
+		ast_cli(a->fd, "%-16s %-16s %-8s %-13s %d\n", device_itr->name,
+							session && session->ipaddr ? session->ipaddr: "-",
 							device_type_str(device_itr->type),
 							device_regstate_str(device_itr->registered),
 							device_itr->protoVersion);
+
+		dev_cnt++;
+		if (device_itr->registered == DEVICE_REGISTERED_TRUE)
+			reg_cnt++;
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_device);
-
+	ast_cli(a->fd, "Total: %d device(s), %d registered\n", dev_cnt, reg_cnt);
 
 	return CLI_SUCCESS;
 }
@@ -3391,6 +3445,7 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 }
 
 static struct ast_cli_entry cli_sccp[] = {
+	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
 	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
 };
