@@ -2106,6 +2106,7 @@ static void destroy_session(struct sccp_session **session)
 	ast_free((*session)->ipaddr);
 	close((*session)->sockfd);
 	ast_free(*session);
+	(*session)->device->session = NULL;
 	*session = NULL;
 }
 

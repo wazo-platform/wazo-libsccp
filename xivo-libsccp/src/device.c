@@ -20,6 +20,8 @@ void device_unregister(struct sccp_device *device)
 				subchan = line_itr->active_subchan;
 				line_itr->active_subchan = NULL;
 				break;
+			} else {
+				line_itr->active_subchan = NULL;
 			}
 	}
 	AST_RWLIST_UNLOCK(&device->lines);
