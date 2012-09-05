@@ -227,6 +227,9 @@ static int handle_time_date_req_message(struct sccp_session *session)
 	struct sccp_msg *msg = NULL;
 	time_t now = 0;
 	struct tm *cmtime = NULL;
+	time_t systime = 0;
+
+	systime = time(0); /* + tz_offset * 3600 */
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
@@ -252,7 +255,7 @@ static int handle_time_date_req_message(struct sccp_session *session)
 	msg->data.timedate.minute = htolel(cmtime->tm_min);
 	msg->data.timedate.seconds = htolel(cmtime->tm_sec);
 	msg->data.timedate.milliseconds = htolel(0);
-	msg->data.timedate.systemTime = htolel(0);
+	msg->data.timedate.systemTime = htolel(systime);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -2102,11 +2105,19 @@ static void destroy_session(struct sccp_session **session)
 		return;
 	}
 
+	if (*session == NULL) {
+		ast_log(LOG_DEBUG, "*session is NULL\n");
+		return;
+	}
+
 	ast_mutex_destroy(&(*session)->lock);
 	ast_free((*session)->ipaddr);
 	close((*session)->sockfd);
+
+	if ((*session)->device)
+		(*session)->device->session = NULL;
+
 	ast_free(*session);
-	(*session)->device->session = NULL;
 	*session = NULL;
 }
 

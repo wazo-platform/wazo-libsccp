@@ -452,6 +452,9 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 			AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
 			AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
 
+			/* Default configuration */
+			ast_copy_string(line->context, "default", sizeof(line->context));
+
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 
 				if (!strcasecmp(var->name, "cid_num")) {

@@ -297,6 +297,7 @@ void device_prepare(struct sccp_device *device);
 struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line);
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device);
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
+char *line_state_str(int line_state);
 int device_type_is_supported(int device_type);
 int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl);
 
