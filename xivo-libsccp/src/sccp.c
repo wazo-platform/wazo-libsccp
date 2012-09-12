@@ -2702,6 +2702,10 @@ static int cb_ast_answer(struct ast_channel *channel)
 		start_rtp(subchan);
 	}
 
+	if (subchan->on_hold) {
+		return 0;
+	}
+
 	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
 	transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_CONNECTED);
 	transmit_callstate(line->device->session, line->instance, SCCP_CONNECTED, subchan->id);
