@@ -208,6 +208,8 @@ char *device_type_str(int device_type)
 		return "7912";
 	case SCCP_DEVICE_7921:
 		return "7921";
+	case SCCP_DEVICE_7937:
+		return "7937";
 	case SCCP_DEVICE_7940:
 		return "7940";
 	case SCCP_DEVICE_7941:
@@ -249,6 +251,7 @@ int device_type_is_supported(int device_type)
 	case SCCP_DEVICE_7911:
 	case SCCP_DEVICE_7912:
 	case SCCP_DEVICE_7921:
+	case SCCP_DEVICE_7937:
 	case SCCP_DEVICE_7940:
 	case SCCP_DEVICE_7941:
 	case SCCP_DEVICE_7941GE:
@@ -289,6 +292,7 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	case SCCP_DEVICE_7906:
 	case SCCP_DEVICE_7911:
 	case SCCP_DEVICE_7912:
+	case SCCP_DEVICE_7937:
 		(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
 		break;
 

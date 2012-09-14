@@ -680,6 +680,7 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	ast_setstate(channel, AST_STATE_RING);
 
 	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);
+	transmit_stop_tone(line->device->session, line->instance, subchan->id);
 	transmit_tone(line->device->session, SCCP_TONE_ALERT, line->instance, subchan->id);
 	transmit_callinfo(line->device->session, "", "", line->device->exten, line->device->exten, line->instance, subchan->id, 2);
 	transmit_dialed_number(line->device->session, line->device->exten, line->instance, subchan->id);
@@ -1028,11 +1029,11 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_stop_tone(session, line->instance, subchan->id);
+	ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
+	ret = transmit_stop_tone(session, line->instance, subchan->id);
 	if (ret == -1)
 		return -1;
 
@@ -2250,6 +2251,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	/* Device is not configured */
 	if (session->device == NULL &&
 		(msg->id != REGISTER_MESSAGE && msg->id != ALARM_MESSAGE)) {
+			ast_log(LOG_ERROR, "session->device is NULL\n");
 			return -1;
 	}
 
@@ -2828,6 +2830,7 @@ static int cb_ast_answer(struct ast_channel *channel)
 	}
 
 	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
+	transmit_stop_tone(line->device->session, line->instance, subchan->id);
 	transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_CONNECTED);
 	transmit_callstate(line->device->session, line->instance, SCCP_CONNECTED, subchan->id);
 
