@@ -139,9 +139,9 @@ int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid)
 		return -1;
 	}
 
-	msg->data.closereceivechannel.conferenceId = htolel(0);
+	msg->data.closereceivechannel.conferenceId = htolel(callid);
 	msg->data.closereceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
-	msg->data.closereceivechannel.conferenceId1 = htolel(0);
+	msg->data.closereceivechannel.conferenceId1 = htolel(callid);
 
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
 	if (ret == -1)
@@ -176,9 +176,9 @@ int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
 		return -1;
 	}
 
-	msg->data.stopmedia.conferenceId = htolel(0);
+	msg->data.stopmedia.conferenceId = htolel(callid);
 	msg->data.stopmedia.partyId = htolel(callid ^ 0xFFFFFFFF);
-	msg->data.stopmedia.conferenceId1 = htolel(0); 
+	msg->data.stopmedia.conferenceId1 = htolel(callid);
  
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
 	if (ret == -1)
@@ -198,7 +198,7 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, s
 		return -1;
 	}
 
-	msg->data.startmedia.conferenceId = htolel(0);
+	msg->data.startmedia.conferenceId = htolel(callid);
 	msg->data.startmedia.passThruPartyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.startmedia.remoteIp = htolel(endpoint.sin_addr.s_addr);
 	msg->data.startmedia.remotePort = htolel(ntohs(endpoint.sin_port));
@@ -208,7 +208,7 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, s
 	msg->data.startmedia.qualifier.vad = htolel(0);
 	msg->data.startmedia.qualifier.packets = htolel(0);
 	msg->data.startmedia.qualifier.bitRate = htolel(0);
-	msg->data.startmedia.conferenceId1 = htolel(0);
+	msg->data.startmedia.conferenceId1 = htolel(callid);
 	msg->data.startmedia.rtpTimeout = htolel(10);
 
 	ret = transmit_message(msg, line->device->session);
@@ -247,13 +247,13 @@ int transmit_connect(struct sccp_line *line, uint32_t callid)
 		return -1;
 	}
 
-	msg->data.openreceivechannel.conferenceId = htolel(0);
+	msg->data.openreceivechannel.conferenceId = htolel(callid);
 	msg->data.openreceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.openreceivechannel.packets = htolel(fmt.cur_ms);
 	msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(fmt.bits));
 	msg->data.openreceivechannel.echo = htolel(0);
 	msg->data.openreceivechannel.bitrate = htolel(0);
-	msg->data.openreceivechannel.conferenceId1 = htolel(0);
+	msg->data.openreceivechannel.conferenceId1 = htolel(callid);
 	msg->data.openreceivechannel.rtpTimeout = htolel(10);
 
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
