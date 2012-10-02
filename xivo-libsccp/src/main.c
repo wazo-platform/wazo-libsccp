@@ -74,6 +74,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		"authtimeout=10\n"
 		"dialtimeout=3\n"
 		"context=default\n"
+		"language=en_US\n"
 		"vmexten=*988\n"
 		"\n"
 		"[lines]\n"
@@ -126,6 +127,12 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	if (strcmp(sccp_cfg->context, "default")) {
 		ast_test_status_update(test, "context %s != %s\n", sccp_cfg->context, "default");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(sccp_cfg->language, "en_US")) {
+		ast_test_status_update(test, "language %s != %s\n", sccp_cfg->language, "en_US");
 		ret = AST_TEST_FAIL;
 		goto cleanup;
 	}
@@ -455,6 +462,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 			/* Default configuration */
 			ast_copy_string(line->context, "default", sizeof(line->context));
+			ast_copy_string(line->language, sccp_cfg->language, sizeof(line->language));
 
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 
@@ -504,6 +512,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0", sizeof(sccp_cfg->bindaddr));
 	ast_copy_string(sccp_cfg->dateformat, "D.M.Y", sizeof(sccp_cfg->dateformat));
 	ast_copy_string(sccp_cfg->context, "default", sizeof(sccp_cfg->context));
+	ast_copy_string(sccp_cfg->language, "en_US", sizeof(sccp_cfg->language));
 	ast_copy_string(sccp_cfg->vmexten, "*98", sizeof(sccp_cfg->vmexten));
 
 	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
@@ -540,6 +549,10 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 
 		} else if (!strcasecmp(var->name, "context")) {
 			ast_copy_string(sccp_cfg->context, var->value, sizeof(sccp_cfg->context));
+			continue;
+
+		} else if (!strcasecmp(var->name, "language")) {
+			ast_copy_string(sccp_cfg->language, var->value, sizeof(sccp_cfg->language));
 			continue;
 
 		} else if (!strcasecmp(var->name, "vmexten")) {
@@ -642,6 +655,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	ast_cli(a->fd, "authtimeout = %d\n", sccp_config->authtimeout);
 	ast_cli(a->fd, "dialtimeout = %d\n", sccp_config->dialtimeout);
 	ast_cli(a->fd, "context = %s\n", sccp_config->context);
+	ast_cli(a->fd, "language = %s\n", sccp_config->language);
 	ast_cli(a->fd, "directmedia = %d\n", sccp_config->directmedia);
 	ast_cli(a->fd, "\n");
 
@@ -651,8 +665,8 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 
 		AST_RWLIST_RDLOCK(&device_itr->lines);
 		AST_RWLIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
-			ast_cli(a->fd, "Line extension: (%d) <%s> <%s> <%s>\n",
-				line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context);
+			ast_cli(a->fd, "Line extension: (%d) <%s> <%s> <%s> <%s>\n",
+				line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context, line_itr->language);
 		}
 		AST_RWLIST_UNLOCK(&device_itr->lines);
 		ast_cli(a->fd, "\n");
