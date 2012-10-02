@@ -590,13 +590,29 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 		fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
 
-		transmit_stop_media_transmission(line, subchan->id);
-
 		ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
 		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
 		ast_log(LOG_DEBUG, "endpoint %s:%d\n", ast_inet_ntoa(endpoint.sin_addr), ntohs(endpoint.sin_port));
 
-		transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
+		if (endpoint.sin_addr.s_addr != 0) {
+			transmit_stop_media_transmission(line, subchan->id);
+			transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
+		}
+		else {
+			struct sockaddr_in local = {0};
+			struct ast_sockaddr local_tmp;
+
+			ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
+			ast_sockaddr_to_sin(&local_tmp, &local);
+
+			if (local.sin_addr.s_addr == 0)
+				local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
+
+			ast_log(LOG_DEBUG, "local address %s:%d\n", ast_inet_ntoa(local.sin_addr), ntohs(local.sin_port));
+
+			transmit_stop_media_transmission(line, subchan->id);
+			transmit_start_media_transmission(line, subchan->id, local, fmt);
+		}
 	}
 
 	return 0;
