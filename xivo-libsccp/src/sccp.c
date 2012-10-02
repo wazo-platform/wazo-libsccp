@@ -1154,6 +1154,14 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	/* put on hold */
 	if (line->active_subchan && line->active_subchan->channel) {
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
+		ast_channel_set_fd(line->active_subchan->channel, 0, -1);
+		ast_channel_set_fd(line->active_subchan->channel, 1, -1);
+	}
+
+	if (line->active_subchan && line->active_subchan->rtp) {
+		ast_rtp_instance_stop(line->active_subchan->rtp);
+		ast_rtp_instance_destroy(line->active_subchan->rtp);
+		line->active_subchan->rtp = NULL;
 	}
 
 	ret = transmit_callstate(session, line_instance, SCCP_HOLD, subchan_id);
@@ -1219,7 +1227,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 	/* start audio stream */
-	transmit_connect(line, line->active_subchan->id);
+	start_rtp(line->active_subchan);
 
 	subchan_unset_on_hold(line, subchan_id);
 	return 0;
