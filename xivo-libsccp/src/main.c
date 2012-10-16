@@ -317,6 +317,7 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 	line->active_subchan = NULL;
 	line->callfwd = SCCP_CFWD_UNACTIVE;
 	AST_LIST_HEAD_INIT(&line->subchans);
+	ast_mutex_init(&line->lock);
 
 	/* set the device default line */
 	if (line->instance == 1)

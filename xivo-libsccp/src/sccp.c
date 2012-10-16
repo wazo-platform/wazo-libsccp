@@ -998,46 +998,30 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	line = subchan->line;
 	session = line->device->session;
 
+	ast_log(LOG_DEBUG, "bef locked\n");
+	ast_mutex_lock(&line->lock);
+	ast_log(LOG_DEBUG, "locked\n");
+
 	if (subchan->rtp) {
 
-		ret = transmit_close_receive_channel(line, subchan->id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_stop_media_transmission(line, subchan->id);
-		if (ret == -1)
-			return -1;
+		transmit_close_receive_channel(line, subchan->id);
+		transmit_stop_media_transmission(line, subchan->id);
 
 		ast_rtp_instance_stop(subchan->rtp);
 		ast_rtp_instance_destroy(subchan->rtp);
 		subchan->rtp = NULL;
 	}
 
-	ret = transmit_ringer_mode(session, SCCP_RING_OFF);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_ONHOOK);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_stop_tone(session, line->instance, subchan->id);
-	if (ret == -1)
-		return -1;
+	transmit_ringer_mode(session, SCCP_RING_OFF);
+	transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
+	transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
+	transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_ONHOOK);
+	transmit_stop_tone(session, line->instance, subchan->id);
+	transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
 
 	AST_LIST_REMOVE(&line->subchans, subchan, list);
+
+	subchan->channel = NULL;
 
 	if (subchan->related) {
 		subchan->related->related = NULL;
@@ -1050,6 +1034,10 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 	ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
 	set_line_state(line, SCCP_ONHOOK);
+
+	ast_log(LOG_DEBUG, "unlocked\n");
+	ast_mutex_unlock(&line->lock);
+	ast_log(LOG_DEBUG, "aft unlocked\n");
 
 	return 0;
 }
@@ -1155,6 +1143,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = NULL;
 
 	ast_log(LOG_DEBUG, "handle_softkey_hold: line_instance(%i) subchan_id(%i)\n", line_instance, subchan_id);
 
@@ -1166,6 +1155,18 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
+		return -1;
+	}
+
+	ast_log(LOG_DEBUG, "bef locked\n");
+	ast_mutex_lock(&line->lock);
+	ast_log(LOG_DEBUG, "locked\n");
+
+	subchan = line_get_subchan(line, subchan_id);
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "bef unlocked\n");
+		ast_mutex_unlock(&line->lock);
+		ast_log(LOG_DEBUG, "unlocked\n");
 		return -1;
 	}
 
@@ -1182,32 +1183,24 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 		line->active_subchan->rtp = NULL;
 	}
 
-	ret = transmit_callstate(session, line_instance, SCCP_HOLD, subchan_id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_selectsoftkeys(session, line_instance, subchan_id, KEYDEF_ONHOLD);
-	if (ret == -1)
-		return -1;
+	transmit_callstate(session, line_instance, SCCP_HOLD, subchan_id);
+	transmit_selectsoftkeys(session, line_instance, subchan_id, KEYDEF_ONHOLD);
 
 	/* close our speaker */
-	ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
-	if (ret == -1)
-		return -1;
+	transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 
 	/* stop audio stream */
-	ret = transmit_close_receive_channel(line, subchan_id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_stop_media_transmission(line, subchan_id);
-	if (ret == -1)
-		return -1;
+	transmit_close_receive_channel(line, subchan_id);
+	transmit_stop_media_transmission(line, subchan_id);
 
 	subchan_set_on_hold(line, subchan_id);
 
 	if (line->active_subchan && line->active_subchan->id == subchan_id)
 		line->active_subchan = NULL;
+
+	ast_log(LOG_DEBUG, "bef unlocked\n");
+	ast_mutex_unlock(&line->lock);
+	ast_log(LOG_DEBUG, "unlocked\n");
 
 	return 0;
 }
@@ -1227,6 +1220,10 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		return -1;
 	}
 
+	ast_log(LOG_DEBUG, "bef locked\n");
+	ast_mutex_lock(&line->lock);
+	ast_log(LOG_DEBUG, "locked\n");
+
 	if (line->active_subchan) {
 		/* if another channel is already active */
 		if (line->active_subchan->id != subchan_id) {
@@ -1245,10 +1242,15 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 	/* start audio stream */
-	start_rtp(line->active_subchan);
-	//transmit_connect(line, line->active_subchan->id);
+	if (line->active_subchan)
+		start_rtp(line->active_subchan);
 
 	subchan_unset_on_hold(line, subchan_id);
+
+	ast_log(LOG_DEBUG, "unlocked\n");
+	ast_mutex_unlock(&line->lock);
+	ast_log(LOG_DEBUG, "aft unlocked\n");
+
 	return 0;
 }
 
@@ -1848,8 +1850,15 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	line->device->remote = remote;
 
+	ast_log(LOG_DEBUG, "bef locked\n");
+	ast_mutex_lock(&line->lock);
+	ast_log(LOG_DEBUG, "locked\n");
+
 	if (line->active_subchan == NULL) {
 		ast_log(LOG_DEBUG, "active_subchan is NULL\n");
+		ast_log(LOG_DEBUG, "unlocked\n");
+		ast_mutex_unlock(&line->lock);
+		ast_log(LOG_DEBUG, "aft unlocked\n");
 		return 0;
 	}
 
@@ -1866,6 +1875,9 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	}
 	else {
 		ast_log(LOG_DEBUG, "line->active_subchan->rtp is NULL\n");
+		ast_log(LOG_DEBUG, "unlocked\n");
+		ast_mutex_unlock(&line->lock);
+		ast_log(LOG_DEBUG, "aft unlocked\n");
 		return 0;
 	}
 
@@ -1875,14 +1887,15 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
 
 	ret = transmit_start_media_transmission(line, line->active_subchan->id, local, fmt);
-		if (ret == -1)
-			return -1;
 
 	if (line->active_subchan && line->active_subchan->channel) {
-		usleep(200000);
+		//usleep(200000);
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
 	}
 
+	ast_log(LOG_DEBUG, "unlocked\n");
+	ast_mutex_unlock(&line->lock);
+	ast_log(LOG_DEBUG, "aft unlocked\n");
 	return 0;
 }
 
@@ -2633,7 +2646,8 @@ static struct ast_channel *cb_ast_request(const char *type,
 
 	if (!line->active_subchan && !line->device->early_remote && sccp_config->directmedia) {
 		line->device->early_remote = 1;
-		transmit_connect(line, subchan->id);
+		start_rtp(subchan);
+		//transmit_connect(line, subchan->id);
 	}
 
 	return channel;
@@ -2793,7 +2807,6 @@ static int cb_ast_hangup(struct ast_channel *channel)
 	subchan = channel->tech_pvt;
 	if (subchan != NULL) {
 		do_clear_subchannel(subchan);
-		subchan->channel = NULL;
 	}
 
 	ast_setstate(channel, AST_STATE_DOWN);
