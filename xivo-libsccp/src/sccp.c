@@ -998,9 +998,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	line = subchan->line;
 	session = line->device->session;
 
-	ast_log(LOG_DEBUG, "bef locked\n");
 	ast_mutex_lock(&line->lock);
-	ast_log(LOG_DEBUG, "locked\n");
 
 	if (subchan->rtp) {
 
@@ -1035,9 +1033,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
 	set_line_state(line, SCCP_ONHOOK);
 
-	ast_log(LOG_DEBUG, "unlocked\n");
 	ast_mutex_unlock(&line->lock);
-	ast_log(LOG_DEBUG, "aft unlocked\n");
 
 	return 0;
 }
@@ -1158,15 +1154,11 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 		return -1;
 	}
 
-	ast_log(LOG_DEBUG, "bef locked\n");
 	ast_mutex_lock(&line->lock);
-	ast_log(LOG_DEBUG, "locked\n");
 
 	subchan = line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "bef unlocked\n");
 		ast_mutex_unlock(&line->lock);
-		ast_log(LOG_DEBUG, "unlocked\n");
 		return -1;
 	}
 
@@ -1198,9 +1190,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	if (line->active_subchan && line->active_subchan->id == subchan_id)
 		line->active_subchan = NULL;
 
-	ast_log(LOG_DEBUG, "bef unlocked\n");
 	ast_mutex_unlock(&line->lock);
-	ast_log(LOG_DEBUG, "unlocked\n");
 
 	return 0;
 }
@@ -1220,9 +1210,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		return -1;
 	}
 
-	ast_log(LOG_DEBUG, "bef locked\n");
 	ast_mutex_lock(&line->lock);
-	ast_log(LOG_DEBUG, "locked\n");
 
 	if (line->active_subchan) {
 		/* if another channel is already active */
@@ -1247,9 +1235,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	subchan_unset_on_hold(line, subchan_id);
 
-	ast_log(LOG_DEBUG, "unlocked\n");
 	ast_mutex_unlock(&line->lock);
-	ast_log(LOG_DEBUG, "aft unlocked\n");
 
 	return 0;
 }
@@ -1850,15 +1836,11 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	line->device->remote = remote;
 
-	ast_log(LOG_DEBUG, "bef locked\n");
 	ast_mutex_lock(&line->lock);
-	ast_log(LOG_DEBUG, "locked\n");
 
 	if (line->active_subchan == NULL) {
 		ast_log(LOG_DEBUG, "active_subchan is NULL\n");
-		ast_log(LOG_DEBUG, "unlocked\n");
 		ast_mutex_unlock(&line->lock);
-		ast_log(LOG_DEBUG, "aft unlocked\n");
 		return 0;
 	}
 
@@ -1875,9 +1857,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	}
 	else {
 		ast_log(LOG_DEBUG, "line->active_subchan->rtp is NULL\n");
-		ast_log(LOG_DEBUG, "unlocked\n");
 		ast_mutex_unlock(&line->lock);
-		ast_log(LOG_DEBUG, "aft unlocked\n");
 		return 0;
 	}
 
@@ -1889,13 +1869,10 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	ret = transmit_start_media_transmission(line, line->active_subchan->id, local, fmt);
 
 	if (line->active_subchan && line->active_subchan->channel) {
-		//usleep(200000);
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
 	}
 
-	ast_log(LOG_DEBUG, "unlocked\n");
 	ast_mutex_unlock(&line->lock);
-	ast_log(LOG_DEBUG, "aft unlocked\n");
 	return 0;
 }
 
