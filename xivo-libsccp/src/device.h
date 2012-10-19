@@ -148,6 +148,7 @@ struct softkey_definitions {
 static const uint8_t softkey_default_onhook[] = {
 	SOFTKEY_NEWCALL,
 	SOFTKEY_CFWDALL,
+	SOFTKEY_REDIAL,
 };
 
 static const uint8_t softkey_default_connected[] = {
@@ -264,6 +265,7 @@ struct sccp_device {
 	struct ast_event_sub *mwi_event_sub;
 
 	char exten[AST_MAX_EXTENSION];
+	char last_exten[AST_MAX_EXTENSION];
 	pthread_t lookup_thread;
 	int lookup;
 

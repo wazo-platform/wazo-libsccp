@@ -743,6 +743,7 @@ static void *sccp_lookup_exten(void *data)
 				}
 
 				sccp_start_the_call(channel);
+				memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
 				line->device->exten[0] = '\0';
 				return NULL;
 		}
@@ -1471,6 +1472,11 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		return -1;
 	}
 
+	if (session->device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return -1;
+	}
+
 	ast_log(LOG_DEBUG, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
 	ast_log(LOG_DEBUG, "instance: %d\n", msg->data.softkeyevent.lineInstance);
 	ast_log(LOG_DEBUG, "callid: %d\n", msg->data.softkeyevent.callInstance);
@@ -1480,6 +1486,12 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_REDIAL:
+		if (strlen(session->device->last_exten) > 0) {
+			ret = do_newcall(msg->data.softkeyevent.lineInstance,
+					msg->data.softkeyevent.callInstance,
+					session);
+			memcpy(session->device->exten, session->device->last_exten, AST_MAX_EXTENSION);
+		}
 		break;
 
 	case SOFTKEY_NEWCALL:
