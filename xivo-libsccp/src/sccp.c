@@ -1494,6 +1494,8 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 			ret = do_newcall(msg->data.softkeyevent.lineInstance,
 					msg->data.softkeyevent.callInstance,
 					session);
+			if (ret == -1)
+				return -1;
 			memcpy(session->device->exten, session->device->last_exten, AST_MAX_EXTENSION);
 		}
 		break;
