@@ -34,7 +34,7 @@ AST_TEST_DEFINE(sccp_test_config)
 	enum ast_test_result_state ret = AST_TEST_PASS;
 	struct sccp_configs *sccp_cfg = NULL;
 	FILE *conf_file = NULL;
-	char *conf = NULL, *conf2 = NULL;
+	char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_device *device = NULL;
 

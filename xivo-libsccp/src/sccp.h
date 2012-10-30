@@ -22,6 +22,7 @@ static struct sccp_server {
 
 } sccp_srv;
 
+
 struct sccp_configs {
 
 	int set;

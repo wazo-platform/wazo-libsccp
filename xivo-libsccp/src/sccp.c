@@ -268,7 +268,7 @@ static int handle_button_template_req_message(struct sccp_session *session)
 {
 	int ret = 0;
 	struct sccp_msg *msg = NULL;
-	struct button_definition_template btl[42] = {0};
+	struct button_definition_template btl[42];
 	int button_count = 0;
 	uint32_t line_instance = 1;
 	struct sccp_line *line_itr = NULL;
@@ -562,13 +562,13 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 {
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
-	struct sockaddr_in endpoint = {0,};
+	struct sockaddr_in endpoint;
 	struct ast_sockaddr endpoint_tmp;
 
-	struct sockaddr_in local = {0,};
+	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
 
-	struct ast_format_list fmt = {0};
+	struct ast_format_list fmt;
 
 	subchan = channel->tech_pvt;
 	if (subchan == NULL) {
@@ -599,9 +599,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 			transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
 		}
 		else {
-			struct sockaddr_in local = {0};
-			struct ast_sockaddr local_tmp;
-
 			ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
 			ast_sockaddr_to_sin(&local_tmp, &local);
 
@@ -620,7 +617,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 static int start_rtp(struct sccp_subchannel *subchan)
 {
-	struct ast_codec_pref default_prefs = {0};
 	struct sccp_session *session = NULL;
 	struct ast_sockaddr bindaddr_tmp;
 	struct ast_sockaddr remote_tmp;
@@ -911,11 +907,9 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 
 static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sccp_device *device = NULL;
 	struct sccp_subchannel *subchan = NULL;
-	struct ast_channel *channel = NULL;
 
 	uint32_t line_instance = 0;
 	uint32_t subchan_id = 0;
@@ -986,7 +980,6 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 static int do_clear_subchannel(struct sccp_subchannel *subchan)
 {
-	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sccp_session *session = NULL;
 
@@ -1040,7 +1033,6 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
@@ -1137,7 +1129,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
@@ -1801,11 +1792,11 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
-	struct sockaddr_in remote = {0};
+	struct sockaddr_in remote;
 	struct ast_sockaddr remote_tmp;
-	struct sockaddr_in local = {0};
+	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
-	struct ast_format_list fmt = {0};
+	struct ast_format_list fmt;
 	uint32_t passthruid = 0;
 	uint32_t addr = 0;
 	uint32_t port = 0;
@@ -2370,7 +2361,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 static int fetch_data(struct sccp_session *session)
 {
-	struct pollfd fds[1] = {0};
+	struct pollfd fds[1];
 	int nfds = 0;
 	time_t now = 0;
 	ssize_t nbyte = 0;
@@ -2489,7 +2480,7 @@ static void *thread_session(void *data)
 static void *thread_accept(void *data)
 {
 	int new_sockfd = 0;
-	struct sockaddr_in addr = {0};
+	struct sockaddr_in addr;
 	struct sccp_session *session = NULL;
 	socklen_t addrlen = 0;
 	int flag_nodelay = 1;
@@ -3666,7 +3657,7 @@ void sccp_rtp_init(const struct ast_module_info *module_info)
 int sccp_server_init(struct sccp_configs *sccp_cfg)
 {
 	int ret = 0;
-	struct addrinfo hints = {0};
+	struct addrinfo hints;
 	const int flag_reuse = 1;
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
