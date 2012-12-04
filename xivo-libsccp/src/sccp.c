@@ -2614,8 +2614,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 
 	if (!line->active_subchan && !line->device->early_remote && sccp_config->directmedia) {
 		line->device->early_remote = 1;
-		start_rtp(subchan);
-		//transmit_connect(line, subchan->id);
+		transmit_connect(line, subchan->id);
 	}
 
 	return channel;
