@@ -2900,8 +2900,11 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 		return 0;
 	}
 
-	if (subchan->rtp != NULL && line->state == SCCP_CONNECTED) {
+	if (subchan->rtp != NULL &&
+		(line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS)) {
 		res = ast_rtp_instance_write(subchan->rtp, frame);
+	} else {
+		start_rtp(subchan);
 	}
 
 	return res;
@@ -2991,6 +2994,7 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		break;
 
 	case AST_CONTROL_PROGRESS:
+		set_line_state(line, SCCP_PROGRESS);
 		ast_log(LOG_DEBUG, "progress\n");
 		break;
 
