@@ -2905,10 +2905,10 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 	if (subchan->rtp != NULL &&
 		(line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS)) {
 		res = ast_rtp_instance_write(subchan->rtp, frame);
-	} else {
-		transmit_stop_tone(line->device->session, line->instance, subchan->id);
-		transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
-		start_rtp(subchan);
+	} else /* XXX add better condition here */ {
+		//transmit_stop_tone(line->device->session, line->instance, subchan->id);
+		//transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
+		//start_rtp(subchan);
 	}
 
 	return res;
