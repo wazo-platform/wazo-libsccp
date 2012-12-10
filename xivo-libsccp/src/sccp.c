@@ -272,6 +272,8 @@ static int handle_button_template_req_message(struct sccp_session *session)
 	int button_count = 0;
 	uint32_t line_instance = 1;
 	struct sccp_line *line_itr = NULL;
+	struct sccp_speeddial *speeddial_itr = NULL;
+	uint8_t button_set = 0;
 	int i = 0;
 
 	if (session == NULL) {
@@ -290,6 +292,7 @@ static int handle_button_template_req_message(struct sccp_session *session)
 		return -1;
 
 	for (i = 0; i < 42; i++) {
+		button_set = 0;
 		switch (btl[i].buttonDefinition) {
 			case BT_CUST_LINESPEEDDIAL:
 
@@ -298,15 +301,34 @@ static int handle_button_template_req_message(struct sccp_session *session)
 
 				AST_RWLIST_RDLOCK(&session->device->lines);
 				AST_RWLIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
+					ast_log(LOG_DEBUG, "line (%d:%d)\n", line_itr->instance, line_instance);
 					if (line_itr->instance == line_instance) {
+					ast_log(LOG_DEBUG, "line work (%d:%d)\n", line_itr->instance, line_instance);
 						msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
 						msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
 
 						line_instance++;
 						button_count++;
+						button_set = 1;
 					}
 				}
 				AST_RWLIST_UNLOCK(&session->device->lines);
+
+				if (button_set != 1) {
+					AST_RWLIST_RDLOCK(&session->device->speeddials);
+					AST_RWLIST_TRAVERSE(&session->device->speeddials, speeddial_itr, list) {
+						ast_log(LOG_DEBUG, "speeddial(%d:%d)\n", speeddial_itr->instance, line_instance);
+						if (speeddial_itr->instance == line_instance) {
+						ast_log(LOG_DEBUG, "speeddial work(%d:%d)\n", speeddial_itr->instance, line_instance);
+							msg->data.buttontemplate.definition[i].buttonDefinition = BT_SPEEDDIAL;
+							msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
+
+							line_instance++;
+							button_count++;
+						}
+					}
+					AST_RWLIST_UNLOCK(&session->device->speeddials);
+				}
 
 				break;
 
@@ -1872,6 +1894,48 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	return 0;
 }
 
+static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	int ret = 0;
+	int line_instance = 0;
+	struct sccp_speeddial *speeddial = NULL;
+
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
+		return -1;
+	}
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	line_instance = letohl(msg->data.speeddial.lineInstance);
+	speeddial = device_get_speeddial(session->device, line_instance);
+
+	if (speeddial == NULL) {
+		ast_log(LOG_DEBUG, "Line instance [%d] has no speeddial on device [%s]\n", line_instance, session->device->name);
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct speed_dial_stat_res_message), SPEED_DIAL_STAT_RES_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.linestatus.lineNumber = letohl(line_instance);
+
+	memcpy(msg->data.speeddialstatus.speedDialDirNumber, "1001", sizeof(msg->data.linestatus.lineDirNumber));
+	memcpy(msg->data.speeddialstatus.speedDialDisplayName, "un_test", sizeof(msg->data.linestatus.lineDisplayName));
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
@@ -2086,6 +2150,27 @@ static int handle_voicemail_message(struct sccp_msg *msg, struct sccp_session *s
 	return 0;
 }
 
+static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	struct sccp_line *line = NULL;
+	struct sccp_speeddial *speeddial = NULL;
+
+	speeddial = device_get_speeddial(session->device, msg->data.stimulus.lineInstance);
+
+        line = device_get_line(session->device, 1);
+        do_newcall(1, 0, session);
+
+        /* open our speaker */
+        transmit_speaker_mode(session, SCCP_SPEAKERON);
+
+        ast_copy_string(line->device->exten, "1001", sizeof(line->device->exten));
+
+	line->device->exten[4] = '#';
+	line->device->exten[5] = '\0';
+
+	return 0;
+}
+
 static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_device *device = NULL;
@@ -2270,9 +2355,17 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 		ret = handle_enbloc_call_message(msg, session);
 		break;
 
-	case VOICEMAIL_MESSAGE:
-		ast_log(LOG_DEBUG, "voicemail message\n");
-		ret = handle_voicemail_message(msg, session);
+	case STIMULUS_MESSAGE:
+		switch (msg->data.stimulus.stimulus) {
+		case STIMULUS_VOICEMAIL:
+			ast_log(LOG_DEBUG, "voicemail message\n");
+			ret = handle_voicemail_message(msg, session);
+			break;
+		case STIMULUS_SPEEDDIAL:
+			ast_log(LOG_DEBUG, "speeddial message\n");
+			ret = handle_speeddial_message(msg, session);
+			break;
+		}
 		break;
 
 	case KEYPAD_BUTTON_MESSAGE:
@@ -2298,6 +2391,11 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	case CAPABILITIES_RES_MESSAGE:
 		ast_log(LOG_DEBUG, "Capabilities message\n");
 		ret = handle_capabilities_res_message(msg, session);
+		break;
+
+	case SPEED_DIAL_STAT_REQ_MESSAGE:
+		ast_log(LOG_DEBUG, "Speeddial status message\n");
+		ret = handle_speeddial_status_req_message(msg, session);
 		break;
 
 	case LINE_STATUS_REQ_MESSAGE:

@@ -142,6 +142,25 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 	return line_itr;
 }
 
+struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance)
+{
+	struct sccp_speeddial *speeddial_itr = NULL;
+
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return NULL;
+	}
+
+	AST_RWLIST_RDLOCK(&device->speeddials);
+	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list) {
+		if (speeddial_itr->instance == instance)
+			break;
+	}
+	AST_RWLIST_UNLOCK(&device->speeddials);
+
+	return speeddial_itr;
+}
+
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
 {
 	struct sccp_line *line_itr = NULL;

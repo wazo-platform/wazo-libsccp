@@ -289,6 +289,12 @@ cleanup:
 	return ret;
 }
 
+static void initialize_speeddial(struct sccp_speeddial *speeddial, const char *label, int speeddial_instance)
+{
+	ast_copy_string(speeddial->cid_num, label, sizeof(speeddial->cid_num));
+	speeddial->instance = speeddial_instance;
+}
+
 static void initialize_device(struct sccp_device *device, const char *name)
 {
 	ast_mutex_init(&device->lock);
@@ -302,8 +308,11 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	device->autoanswer = 0;
 	device->registered = DEVICE_REGISTERED_FALSE;
 	device->session = NULL;
+	device->line_count = 0;
+	device->speeddial_count = 0;
 
 	AST_RWLIST_HEAD_INIT(&device->lines);
+	AST_RWLIST_HEAD_INIT(&device->speeddials);
 }
 
 static void initialize_line(struct sccp_line *line, uint32_t instance, struct sccp_device *device)
@@ -344,11 +353,13 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	struct ast_variable *var = NULL;
 	struct sccp_device *device, *device_itr = NULL;
 	struct sccp_line *line_itr = NULL;
+	struct sccp_speeddial *speeddial = NULL;
 	char *category = NULL;
 	int duplicate = 0;
 	int found_line = 0;
 	int err = 0;
 	int line_instance = 1;
+	int speeddial_instance = 1;
 
 	category = ast_category_browse(cfg, "devices");
 	/* handle each device */
@@ -373,6 +384,20 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
+
+				if (!strcasecmp(var->name, "speeddial")) {
+					ast_log(LOG_DEBUG, "speeddial: %s\n", var->value);
+
+					speeddial = calloc(1, sizeof(struct sccp_speeddial));
+					if (speeddial != NULL) {
+						AST_RWLIST_WRLOCK(&device->speeddials);
+						AST_RWLIST_INSERT_HEAD(&device->speeddials, speeddial, list);
+						AST_RWLIST_UNLOCK(&device->speeddials);
+						device->speeddial_count++;
+						initialize_speeddial(speeddial, var->value, line_instance++);
+						speeddial = NULL;
+					}
+				}
 
 				if (!strcasecmp(var->name, "voicemail")) {
 					ast_copy_string(device->voicemail, var->value, sizeof(device->voicemail));
@@ -640,6 +665,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 {
 	struct sccp_line *line_itr = NULL;
 	struct sccp_device *device_itr = NULL;
+	struct sccp_speeddial *speeddial_itr = NULL;
 
 	switch (cmd) {
 	case CLI_INIT:
@@ -670,6 +696,13 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 				line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context, line_itr->language);
 		}
 		AST_RWLIST_UNLOCK(&device_itr->lines);
+
+		AST_RWLIST_RDLOCK(&device_itr->speeddials);
+		AST_RWLIST_TRAVERSE(&device_itr->speeddials, speeddial_itr, list) {
+			ast_cli(a->fd, "Speeddial: <%s>\n", speeddial_itr->cid_num);
+		}
+		AST_RWLIST_UNLOCK(&device_itr->speeddials);
+
 		ast_cli(a->fd, "\n");
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_device);

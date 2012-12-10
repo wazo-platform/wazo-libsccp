@@ -60,10 +60,10 @@ struct keypad_button_message {
 	uint32_t callInstance;
 };
 
-#define VOICEMAIL_MESSAGE 0x0005
-struct voicemail_message {
+#define STIMULUS_MESSAGE 0x0005
+struct stimulus_message {
+	uint32_t stimulus;
 	uint32_t lineInstance;
-	uint32_t callInstance;
 };
 
 #define OFFHOOK_MESSAGE 0x0006
@@ -97,6 +97,11 @@ struct station_capabilities {
 struct capabilities_res_message {
 	uint32_t count;
 	struct station_capabilities caps[SCCP_MAX_CAPABILITIES];
+};
+
+#define SPEED_DIAL_STAT_REQ_MESSAGE 0x000A
+struct speed_dial_stat_req_message {
+	uint32_t lineInstance;
 };
 
 #define LINE_STATUS_REQ_MESSAGE 0x000B
@@ -245,6 +250,13 @@ struct forward_status_res_message {
 	char cfwdBusyNumber[24];
 	uint32_t cfwdNoAnswerStatus;
 	char cfwdNoAnswerNumber[24];
+};
+
+#define SPEED_DIAL_STAT_RES_MESSAGE 0x0091
+struct speed_dial_stat_res_message {
+	uint32_t lineNumber;
+        char speedDialDirNumber[24];
+        char speedDialDisplayName[40];
 };
 
 #define LINE_STATUS_RES_MESSAGE 0x0092
@@ -418,7 +430,7 @@ union sccp_data {
 	struct register_message reg;
 	struct register_ack_message regack;
 	struct register_rej_message regrej;
-	struct voicemail_message voicemail;
+	struct stimulus_message stimulus;
 	struct offhook_message offhook;
 	struct onhook_message onhook;
 	struct start_tone_message starttone;
@@ -428,7 +440,9 @@ union sccp_data {
 	struct enbloc_call_message enbloc;
 	struct ip_port_message ipport;
 	struct button_template_res_message buttontemplate;
+	struct speed_dial_stat_req_message speeddial;
 	struct line_status_req_message line;
+	struct speed_dial_stat_res_message speeddialstatus;
 	struct line_status_res_message linestatus;
 	struct time_date_res_message timedate;
 	struct config_status_res_message configstatus;

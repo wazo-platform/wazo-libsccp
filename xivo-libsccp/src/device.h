@@ -247,6 +247,14 @@ struct sccp_line {
 	AST_LIST_ENTRY(sccp_line) list_per_device;
 };
 
+struct sccp_speeddial {
+
+	char label[80];
+	char cid_num[AST_MAX_EXTENSION];
+	uint32_t instance;
+	AST_LIST_ENTRY(sccp_speeddial) list;
+};
+
 #define DEVICE_REGISTERED_TRUE	0x1
 #define DEVICE_REGISTERED_FALSE	0x2
 
@@ -287,6 +295,7 @@ struct sccp_device {
 	uint32_t active_line_cnt;
 
 	AST_RWLIST_HEAD(, sccp_line) lines;
+	AST_RWLIST_HEAD(, sccp_speeddial) speeddials;
 	AST_LIST_ENTRY(sccp_device) list;
 };
 
@@ -302,6 +311,7 @@ void device_register(struct sccp_device *device,
 void device_prepare(struct sccp_device *device);
 struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line);
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device);
+struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance);
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
 char *line_state_str(int line_state);
 int device_type_is_supported(int device_type);
