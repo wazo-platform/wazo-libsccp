@@ -1379,13 +1379,12 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
-	int line_instance = 1; /* Callforward is statically linked to line 1 */
 	char info_fwd[24];
 
 	if (session == NULL)
 		return -1;
 
-	line = device_get_line(session->device, line_instance);
+	line = device_get_line(session->device, session->device->default_line->instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return -1;
