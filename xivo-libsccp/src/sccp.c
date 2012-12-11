@@ -2159,6 +2159,10 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	struct sccp_speeddial *speeddial = NULL;
 
 	speeddial = device_get_speeddial(session->device, msg->data.stimulus.lineInstance);
+	if (speeddial == NULL) {
+		ast_log(LOG_WARNING, "speeddial has no instance (%d)\n",  msg->data.stimulus.lineInstance);
+		return 0;
+	}
 
 	line = session->device->default_line;
 	do_newcall(line->instance, 0, session);
