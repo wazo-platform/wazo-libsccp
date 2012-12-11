@@ -301,9 +301,7 @@ static int handle_button_template_req_message(struct sccp_session *session)
 
 				AST_RWLIST_RDLOCK(&session->device->lines);
 				AST_RWLIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
-					ast_log(LOG_DEBUG, "line (%d:%d)\n", line_itr->instance, line_instance);
 					if (line_itr->instance == line_instance) {
-					ast_log(LOG_DEBUG, "line work (%d:%d)\n", line_itr->instance, line_instance);
 						msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
 						msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
 
@@ -1673,24 +1671,24 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 
 int codec_ast2sccp(format_t astcodec)
 {
-        switch (astcodec) {
-        case AST_FORMAT_ALAW:
-                return SCCP_CODEC_G711_ALAW;
-        case AST_FORMAT_ULAW:
-                return SCCP_CODEC_G711_ULAW;
-        case AST_FORMAT_G723_1:
-                return SCCP_CODEC_G723_1;
-        case AST_FORMAT_G729A:
-                return SCCP_CODEC_G729A;
-        case AST_FORMAT_G726_AAL2:
-                return SCCP_CODEC_G726_32;
-        case AST_FORMAT_H261:
-                return SCCP_CODEC_H261;
-        case AST_FORMAT_H263:
-                return SCCP_CODEC_H263;
-        default:
-                return -1;
-        }
+	switch (astcodec) {
+	case AST_FORMAT_ALAW:
+		return SCCP_CODEC_G711_ALAW;
+	case AST_FORMAT_ULAW:
+		return SCCP_CODEC_G711_ULAW;
+	case AST_FORMAT_G723_1:
+		return SCCP_CODEC_G723_1;
+	case AST_FORMAT_G729A:
+		return SCCP_CODEC_G729A;
+	case AST_FORMAT_G726_AAL2:
+		return SCCP_CODEC_G726_32;
+	case AST_FORMAT_H261:
+		return SCCP_CODEC_H261;
+	case AST_FORMAT_H263:
+		return SCCP_CODEC_H263;
+	default:
+		return -1;
+	}
 }
 
 static format_t codec_sccp2ast(enum sccp_codecs sccp_codec)

@@ -349,17 +349,17 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
 {
-        struct ast_variable *tmpvar = NULL;
-        char *varname = ast_strdupa(buf), *varval = NULL;
+	struct ast_variable *tmpvar = NULL;
+	char *varname = ast_strdupa(buf), *varval = NULL;
 
-        if ((varval = strchr(varname, '='))) {
-                *varval++ = '\0';
-                if ((tmpvar = ast_variable_new(varname, varval, ""))) {
-                        tmpvar->next = list;
-                        list = tmpvar;
-                }
-        }
-        return list;
+	if ((varval = strchr(varname, '='))) {
+		*varval++ = '\0';
+		if ((tmpvar = ast_variable_new(varname, varval, ""))) {
+			tmpvar->next = list;
+			list = tmpvar;
+		}
+	}
+	return list;
 }
 
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
@@ -367,7 +367,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	struct ast_variable *var = NULL;
 	struct sccp_device *device, *device_itr = NULL;
 	struct sccp_line *line_itr = NULL;
-	struct sccp_speeddial *speeddial = NULL;
+	struct sccp_peeddial *speeddial = NULL;
 	char *category = NULL;
 	int duplicate = 0;
 	int found_line = 0;
@@ -400,8 +400,6 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 
 				if (!strcasecmp(var->name, "speeddial")) {
-					ast_log(LOG_DEBUG, "speeddial: %s\n", var->value);
-
 					speeddial = calloc(1, sizeof(struct sccp_speeddial));
 					if (speeddial != NULL) {
 						AST_RWLIST_WRLOCK(&device->speeddials);

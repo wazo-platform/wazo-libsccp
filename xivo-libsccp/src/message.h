@@ -255,8 +255,8 @@ struct forward_status_res_message {
 #define SPEED_DIAL_STAT_RES_MESSAGE 0x0091
 struct speed_dial_stat_res_message {
 	uint32_t lineNumber;
-        char speedDialDirNumber[24];
-        char speedDialDisplayName[40];
+	char speedDialDirNumber[24];
+	char speedDialDisplayName[40];
 };
 
 #define LINE_STATUS_RES_MESSAGE 0x0092
