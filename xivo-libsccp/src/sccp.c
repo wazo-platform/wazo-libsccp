@@ -406,6 +406,11 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 		ast_log(LOG_WARNING, "Device [%s] has no valid line\n", device_itr->name);
 		ret = -1;
 
+	} else if (device_itr->default_line == NULL) {
+
+		ast_log(LOG_WARNING, "Device [%s] has no default line\n", device_itr->name);
+		ret = -1;
+
 	} else if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
 
 		ast_log(LOG_WARNING, "Device already registered [%s]\n", device_itr->name);
@@ -1926,8 +1931,8 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 
 	msg->data.linestatus.lineNumber = letohl(line_instance);
 
-	memcpy(msg->data.speeddialstatus.speedDialDirNumber, "1001", sizeof(msg->data.linestatus.lineDirNumber));
-	memcpy(msg->data.speeddialstatus.speedDialDisplayName, "un_test", sizeof(msg->data.linestatus.lineDisplayName));
+	memcpy(msg->data.speeddialstatus.speedDialDirNumber, speeddial->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
+	memcpy(msg->data.speeddialstatus.speedDialDisplayName, speeddial->label, sizeof(msg->data.linestatus.lineDisplayName));
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -2136,16 +2141,14 @@ static int handle_voicemail_message(struct sccp_msg *msg, struct sccp_session *s
 {
 	struct sccp_line *line = NULL;
 
-	line = device_get_line(session->device, 1);
-	do_newcall(1, 0, session);
+	line = session->device->default_line;
+	do_newcall(line->instance, 0, session);
 
 	/* open our speaker */
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 	ast_copy_string(line->device->exten, sccp_config->vmexten, sizeof(line->device->exten));
-
-	line->device->exten[3] = '#';
-	line->device->exten[4] = '\0';
+	strcat(line->device->exten, "#");
 
 	return 0;
 }
@@ -2157,16 +2160,14 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 
 	speeddial = device_get_speeddial(session->device, msg->data.stimulus.lineInstance);
 
-        line = device_get_line(session->device, 1);
-        do_newcall(1, 0, session);
+	line = session->device->default_line;
+	do_newcall(line->instance, 0, session);
 
-        /* open our speaker */
-        transmit_speaker_mode(session, SCCP_SPEAKERON);
+	/* open our speaker */
+	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
-        ast_copy_string(line->device->exten, "1001", sizeof(line->device->exten));
-
-	line->device->exten[4] = '#';
-	line->device->exten[5] = '\0';
+	ast_copy_string(line->device->exten, speeddial->cid_num, sizeof(line->device->exten));
+	strcat(line->device->exten, "#");
 
 	return 0;
 }
