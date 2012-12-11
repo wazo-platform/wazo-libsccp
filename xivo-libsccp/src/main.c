@@ -344,6 +344,7 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 	/* set the device default line */
 	if (device->default_line == NULL) {
 		device->default_line = line;
+	}
 }
 
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
