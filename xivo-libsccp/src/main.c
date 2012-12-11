@@ -367,7 +367,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	struct ast_variable *var = NULL;
 	struct sccp_device *device, *device_itr = NULL;
 	struct sccp_line *line_itr = NULL;
-	struct sccp_peeddial *speeddial = NULL;
+	struct sccp_speeddial *speeddial = NULL;
 	char *category = NULL;
 	int duplicate = 0;
 	int found_line = 0;
