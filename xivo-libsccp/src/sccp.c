@@ -381,7 +381,7 @@ static int handle_button_template_req_message(struct sccp_session *session)
 			case BT_CUST_LINESPEEDDIAL:
 
 				msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
-				msg->data.buttontemplate.definition[i].lineInstance = htolel(0);
+				msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
 
 				AST_RWLIST_RDLOCK(&session->device->lines);
 				AST_RWLIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
@@ -1999,8 +1999,8 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 	speeddial = device_get_speeddial(session->device, line_instance);
 
 	if (speeddial == NULL) {
-		ast_log(LOG_DEBUG, "Line instance [%d] has no speeddial on device [%s]\n", line_instance, session->device->name);
-		return -1;
+		ast_log(LOG_DEBUG, "Button instance [%d] has no speeddial set on device [%s]\n", line_instance, session->device->name);
+		return 0;
 	}
 
 	msg = msg_alloc(sizeof(struct speed_dial_stat_res_message), SPEED_DIAL_STAT_RES_MESSAGE);
