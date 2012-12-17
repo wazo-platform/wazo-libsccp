@@ -2249,7 +2249,6 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	switch (msg->id) {
 	case KEEP_ALIVE_MESSAGE:
-		ast_log(LOG_DEBUG, "Keep alive message\n");
 		ret = handle_keep_alive_message(session);
 		break;
 
