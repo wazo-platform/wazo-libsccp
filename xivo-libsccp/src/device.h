@@ -31,6 +31,12 @@
 #define SCCP_CFWD_INPUTEXTEN	2
 #define SCCP_CFWD_ACTIVE	3
 
+#define SCCP_BLF_STATUS_UNKNOWN	0
+#define SCCP_BLF_STATUS_IDLE	1
+#define SCCP_BLF_STATUS_INUSE	2
+#define SCCP_BLF_STATUS_DND	3
+#define SCCP_BLF_STATUS_ALERTING	4
+
 #define SCCP_OFFHOOK		1
 #define SCCP_ONHOOK		2
 #define SCCP_RINGOUT		3
@@ -75,6 +81,7 @@
 #define STIMULUS_LINE			0x09
 #define STIMULUS_VOICEMAIL		0x0F
 #define STIMULUS_AUTOANSWER		0x11
+#define STIMULUS_FEATUREBUTTON		0x15
 #define STIMULUS_CONFERENCE		0x7D
 #define STIMULUS_CALLPARK		0x7E
 #define STIMULUS_CALLPICKUP		0x7F
@@ -92,6 +99,7 @@
 #define BT_LINE				STIMULUS_LINE
 #define BT_VOICEMAIL			STIMULUS_VOICEMAIL
 #define BT_AUTOANSWER			STIMULUS_AUTOANSWER
+#define BT_FEATUREBUTTON		STIMULUS_FEATUREBUTTON
 #define BT_CONFERENCE			STIMULUS_CONFERENCE
 #define BT_CALLPARK			STIMULUS_CALLPARK
 #define BT_CALLPICKUP			STIMULUS_CALLPICKUP
@@ -252,6 +260,10 @@ struct sccp_speeddial {
 	char label[80];
 	char cid_num[AST_MAX_EXTENSION];
 	uint32_t instance;
+	uint8_t hint;
+	uint32_t state_id;
+	uint32_t state;
+	struct sccp_device *device;
 	AST_LIST_ENTRY(sccp_speeddial) list;
 };
 

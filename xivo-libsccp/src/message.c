@@ -266,6 +266,27 @@ int transmit_connect(struct sccp_line *line, uint32_t callid)
 	return 0;
 }
 
+int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label)
+{
+	int ret = 0;
+	struct sccp_msg *msg = NULL;
+	msg = msg_alloc(sizeof(struct feature_stat_message), FEATURE_STAT_MESSAGE);
+
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.featurestatus.bt_instance = htolel(instance);
+	msg->data.featurestatus.type = htolel(type);
+	msg->data.featurestatus.status = htolel(status);
+	ast_copy_string(msg->data.featurestatus.label, label, sizeof(msg->data.featurestatus.label));
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+}
+
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
 			const char *to_name, const char *to_num, int line_instance, int callid, int calltype)
 {

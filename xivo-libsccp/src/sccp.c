@@ -86,6 +86,90 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.update_peer = cb_ast_set_rtp_peer,
 };
 
+static int speeddial_hints_cb(char *context, char *id, int state, void *data)
+{
+	struct sccp_speeddial *speeddial = NULL;
+	speeddial = data;
+
+	ast_log(LOG_DEBUG, "just got a hint <%d> on (%s)\n", state, speeddial->cid_num);
+
+	switch (state) {
+	case AST_EXTENSION_DEACTIVATED:
+		ast_log(LOG_NOTICE, "STATE DEACTIVATED\n");
+		transmit_feature_status(speeddial->device->session, speeddial->instance,
+			BT_FEATUREBUTTON, SCCP_BLF_STATUS_UNKNOWN, speeddial->label);
+		break;
+	case AST_EXTENSION_REMOVED:
+		ast_log(LOG_NOTICE, "STATE REMOVED\n");
+		transmit_feature_status(speeddial->device->session, speeddial->instance,
+			BT_FEATUREBUTTON, SCCP_BLF_STATUS_UNKNOWN, speeddial->label);
+		break;
+	case AST_EXTENSION_RINGING:
+		ast_log(LOG_NOTICE, "STATE RINGING\n");
+		transmit_feature_status(speeddial->device->session, speeddial->instance,
+			BT_FEATUREBUTTON, SCCP_BLF_STATUS_ALERTING, speeddial->label);
+		break;
+	case AST_EXTENSION_UNAVAILABLE:
+		ast_log(LOG_NOTICE, "STATE UNAVAILABLE\n");
+		transmit_feature_status(speeddial->device->session, speeddial->instance,
+			BT_FEATUREBUTTON, SCCP_BLF_STATUS_UNKNOWN, speeddial->label);
+		break;
+	case AST_EXTENSION_BUSY:
+		ast_log(LOG_NOTICE, "STATE BUSY\n");
+		transmit_feature_status(speeddial->device->session, speeddial->instance,
+			BT_FEATUREBUTTON, SCCP_BLF_STATUS_INUSE, speeddial->label);
+		break;
+	case AST_EXTENSION_INUSE:
+		ast_log(LOG_NOTICE, "STATE INUSE\n");
+		transmit_feature_status(speeddial->device->session, speeddial->instance,
+			BT_FEATUREBUTTON, SCCP_BLF_STATUS_INUSE, speeddial->label);
+		break;
+	case AST_EXTENSION_ONHOLD:
+		ast_log(LOG_NOTICE, "STATE ON_HOLD\n");
+		transmit_feature_status(speeddial->device->session, speeddial->instance,
+			BT_FEATUREBUTTON, SCCP_BLF_STATUS_INUSE, speeddial->label);
+		break;
+	case AST_EXTENSION_NOT_INUSE:
+		ast_log(LOG_NOTICE, "STATE NOT_INUSE\n");
+		transmit_feature_status(speeddial->device->session, speeddial->instance,
+			BT_FEATUREBUTTON, SCCP_BLF_STATUS_IDLE, speeddial->label);
+		break;
+	default:
+		ast_log(LOG_NOTICE, "default, (%d)\n", state);
+		break;
+	}
+
+	return 0;
+}
+
+static void speeddial_hints_subscribe(struct sccp_device *device)
+{
+	struct sccp_speeddial *speeddial_itr = NULL;
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return;
+	}
+
+	char hint[40];
+	struct ast_exten *hint_exten;
+	int dev_state;
+
+	AST_RWLIST_RDLOCK(&device->speeddials);
+	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list) {
+//		if (speeddial_itr->hint) {
+			speeddial_itr->state_id = ast_extension_state_add("default", speeddial_itr->cid_num, speeddial_hints_cb, speeddial_itr);
+
+			ast_get_hint(hint, sizeof(hint), NULL, 0, NULL, "default", speeddial_itr->cid_num);
+
+			dev_state = ast_extension_state(NULL, "default", speeddial_itr->cid_num);
+			speeddial_itr->state = dev_state;
+
+			ast_log(LOG_DEBUG, "hint of (%s) is (%s) state: (%d)(%s)\n", speeddial_itr->cid_num, hint, dev_state, ast_extension_state2str(dev_state));
+//		}
+	}
+	AST_RWLIST_UNLOCK(&device->speeddials);
+}
+
 static void mwi_event_cb(const struct ast_event *event, void *data)
 {
 	int new_msgs = 0;
@@ -315,10 +399,8 @@ static int handle_button_template_req_message(struct sccp_session *session)
 				if (button_set != 1) {
 					AST_RWLIST_RDLOCK(&session->device->speeddials);
 					AST_RWLIST_TRAVERSE(&session->device->speeddials, speeddial_itr, list) {
-						ast_log(LOG_DEBUG, "speeddial(%d:%d)\n", speeddial_itr->instance, line_instance);
 						if (speeddial_itr->instance == line_instance) {
-						ast_log(LOG_DEBUG, "speeddial work(%d:%d)\n", speeddial_itr->instance, line_instance);
-							msg->data.buttontemplate.definition[i].buttonDefinition = BT_SPEEDDIAL;
+							msg->data.buttontemplate.definition[i].buttonDefinition = STIMULUS_FEATUREBUTTON;
 							msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
 
 							line_instance++;
@@ -432,6 +514,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 		session->device = device_itr;
 		mwi_subscribe(device_itr);
+		speeddial_hints_subscribe(device_itr);
 		ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", device_itr->default_line->name);
 		ret = 1;
 	}
@@ -1938,6 +2021,35 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 	return 0;
 }
 
+static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	int ret = 0;
+	int line_instance = 0;
+	struct sccp_speeddial *speeddial = NULL;
+
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
+		return -1;
+	}
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	line_instance = letohl(msg->data.speeddial.lineInstance);
+	speeddial = device_get_speeddial(session->device, line_instance);
+
+	if (speeddial == NULL) {
+		ast_log(LOG_DEBUG, "Line instance [%d] has no speeddial on device [%s]\n", line_instance, session->device->name);
+		return -1;
+	}
+
+	transmit_feature_status(session, line_instance, BT_FEATUREBUTTON, speeddial->state, speeddial->label);
+
+	return 0;
+}
+
 static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
@@ -2398,6 +2510,11 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	case SPEED_DIAL_STAT_REQ_MESSAGE:
 		ast_log(LOG_DEBUG, "Speeddial status message\n");
 		ret = handle_speeddial_status_req_message(msg, session);
+		break;
+
+	case FEATURE_STATUS_REQ_MESSAGE:
+		ast_log(LOG_DEBUG, "Feature status message\n");
+		ret = handle_feature_status_req_message(msg, session);
 		break;
 
 	case LINE_STATUS_REQ_MESSAGE:

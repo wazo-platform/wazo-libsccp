@@ -139,6 +139,13 @@ struct softkey_event_message {
 
 #define SOFTKEY_TEMPLATE_REQ_MESSAGE 0x0028
 #define REGISTER_AVAILABLE_LINES_MESSAGE 0x002D
+
+#define FEATURE_STATUS_REQ_MESSAGE 0X0034
+struct feature_status_req_message {
+	uint32_t featureInstance;
+	uint32_t unknown;
+};
+
 #define ACCESSORY_STATUS_MESSAGE 0x0049
 #define REGISTER_ACK_MESSAGE 0x0081
 struct register_ack_message {
@@ -408,6 +415,14 @@ struct dialed_number_message {
 	uint32_t callInstance;
 };
 
+#define FEATURE_STAT_MESSAGE 0x0146
+struct feature_stat_message {
+	uint32_t bt_instance;
+	uint32_t type;
+	uint32_t status;
+	char label[40];
+};
+
 #define START_MEDIA_TRANSMISSION_ACK_MESSAGE 0x0159
 
 struct softkey_set_res_message {
@@ -459,6 +474,7 @@ union sccp_data {
 	struct softkey_template_res_message softkeytemplate;
 	struct select_soft_keys_message selectsoftkey;
 	struct dialed_number_message dialednumber;
+	struct feature_stat_message featurestatus;
 	struct stop_media_transmission_message stopmedia;
 	struct start_media_transmission_message startmedia;
 	struct set_speaker_message setspeaker;

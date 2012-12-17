@@ -289,7 +289,7 @@ cleanup:
 	return ret;
 }
 
-static void initialize_speeddial(struct sccp_speeddial *speeddial, const char *var, int speeddial_instance)
+static void initialize_speeddial(struct sccp_speeddial *speeddial, struct sccp_device *device, const char *var, int speeddial_instance)
 {
 	char *label = NULL;
 	char *cid_num = NULL;
@@ -304,6 +304,7 @@ static void initialize_speeddial(struct sccp_speeddial *speeddial, const char *v
 	ast_copy_string(speeddial->cid_num, cid_num ? : "", sizeof(speeddial->cid_num));
 	ast_copy_string(speeddial->label, label ? label : "", sizeof(speeddial->label));
 	speeddial->instance = speeddial_instance;
+	speeddial->device = device;
 
 	free(cid_num);
 }
@@ -406,7 +407,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 						AST_RWLIST_INSERT_HEAD(&device->speeddials, speeddial, list);
 						AST_RWLIST_UNLOCK(&device->speeddials);
 						device->speeddial_count++;
-						initialize_speeddial(speeddial, var->value, line_instance++);
+						initialize_speeddial(speeddial, device, var->value, line_instance++);
 						speeddial = NULL;
 					}
 				}
