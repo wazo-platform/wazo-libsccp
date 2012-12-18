@@ -467,7 +467,44 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 
 	return 0;
 }
-		
+
+static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
+{
+	struct ast_variable *var;
+	struct sccp_speeddial *speeddial, *speeddial_itr;
+	char *category;
+	int duplicate = 0;
+
+	category = ast_category_browse(cfg, "speeddials");
+	/* handle each speeddial */
+	while (category != NULL && strcasecmp(category, "general")
+				&& strcasecmp(category, "devices")
+				&& strcasecmp(category, "lines")) {
+
+		/* no duplicates allowed */
+		AST_RWLIST_RDLOCK(&sccp_cfg->list_speeddial);
+		AST_RWLIST_TRAVERSE(&sccp_cfg->list_speeddial, speeddial_itr, list) {
+			if (!strcasecmp(category, speeddial_itr->name)) {
+				ast_log(LOG_WARNING, "Speeddial [%s] already exist, speeddial ignored\n", category);
+				duplicate = 1;
+				break;
+			}
+		}
+		AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
+		if (!duplicate) {
+
+			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
+				ast_log(LOG_WARNING, ">> %s :: %s\n", var->name, var->value);
+			}
+		}	
+
+		duplicate = 0;
+		ast_log(LOG_WARNING, "category: %s\n", category);
+		category = ast_category_browse(cfg, category);
+		ast_log(LOG_WARNING, "category: %s\n", category);
+	}
+}
+	
 static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
@@ -477,7 +514,9 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 	category = ast_category_browse(cfg, "lines");
 	/* handle each lines */
-	while (category != NULL && strcasecmp(category, "general") && strcasecmp(category, "devices")) {
+	while (category != NULL && strcasecmp(category, "general")
+				&& strcasecmp(category, "devices")
+				&& strcasecmp(category, "speeddials")) {
 
 		/* no duplicates allowed */
 		AST_RWLIST_RDLOCK(&sccp_cfg->list_line);
@@ -646,6 +685,7 @@ static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 
 	parse_config_general(cfg, sccp_cfg);
 	parse_config_lines(cfg, sccp_cfg);
+	parse_config_speeddials(cfg, sccp_cfg);
 	parse_config_devices(cfg, sccp_cfg);
 
 	ast_config_destroy(cfg);

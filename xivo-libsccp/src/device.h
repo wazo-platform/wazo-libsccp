@@ -257,6 +257,7 @@ struct sccp_line {
 
 struct sccp_speeddial {
 
+	char name[80];
 	char label[80];
 	char cid_num[AST_MAX_EXTENSION];
 	uint32_t instance;
@@ -311,6 +312,7 @@ struct sccp_device {
 	AST_LIST_ENTRY(sccp_device) list;
 };
 
+AST_RWLIST_HEAD(list_speeddial, sccp_speeddial);
 AST_RWLIST_HEAD(list_line, sccp_line);
 AST_RWLIST_HEAD(list_device, sccp_device);
 

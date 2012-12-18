@@ -2475,6 +2475,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 			ast_log(LOG_DEBUG, "voicemail message\n");
 			ret = handle_voicemail_message(msg, session);
 			break;
+		case STIMULUS_FEATUREBUTTON:
 		case STIMULUS_SPEEDDIAL:
 			ast_log(LOG_DEBUG, "speeddial message\n");
 			ret = handle_speeddial_message(msg, session);
