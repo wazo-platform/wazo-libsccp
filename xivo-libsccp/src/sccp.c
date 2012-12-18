@@ -1020,13 +1020,16 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		subchan->related->related = NULL;
 	}
 
+	if (AST_LIST_EMPTY(&line->subchans)) {
+		ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
+		set_line_state(line, SCCP_ONHOOK);
+	}
+
 	if (subchan == line->active_subchan)
 		subchan->line->active_subchan = NULL;
 
 	ast_free(subchan);
 
-	ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
-	set_line_state(line, SCCP_ONHOOK);
 
 	ast_mutex_unlock(&line->lock);
 
