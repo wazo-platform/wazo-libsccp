@@ -259,13 +259,14 @@ struct sccp_speeddial {
 
 	char name[80];
 	char label[80];
-	char cid_num[AST_MAX_EXTENSION];
+	char extension[AST_MAX_EXTENSION];
 	uint32_t instance;
-	uint8_t hint;
+	uint8_t blf;
 	uint32_t state_id;
 	uint32_t state;
 	struct sccp_device *device;
 	AST_LIST_ENTRY(sccp_speeddial) list;
+	AST_LIST_ENTRY(sccp_speeddial) list_per_device;
 };
 
 #define DEVICE_REGISTERED_TRUE	0x1

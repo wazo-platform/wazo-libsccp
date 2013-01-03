@@ -91,7 +91,7 @@ static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 	struct sccp_speeddial *speeddial = NULL;
 	speeddial = data;
 
-	ast_log(LOG_DEBUG, "just got a hint <%d> on (%s)\n", state, speeddial->cid_num);
+	ast_log(LOG_DEBUG, "just got a hint <%d> on (%s)\n", state, speeddial->extension);
 
 	switch (state) {
 	case AST_EXTENSION_DEACTIVATED:
@@ -156,16 +156,16 @@ static void speeddial_hints_subscribe(struct sccp_device *device)
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list) {
-//		if (speeddial_itr->hint) {
-			speeddial_itr->state_id = ast_extension_state_add("default", speeddial_itr->cid_num, speeddial_hints_cb, speeddial_itr);
+		if (speeddial_itr->blf) {
+			speeddial_itr->state_id = ast_extension_state_add("default", speeddial_itr->extension, speeddial_hints_cb, speeddial_itr);
 
-			ast_get_hint(hint, sizeof(hint), NULL, 0, NULL, "default", speeddial_itr->cid_num);
+			ast_get_hint(hint, sizeof(hint), NULL, 0, NULL, "default", speeddial_itr->extension);
 
-			dev_state = ast_extension_state(NULL, "default", speeddial_itr->cid_num);
+			dev_state = ast_extension_state(NULL, "default", speeddial_itr->extension);
 			speeddial_itr->state = dev_state;
 
-			ast_log(LOG_DEBUG, "hint of (%s) is (%s) state: (%d)(%s)\n", speeddial_itr->cid_num, hint, dev_state, ast_extension_state2str(dev_state));
-//		}
+			ast_log(LOG_DEBUG, "hint of (%s) is (%s) state: (%d)(%s)\n", speeddial_itr->extension, hint, dev_state, ast_extension_state2str(dev_state));
+		}
 	}
 	AST_RWLIST_UNLOCK(&device->speeddials);
 }
@@ -515,7 +515,9 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 		session->device = device_itr;
 		mwi_subscribe(device_itr);
 		speeddial_hints_subscribe(device_itr);
-		ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", device_itr->default_line->name);
+
+		if (device_itr->default_line)
+			ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", device_itr->default_line->name);
 		ret = 1;
 	}
 
@@ -1467,6 +1469,11 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 	if (session == NULL)
 		return -1;
 
+	if (!session->device->default_line) {
+		ast_log(LOG_DEBUG, "default_line is NULL\n");
+		return 0;
+	}
+
 	line = device_get_line(session->device, session->device->default_line->instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
@@ -2011,7 +2018,7 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 
 	msg->data.linestatus.lineNumber = letohl(line_instance);
 
-	memcpy(msg->data.speeddialstatus.speedDialDirNumber, speeddial->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
+	memcpy(msg->data.speeddialstatus.speedDialDirNumber, speeddial->extension, sizeof(msg->data.linestatus.lineDirNumber));
 	memcpy(msg->data.speeddialstatus.speedDialDisplayName, speeddial->label, sizeof(msg->data.linestatus.lineDisplayName));
 
 	ret = transmit_message(msg, session);
@@ -2045,7 +2052,8 @@ static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_s
 		return -1;
 	}
 
-	transmit_feature_status(session, line_instance, BT_FEATUREBUTTON, speeddial->state, speeddial->label);
+	//transmit_feature_status(session, line_instance, BT_FEATUREBUTTON, SCCP_BLF_STATUS_UNKNOWN, speeddial->state, speeddial->label);
+	transmit_feature_status(session, line_instance, BT_FEATUREBUTTON, SCCP_BLF_STATUS_UNKNOWN, speeddial->label);
 
 	return 0;
 }
@@ -2274,12 +2282,17 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	}
 
 	line = session->device->default_line;
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "default_line is NULL\n", session->device->name);
+		return 0;
+	}
+
 	do_newcall(line->instance, 0, session);
 
 	/* open our speaker */
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
-	ast_copy_string(line->device->exten, speeddial->cid_num, sizeof(line->device->exten));
+	ast_copy_string(line->device->exten, speeddial->extension, sizeof(line->device->exten));
 	strcat(line->device->exten, "#");
 
 	return 0;
@@ -2684,7 +2697,8 @@ static void *thread_session(void *data)
 			if (session->device) {
 				ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
 				device_unregister(session->device);
-				ast_devstate_changed(AST_DEVICE_UNAVAILABLE, "SCCP/%s", session->device->default_line->name);
+				if (session->device->default_line)
+					ast_devstate_changed(AST_DEVICE_UNAVAILABLE, "SCCP/%s", session->device->default_line->name);
 			}
 
 			connected = 0;

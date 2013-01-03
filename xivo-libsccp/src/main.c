@@ -301,7 +301,7 @@ static void initialize_speeddial(struct sccp_speeddial *speeddial, struct sccp_d
 		label++;
 	}
 
-	ast_copy_string(speeddial->cid_num, cid_num ? : "", sizeof(speeddial->cid_num));
+	ast_copy_string(speeddial->extension, cid_num ? : "", sizeof(speeddial->extension));
 	ast_copy_string(speeddial->label, label ? label : "", sizeof(speeddial->label));
 	speeddial->instance = speeddial_instance;
 	speeddial->device = device;
@@ -368,10 +368,11 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	struct ast_variable *var = NULL;
 	struct sccp_device *device, *device_itr = NULL;
 	struct sccp_line *line_itr = NULL;
-	struct sccp_speeddial *speeddial = NULL;
+	struct sccp_speeddial *speeddial_itr = NULL;
 	char *category = NULL;
 	int duplicate = 0;
 	int found_line = 0;
+	int found_speeddial = 0;
 	int err = 0;
 	int line_instance = 1;
 	int speeddial_instance = 1;
@@ -399,18 +400,6 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
-
-				if (!strcasecmp(var->name, "speeddial")) {
-					speeddial = calloc(1, sizeof(struct sccp_speeddial));
-					if (speeddial != NULL) {
-						AST_RWLIST_WRLOCK(&device->speeddials);
-						AST_RWLIST_INSERT_HEAD(&device->speeddials, speeddial, list);
-						AST_RWLIST_UNLOCK(&device->speeddials);
-						device->speeddial_count++;
-						initialize_speeddial(speeddial, device, var->value, line_instance++);
-						speeddial = NULL;
-					}
-				}
 
 				if (!strcasecmp(var->name, "voicemail")) {
 					ast_copy_string(device->voicemail, var->value, sizeof(device->voicemail));
@@ -443,13 +432,40 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 							var->value, category);
 					}
 				}
-
 				found_line = 0;
+
+				if (!strcasecmp(var->name, "speeddial")) {
+
+					/* we are looking for the speeddial that match with 'var->name' */
+					AST_RWLIST_RDLOCK(&sccp_cfg->list_speeddial);
+					AST_RWLIST_TRAVERSE(&sccp_cfg->list_speeddial, speeddial_itr, list) {
+						if (!strcasecmp(var->value, speeddial_itr->name)) {
+							/* We found a speeddial */
+							found_speeddial = 1;
+
+							/* link the speeddial to the device */
+							AST_RWLIST_WRLOCK(&device->speeddials);
+							AST_RWLIST_INSERT_HEAD(&device->speeddials, speeddial_itr, list_per_device);
+							AST_RWLIST_UNLOCK(&device->speeddials);
+							device->speeddial_count++;
+							speeddial_itr->device = device;
+							speeddial_itr->instance = line_instance++;
+						}
+					}
+					AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
+
+					if (!found_speeddial) {
+						ast_log(LOG_WARNING, "Can't attache invalid speeddial [%s] to device [%s]\n",
+							var->value, category);
+					}
+
+				}
+				found_speeddial = 0;
 			}
 
 			/* Add the device to the list only if no error occured and
 			 * at least one line is present */
-			if (!err && device->line_count > 0) {
+			if (!err && (device->line_count > 0 || device->speeddial_count > 0)) {
 				AST_RWLIST_WRLOCK(&sccp_cfg->list_device);
 				AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_device, device, list);
 				AST_RWLIST_UNLOCK(&sccp_cfg->list_device);
@@ -492,11 +508,34 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 		}
 		AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
 		if (!duplicate) {
+			speeddial = calloc(1, sizeof(struct sccp_speeddial));
+			ast_copy_string(speeddial->name, category, sizeof(speeddial->name));
+
+			AST_RWLIST_WRLOCK(&sccp_cfg->list_speeddial);
+			AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_speeddial, speeddial, list);
+			AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
 
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
+
 				ast_log(LOG_WARNING, ">> %s :: %s\n", var->name, var->value);
+
+				if (!strcasecmp(var->name, "extension")) {
+					ast_copy_string(speeddial->extension, var->value, sizeof(speeddial->extension));
+					continue;
+
+				} else if (!strcasecmp(var->name, "label")) {
+					ast_copy_string(speeddial->label, var->value, sizeof(speeddial->label));
+					continue;
+
+				} else if (!strcasecmp(var->name, "blf")) {
+					if (ast_true(var->value)) {
+						speeddial->blf = 1;
+					}
+					continue;
+				}
 			}
-		}	
+
+		}
 
 		duplicate = 0;
 		ast_log(LOG_WARNING, "category: %s\n", category);
@@ -504,7 +543,7 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 		ast_log(LOG_WARNING, "category: %s\n", category);
 	}
 }
-	
+
 static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
@@ -752,7 +791,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 
 		AST_RWLIST_RDLOCK(&device_itr->speeddials);
 		AST_RWLIST_TRAVERSE(&device_itr->speeddials, speeddial_itr, list) {
-			ast_cli(a->fd, "Speeddial: <%s>\n", speeddial_itr->cid_num);
+			ast_cli(a->fd, "Speeddial: <%s>\n", speeddial_itr->extension);
 		}
 		AST_RWLIST_UNLOCK(&device_itr->speeddials);
 
