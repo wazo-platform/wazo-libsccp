@@ -285,6 +285,8 @@ int transmit_feature_status(struct sccp_session *session, int instance, int type
 	ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1;
+
+	return 0;
 }
 
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,

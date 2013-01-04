@@ -95,47 +95,47 @@ static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 
 	switch (state) {
 	case AST_EXTENSION_DEACTIVATED:
-		ast_log(LOG_NOTICE, "STATE DEACTIVATED\n");
+		ast_log(LOG_DEBUG, "STATE DEACTIVATED\n");
 		transmit_feature_status(speeddial->device->session, speeddial->instance,
 			BT_FEATUREBUTTON, SCCP_BLF_STATUS_UNKNOWN, speeddial->label);
 		break;
 	case AST_EXTENSION_REMOVED:
-		ast_log(LOG_NOTICE, "STATE REMOVED\n");
+		ast_log(LOG_DEBUG, "STATE REMOVED\n");
 		transmit_feature_status(speeddial->device->session, speeddial->instance,
 			BT_FEATUREBUTTON, SCCP_BLF_STATUS_UNKNOWN, speeddial->label);
 		break;
 	case AST_EXTENSION_RINGING:
-		ast_log(LOG_NOTICE, "STATE RINGING\n");
+		ast_log(LOG_DEBUG, "STATE RINGING\n");
 		transmit_feature_status(speeddial->device->session, speeddial->instance,
 			BT_FEATUREBUTTON, SCCP_BLF_STATUS_ALERTING, speeddial->label);
 		break;
 	case AST_EXTENSION_UNAVAILABLE:
-		ast_log(LOG_NOTICE, "STATE UNAVAILABLE\n");
+		ast_log(LOG_DEBUG, "STATE UNAVAILABLE\n");
 		transmit_feature_status(speeddial->device->session, speeddial->instance,
 			BT_FEATUREBUTTON, SCCP_BLF_STATUS_UNKNOWN, speeddial->label);
 		break;
 	case AST_EXTENSION_BUSY:
-		ast_log(LOG_NOTICE, "STATE BUSY\n");
+		ast_log(LOG_DEBUG, "STATE BUSY\n");
 		transmit_feature_status(speeddial->device->session, speeddial->instance,
 			BT_FEATUREBUTTON, SCCP_BLF_STATUS_INUSE, speeddial->label);
 		break;
 	case AST_EXTENSION_INUSE:
-		ast_log(LOG_NOTICE, "STATE INUSE\n");
+		ast_log(LOG_DEBUG, "STATE INUSE\n");
 		transmit_feature_status(speeddial->device->session, speeddial->instance,
 			BT_FEATUREBUTTON, SCCP_BLF_STATUS_INUSE, speeddial->label);
 		break;
 	case AST_EXTENSION_ONHOLD:
-		ast_log(LOG_NOTICE, "STATE ON_HOLD\n");
+		ast_log(LOG_DEBUG, "STATE ON_HOLD\n");
 		transmit_feature_status(speeddial->device->session, speeddial->instance,
 			BT_FEATUREBUTTON, SCCP_BLF_STATUS_INUSE, speeddial->label);
 		break;
 	case AST_EXTENSION_NOT_INUSE:
-		ast_log(LOG_NOTICE, "STATE NOT_INUSE\n");
+		ast_log(LOG_DEBUG, "STATE NOT_INUSE\n");
 		transmit_feature_status(speeddial->device->session, speeddial->instance,
 			BT_FEATUREBUTTON, SCCP_BLF_STATUS_IDLE, speeddial->label);
 		break;
 	default:
-		ast_log(LOG_NOTICE, "default, (%d)\n", state);
+		ast_log(LOG_DEBUG, "unknown state value (%d)\n", state);
 		break;
 	}
 
@@ -151,7 +151,6 @@ static void speeddial_hints_subscribe(struct sccp_device *device)
 	}
 
 	char hint[40];
-	struct ast_exten *hint_exten;
 	int dev_state;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
@@ -1349,9 +1348,8 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_subchannel *subchan, *xfer_subchan;
-	struct ast_channel *channel;
-	struct sccp_line *line;
+	struct sccp_subchannel *subchan = NULL, *xfer_subchan = NULL;
+	struct sccp_line *line = NULL;
 
 	ast_log(LOG_DEBUG, "handle_softkey_transfer: line_instance(%i)\n", line_instance);
 
@@ -2030,7 +2028,6 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 
 static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int ret = 0;
 	int line_instance = 0;
 	struct sccp_speeddial *speeddial = NULL;
 
@@ -2048,7 +2045,7 @@ static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_s
 	speeddial = device_get_speeddial(session->device, line_instance);
 
 	if (speeddial == NULL) {
-		ast_log(LOG_DEBUG, "Line instance [%d] has no speeddial on device [%s]\n", line_instance, session->device->name);
+		ast_log(LOG_DEBUG, "No speeddial [%d] on device [%s]\n", line_instance, session->device->name);
 		return -1;
 	}
 
@@ -2283,7 +2280,7 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 
 	line = session->device->default_line;
 	if (line == NULL) {
-		ast_log(LOG_DEBUG, "default_line is NULL\n", session->device->name);
+		ast_log(LOG_DEBUG, "default_line is NULL\n");
 		return 0;
 	}
 
@@ -2858,7 +2855,6 @@ static struct ast_channel *cb_ast_request(const char *type,
 
 static int sccp_autoanswer_call(void *data)
 {
-	int ret = 0;
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_session *session = NULL;

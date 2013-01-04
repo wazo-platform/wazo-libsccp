@@ -289,24 +289,10 @@ cleanup:
 	return ret;
 }
 
-static void initialize_speeddial(struct sccp_speeddial *speeddial, struct sccp_device *device, const char *var, int speeddial_instance)
+static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t instance, struct sccp_device *device)
 {
-	char *label = NULL;
-	char *cid_num = NULL;
-	cid_num = strdup(var);
-
-	label = strchr(cid_num, ',');
-	if (label != NULL) {
-		*label = '\0';
-		label++;
-	}
-
-	ast_copy_string(speeddial->extension, cid_num ? : "", sizeof(speeddial->extension));
-	ast_copy_string(speeddial->label, label ? label : "", sizeof(speeddial->label));
-	speeddial->instance = speeddial_instance;
+	speeddial->instance = instance;
 	speeddial->device = device;
-
-	free(cid_num);
 }
 
 static void initialize_device(struct sccp_device *device, const char *name)
@@ -375,7 +361,6 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	int found_speeddial = 0;
 	int err = 0;
 	int line_instance = 1;
-	int speeddial_instance = 1;
 
 	category = ast_category_browse(cfg, "devices");
 	/* handle each device */
@@ -419,8 +404,6 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 							AST_RWLIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
 							AST_RWLIST_UNLOCK(&device->lines);
 							device->line_count++;
-
-							/* initialize the line instance */
 							initialize_line(line_itr, line_instance++, device);
 						}
 					}
@@ -448,8 +431,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 							AST_RWLIST_INSERT_HEAD(&device->speeddials, speeddial_itr, list_per_device);
 							AST_RWLIST_UNLOCK(&device->speeddials);
 							device->speeddial_count++;
-							speeddial_itr->device = device;
-							speeddial_itr->instance = line_instance++;
+							initialize_speeddial(speeddial_itr, line_instance++, device);
 						}
 					}
 					AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
@@ -517,8 +499,6 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
 
-				ast_log(LOG_WARNING, ">> %s :: %s\n", var->name, var->value);
-
 				if (!strcasecmp(var->name, "extension")) {
 					ast_copy_string(speeddial->extension, var->value, sizeof(speeddial->extension));
 					continue;
@@ -542,6 +522,8 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 		category = ast_category_browse(cfg, category);
 		ast_log(LOG_WARNING, "category: %s\n", category);
 	}
+
+	return 0;
 }
 
 static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
