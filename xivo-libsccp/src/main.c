@@ -508,19 +508,14 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 					continue;
 
 				} else if (!strcasecmp(var->name, "blf")) {
-					if (ast_true(var->value)) {
+					if (ast_true(var->value))
 						speeddial->blf = 1;
-					}
 					continue;
 				}
 			}
-
 		}
-
 		duplicate = 0;
-		ast_log(LOG_WARNING, "category: %s\n", category);
 		category = ast_category_browse(cfg, category);
-		ast_log(LOG_WARNING, "category: %s\n", category);
 	}
 
 	return 0;
@@ -587,7 +582,6 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 				}
 			}
 		}
-
 		duplicate = 0;
 		category = ast_category_browse(cfg, category);
 	}
