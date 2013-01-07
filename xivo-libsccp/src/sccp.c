@@ -86,12 +86,36 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.update_peer = cb_ast_set_rtp_peer,
 };
 
+int extstate_ast2sccp(int state)
+{
+	switch (state) {
+	case AST_EXTENSION_DEACTIVATED:
+		return SCCP_BLF_STATUS_UNKNOWN;
+	case AST_EXTENSION_REMOVED:
+		return SCCP_BLF_STATUS_UNKNOWN;
+	case AST_EXTENSION_RINGING:
+		return SCCP_BLF_STATUS_ALERTING;
+	case AST_EXTENSION_UNAVAILABLE:
+		return SCCP_BLF_STATUS_UNKNOWN;
+	case AST_EXTENSION_BUSY:
+		return SCCP_BLF_STATUS_INUSE;
+	case AST_EXTENSION_INUSE:
+		return SCCP_BLF_STATUS_INUSE;
+	case AST_EXTENSION_ONHOLD:
+		return SCCP_BLF_STATUS_INUSE;
+	case AST_EXTENSION_NOT_INUSE:
+		return SCCP_BLF_STATUS_IDLE;
+	default:
+		return SCCP_BLF_STATUS_UNKNOWN;
+	}
+}
+
 static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 {
 	struct sccp_speeddial *speeddial = NULL;
 	speeddial = data;
 
-	ast_log(LOG_DEBUG, "hint extension (%s) state (%d)\n", state, speeddial->extension);
+	ast_log(LOG_DEBUG, "hint extension (%d) state (%s)\n", state, speeddial->extension);
 
 	transmit_feature_status(speeddial->device->session, speeddial->instance,
 		BT_FEATUREBUTTON, extstate_ast2sccp(state), speeddial->label);
@@ -682,7 +706,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 static int start_rtp(struct sccp_subchannel *subchan)
 {
-	struct sccp_session *session = NULL;
 	struct ast_sockaddr bindaddr_tmp;
 	struct ast_sockaddr remote_tmp;
 
@@ -692,8 +715,6 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	}
 
 	ast_log(LOG_DEBUG, "start rtp\n");
-
-	session = subchan->line->device->session;
 
 	ast_sockaddr_from_sin(&bindaddr_tmp, (struct sockaddr_in *)sccp_srv.res->ai_addr);
 	subchan->rtp = ast_rtp_instance_new("asterisk", sched, &bindaddr_tmp, NULL);
@@ -1710,30 +1731,6 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	/* Do nothing here, not all phone query the forward status,
 		instead handle it globally in the post_line_register_check() */
 	return 0;
-}
-
-int extstate_ast2sccp(int state)
-{
-	switch (state) {
-	case AST_EXTENSION_DEACTIVATED:
-		return SCCP_BLF_STATUS_UNKNOWN;
-	case AST_EXTENSION_REMOVED:
-		return SCCP_BLF_STATUS_UNKNOWN;
-	case AST_EXTENSION_RINGING:
-		return SCCP_BLF_STATUS_ALERTING;
-	case AST_EXTENSION_UNAVAILABLE:
-		return SCCP_BLF_STATUS_UNKNOWN;
-	case AST_EXTENSION_BUSY:
-		return SCCP_BLF_STATUS_INUSE;
-	case AST_EXTENSION_INUSE:
-		return SCCP_BLF_STATUS_INUSE;
-	case AST_EXTENSION_ONHOLD:
-		return SCCP_BLF_STATUS_INUSE;
-	case AST_EXTENSION_NOT_INUSE:
-		return SCCP_BLF_STATUS_IDLE;
-	default:
-		return SCCP_BLF_STATUS_UNKNOWN;
-	}
 }
 
 int codec_ast2sccp(format_t astcodec)
