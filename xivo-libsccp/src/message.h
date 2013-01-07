@@ -100,11 +100,6 @@ struct capabilities_res_message {
 	struct station_capabilities caps[SCCP_MAX_CAPABILITIES];
 };
 
-#define SPEED_DIAL_STAT_REQ_MESSAGE 0x000A
-struct speed_dial_stat_req_message {
-	uint32_t lineInstance;
-};
-
 #define LINE_STATUS_REQ_MESSAGE 0x000B
 struct line_status_req_message {
 	uint32_t lineInstance;
@@ -143,7 +138,7 @@ struct softkey_event_message {
 
 #define FEATURE_STATUS_REQ_MESSAGE 0X0034
 struct feature_status_req_message {
-	uint32_t featureInstance;
+	uint32_t instance;
 	uint32_t unknown;
 };
 
@@ -258,13 +253,6 @@ struct forward_status_res_message {
 	char cfwdBusyNumber[24];
 	uint32_t cfwdNoAnswerStatus;
 	char cfwdNoAnswerNumber[24];
-};
-
-#define SPEED_DIAL_STAT_RES_MESSAGE 0x0091
-struct speed_dial_stat_res_message {
-	uint32_t lineNumber;
-	char speedDialDirNumber[24];
-	char speedDialDisplayName[40];
 };
 
 #define LINE_STATUS_RES_MESSAGE 0x0092
@@ -456,9 +444,8 @@ union sccp_data {
 	struct enbloc_call_message enbloc;
 	struct ip_port_message ipport;
 	struct button_template_res_message buttontemplate;
-	struct speed_dial_stat_req_message speeddial;
+	struct feature_status_req_message feature;
 	struct line_status_req_message line;
-	struct speed_dial_stat_res_message speeddialstatus;
 	struct line_status_res_message linestatus;
 	struct time_date_res_message timedate;
 	struct config_status_res_message configstatus;

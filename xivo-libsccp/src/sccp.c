@@ -1961,48 +1961,6 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	return 0;
 }
 
-static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
-{
-	int ret = 0;
-	int line_instance = 0;
-	struct sccp_speeddial *speeddial = NULL;
-
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	line_instance = letohl(msg->data.speeddial.lineInstance);
-	speeddial = device_get_speeddial(session->device, line_instance);
-
-	if (speeddial == NULL) {
-		ast_log(LOG_DEBUG, "Button instance [%d] has no speeddial set on device [%s]\n", line_instance, session->device->name);
-		return 0;
-	}
-
-	msg = msg_alloc(sizeof(struct speed_dial_stat_res_message), SPEED_DIAL_STAT_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.linestatus.lineNumber = letohl(line_instance);
-
-	memcpy(msg->data.speeddialstatus.speedDialDirNumber, speeddial->extension, sizeof(msg->data.linestatus.lineDirNumber));
-	memcpy(msg->data.speeddialstatus.speedDialDisplayName, speeddial->label, sizeof(msg->data.linestatus.lineDisplayName));
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
 static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int line_instance = 0;
@@ -2018,7 +1976,7 @@ static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_s
 		return -1;
 	}
 
-	line_instance = letohl(msg->data.speeddial.lineInstance);
+	line_instance = letohl(msg->data.feature.instance);
 
 	speeddial = device_get_speeddial(session->device, line_instance);
 	if (speeddial == NULL) {
@@ -2492,11 +2450,6 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	case CAPABILITIES_RES_MESSAGE:
 		ast_log(LOG_DEBUG, "Capabilities message\n");
 		ret = handle_capabilities_res_message(msg, session);
-		break;
-
-	case SPEED_DIAL_STAT_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Speeddial status message\n");
-		ret = handle_speeddial_status_req_message(msg, session);
 		break;
 
 	case FEATURE_STATUS_REQ_MESSAGE:
