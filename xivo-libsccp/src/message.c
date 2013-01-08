@@ -270,8 +270,18 @@ int transmit_feature_status(struct sccp_session *session, int instance, int type
 {
 	int ret = 0;
 	struct sccp_msg *msg = NULL;
-	msg = msg_alloc(sizeof(struct feature_stat_message), FEATURE_STAT_MESSAGE);
 
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	if (label == NULL) {
+		ast_log(LOG_DEBUG, "label is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct feature_stat_message), FEATURE_STAT_MESSAGE);
 	if (msg == NULL) {
 		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return -1;

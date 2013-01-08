@@ -113,6 +113,12 @@ int extstate_ast2sccp(int state)
 static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 {
 	struct sccp_speeddial *speeddial = NULL;
+
+	if (data == NULL) {
+		ast_log(LOG_DEBUG, "data is NULL\n");
+		return -1;
+	}
+
 	speeddial = data;
 
 	ast_log(LOG_DEBUG, "hint extension (%d) state (%s)\n", state, speeddial->extension);
@@ -126,13 +132,13 @@ static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 static void speeddial_hints_subscribe(struct sccp_device *device)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
+	char hint[40];
+	int dev_state;
+
 	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return;
 	}
-
-	char hint[40];
-	int dev_state;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list) {
@@ -2207,6 +2213,16 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
 
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg is NULL\n");
+		return -1;
+	}
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
 	speeddial = device_get_speeddial(session->device, msg->data.stimulus.lineInstance);
 	if (speeddial == NULL) {
 		ast_log(LOG_WARNING, "speeddial has no instance (%d)\n",  msg->data.stimulus.lineInstance);
@@ -3237,11 +3253,91 @@ static int cb_ast_senddigit_end(struct ast_channel *channel, char digit, unsigne
 	return 0;
 }
 
+AST_TEST_DEFINE(sccp_test_arguments)
+{
+	int ret = 0;
+	enum ast_test_result_state result = AST_TEST_PASS;
+	void *retptr = NULL;
+
+	switch (cmd) {
+	case TEST_INIT:
+		info->name = "sccp_test_arguments";
+		info->category = "/channel/sccp/";
+		info->summary = "test arguments";
+		info->description = "Test how functions behave when good arguments are given.";
+
+		return AST_TEST_NOT_RUN;
+
+	case TEST_EXECUTE:
+		break;
+	}
+
+	ast_test_status_update(test, "Executing sccp test good arguments...\n");
+
+	if (extstate_ast2sccp(AST_EXTENSION_DEACTIVATED) != SCCP_BLF_STATUS_UNKNOWN) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (extstate_ast2sccp(AST_EXTENSION_REMOVED) != SCCP_BLF_STATUS_UNKNOWN) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (extstate_ast2sccp(AST_EXTENSION_RINGING) != SCCP_BLF_STATUS_ALERTING) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (extstate_ast2sccp(AST_EXTENSION_UNAVAILABLE) != SCCP_BLF_STATUS_UNKNOWN) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (extstate_ast2sccp(AST_EXTENSION_BUSY) != SCCP_BLF_STATUS_INUSE) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (extstate_ast2sccp(AST_EXTENSION_INUSE) != SCCP_BLF_STATUS_INUSE) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (extstate_ast2sccp(AST_EXTENSION_ONHOLD) != SCCP_BLF_STATUS_INUSE) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (extstate_ast2sccp(AST_EXTENSION_NOT_INUSE) != SCCP_BLF_STATUS_IDLE) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (extstate_ast2sccp(-500) != SCCP_BLF_STATUS_UNKNOWN) {
+		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+cleanup:
+	return result;
+}
+
 AST_TEST_DEFINE(sccp_test_null_arguments)
 {
 	int ret = 0;
 	enum ast_test_result_state result = AST_TEST_PASS;
 	void *retptr = NULL;
+	struct sccp_speeddial *speeddial;
 
 	switch (cmd) {
 	case TEST_INIT:
@@ -3278,6 +3374,64 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	retptr = utf8_to_iso88591("Ã©");
 	if (strcmp(retptr, "é")) {
 		ast_test_status_update(test, "failed: 'é' != %s\n", retptr);
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	speeddial = device_get_speeddial(NULL, 0);
+	if (speeddial != NULL) {
+		ast_test_status_update(test, "failed: device_get_speeddial(NULL, 0)\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	ret = transmit_feature_status(NULL, 0, 0, 0, "");
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: transmit_feature_status(NULL, 0, 0, 0, "")");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	ret = transmit_feature_status((struct sccp_session *)0x1, 0, 0, 0, NULL);
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: transmit_feature_status((struct sccp_session *)0x1, 0, 0, 0, NULL");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	ret = speeddial_hints_cb("", "", 0, NULL);
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: speeddial_hints_cb("", "", 0, NULL)\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	speeddial_hints_subscribe(NULL);
+
+	ret = handle_feature_status_req_message(NULL, (struct sccp_session *)0x1);
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: handle_feature_status_req_message(NULL, (struct sccp_session *)0x1)\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	ret = handle_feature_status_req_message((struct sccp_msg *)0x1, NULL);
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: handle_feature_status_req_message((struct sccp_msg *)0x1, NULL)\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	ret = handle_speeddial_message(NULL, (struct sccp_session *)0x1);
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: handle_speeddial_message(NULL, "")\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	ret = handle_speeddial_message((struct sccp_msg *)0x1, NULL);
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: handle_speeddial_message("", NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
@@ -3783,6 +3937,7 @@ void sccp_server_fini()
 	struct sccp_session *session_itr = NULL;
 
 	AST_TEST_UNREGISTER(sccp_test_null_arguments);
+	AST_TEST_UNREGISTER(sccp_test_arguments);
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	ast_channel_unregister(&sccp_tech);
@@ -3828,6 +3983,7 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	const int flag_reuse = 1;
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
+	AST_TEST_REGISTER(sccp_test_arguments);
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	sccp_config = sccp_cfg;

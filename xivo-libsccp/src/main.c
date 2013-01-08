@@ -36,6 +36,7 @@ AST_TEST_DEFINE(sccp_test_config)
 	FILE *conf_file = NULL;
 	char *conf = NULL;
 	struct sccp_line *line = NULL;
+	struct sccp_speeddial *speeddial = NULL;
 	struct sccp_device *device = NULL;
 
 	switch (cmd) {
@@ -85,10 +86,21 @@ AST_TEST_DEFINE(sccp_test_config)
 		"language=fr_FR\n"
 		"context=a_context\n"
 		"\n"
+		"[speeddials]\n"
+		"[sd1000]\n"
+		"extension = 1000\n"
+		"label = Call 1000\n"
+		"blf = yes\n"
+		"[sd1001]\n"
+		"extension = 1001\n"
+		"label = Call 1001\n"
+		"blf = no\n"
 		"[devices]\n"
 		"[SEPACA016FDF235]\n"
 		"device=SEPACA016FDF235\n"
-		"line=200";
+		"speeddial=sd1000\n"
+		"line=200\n"
+		"speeddial=sd1001\n";
 
 	fwrite(conf, 1, strlen(conf), conf_file);
 	fclose(conf_file);
@@ -193,6 +205,57 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
+	speeddial = device_get_speeddial(device, 0);
+	if (speeddial != NULL) {
+		ast_test_status_update(test, "speeddial instance 0 shouldn't exist...\n");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	speeddial = device_get_speeddial(device, 1);
+	if (speeddial == NULL) {
+		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(speeddial->name, "sd1000")) {
+		ast_test_status_update(test, "%s != %s\n", speeddial->name, "sd1000");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(speeddial->label, "Call 1000")) {
+		ast_test_status_update(test, "%s != %s\n", speeddial->label, "Call 1000");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(speeddial->extension, "1000")) {
+		ast_test_status_update(test, "%s != %s\n", speeddial->extension, "1000");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (speeddial->instance != 1) {
+		ast_test_status_update(test, "%d != %d\n", speeddial->instance, 1);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (speeddial->device != device) {
+		ast_test_status_update(test, "%p != %p\n", speeddial->device, device);
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	speeddial = device_get_speeddial(device, 3);
+	if (speeddial == NULL) {
+		ast_test_status_update(test, "speeddial instance 3 should exist...\n");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
 	line = find_line_by_name("201", &sccp_cfg->list_line);
 	if (line != NULL) {
 		ast_test_status_update(test, "line 201 doesn't exist...\n");
@@ -291,12 +354,32 @@ cleanup:
 
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t instance, struct sccp_device *device)
 {
+	if (speeddial == NULL) {
+		ast_log(LOG_WARNING, "speeddial is NULL\n");
+		return;
+	}
+
+	if (device == NULL) {
+		ast_log(LOG_WARNING, "device is NULL\n");
+		return;
+	}
+
 	speeddial->instance = instance;
 	speeddial->device = device;
 }
 
 static void initialize_device(struct sccp_device *device, const char *name)
 {
+	if (device == NULL) {
+		ast_log(LOG_WARNING, "device is NULL\n");
+		return;
+	}
+
+	if (name == NULL) {
+		ast_log(LOG_WARNING, "name is NULL\n");
+		return;
+	}
+
 	ast_mutex_init(&device->lock);
 	ast_copy_string(device->name, name, sizeof(device->name));
 
@@ -317,6 +400,16 @@ static void initialize_device(struct sccp_device *device, const char *name)
 
 static void initialize_line(struct sccp_line *line, uint32_t instance, struct sccp_device *device)
 {
+	if (line == NULL) {
+		ast_log(LOG_WARNING, "line is NULL\n");
+		return;
+	}
+
+	if (device == NULL) {
+		ast_log(LOG_WARNING, "device is NULL\n");
+		return;
+	}
+
 	ast_mutex_init(&line->lock);
 	line->state = SCCP_ONHOOK;
 	line->instance = instance;
