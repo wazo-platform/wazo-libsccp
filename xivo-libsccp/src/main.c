@@ -492,12 +492,17 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 							/* We found a line */
 							found_line = 1;
 
-							/* link the line to the device */
-							AST_RWLIST_WRLOCK(&device->lines);
-							AST_RWLIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
-							AST_RWLIST_UNLOCK(&device->lines);
-							device->line_count++;
-							initialize_line(line_itr, line_instance++, device);
+							if (line_itr->device != NULL) {
+								ast_log(LOG_ERROR, "Line [%s] is already attached to device [%s]\n",
+									line_itr->name, line_itr->device->name);
+							} else {
+								/* link the line to the device */
+								AST_RWLIST_WRLOCK(&device->lines);
+								AST_RWLIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
+								AST_RWLIST_UNLOCK(&device->lines);
+								device->line_count++;
+								initialize_line(line_itr, line_instance++, device);
+							}
 						}
 					}
 					AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
@@ -519,12 +524,18 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 							/* We found a speeddial */
 							found_speeddial = 1;
 
-							/* link the speeddial to the device */
-							AST_RWLIST_WRLOCK(&device->speeddials);
-							AST_RWLIST_INSERT_HEAD(&device->speeddials, speeddial_itr, list_per_device);
-							AST_RWLIST_UNLOCK(&device->speeddials);
-							device->speeddial_count++;
-							initialize_speeddial(speeddial_itr, line_instance++, device);
+							if (speeddial_itr->device != NULL) {
+								ast_log(LOG_ERROR, "Speeddial [%s] is already attached to device [%s]\n",
+									speeddial_itr->name, speeddial_itr->device->name);
+							} else {
+								/* link the speeddial to the device */
+								AST_RWLIST_WRLOCK(&device->speeddials);
+								AST_RWLIST_INSERT_HEAD(&device->speeddials, speeddial_itr, list_per_device);
+								AST_RWLIST_UNLOCK(&device->speeddials);
+								ast_log(LOG_NOTICE, "add %s to %s\n", speeddial_itr->name, device->name);
+								device->speeddial_count++;
+								initialize_speeddial(speeddial_itr, line_instance++, device);
+							}
 						}
 					}
 					AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
@@ -859,8 +870,8 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 		AST_RWLIST_UNLOCK(&device_itr->lines);
 
 		AST_RWLIST_RDLOCK(&device_itr->speeddials);
-		AST_RWLIST_TRAVERSE(&device_itr->speeddials, speeddial_itr, list) {
-			ast_cli(a->fd, "Speeddial: <%s>\n", speeddial_itr->extension);
+		AST_RWLIST_TRAVERSE(&device_itr->speeddials, speeddial_itr, list_per_device) {
+			ast_cli(a->fd, "Speeddial: (%d) <%s>\n", speeddial_itr->instance, speeddial_itr->extension);
 		}
 		AST_RWLIST_UNLOCK(&device_itr->speeddials);
 

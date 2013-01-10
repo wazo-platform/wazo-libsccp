@@ -152,7 +152,7 @@ struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t
 	}
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
-	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list) {
+	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
 		if (speeddial_itr->instance == instance)
 			break;
 	}
