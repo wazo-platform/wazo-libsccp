@@ -352,7 +352,7 @@ cleanup:
 	return ret;
 }
 
-static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t instance, struct sccp_device *device)
+static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device)
 {
 	if (speeddial == NULL) {
 		ast_log(LOG_WARNING, "speeddial is NULL\n");
@@ -364,6 +364,7 @@ static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t inst
 		return;
 	}
 
+	speeddial->index = index;
 	speeddial->instance = instance;
 	speeddial->device = device;
 }
@@ -454,6 +455,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 	int found_speeddial = 0;
 	int err = 0;
 	int line_instance = 1;
+	int sd_index = 1;
 
 	category = ast_category_browse(cfg, "devices");
 	/* handle each device */
@@ -532,9 +534,8 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 								AST_RWLIST_WRLOCK(&device->speeddials);
 								AST_RWLIST_INSERT_HEAD(&device->speeddials, speeddial_itr, list_per_device);
 								AST_RWLIST_UNLOCK(&device->speeddials);
-								ast_log(LOG_NOTICE, "add %s to %s\n", speeddial_itr->name, device->name);
 								device->speeddial_count++;
-								initialize_speeddial(speeddial_itr, line_instance++, device);
+								initialize_speeddial(speeddial_itr, sd_index++, line_instance++, device);
 							}
 						}
 					}
@@ -564,6 +565,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 
 		duplicate = 0;
 		line_instance = 1;
+		sd_index = 1;
 		category = ast_category_browse(cfg, category);
 	}
 
@@ -871,7 +873,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 
 		AST_RWLIST_RDLOCK(&device_itr->speeddials);
 		AST_RWLIST_TRAVERSE(&device_itr->speeddials, speeddial_itr, list_per_device) {
-			ast_cli(a->fd, "Speeddial: (%d) <%s>\n", speeddial_itr->instance, speeddial_itr->extension);
+			ast_cli(a->fd, "Speeddial: (%d) <%s>\n", speeddial_itr->index, speeddial_itr->extension);
 		}
 		AST_RWLIST_UNLOCK(&device_itr->speeddials);
 
