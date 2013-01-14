@@ -3438,6 +3438,13 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
+	speeddial = device_get_speeddial_by_index(NULL, 0);
+	if (speeddial != NULL) {
+		ast_test_status_update(test, "failed: device_get_speeddial_by_index(NULL, 0)\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
 	ret = transmit_feature_status(NULL, 0, 0, 0, "");
 	if (ret != -1) {
 		ast_test_status_update(test, "failed: transmit_feature_status(NULL, 0, 0, 0, "")");
@@ -3485,6 +3492,20 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	ret = handle_speeddial_message((struct sccp_msg *)0x1, NULL);
 	if (ret != -1) {
 		ast_test_status_update(test, "failed: handle_speeddial_message("", NULL)\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	ret = handle_speeddial_status_req_message(NULL, (struct sccp_session *)0x1);
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: handle_speeddial_status_req_message\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	ret = handle_speeddial_status_req_message((struct sccp_msg *)0x1, NULL);
+	if (ret != -1) {
+		ast_test_status_update(test, "failed: handle_speeddial_status_req_message\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
