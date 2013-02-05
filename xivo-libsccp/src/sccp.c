@@ -1102,7 +1102,6 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	}
 
 	transmit_ringer_mode(session, SCCP_RING_OFF);
-	transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
 	transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
 	transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_ONHOOK);
 	transmit_stop_tone(session, line->instance, subchan->id);
