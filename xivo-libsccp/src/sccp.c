@@ -1149,9 +1149,7 @@ static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 		return 0;
 	}
 
-	ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
-
-	 /* this will cause the sccp_lookup_exten thread to terminate*/
+	/* this will cause the sccp_lookup_exten thread to terminate*/
 	set_line_state(line, SCCP_ONHOOK);
 
 	/* wait for lookup thread to terminate */
