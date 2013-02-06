@@ -133,6 +133,18 @@ static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 	return 0;
 }
 
+static void speeddial_hints_unsubscribe(struct sccp_device *device)
+{
+	struct sccp_speeddial *speeddial_itr = NULL;
+	AST_RWLIST_RDLOCK(&device->speeddials);
+	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
+		if (speeddial_itr->blf) {
+			ast_extension_state_del(speeddial_itr->state_id, NULL);
+		}
+	}
+	AST_RWLIST_UNLOCK(&device->speeddials);
+}
+
 static void speeddial_hints_subscribe(struct sccp_device *device)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
@@ -145,7 +157,7 @@ static void speeddial_hints_subscribe(struct sccp_device *device)
 	}
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
-	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list) {
+	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
 		if (speeddial_itr->blf) {
 			speeddial_itr->state_id = ast_extension_state_add("default", speeddial_itr->extension, speeddial_hints_cb, speeddial_itr);
 			ast_get_hint(hint, sizeof(hint), NULL, 0, NULL, "default", speeddial_itr->extension);
@@ -2692,6 +2704,7 @@ static void *thread_session(void *data)
 
 			if (session->device) {
 				ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
+				speeddial_hints_unsubscribe(session->device);
 				device_unregister(session->device);
 				if (session->device->default_line)
 					ast_devstate_changed(AST_DEVICE_UNAVAILABLE, "SCCP/%s", session->device->default_line->name);
@@ -2772,11 +2785,14 @@ static int cb_ast_devicestate(void *data)
 		*ptr = '\0';
 
 	line = find_line_by_name(name, &sccp_config->list_line);
-	if (line != NULL) {
-		if (line->state == SCCP_ONHOOK)
+	if (line == NULL) {
+		state = AST_DEVICE_INVALID;
+	} else if (line->device && line->device->registered == DEVICE_REGISTERED_FALSE) {
+			state = AST_DEVICE_UNAVAILABLE;
+	} else if (line->state == SCCP_ONHOOK) {
 			state = AST_DEVICE_NOT_INUSE;
-		else
-			state = AST_DEVICE_INUSE;
+	} else {
+		state = AST_DEVICE_INUSE;
 	}
 
 	free(name);
