@@ -1,6 +1,7 @@
 #include "device.h"
 #include "sccp.h"
 
+
 void device_unregister(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
@@ -10,6 +11,8 @@ void device_unregister(struct sccp_device *device)
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return;
 	}
+
+	speeddial_hints_unsubscribe(device);
 
 	device->registered = DEVICE_REGISTERED_FALSE;
 
@@ -140,6 +143,49 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 	AST_RWLIST_UNLOCK(list_line);
 
 	return line_itr;
+}
+
+void speeddial_hints_unsubscribe(struct sccp_device *device)
+{
+	struct sccp_speeddial *speeddial_itr = NULL;
+	AST_RWLIST_RDLOCK(&device->speeddials);
+	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
+		if (speeddial_itr->blf) {
+			ast_extension_state_del(speeddial_itr->state_id, NULL);
+		}
+	}
+	AST_RWLIST_UNLOCK(&device->speeddials);
+}
+
+void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb)
+{
+	struct sccp_speeddial *speeddial_itr = NULL;
+	char hint[40];
+	int dev_state;
+
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return;
+	}
+
+	if (speeddial_hints_cb == NULL) {
+		ast_log(LOG_DEBUG, "speeddial_hints_cb is NULL\n");
+		return;
+	}
+
+	AST_RWLIST_RDLOCK(&device->speeddials);
+	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
+		if (speeddial_itr->blf) {
+			speeddial_itr->state_id = ast_extension_state_add("default", speeddial_itr->extension, speeddial_hints_cb, speeddial_itr);
+			ast_get_hint(hint, sizeof(hint), NULL, 0, NULL, "default", speeddial_itr->extension);
+
+			dev_state = ast_extension_state(NULL, "default", speeddial_itr->extension);
+			speeddial_itr->state = dev_state;
+
+			ast_log(LOG_DEBUG, "hint of (%s) is (%s) state: (%d)(%s)\n", speeddial_itr->extension, hint, dev_state, ast_extension_state2str(dev_state));
+		}
+	}
+	AST_RWLIST_UNLOCK(&device->speeddials);
 }
 
 struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index)

@@ -6,6 +6,7 @@
 #include <asterisk/event.h>
 #include <asterisk/lock.h>
 #include <asterisk/linkedlists.h>
+#include <asterisk/pbx.h>
 
 #include <stdint.h>
 #include <sys/queue.h>
@@ -348,5 +349,7 @@ struct sccp_line *device_get_active_line(struct sccp_device *device);
 char *device_regstate_str(int device_state);
 int device_type_is_supported(int device_type);
 char *device_type_str(int device_type);
+void speeddial_hints_unsubscribe(struct sccp_device *device);
+void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb);
 
 #endif /* SCCP_DEVICE_H */

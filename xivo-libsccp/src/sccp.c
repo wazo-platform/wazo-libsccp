@@ -133,44 +133,6 @@ static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 	return 0;
 }
 
-static void speeddial_hints_unsubscribe(struct sccp_device *device)
-{
-	struct sccp_speeddial *speeddial_itr = NULL;
-	AST_RWLIST_RDLOCK(&device->speeddials);
-	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
-		if (speeddial_itr->blf) {
-			ast_extension_state_del(speeddial_itr->state_id, NULL);
-		}
-	}
-	AST_RWLIST_UNLOCK(&device->speeddials);
-}
-
-static void speeddial_hints_subscribe(struct sccp_device *device)
-{
-	struct sccp_speeddial *speeddial_itr = NULL;
-	char hint[40];
-	int dev_state;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
-
-	AST_RWLIST_RDLOCK(&device->speeddials);
-	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
-		if (speeddial_itr->blf) {
-			speeddial_itr->state_id = ast_extension_state_add("default", speeddial_itr->extension, speeddial_hints_cb, speeddial_itr);
-			ast_get_hint(hint, sizeof(hint), NULL, 0, NULL, "default", speeddial_itr->extension);
-
-			dev_state = ast_extension_state(NULL, "default", speeddial_itr->extension);
-			speeddial_itr->state = dev_state;
-
-			ast_log(LOG_DEBUG, "hint of (%s) is (%s) state: (%d)(%s)\n", speeddial_itr->extension, hint, dev_state, ast_extension_state2str(dev_state));
-		}
-	}
-	AST_RWLIST_UNLOCK(&device->speeddials);
-}
-
 static void mwi_event_cb(const struct ast_event *event, void *data)
 {
 	int new_msgs = 0;
@@ -515,10 +477,10 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 		session->device = device_itr;
 		mwi_subscribe(device_itr);
-		speeddial_hints_subscribe(device_itr);
+		speeddial_hints_subscribe(device_itr, speeddial_hints_cb);
 
 		if (device_itr->default_line)
-			ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", device_itr->default_line->name);
+			ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", device_itr->default_line->name);
 		ret = 1;
 	}
 
@@ -936,7 +898,7 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		device->lookup = 1;
 	}
 
-	ast_devstate_changed(AST_DEVICE_INUSE, "SCCP/%s", line->name);
+	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 
 	return 0;
 }
@@ -1010,7 +972,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	set_line_state(line, SCCP_CONNECTED);
 	subchan_set_state(subchan, SCCP_CONNECTED);
 
-	ast_devstate_changed(AST_DEVICE_INUSE, "SCCP/%s", line->name);
+	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 
 	return 0;
 }
@@ -1128,7 +1090,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	}
 
 	if (AST_LIST_EMPTY(&line->subchans)) {
-		ast_devstate_changed(AST_DEVICE_NOT_INUSE, "SCCP/%s", line->name);
+		ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 		set_line_state(line, SCCP_ONHOOK);
 	}
 
@@ -2704,10 +2666,9 @@ static void *thread_session(void *data)
 
 			if (session->device) {
 				ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
-				speeddial_hints_unsubscribe(session->device);
 				device_unregister(session->device);
 				if (session->device->default_line)
-					ast_devstate_changed(AST_DEVICE_UNAVAILABLE, "SCCP/%s", session->device->default_line->name);
+					ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 			}
 
 			connected = 0;
@@ -3004,7 +2965,7 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 		return 0;
 	}
 
-	ast_devstate_changed(AST_DEVICE_RINGING, "SCCP/%s", line->name);
+	ast_devstate_changed(AST_DEVICE_RINGING, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 
 	return 0;
 }
@@ -3483,7 +3444,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	speeddial_hints_subscribe(NULL);
+	speeddial_hints_subscribe(NULL, NULL);
 
 	ret = handle_feature_status_req_message(NULL, (struct sccp_session *)0x1);
 	if (ret != -1) {
