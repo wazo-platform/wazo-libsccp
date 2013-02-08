@@ -1090,6 +1090,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	}
 
 	if (AST_LIST_EMPTY(&line->subchans)) {
+		transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
 		ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 		set_line_state(line, SCCP_ONHOOK);
 	}
