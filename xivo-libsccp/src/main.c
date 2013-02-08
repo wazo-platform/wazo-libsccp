@@ -352,6 +352,42 @@ cleanup:
 	return ret;
 }
 
+void device_destroy(struct sccp_device *device, struct sccp_configs *sccp_cfg)
+{
+	struct sccp_line *line_itr = NULL;
+	struct sccp_subchannel *subchan_itr = NULL;
+	struct sccp_speeddial *speeddial_itr = NULL;
+
+	AST_RWLIST_WRLOCK(&device->speeddials);
+	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&device->speeddials, speeddial_itr, list_per_device) {
+
+		AST_RWLIST_REMOVE_CURRENT(list_per_device);
+		AST_LIST_REMOVE(&sccp_cfg->list_speeddial, speeddial_itr, list);
+		free(speeddial_itr);
+	}
+	AST_RWLIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_UNLOCK(&device->speeddials);
+
+	AST_RWLIST_WRLOCK(&device->lines);
+	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&device->lines, line_itr, list_per_device) {
+
+		AST_RWLIST_WRLOCK(&line_itr->subchans);
+		AST_RWLIST_TRAVERSE_SAFE_BEGIN(&line_itr->subchans, subchan_itr, list) {
+			AST_LIST_REMOVE_CURRENT(list);
+		}
+		AST_RWLIST_TRAVERSE_SAFE_END;
+		AST_RWLIST_UNLOCK(&line_itr->subchans);
+
+		AST_LIST_REMOVE_CURRENT(list_per_device);
+		AST_LIST_REMOVE(&sccp_cfg->list_line, line_itr, list);
+		free(line_itr);
+	}
+	AST_RWLIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_UNLOCK(&device->lines);
+
+	free(device);
+}
+
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device)
 {
 	if (speeddial == NULL) {
@@ -814,6 +850,35 @@ static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 	return 0;
 }
 
+static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_device *device = NULL;
+	int restart = 0;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp resync";
+		e->usage = "Usage: sccp resync <device>\n"
+		       "Cause a SCCP device to resynchronize with updated configuration";
+		return NULL;
+
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	device = find_device_by_name(a->argv[2], &sccp_config->list_device);
+	if (device == NULL)
+		return CLI_FAILURE;
+
+	AST_LIST_REMOVE(&sccp_config->list_device, device, list);
+	transmit_reset(device->session, 2);
+	device_unregister(device);
+	device_destroy(device, sccp_config);
+	config_load("sccp.conf", sccp_config);
+
+	return CLI_SUCCESS;
+}
+
 static char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	int ret = 0;
@@ -903,6 +968,7 @@ static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_version, "Show the version of the sccp channel"),
 	AST_CLI_DEFINE(sccp_show_config, "Show the configured devices"),
+	AST_CLI_DEFINE(sccp_resync_device, "Resynchronize SCCP device"),
 	AST_CLI_DEFINE(sccp_update_config, "Update the configuration"),
 };
 
