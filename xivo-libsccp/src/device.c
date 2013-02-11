@@ -28,10 +28,10 @@ void device_unregister(struct sccp_device *device)
 
 			if (subchan != NULL && subchan->channel) {
 				do_hangup(line_itr->instance, subchan->id, device->session);
+				sleep(1);
 			}
 
 			line_itr->active_subchan = NULL;
-			sleep(1);
 
 		} while (subchan != NULL);
 
