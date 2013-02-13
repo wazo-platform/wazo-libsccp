@@ -82,6 +82,7 @@
 #define STIMULUS_LINE			0x09
 #define STIMULUS_VOICEMAIL		0x0F
 #define STIMULUS_AUTOANSWER		0x11
+#define STIMULUS_DND			0x3F
 #define STIMULUS_FEATUREBUTTON		0x15
 #define STIMULUS_CONFERENCE		0x7D
 #define STIMULUS_CALLPARK		0x7E
@@ -139,6 +140,7 @@
 #define SOFTKEY_PICKUP			0x11
 #define SOFTKEY_GPICKUP			0x12
 #define SOFTKEY_CANCEL			0x08
+#define SOFTKEY_DND			0x14
 
 enum sccp_codecs {
 	SCCP_CODEC_G711_ALAW = 2,
@@ -160,6 +162,7 @@ static const uint8_t softkey_default_onhook[] = {
 	SOFTKEY_NEWCALL,
 	SOFTKEY_CFWDALL,
 	SOFTKEY_REDIAL,
+	SOFTKEY_DND,
 };
 
 static const uint8_t softkey_default_connected[] = {
@@ -241,6 +244,7 @@ struct sccp_line {
 	uint32_t instance;
 	uint32_t state;
 
+	uint8_t dnd;
 	uint8_t callfwd;
 	uint32_t callfwd_id;
 	char callfwd_exten[AST_MAX_EXTENSION];

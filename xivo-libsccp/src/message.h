@@ -514,6 +514,7 @@ struct softkey_template_definition softkey_template_default[] = {
 	{"\x80\x11", 0x11}, // PickUp
 	{"\x80\x12", 0x12}, // GPickUp
 	{"Dial", 0x13}, // Dial
+	{"\200\77", 0x14}, // DND
 };
 
 #endif /* SCCP_MESSAGE_H */

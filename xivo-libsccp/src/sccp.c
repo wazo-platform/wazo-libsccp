@@ -38,6 +38,7 @@ static struct sccp_configs *sccp_config; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct sched_context *sched = NULL;
 
+static int handle_softkey_dnd(struct sccp_session *session);
 static int handle_callforward(struct sccp_session *session, uint32_t softkey);
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
 
@@ -114,6 +115,35 @@ int extstate_ast2sccp(int state)
 	}
 }
 
+static void update_displaymessage(struct sccp_session *session, struct sccp_line *line)
+{
+	char info_msg[AST_MAX_EXTENSION + 21];
+	memset(&info_msg, 0, sizeof(info_msg));
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return;
+	}
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "session->device is NULL\n");
+		return;
+	}
+
+	if (line->dnd == 1) {
+		strcat(info_msg, "\200\77");
+	}
+
+	strcat(info_msg, "     ");
+
+	if (line->callfwd == SCCP_CFWD_ACTIVE) {
+		strcat(info_msg, "\200\5: ");
+		strncat(info_msg, line->callfwd_exten, AST_MAX_EXTENSION);
+	}
+
+	transmit_displaymessage(session, info_msg);
+}
+
 static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 {
 	struct sccp_speeddial *speeddial = NULL;
@@ -179,6 +209,7 @@ static void post_line_register_check(struct sccp_session *session)
 {
 	int result = 0;
 	char exten[AST_MAX_EXTENSION];
+	char dnd_status[4];
 	struct sccp_line *line = NULL;
 
 	if (session == NULL) {
@@ -195,6 +226,11 @@ static void post_line_register_check(struct sccp_session *session)
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
 		ast_copy_string(line->device->exten, exten, sizeof(exten));
 		handle_callforward(session, SOFTKEY_CFWDALL);
+	}
+
+	result = ast_db_get("sccp/dnd", line->name, dnd_status, sizeof(dnd_status));
+	if (result == 0) {
+		handle_softkey_dnd(session);
 	}
 }
 
@@ -1200,6 +1236,42 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	return 0;
 }
 
+static int handle_softkey_dnd(struct sccp_session *session)
+{
+	struct sccp_line *line = NULL;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	if (session->device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return -1;
+	}
+
+	line = session->device->default_line;
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return -1;
+	}
+
+	if (line->dnd == 0) {
+		ast_log(LOG_DEBUG, "enabling DND on line %s\n", line->name);
+		line->dnd = 1;
+		update_displaymessage(session, line);
+		ast_db_put("sccp/dnd", line->name, "on");
+
+	} else {
+		ast_log(LOG_DEBUG, "disabling DND on line %s\n", line->name);
+		line->dnd = 0;
+		update_displaymessage(session, line);
+		ast_db_del("sccp/dnd", line->name);
+	}
+
+	return 0;
+}
+
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
@@ -1421,7 +1493,6 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
-	char info_fwd[24];
 
 	if (session == NULL)
 		return -1;
@@ -1475,19 +1546,14 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 		} else if (softkey == SOFTKEY_CFWDALL) {
 
 			ast_copy_string(line->callfwd_exten, line->device->exten, sizeof(line->callfwd_exten));
-			snprintf(info_fwd, sizeof(info_fwd), "\200\5: %s", line->callfwd_exten);
 
 			ret = transmit_forward_status_message(session, line->instance, line->callfwd_exten, 1);
 			if (ret == -1)
 				return -1;
 
-			ret = transmit_displaymessage(session, info_fwd);
-			if (ret == -1)
-				return -1;
-
 			line->callfwd = SCCP_CFWD_ACTIVE;
-
 			ast_db_put("sccp/cfwdall", line->name, line->callfwd_exten);
+			update_displaymessage(session, line);
 		}
 
 		ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
@@ -1501,13 +1567,9 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 		if (ret == -1)
 			return -1;
 
-		ret = transmit_displaymessage(session, "");
-		if (ret == -1)
-			return -1;
-
 		line->callfwd = SCCP_CFWD_UNACTIVE;
-
 		ast_db_del("sccp/cfwdall", line->name);
+		update_displaymessage(session, line);
 
 		break;
 	}
@@ -1540,6 +1602,10 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 	switch (letohl(msg->data.softkeyevent.softKeyEvent)) {
 	case SOFTKEY_NONE:
+		break;
+
+	case SOFTKEY_DND:
+		handle_softkey_dnd(session);
 		break;
 
 	case SOFTKEY_REDIAL:
@@ -2813,6 +2879,11 @@ static struct ast_channel *cb_ast_request(const char *type,
 	if (line->device->registered == DEVICE_REGISTERED_FALSE) {
 		ast_log(LOG_NOTICE, "Line [%s] belong to an unregistered device [%s]\n", line->name, line->device->name);
 		*cause = AST_CAUSE_UNREGISTERED;
+		return NULL;
+	}
+
+	if (line->dnd == 1 && line->callfwd == SCCP_CFWD_UNACTIVE) {
+		*cause = AST_CAUSE_BUSY;
 		return NULL;
 	}
 
