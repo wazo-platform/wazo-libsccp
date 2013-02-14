@@ -1106,7 +1106,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	return 0;
 }
 
-int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
+static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
