@@ -26,8 +26,231 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #endif
 
 struct sccp_configs *sccp_config; /* global settings */
-static int config_load(char *config_file, struct sccp_configs *sccp_cfg);
 static void config_unload(struct sccp_configs *sccp_cfg);
+
+AST_TEST_DEFINE(sccp_test_resync)
+{
+	enum ast_test_result_state ret = AST_TEST_PASS;
+	struct sccp_configs *sccp_cfg = NULL;
+	FILE *conf_file = NULL;
+	char *conf = NULL;
+	struct sccp_line *line = NULL;
+	struct sccp_speeddial *speeddial = NULL;
+	struct sccp_device *device = NULL;
+
+	switch (cmd) {
+	case TEST_INIT:
+		info->name = "sccp_test_resync";
+		info->category = "/channel/sccp/";
+		info->summary = "test sccp resync";
+		info->description = "Test if a device is properly resynchronized.";
+
+		return AST_TEST_NOT_RUN;
+
+	case TEST_EXECUTE:
+		break;
+	}
+
+	ast_test_status_update(test, "Executing sccp resync device...\n");
+
+	sccp_cfg = ast_calloc(1, sizeof(struct sccp_configs));
+	if (sccp_config == NULL) {
+		ast_test_status_update(test, "ast_calloc failed\n");
+		return AST_TEST_FAIL;
+	}
+	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_device);
+	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_line);
+
+	conf_file = fopen("/tmp/sccp.conf", "w");
+	if (conf_file == NULL) {
+		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
+		return AST_TEST_FAIL;
+	}
+
+	conf =	"[general]\n"
+		"bindaddr=0.0.0.0\n"
+		"dateformat=D.M.Y\n"
+		"keepalive=10\n"
+		"authtimeout=10\n"
+		"dialtimeout=3\n"
+		"context=default\n"
+		"language=en_US\n"
+		"vmexten=*988\n"
+		"\n"
+		"[lines]\n"
+		"[200]\n"
+		"cid_num=200\n"
+		"cid_name=Bob\n"
+		"setvar=XIVO=10\n"
+		"language=fr_FR\n"
+		"context=a_context\n"
+		"\n"
+		"[speeddials]\n"
+		"[sd1000]\n"
+		"extension = 1000\n"
+		"label = Call 1000\n"
+		"blf = yes\n"
+		"[sd1001]\n"
+		"extension = 1001\n"
+		"label = Call 1001\n"
+		"blf = no\n"
+		"[devices]\n"
+		"[SEPACA016FDF235]\n"
+		"device=SEPACA016FDF235\n"
+		"speeddial=sd1000\n"
+		"line=200\n"
+		"speeddial=sd1001\n"
+		"voicemail=555\n";
+
+	fwrite(conf, 1, strlen(conf), conf_file);
+	fclose(conf_file);
+
+	config_load("/tmp/sccp.conf", sccp_cfg);
+
+	line = find_line_by_name("200", &sccp_cfg->list_line);
+	if (line == NULL) {
+		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(line->cid_name, "Bob")) {
+		ast_test_status_update(test, "line->cid_name %s != %s\n", line->cid_name, "Bob");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	device = find_device_by_name("SEPACA016FDF235", &sccp_cfg->list_device);
+	if (device == NULL) {
+		ast_test_status_update(test, "device name %s doesn't exist\n", "SEPACA016FDF235");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(device->voicemail, "555")) {
+		ast_test_status_update(test, "device->voicemail %s != %s\n", device->voicemail, "555");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	speeddial = device_get_speeddial(device, 1);
+	if (speeddial == NULL) {
+		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(speeddial->label, "Call 1000")) {
+		ast_test_status_update(test, "speeddial->label %s != %s\n", speeddial->label, "Call 1000");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	/* Create a new configuration */
+	conf_file = fopen("/tmp/sccp.conf", "w");
+	if (conf_file == NULL) {
+		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
+		return AST_TEST_FAIL;
+	}
+
+	conf =	"[general]\n"
+		"bindaddr=0.0.0.0\n"
+		"dateformat=D.M.Y\n"
+		"keepalive=10\n"
+		"authtimeout=10\n"
+		"dialtimeout=3\n"
+		"context=default\n"
+		"language=en_US\n"
+		"vmexten=*988\n"
+		"\n"
+		"[lines]\n"
+		"[200]\n"
+		"cid_num=200\n"
+		"cid_name=Alice\n"
+		"setvar=XIVO=10\n"
+		"language=fr_FR\n"
+		"context=a_context\n"
+		"\n"
+		"[speeddials]\n"
+		"[sd1000]\n"
+		"extension = 1000\n"
+		"label = Call Home\n"
+		"blf = yes\n"
+		"[sd1001]\n"
+		"extension = 1001\n"
+		"label = Call 1001\n"
+		"blf = no\n"
+		"[devices]\n"
+		"[SEPACA016FDF235]\n"
+		"device=SEPACA016FDF235\n"
+		"speeddial=sd1000\n"
+		"line=200\n"
+		"speeddial=sd1001\n"
+		"voicemail=557\n";
+
+	fwrite(conf, 1, strlen(conf), conf_file);
+	fclose(conf_file);
+
+
+	AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
+	transmit_reset(device->session, 2);
+	device_unregister(device);
+	device_destroy(device, sccp_cfg);
+	config_load("/tmp/sccp.conf", sccp_cfg);
+
+
+	/* Verify again */
+	line = find_line_by_name("200", &sccp_cfg->list_line);
+	if (line == NULL) {
+		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(line->cid_name, "Alice")) {
+		ast_test_status_update(test, "line->cid_name %s != %s\n", line->cid_name, "Alice");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	device = find_device_by_name("SEPACA016FDF235", &sccp_cfg->list_device);
+	if (device == NULL) {
+		ast_test_status_update(test, "device name %s doesn't exist\n", "SEPACA016FDF235");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(device->voicemail, "557")) {
+		ast_test_status_update(test, "device->voicemail %s != %s\n", device->voicemail, "557");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	speeddial = device_get_speeddial(device, 1);
+	if (speeddial == NULL) {
+		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+	if (strcmp(speeddial->label, "Call Home")) {
+		ast_test_status_update(test, "speeddial->label %s != %s\n", speeddial->label, "Call Home");
+		ret = AST_TEST_FAIL;
+		goto cleanup;
+	}
+
+cleanup:
+
+	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
+	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
+
+	config_unload(sccp_cfg);
+	ast_free(sccp_cfg);
+	remove("/tmp/sccp.conf");
+
+
+	return ret;
+}
 
 AST_TEST_DEFINE(sccp_test_config)
 {
@@ -352,6 +575,42 @@ cleanup:
 	return ret;
 }
 
+void device_destroy(struct sccp_device *device, struct sccp_configs *sccp_cfg)
+{
+	struct sccp_line *line_itr = NULL;
+	struct sccp_subchannel *subchan_itr = NULL;
+	struct sccp_speeddial *speeddial_itr = NULL;
+
+	AST_RWLIST_WRLOCK(&device->speeddials);
+	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&device->speeddials, speeddial_itr, list_per_device) {
+
+		AST_RWLIST_REMOVE_CURRENT(list_per_device);
+		AST_LIST_REMOVE(&sccp_cfg->list_speeddial, speeddial_itr, list);
+		free(speeddial_itr);
+	}
+	AST_RWLIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_UNLOCK(&device->speeddials);
+
+	AST_RWLIST_WRLOCK(&device->lines);
+	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&device->lines, line_itr, list_per_device) {
+
+		AST_RWLIST_WRLOCK(&line_itr->subchans);
+		AST_RWLIST_TRAVERSE_SAFE_BEGIN(&line_itr->subchans, subchan_itr, list) {
+			AST_LIST_REMOVE_CURRENT(list);
+		}
+		AST_RWLIST_TRAVERSE_SAFE_END;
+		AST_RWLIST_UNLOCK(&line_itr->subchans);
+
+		AST_LIST_REMOVE_CURRENT(list_per_device);
+		AST_LIST_REMOVE(&sccp_cfg->list_line, line_itr, list);
+		free(line_itr);
+	}
+	AST_RWLIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_UNLOCK(&device->lines);
+
+	free(device);
+}
+
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device)
 {
 	if (speeddial == NULL) {
@@ -419,7 +678,7 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 	line->count_subchan = 0;
 	line->active_subchan = NULL;
 	line->callfwd = SCCP_CFWD_UNACTIVE;
-	AST_LIST_HEAD_INIT(&line->subchans);
+	AST_RWLIST_HEAD_INIT(&line->subchans);
 	ast_mutex_init(&line->lock);
 
 	/* set the device default line */
@@ -791,7 +1050,7 @@ static void config_unload(struct sccp_configs *sccp_cfg)
 	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
 }
 
-static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
+int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 {
 	struct ast_config *cfg = NULL;
 	struct ast_flags config_flags = { 0 };
@@ -812,6 +1071,43 @@ static int config_load(char *config_file, struct sccp_configs *sccp_cfg)
 	ast_config_destroy(cfg);
 
 	return 0;
+}
+
+static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_device *device = NULL;
+	int restart = 0;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp resync";
+		e->usage = "Usage: sccp resync <device>\n"
+		       "Cause a SCCP device to resynchronize with updated configuration";
+		return NULL;
+
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	device = find_device_by_name(a->argv[2], &sccp_config->list_device);
+	if (device == NULL)
+		return CLI_FAILURE;
+
+	if (device->registered != DEVICE_REGISTERED_TRUE) {
+		return CLI_FAILURE;
+	}
+
+	/* Prevent the device from reconnecting while it is
+	   getting destroyed */
+	AST_LIST_REMOVE(&sccp_config->list_device, device, list);
+
+	/* Tell the thread_session to destroy the device */
+	device->destroy = 1;
+
+	/* Ask the phone to reboot, as soon as possible */
+	transmit_reset(device->session, 2);
+
+	return CLI_SUCCESS;
 }
 
 static char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
@@ -903,6 +1199,7 @@ static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_version, "Show the version of the sccp channel"),
 	AST_CLI_DEFINE(sccp_show_config, "Show the configured devices"),
+	AST_CLI_DEFINE(sccp_resync_device, "Resynchronize SCCP device"),
 	AST_CLI_DEFINE(sccp_update_config, "Update the configuration"),
 };
 
@@ -957,6 +1254,7 @@ static int load_module(void)
 
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 	AST_TEST_REGISTER(sccp_test_config);
+	AST_TEST_REGISTER(sccp_test_resync);
 
 	return AST_MODULE_LOAD_SUCCESS;
 }

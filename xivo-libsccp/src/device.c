@@ -1,10 +1,9 @@
 #include "device.h"
 #include "sccp.h"
-
-
 void device_unregister(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
+	struct sccp_subchannel *subchan_itr = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
 	if (device == NULL) {
@@ -18,19 +17,26 @@ void device_unregister(struct sccp_device *device)
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
-		if (line_itr->active_subchan != NULL)
-			if (line_itr->active_subchan->channel != NULL) {
-				subchan = line_itr->active_subchan;
-				line_itr->active_subchan = NULL;
-				break;
-			} else {
-				line_itr->active_subchan = NULL;
+
+
+		do {
+			subchan = NULL;
+
+			AST_RWLIST_WRLOCK(&line_itr->subchans);
+			subchan = AST_RWLIST_FIRST(&line_itr->subchans);
+			AST_RWLIST_UNLOCK(&line_itr->subchans);
+
+			if (subchan != NULL && subchan->channel) {
+				do_hangup(line_itr->instance, subchan->id, device->session);
+				sleep(1);
 			}
+
+			line_itr->active_subchan = NULL;
+
+		} while (subchan != NULL);
+
 	}
 	AST_RWLIST_UNLOCK(&device->lines);
-
-	if (subchan != NULL)
-		ast_queue_hangup(subchan->channel);
 
 	return;
 }
@@ -111,12 +117,12 @@ struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line)
 		return NULL;
 	}
 
-	AST_LIST_LOCK(&line->subchans);
-	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+	AST_RWLIST_RDLOCK(&line->subchans);
+	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr != NULL && subchan_itr->state == SCCP_RINGIN)
 			break;
 	}
-	AST_LIST_UNLOCK(&line->subchans);
+	AST_RWLIST_UNLOCK(&line->subchans);
 
 	return subchan_itr;
 }

@@ -247,7 +247,7 @@ struct sccp_line {
 
 	uint32_t count_subchan;
 	struct sccp_subchannel *active_subchan;
-	AST_LIST_HEAD(, sccp_subchannel) subchans;
+	AST_RWLIST_HEAD(, sccp_subchannel) subchans;
 
 	struct ast_codec_pref codec_pref;
 	struct sccp_device *device;
@@ -277,6 +277,7 @@ struct sccp_speeddial {
 struct sccp_device {
 
 	ast_mutex_t lock;
+	uint8_t destroy;
 
 	char name[80];
 	int type;

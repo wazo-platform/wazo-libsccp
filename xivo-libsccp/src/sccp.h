@@ -62,5 +62,8 @@ int sccp_server_init(struct sccp_configs *sccp_cfg);
 void sccp_server_fini(void);
 void sccp_rtp_fini();
 void sccp_rtp_init(const struct ast_module_info *module_info);
+int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
+int config_load(char *config_file, struct sccp_configs *sccp_cfg);
+void device_destroy(struct sccp_device *device, struct sccp_configs *sccp_cfg);
 
 #endif /* SCCP */

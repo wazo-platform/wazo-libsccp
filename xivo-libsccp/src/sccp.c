@@ -1106,7 +1106,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	return 0;
 }
 
-static int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
+int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
@@ -2670,6 +2670,11 @@ static void *thread_session(void *data)
 				device_unregister(session->device);
 				if (session->device->default_line)
 					ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
+
+				if (session->device->destroy == 1) {
+					device_destroy(session->device, sccp_config);
+					config_load("sccp.conf", sccp_config);
+				}
 			}
 
 			connected = 0;
