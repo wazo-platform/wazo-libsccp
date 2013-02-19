@@ -1,5 +1,6 @@
 #include "device.h"
 #include "sccp.h"
+
 void device_unregister(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
@@ -11,14 +12,13 @@ void device_unregister(struct sccp_device *device)
 		return;
 	}
 
-	speeddial_hints_unsubscribe(device);
-
 	device->registered = DEVICE_REGISTERED_FALSE;
+
+	speeddial_hints_unsubscribe(device);
+	ast_event_unsubscribe(device->mwi_event_sub);
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
-
-
 		do {
 			subchan = NULL;
 
