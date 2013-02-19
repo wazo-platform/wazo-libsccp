@@ -1935,10 +1935,6 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	ret = transmit_start_media_transmission(line, line->active_subchan->id, local, fmt);
 
-	if (line->active_subchan && line->active_subchan->channel) {
-		ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
-	}
-
 	ast_mutex_unlock(&line->lock);
 	return 0;
 }
