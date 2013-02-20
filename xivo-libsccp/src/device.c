@@ -35,6 +35,7 @@ void device_unregister(struct sccp_device *device)
 			}
 
 			line_itr->active_subchan = NULL;
+			line_itr->callfwd = SCCP_CFWD_UNACTIVE;
 
 		} while (subchan != NULL);
 

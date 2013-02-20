@@ -248,6 +248,7 @@ struct sccp_line {
 	uint8_t callfwd;
 	uint32_t callfwd_id;
 	char callfwd_exten[AST_MAX_EXTENSION];
+	pthread_t callfwd_timeout_thread;
 
 	uint32_t count_subchan;
 	struct sccp_subchannel *active_subchan;

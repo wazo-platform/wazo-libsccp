@@ -806,6 +806,56 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	return 0;
 }
 
+static void *sccp_callfwd_timeout(void *data)
+{
+	struct sccp_subchannel *subchan = NULL;
+	struct sccp_line *line = NULL;
+	size_t len = 0, next_len = 0;
+	int timeout = 0;
+	int set_callfwd = 0;
+
+	if (data == NULL) {
+		ast_log(LOG_DEBUG, "data is NULL\n");
+		return NULL;
+	}
+
+	line = (struct sccp_subchannel *)data;
+
+	timeout = 10; /* 10 times 500ms, timeout is 5sec */
+	len = strlen(line->device->exten);
+
+	while (line->callfwd == SCCP_CFWD_INPUTEXTEN) {
+
+		/* when pound key is pressed, set the call forward extension without further waiting */
+		if (len > 0 && line->device->exten[len-1] == '#') {
+			line->device->exten[len-1] = '\0';
+			set_callfwd = 1;
+		}
+
+		if (timeout == 0)
+			set_callfwd = 1;
+
+		if (set_callfwd) {
+			sccp_set_callforward(line);
+		}
+
+		usleep(500000);
+
+		next_len = strlen(line->device->exten);
+		if (len == next_len) {
+			if (len == 0)
+				len = next_len;
+			else
+				timeout--;
+		} else {
+			timeout = 10;
+			len = next_len;
+		}
+	}
+
+	return;
+}
+
 static void *sccp_lookup_exten(void *data)
 {
 	struct ast_channel *channel = NULL;
@@ -1489,6 +1539,37 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	return 0;
 }
 
+int sccp_set_callforward(struct sccp_line *line)
+{
+	int ret = 0;
+	struct sccp_session *session = NULL;
+
+	session = line->device->session;
+
+	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
+	if (ret == -1)
+		return -1;
+
+	ret = transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_ONHOOK);
+	if (ret == -1)
+		return -1;
+
+	set_line_state(line, SCCP_ONHOOK);
+
+	ast_copy_string(line->callfwd_exten, line->device->exten, sizeof(line->callfwd_exten));
+
+	ret = transmit_forward_status_message(session, line->instance, line->callfwd_exten, 1);
+	if (ret == -1)
+		return -1;
+
+	line->callfwd = SCCP_CFWD_ACTIVE;
+	ast_db_put("sccp/cfwdall", line->name, line->callfwd_exten);
+	update_displaymessage(session, line);
+
+	ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+	line->device->exten[0] = '\0';
+}
+
 static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 {
 	int ret = 0;
@@ -1526,38 +1607,33 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 		set_line_state(line, SCCP_OFFHOOK);
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
 
+		if (ast_pthread_create(&line->callfwd_timeout_thread, NULL, sccp_callfwd_timeout, line)) {
+			ast_log(LOG_WARNING, "Unable to create callfwd timeout thread: %s\n", strerror(errno));
+		}
+
 		break;
 
 	case SCCP_CFWD_INPUTEXTEN:
 
-		ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_ONHOOK);
-		if (ret == -1)
-			return -1;
-
-		set_line_state(line, SCCP_ONHOOK);
-
 		if (softkey == SOFTKEY_CANCEL || line->device->exten[0] == '\0') {
-			line->callfwd = SCCP_CFWD_UNACTIVE;
 
-		} else if (softkey == SOFTKEY_CFWDALL) {
-
-			ast_copy_string(line->callfwd_exten, line->device->exten, sizeof(line->callfwd_exten));
-
-			ret = transmit_forward_status_message(session, line->instance, line->callfwd_exten, 1);
+			ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
 			if (ret == -1)
 				return -1;
 
-			line->callfwd = SCCP_CFWD_ACTIVE;
-			ast_db_put("sccp/cfwdall", line->name, line->callfwd_exten);
-			update_displaymessage(session, line);
-		}
+			ret = transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_ONHOOK);
+			if (ret == -1)
+				return -1;
 
-		ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
-		line->device->exten[0] = '\0';
+			set_line_state(line, SCCP_ONHOOK);
+			line->callfwd = SCCP_CFWD_UNACTIVE;
+
+			ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+			line->device->exten[0] = '\0';
+
+		} else if (softkey == SOFTKEY_CFWDALL) {
+			sccp_set_callforward(line);
+		}
 
 		break;
 

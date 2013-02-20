@@ -644,6 +644,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	ast_copy_string(device->name, name, sizeof(device->name));
 
 	device->voicemail[0] = '\0';
+	device->exten[0] = '\0';
 	device->mwi_event_sub = NULL;
 	device->active_line = NULL;
 	device->active_line_cnt = 0;
