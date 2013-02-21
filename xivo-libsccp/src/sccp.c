@@ -2396,8 +2396,10 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 		return 0;
 	}
 
-	do_newcall(line->instance, 0, session);
-	transmit_speaker_mode(session, SCCP_SPEAKERON);
+	if (line->callfwd != SCCP_CFWD_INPUTEXTEN) {
+		do_newcall(line->instance, 0, session);
+		transmit_speaker_mode(session, SCCP_SPEAKERON);
+	}
 
 	ast_copy_string(line->device->exten, speeddial->extension, sizeof(line->device->exten));
 	strcat(line->device->exten, "#");
