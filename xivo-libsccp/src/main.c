@@ -1108,6 +1108,10 @@ static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli
 	/* Ask the phone to reboot, as soon as possible */
 	transmit_reset(device->session, 2);
 
+	/* BUG: 7912 does not disconnect after ONLY transmitting a reset.
+	 * 7912 needs both a reset and an unregister */
+	device_unregister(device);
+
 	return CLI_SUCCESS;
 }
 
