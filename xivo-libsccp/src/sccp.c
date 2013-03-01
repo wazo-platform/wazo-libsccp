@@ -1423,7 +1423,8 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	ast_mutex_unlock(&line->lock);
 
-	ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
+	if (line->active_subchan->channel)
+		ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
 
 	return 0;
 }
