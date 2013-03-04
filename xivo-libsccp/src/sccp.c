@@ -4125,8 +4125,6 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	else
 		transmit_reset(device->session, 2);
 
-	device_unregister(device);
-
 	return CLI_SUCCESS;
 }
 
