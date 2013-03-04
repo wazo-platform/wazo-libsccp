@@ -1106,7 +1106,7 @@ static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli
 	device->destroy = 1;
 
 	/* Ask the phone to reboot, as soon as possible */
-	transmit_reset(device->session, 2);
+	transmit_reset(device->session, 1);
 
 	return CLI_SUCCESS;
 }
