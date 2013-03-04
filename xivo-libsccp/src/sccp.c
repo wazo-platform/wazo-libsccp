@@ -1922,7 +1922,7 @@ char *utf8_to_iso88591(char *to_convert)
 		return NULL;
 	}
 
-	cd = iconv_open("ISO-8859-1", "UTF-8");
+	cd = iconv_open("ISO-8859-1//TRANSLIT", "UTF-8");
 
 	len = strlen(to_convert);
 
