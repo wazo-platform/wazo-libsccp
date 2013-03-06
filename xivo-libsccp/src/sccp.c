@@ -2496,7 +2496,7 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 		ast_log(LOG_WARNING, "Unsupported digit %d\n", button);
 	}
 
-	if (line->state == SCCP_CONNECTED) {
+	if (line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS) {
 
 		frame.subclass.integer = digit;
 		frame.src = "sccp";
