@@ -160,17 +160,17 @@ struct softkey_definitions {
 };
 
 static const uint8_t softkey_default_onhook[] = {
+	SOFTKEY_REDIAL,
 	SOFTKEY_NEWCALL,
 	SOFTKEY_CFWDALL,
-	SOFTKEY_REDIAL,
 	SOFTKEY_DND,
 };
 
 static const uint8_t softkey_default_connected[] = {
-	SOFTKEY_NEWCALL,
 	SOFTKEY_HOLD,
 	SOFTKEY_ENDCALL,
 	SOFTKEY_TRNSFER,
+	SOFTKEY_NEWCALL,
 };
 
 static const uint8_t softkey_default_onhold[] = {
