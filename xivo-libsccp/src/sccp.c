@@ -141,7 +141,11 @@ static void update_displaymessage(struct sccp_session *session, struct sccp_line
 		strncat(info_msg, line->callfwd_exten, AST_MAX_EXTENSION);
 	}
 
-	transmit_displaymessage(session, info_msg);
+	if (line->dnd != 1 && line->callfwd != SCCP_CFWD_ACTIVE) {
+		transmit_clearmessage(session);
+	} else {
+		transmit_displaymessage(session, info_msg);
+	}
 }
 
 static int speeddial_hints_cb(char *context, char *id, int state, void *data)
@@ -241,7 +245,7 @@ static void post_register_check(struct sccp_session *session)
 		return;
 	}
 
-	transmit_displaymessage(session, "");
+	transmit_clearmessage(session);
 
 	if (session->device->mwi_event_sub)
 		mwi_event_cb(NULL, session->device);

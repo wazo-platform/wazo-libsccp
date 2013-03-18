@@ -404,6 +404,8 @@ struct display_notify_message {
 	char displayMessage[100];
 };
 
+#define CLEAR_NOTIFY_MESSAGE 0x0115
+
 #define ACTIVATE_CALL_PLANE_MESSAGE 0x0116
 struct activate_call_plane_message {
 	uint32_t lineInstance;

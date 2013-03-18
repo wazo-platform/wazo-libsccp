@@ -418,6 +418,29 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	return 0;
 }
 
+int transmit_clearmessage(struct sccp_session *session)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(0, CLEAR_NOTIFY_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg allocation failed\n");
+		return -1;
+	}
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_stop_tone(struct sccp_session *session, int line_instance, int callid)
 {
 	struct sccp_msg *msg = NULL;
