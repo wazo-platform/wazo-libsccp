@@ -608,6 +608,7 @@ void device_destroy(struct sccp_device *device, struct sccp_configs *sccp_cfg)
 	AST_RWLIST_TRAVERSE_SAFE_END;
 	AST_RWLIST_UNLOCK(&device->lines);
 
+	ast_mutex_destroy(&device->lock);
 	free(device);
 }
 

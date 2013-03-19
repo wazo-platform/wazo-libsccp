@@ -41,6 +41,7 @@ static struct sched_context *sched = NULL;
 static int handle_softkey_dnd(struct sccp_session *session);
 static int handle_callforward(struct sccp_session *session, uint32_t softkey);
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
+int sccp_set_callforward(struct sccp_line *line);
 
 static struct ast_channel *cb_ast_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause);
 static int cb_ast_call(struct ast_channel *ast, char *dest, int timeout);
@@ -823,7 +824,7 @@ static void *sccp_callfwd_timeout(void *data)
 		return NULL;
 	}
 
-	line = (struct sccp_subchannel *)data;
+	line = (struct sccp_line *)data;
 
 	timeout = 10; /* 10 times 500ms, timeout is 5sec */
 	len = strlen(line->device->exten);
@@ -857,7 +858,7 @@ static void *sccp_callfwd_timeout(void *data)
 		}
 	}
 
-	return;
+	return NULL;
 }
 
 static void *sccp_lookup_exten(void *data)
@@ -1575,6 +1576,8 @@ int sccp_set_callforward(struct sccp_line *line)
 
 	ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 	line->device->exten[0] = '\0';
+
+	return 0;
 }
 
 static int handle_callforward(struct sccp_session *session, uint32_t softkey)
