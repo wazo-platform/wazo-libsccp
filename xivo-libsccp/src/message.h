@@ -22,6 +22,7 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 int transmit_forward_status_message(struct sccp_session *session , int instance, const char *extension, int status);
 int transmit_callstate(struct sccp_session *session, int lineInstance, int state, unsigned callInstance);
 int transmit_displaymessage(struct sccp_session *session, const char *text);
+int transmit_clearmessage(struct sccp_session *session);
 int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
 int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, int state);
 int transmit_stop_tone(struct sccp_session *session, int instance, int reference);

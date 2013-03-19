@@ -251,7 +251,7 @@ struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
 			break;
 	}
 	AST_RWLIST_UNLOCK(&device->lines);
-	
+
 	return line_itr;
 }
 
@@ -469,7 +469,7 @@ void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 	}
 
 	struct sccp_subchannel *subchan_itr;
-	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {	
+	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr->id == subchan_id) {
 			line_select_subchan(line, subchan_itr);
 			break;

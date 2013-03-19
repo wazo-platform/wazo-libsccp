@@ -57,7 +57,7 @@ struct sccp_session {
 	AST_LIST_ENTRY(sccp_session) list;
 };
 
-int codec_ast2sccp(format_t);
+int codec_ast2sccp(struct ast_format *astcodec);
 int sccp_server_init(struct sccp_configs *sccp_cfg);
 void sccp_server_fini(void);
 void sccp_rtp_fini();

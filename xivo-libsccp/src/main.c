@@ -608,6 +608,8 @@ void device_destroy(struct sccp_device *device, struct sccp_configs *sccp_cfg)
 	AST_RWLIST_TRAVERSE_SAFE_END;
 	AST_RWLIST_UNLOCK(&device->lines);
 
+	ast_mutex_destroy(&device->lock);
+	ast_format_cap_destroy(device->codecs);
 	free(device);
 }
 
@@ -654,6 +656,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	device->session = NULL;
 	device->line_count = 0;
 	device->speeddial_count = 0;
+	device->codecs = ast_format_cap_alloc_nolock();
 
 	AST_RWLIST_HEAD_INIT(&device->lines);
 	AST_RWLIST_HEAD_INIT(&device->speeddials);
@@ -951,7 +954,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 		duplicate = 0;
 		category = ast_category_browse(cfg, category);
 	}
-	
+
 	return 0;
 }
 
@@ -993,7 +996,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 		} else if (!strcasecmp(var->name, "keepalive")) {
 			sccp_cfg->keepalive = atoi(var->value);
 			continue;
-		
+
 		} else if (!strcasecmp(var->name, "authtimeout")) {
 			sccp_cfg->authtimeout = atoi(var->value);
 			if (sccp_cfg->authtimeout < 10)
@@ -1288,7 +1291,7 @@ static int reload_module(void)
 }
 
 AST_MODULE_INFO(
-	
+
 	ASTERISK_GPL_KEY,
 	AST_MODFLAG_DEFAULT,
 	"Skinny Client Control Protocol",
