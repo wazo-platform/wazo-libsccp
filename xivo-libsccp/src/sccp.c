@@ -3284,6 +3284,8 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 
 static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void *data, size_t datalen)
 {
+#define _AST_PROVIDE_INBAND_SIGNALLING -1
+
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
@@ -3315,7 +3317,7 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 
 	case AST_CONTROL_RINGING:
 		ast_log(LOG_DEBUG, "ringing\n");
-		break;
+		return _AST_PROVIDE_INBAND_SIGNALLING;
 
 	case AST_CONTROL_ANSWER:
 		ast_log(LOG_DEBUG, "answer\n");
