@@ -952,7 +952,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 		duplicate = 0;
 		category = ast_category_browse(cfg, category);
 	}
-	
+
 	return 0;
 }
 
@@ -994,7 +994,7 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 		} else if (!strcasecmp(var->name, "keepalive")) {
 			sccp_cfg->keepalive = atoi(var->value);
 			continue;
-		
+
 		} else if (!strcasecmp(var->name, "authtimeout")) {
 			sccp_cfg->authtimeout = atoi(var->value);
 			if (sccp_cfg->authtimeout < 10)
@@ -1289,7 +1289,7 @@ static int reload_module(void)
 }
 
 AST_MODULE_INFO(
-	
+
 	ASTERISK_GPL_KEY,
 	AST_MODFLAG_DEFAULT,
 	"Skinny Client Control Protocol",

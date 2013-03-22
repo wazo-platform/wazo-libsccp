@@ -38,7 +38,7 @@ struct sccp_configs {
 
 	struct list_speeddial list_speeddial;
 	struct list_line list_line;
-	struct list_device list_device;	
+	struct list_device list_device;
 };
 
 struct sccp_session {

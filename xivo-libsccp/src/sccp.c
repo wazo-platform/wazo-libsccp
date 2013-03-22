@@ -431,7 +431,7 @@ static int handle_button_template_req_message(struct sccp_session *session)
 	ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1;
-	
+
 	return 0;
 }
 
@@ -1411,7 +1411,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	}
 
 	line_select_subchan_id(line, subchan_id);
-	set_line_state(line, SCCP_CONNECTED); 
+	set_line_state(line, SCCP_CONNECTED);
 
 	/* put on connected */
 	transmit_callstate(session, line_instance, SCCP_CONNECTED, subchan_id);
@@ -2220,14 +2220,14 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 
 	msg->data.forwardstatus.status = 0;
 	msg->data.forwardstatus.lineInstance = htolel(line_instance);
-	
+
 	ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1;
 
 	post_line_register_check(session);
 
-	return 0; 
+	return 0;
 }
 
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
@@ -2334,7 +2334,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
-		return -1; 
+		return -1;
 
 	post_register_check(session);
 
@@ -2725,7 +2725,7 @@ static int fetch_data(struct sccp_session *session)
 
 	if (session == NULL)
 		return -1;
-	
+
 	time(&now);
 
 	/* if no device or device is not registered and time has elapsed */
@@ -2790,7 +2790,7 @@ static int fetch_data(struct sccp_session *session)
 		return nbyte;
 	}
 
-	return -1;	
+	return -1;
 }
 
 static void *thread_session(void *data)
@@ -2813,7 +2813,7 @@ static void *thread_session(void *data)
 		if (ret == -1) {
 			AST_LIST_LOCK(&list_session);
 			session = AST_LIST_REMOVE(&list_session, session, list);
-			AST_LIST_UNLOCK(&list_session);	
+			AST_LIST_UNLOCK(&list_session);
 
 			if (session->device) {
 				ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
@@ -2860,7 +2860,7 @@ static void *thread_accept(void *data)
 		/* send multiple buffers as individual packets */
 		setsockopt(new_sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay));
 
-		/* session constructor */	
+		/* session constructor */
 		session = ast_calloc(1, sizeof(struct sccp_session));
 		if (session == NULL) {
 			ast_log(LOG_ERROR, "Failed to allocate new session, "
@@ -2869,12 +2869,12 @@ static void *thread_accept(void *data)
 			return NULL;
 		}
 
-		session->tid = AST_PTHREADT_NULL; 
+		session->tid = AST_PTHREADT_NULL;
 		session->sockfd = new_sockfd;
 		session->ipaddr = ast_strdup(ast_inet_ntoa(addr.sin_addr));
 		ast_mutex_init(&session->lock);
 		time(&session->start_time);
-	
+
 		AST_LIST_LOCK(&list_session);
 		AST_LIST_INSERT_HEAD(&list_session, session, list);
 		AST_LIST_UNLOCK(&list_session);
