@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include "message.h"
 #include "device.h"
 #include "sccp.h"
 
