@@ -14,7 +14,7 @@ struct sccp_msg *msg_alloc(size_t data_length, int message_id)
 {
 	struct sccp_msg *msg = NULL;
 
-	msg = ast_calloc(1, 12 + 4 + data_length);	
+	msg = ast_calloc(1, 12 + 4 + data_length);
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg allocation failed\n");
 		return NULL;
@@ -46,7 +46,7 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	memcpy(session->outbuf, msg, 12);
 	memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
 
-	nbyte = write(session->sockfd, session->outbuf, letohl(msg->length)+8);	
+	nbyte = write(session->sockfd, session->outbuf, letohl(msg->length)+8);
 	if (nbyte == -1) {
 		ast_log(LOG_WARNING, "message transmit failed: %s\n", strerror(errno));
 	}
@@ -156,7 +156,7 @@ int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid)
 int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
 {
 	struct sccp_msg *msg = NULL;
-	int ret = 0;	
+	int ret = 0;
 
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
@@ -182,7 +182,7 @@ int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
 	msg->data.stopmedia.conferenceId = htolel(callid);
 	msg->data.stopmedia.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.stopmedia.conferenceId1 = htolel(callid);
- 
+
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
 	if (ret == -1)
 		return -1;
@@ -408,7 +408,7 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg allocation failed\n");
 		return -1;
-	} 
+	}
 
 	msg->data.notify.displayTimeout = htolel(0);
         ast_copy_string(msg->data.notify.displayMessage, text,
