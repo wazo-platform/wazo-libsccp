@@ -1248,7 +1248,6 @@ static int load_module(void)
 
 	ret = sccp_server_init(sccp_config);
 	if (ret == -1) {
-		ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 		ast_free(sccp_config);
 		return AST_MODULE_LOAD_DECLINE;
 	}
