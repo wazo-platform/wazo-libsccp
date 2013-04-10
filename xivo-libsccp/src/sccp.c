@@ -1259,8 +1259,8 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	if (session->device->protoVersion == 11) {
 		/* Newest protocols provide these informations */
 
-		line_instance = msg->data.offhook.lineInstance;
-		subchan_id = msg->data.offhook.callInstance;
+		line_instance = msg->data.onhook.lineInstance;
+		subchan_id = msg->data.onhook.callInstance;
 
 		ast_log(LOG_DEBUG, "line_instance: %d\n", line_instance);
 		ast_log(LOG_DEBUG, "subchan_id %d\n", subchan_id);
