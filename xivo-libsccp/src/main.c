@@ -1288,9 +1288,8 @@ static int reload_module(void)
 }
 
 AST_MODULE_INFO(
-
 	ASTERISK_GPL_KEY,
-	AST_MODFLAG_DEFAULT,
+	AST_MODFLAG_LOAD_ORDER,
 	"Skinny Client Control Protocol",
 	.load = load_module,
 	.reload = reload_module,
