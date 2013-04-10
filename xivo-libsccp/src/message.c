@@ -10,7 +10,7 @@
 #include "sccp.h"
 #include "utils.h"
 
-struct sccp_msg *msg_alloc(size_t data_length, int message_id)
+struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id)
 {
 	struct sccp_msg *msg = NULL;
 
