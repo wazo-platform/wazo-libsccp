@@ -1083,8 +1083,9 @@ static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli
 	switch (cmd) {
 	case CLI_INIT:
 		e->command = "sccp resync";
-		e->usage = "Usage: sccp resync <device>\n"
-		       "Cause a SCCP device to resynchronize with updated configuration";
+		e->usage =
+			"Usage: sccp resync <device>\n"
+			"       Cause a SCCP device to resynchronize with updated configuration.\n";
 		return NULL;
 
 	case CLI_GENERATE:

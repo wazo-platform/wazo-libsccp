@@ -4114,8 +4114,9 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	switch (cmd) {
 	case CLI_INIT:
 		e->command = "sccp reset";
-		e->usage = "Usage: sccp reset <device> [restart]\n"
-				"Cause a SCCP device to reset itself, optionally with a full restart\n";
+		e->usage =
+			"Usage: sccp reset <device> [restart]\n"
+			"       Cause a SCCP device to reset itself, optionally with a full restart.\n";
 		return NULL;
 
 	case CLI_GENERATE:
