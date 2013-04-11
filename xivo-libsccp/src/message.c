@@ -408,8 +408,7 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	}
 
 	msg->data.notify.displayTimeout = htolel(0);
-        ast_copy_string(msg->data.notify.displayMessage, text,
-				sizeof(msg->data.notify.displayMessage));
+	ast_copy_string(msg->data.notify.displayMessage, text, sizeof(msg->data.notify.displayMessage));
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
