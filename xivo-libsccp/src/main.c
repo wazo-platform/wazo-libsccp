@@ -1200,11 +1200,64 @@ static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	return CLI_SUCCESS;
 }
 
+static char *complete_sccp_devices(const char *word, int state)
+{
+	struct sccp_device *device_itr = NULL;
+	char *result = NULL;
+	int match_no = 0;
+	int word_len = strlen(word);
+
+	AST_RWLIST_RDLOCK(&sccp_config->list_device);
+	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
+		if (!strncasecmp(word, device_itr->name, word_len)) {
+			if (match_no == state) {
+				result = ast_strdup(device_itr->name);
+				break;
+			}
+			match_no++;
+		}
+	}
+	AST_RWLIST_UNLOCK(&sccp_config->list_device);
+
+	return result;
+}
+
+static char *sccp_completion_test(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	int i = 0;
+
+//	ast_log(LOG_NOTICE, "argc: %d\n", a->argc);
+//	for (i = 0; i < a->argc; i++) {
+//		ast_log(LOG_NOTICE, "argv: '%s'\n", a->argv[i]);
+//	}
+//	ast_log(LOG_NOTICE, "line: '%s'\n", a->line);
+//	ast_log(LOG_NOTICE, "word: '%s'\n", a->word);
+//	ast_log(LOG_NOTICE, "pos: %d\n", a->pos);
+//	ast_log(LOG_NOTICE, "n: %d\n", a->n);
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp test";
+		e->usage =
+			"Usage: sccp test <device>\n"
+			"       Test completion for devices\n";
+		return NULL;
+	case CLI_GENERATE:
+		if (a->pos != 2) {
+			return NULL;
+		}
+		return complete_sccp_devices(a->word, a->n);
+	}
+
+	return CLI_SUCCESS;
+}
+
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_version, "Show the version of the sccp channel"),
 	AST_CLI_DEFINE(sccp_show_config, "Show the configured devices"),
 	AST_CLI_DEFINE(sccp_resync_device, "Resynchronize SCCP device"),
 	AST_CLI_DEFINE(sccp_update_config, "Update the configuration"),
+	AST_CLI_DEFINE(sccp_completion_test, "Test completion")
 };
 
 static void garbage_ast_database()
