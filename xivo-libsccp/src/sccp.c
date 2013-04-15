@@ -4133,6 +4133,7 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 {
 	struct sccp_device *device = NULL;
 	int restart = 0;
+	static const char * const choices[] = { "restart", NULL };
 
 	switch (cmd) {
 	case CLI_INIT:
@@ -4142,6 +4143,11 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		return NULL;
 
 	case CLI_GENERATE:
+		if (a->pos == 2) {
+			return complete_sccp_devices(a->word, a->n, &sccp_config->list_device);
+		} else if (a->pos == 3) {
+			return ast_cli_complete(a->word, choices, a->n);
+		}
 		return NULL;
 	}
 

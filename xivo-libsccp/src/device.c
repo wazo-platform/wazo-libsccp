@@ -426,6 +426,37 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 	return ret;
 }
 
+char *complete_sccp_devices(const char *word, int state, struct list_device *list_device)
+{
+	struct sccp_device *device_itr = NULL;
+	char *result = NULL;
+	int which = 0;
+	int len;
+
+	if (word == NULL) {
+		ast_log(LOG_DEBUG, "word is NULL\n");
+		return NULL;
+	}
+
+	if (list_device == NULL) {
+		ast_log(LOG_DEBUG, "list_device is NULL\n");
+		return NULL;
+	}
+
+	len = strlen(word);
+
+	AST_RWLIST_RDLOCK(list_device);
+	AST_RWLIST_TRAVERSE(list_device, device_itr, list) {
+		if (!strncasecmp(word, device_itr->name, len) && ++which > state) {
+			result = ast_strdup(device_itr->name);
+			break;
+		}
+	}
+	AST_RWLIST_UNLOCK(list_device);
+
+	return result;
+}
+
 void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
 {
 	if (line == NULL) {
