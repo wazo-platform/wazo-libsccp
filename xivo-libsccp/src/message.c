@@ -206,7 +206,7 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, s
 	msg->data.startmedia.remoteIp = htolel(endpoint.sin_addr.s_addr);
 	msg->data.startmedia.remotePort = htolel(ntohs(endpoint.sin_port));
 	msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
-	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(fmt.bits));
+	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(&fmt.format));
 	msg->data.startmedia.qualifier.precedence = htolel(127);
 	msg->data.startmedia.qualifier.vad = htolel(0);
 	msg->data.startmedia.qualifier.packets = htolel(0);
@@ -223,7 +223,8 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, s
 
 int transmit_connect(struct sccp_line *line, uint32_t callid)
 {
-	struct ast_format_list fmt = {0};
+	struct ast_format_list fmt;
+	struct ast_format tmpfmt;
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
 
@@ -242,7 +243,9 @@ int transmit_connect(struct sccp_line *line, uint32_t callid)
 		return -1;
 	}
 
-	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
+	ast_best_codec(line->device->codecs, &tmpfmt);
+	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&tmpfmt));
+	fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
 
 	msg = msg_alloc(sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
 	if (msg == NULL) {
@@ -253,7 +256,7 @@ int transmit_connect(struct sccp_line *line, uint32_t callid)
 	msg->data.openreceivechannel.conferenceId = htolel(callid);
 	msg->data.openreceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.openreceivechannel.packets = htolel(fmt.cur_ms);
-	msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(fmt.bits));
+	msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(&fmt.format));
 	msg->data.openreceivechannel.echo = htolel(0);
 	msg->data.openreceivechannel.bitrate = htolel(0);
 	msg->data.openreceivechannel.conferenceId1 = htolel(callid);

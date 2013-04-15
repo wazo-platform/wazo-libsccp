@@ -609,6 +609,7 @@ void device_destroy(struct sccp_device *device, struct sccp_configs *sccp_cfg)
 	AST_RWLIST_UNLOCK(&device->lines);
 
 	ast_mutex_destroy(&device->lock);
+	ast_format_cap_destroy(device->codecs);
 	free(device);
 }
 
@@ -655,6 +656,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	device->session = NULL;
 	device->line_count = 0;
 	device->speeddial_count = 0;
+	device->codecs = ast_format_cap_alloc_nolock();
 
 	AST_RWLIST_HEAD_INIT(&device->lines);
 	AST_RWLIST_HEAD_INIT(&device->speeddials);

@@ -308,7 +308,7 @@ struct sccp_device {
 	uint32_t line_count;
 	uint32_t speeddial_count;
 
-	format_t codecs;
+	struct ast_format_cap *codecs;
 	struct ast_codec_pref codec_pref;
 
 	void *session;
@@ -356,7 +356,8 @@ struct sccp_line *device_get_active_line(struct sccp_device *device);
 char *device_regstate_str(int device_state);
 int device_type_is_supported(int device_type);
 char *device_type_str(int device_type);
-void speeddial_hints_unsubscribe(struct sccp_device *device);
-void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb);
 
+typedef int (*state_cb_type)(char *context, char* id, struct ast_state_cb_info *info, void *data);
+void speeddial_hints_unsubscribe(struct sccp_device *device);
+void speeddial_hints_subscribe(struct sccp_device *device, state_cb_type speeddial_hints_cb);
 #endif /* SCCP_DEVICE_H */

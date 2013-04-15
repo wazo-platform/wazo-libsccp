@@ -36,16 +36,19 @@
 
 static struct sccp_configs *sccp_config; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
-static struct sched_context *sched = NULL;
+static struct ast_sched_context *sched = NULL;
+
+static struct ast_format_cap *default_cap;
+static struct ast_codec_pref default_prefs;
 
 static int handle_softkey_dnd(struct sccp_session *session);
 static int handle_callforward(struct sccp_session *session, uint32_t softkey);
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
-int sccp_set_callforward(struct sccp_line *line);
+static int sccp_set_callforward(struct sccp_line *line);
 
-static struct ast_channel *cb_ast_request(const char *type, format_t format, const struct ast_channel *requestor, void *destination, int *cause);
-static int cb_ast_call(struct ast_channel *ast, char *dest, int timeout);
-static int cb_ast_devicestate(void *data);
+static struct ast_channel *cb_ast_request(const char *type, struct ast_format_cap *cap, const struct ast_channel *requestor, const char *destination, int *cause);
+static int cb_ast_call(struct ast_channel *ast, const char *dest, int timeout);
+static int cb_ast_devicestate(const char *data);
 static int cb_ast_hangup(struct ast_channel *ast);
 static int cb_ast_answer(struct ast_channel *ast);
 static struct ast_frame *cb_ast_read(struct ast_channel *ast);
@@ -59,14 +62,13 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *rtp,
 				struct ast_rtp_instance *vrtp,
 				struct ast_rtp_instance *trtp,
-				format_t codecs,
+				const struct ast_format_cap *codecs,
 				int nat_active);
 
 
-static const struct ast_channel_tech sccp_tech = {
+static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
 	.description = "Skinny Client Control Protocol",
-	.capabilities = AST_FORMAT_AUDIO_MASK,
 	.properties = AST_CHAN_TP_WANTSJITTER | AST_CHAN_TP_CREATESJITTER,
 	.requester = cb_ast_request,
 	.devicestate = cb_ast_devicestate,
@@ -149,9 +151,10 @@ static void update_displaymessage(struct sccp_session *session, struct sccp_line
 	}
 }
 
-static int speeddial_hints_cb(char *context, char *id, int state, void *data)
+static int speeddial_hints_cb(char *context, char *id, struct ast_state_cb_info *info, void *data)
 {
 	struct sccp_speeddial *speeddial = NULL;
+	int state = info->exten_state;
 
 	if (data == NULL) {
 		ast_log(LOG_DEBUG, "data is NULL\n");
@@ -160,7 +163,7 @@ static int speeddial_hints_cb(char *context, char *id, int state, void *data)
 
 	speeddial = data;
 
-	ast_log(LOG_DEBUG, "hint extension (%d) state (%s)\n", state, speeddial->extension);
+	ast_log(LOG_DEBUG, "hint extension (%s) state (%s)\n", ast_extension_state2str(state), speeddial->extension);
 
 	transmit_feature_status(speeddial->device->session, speeddial->instance,
 		BT_FEATUREBUTTON, extstate_ast2sccp(state), speeddial->label);
@@ -563,9 +566,10 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 {
 	struct ast_channel *channel = NULL;
 	struct ast_variable *var_itr = NULL;
+	struct ast_format tmpfmt;
 	int audio_format = 0;
 	char valuebuf[1024];
-	char dbgsub_buf[256];
+	char buf[256];
 
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
@@ -591,15 +595,13 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		return NULL;
 	}
 
-	channel->tech = &sccp_tech;
-	channel->tech_pvt = subchan;
+	ast_channel_tech_set(channel, &sccp_tech);
+	ast_channel_tech_pvt_set(channel, subchan);
 	subchan->channel = channel;
-
-	/* if there is no codec, set a default one */
-	if (subchan->line->device->codecs == -1)
-		channel->nativeformats = SCCP_CODEC_G711_ULAW;
-	else
-		channel->nativeformats = subchan->line->device->codecs;
+	ast_format_cap_copy(ast_channel_nativeformats(channel), subchan->line->device->codecs);
+	if (ast_format_cap_is_empty(ast_channel_nativeformats(channel))) {
+		ast_format_cap_copy(ast_channel_nativeformats(channel), default_cap);
+	}
 
 	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
 
@@ -611,22 +613,23 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 			ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf)));
 	}
 
-	audio_format = ast_best_codec(channel->nativeformats);
+	ast_best_codec(ast_channel_nativeformats(channel), &tmpfmt);
+	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&tmpfmt));
 
-	channel->writeformat = audio_format;
-	channel->rawwriteformat = audio_format;
-	channel->readformat = audio_format;
-	channel->rawreadformat = audio_format;
+	ast_format_copy(ast_channel_writeformat(channel), &tmpfmt);
+	ast_format_copy(ast_channel_rawwriteformat(channel), &tmpfmt);
+	ast_format_copy(ast_channel_readformat(channel), &tmpfmt);
+	ast_format_copy(ast_channel_rawreadformat(channel), &tmpfmt);
 
 	ast_log(LOG_DEBUG, "codec %s %s\n",
-		ast_getformatname_multiple(dbgsub_buf, sizeof(dbgsub_buf), channel->nativeformats),
-		ast_getformatname(audio_format));
+		ast_getformatname_multiple(buf, sizeof(buf), ast_channel_nativeformats(channel)),
+		ast_getformatname(&tmpfmt));
 
 	if (subchan->line->language[0] != '\0')
-		ast_string_field_set(channel, language, subchan->line->language);
+		ast_channel_language_set(channel, subchan->line->language);
 
 	if (subchan->line->callfwd == SCCP_CFWD_ACTIVE)
-		ast_string_field_set(channel, call_forward, subchan->line->callfwd_exten);
+		ast_channel_call_forward_set(channel, subchan->line->callfwd_exten);
 
 	ast_module_ref(ast_module_info->self);
 
@@ -647,7 +650,7 @@ static enum ast_rtp_glue_result cb_ast_get_rtp_peer(struct ast_channel *channel,
 		return AST_RTP_GLUE_RESULT_FORBID;
 	}
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return AST_RTP_GLUE_RESULT_FORBID;
@@ -671,7 +674,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *rtp,
 				struct ast_rtp_instance *vrtp,
 				struct ast_rtp_instance *trtp,
-				format_t codecs,
+				const struct ast_format_cap *cap,
 				int nat_active)
 {
 	struct sccp_line *line = NULL;
@@ -682,9 +685,10 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
 
+	struct ast_format tmpfmt;
 	struct ast_format_list fmt;
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return -1;
@@ -702,7 +706,9 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 	if (sccp_config->directmedia && rtp) {
 
-		fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
+		ast_best_codec(line->device->codecs, &tmpfmt);
+		ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&tmpfmt));
+		fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
 
 		ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
 		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
@@ -782,7 +788,7 @@ static int sccp_start_the_call(struct ast_channel *channel)
 		return -1;
 	}
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	line = subchan->line;
 
 	set_line_state(line, SCCP_RINGOUT);
@@ -799,12 +805,12 @@ static int sccp_start_the_call(struct ast_channel *channel)
 			line->cid_name,
 			NULL);
 
-	ast_party_number_free(&channel->connected.id.number);
-	ast_party_number_init(&channel->connected.id.number);
-	channel->connected.id.number.valid = 1;
-	channel->connected.id.number.str = ast_strdup(channel->exten);
-	ast_party_name_free(&channel->connected.id.name);
-	ast_party_name_init(&channel->connected.id.name);
+	ast_party_number_free(&ast_channel_connected(channel)->id.number);
+	ast_party_number_init(&ast_channel_connected(channel)->id.number);
+	ast_channel_connected(channel)->id.number.valid = 1;
+	ast_channel_connected(channel)->id.number.str = ast_strdup(ast_channel_exten(channel));
+	ast_party_name_free(&ast_channel_connected(channel)->id.name);
+	ast_party_name_init(&ast_channel_connected(channel)->id.name);
 
 	ast_pbx_start(channel);
 
@@ -1518,14 +1524,14 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	} else if (line->active_subchan->channel) {
 
-		ast_log(LOG_DEBUG, "line->active_subchan->channel->_state: %d\n",
-					line->active_subchan->channel->_state);
+		ast_log(LOG_DEBUG, "channel state: %d\n",
+					ast_channel_state(line->active_subchan->channel));
 
-		ast_log(LOG_DEBUG, "line->active_subchan->related->channel->_state: %d\n",
-					line->active_subchan->related->channel->_state);
+		ast_log(LOG_DEBUG, "channel state: %d\n",
+					ast_channel_state(line->active_subchan->related->channel));
 
-		if (line->active_subchan->channel->_state == AST_STATE_DOWN
-			|| line->active_subchan->related->channel->_state == AST_STATE_DOWN) {
+		if (ast_channel_state(line->active_subchan->channel) == AST_STATE_DOWN
+			|| ast_channel_state(line->active_subchan->related->channel) == AST_STATE_DOWN) {
 			ast_log(LOG_DEBUG, "channel state AST_STATE_DOWN\n");
 			return 0;
 		}
@@ -1547,7 +1553,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	return 0;
 }
 
-int sccp_set_callforward(struct sccp_line *line)
+static int sccp_set_callforward(struct sccp_line *line)
 {
 	int ret = 0;
 	struct sccp_session *session = NULL;
@@ -1867,9 +1873,9 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	return 0;
 }
 
-int codec_ast2sccp(format_t astcodec)
+int codec_ast2sccp(struct ast_format *astcodec)
 {
-	switch (astcodec) {
+	switch (astcodec->id) {
 	case AST_FORMAT_ALAW:
 		return SCCP_CODEC_G711_ALAW;
 	case AST_FORMAT_ULAW:
@@ -1889,23 +1895,29 @@ int codec_ast2sccp(format_t astcodec)
 	}
 }
 
-static format_t codec_sccp2ast(enum sccp_codecs sccp_codec)
+static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_format *result)
 {
-	switch (sccp_codec) {
+	if (result == NULL) {
+		ast_log(LOG_DEBUG, "result is NULL\n");
+		return NULL;
+	}
+
+	switch (sccpcodec) {
 	case SCCP_CODEC_G711_ALAW:
-		return AST_FORMAT_ALAW;
+		return ast_format_set(result, AST_FORMAT_ALAW, 0);
 	case SCCP_CODEC_G711_ULAW:
-		return AST_FORMAT_ULAW;
+		return ast_format_set(result, AST_FORMAT_ULAW, 0);
 	case SCCP_CODEC_G723_1:
-		return AST_FORMAT_G723_1;
+		return ast_format_set(result, AST_FORMAT_G723_1, 0);
 	case SCCP_CODEC_G729A:
-		return AST_FORMAT_G729A;
+		return ast_format_set(result, AST_FORMAT_G729A, 0);
 	case SCCP_CODEC_H261:
-		return AST_FORMAT_H261;
+		return ast_format_set(result, AST_FORMAT_H261, 0);
 	case SCCP_CODEC_H263:
-		return AST_FORMAT_H263;
+		return ast_format_set(result, AST_FORMAT_H263, 0);
 	default:
-		return -1;
+		ast_format_clear(result);
+		return result;
 	}
 }
 
@@ -1976,9 +1988,12 @@ char *utf8_to_iso88591(char *to_convert)
 static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int count = 0;
-	int sccp_codec = 0;
+	int sccpcodec = 0;
+	struct ast_format astcodec;
+	struct ast_format_cap *codecs;
 	int i = 0;
 	struct sccp_device *device = NULL;
+	char buf[256];
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -2004,15 +2019,22 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
 	}
 
+	codecs = ast_format_cap_alloc();
 	for (i = 0; i < count; i++) {
 
 		/* get the device supported codecs */
-		sccp_codec = letohl(msg->data.caps.caps[i].codec);
+		sccpcodec = letohl(msg->data.caps.caps[i].codec);
 
 		/* translate to asterisk format */
-		device->codecs |= codec_sccp2ast(sccp_codec);
+		codec_sccp2ast(sccpcodec, &astcodec);
+
+		ast_format_cap_add(codecs, &astcodec);
 	}
 
+	ast_format_cap_joint_copy(codecs, codecs, device->codecs);
+	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->codecs));
+
+	codecs = ast_format_cap_destroy(codecs);
 	return 0;
 }
 
@@ -2025,6 +2047,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
 	struct ast_format_list fmt;
+	struct ast_format tmpfmt;
 	uint32_t passthruid = 0;
 	uint32_t addr = 0;
 	uint32_t port = 0;
@@ -2083,7 +2106,8 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	ast_log(LOG_DEBUG, "local address %s:%d\n", ast_inet_ntoa(local.sin_addr), ntohs(local.sin_port));
 	ast_log(LOG_DEBUG, "remote address %s:%d\n", ast_inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
 
-	fmt = ast_codec_pref_getsize(&line->codec_pref, ast_best_codec(line->device->codecs));
+	ast_best_codec(line->device->codecs, &tmpfmt);
+	fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
 
 	ret = transmit_start_media_transmission(line, line->active_subchan->id, local, fmt);
 
@@ -2886,16 +2910,16 @@ static void *thread_accept(void *data)
 	return NULL;
 }
 
-static int cb_ast_devicestate(void *data)
+static int cb_ast_devicestate(const char *data)
 {
-	ast_log(LOG_DEBUG, "devicestate %s\n", (char *)data);
+	ast_log(LOG_DEBUG, "devicestate %s\n", data);
 
 	struct sccp_line *line = NULL;
 	char *name = NULL;
 	char *ptr = NULL;
 	int state = AST_DEVICE_UNKNOWN;
 
-	name = strdup(data);
+	name = ast_strdup(data);
 
 	ptr = strchr(name, '/');
 	if (ptr != NULL)
@@ -2905,9 +2929,9 @@ static int cb_ast_devicestate(void *data)
 	if (line == NULL) {
 		state = AST_DEVICE_INVALID;
 	} else if (line->device && line->device->registered == DEVICE_REGISTERED_FALSE) {
-			state = AST_DEVICE_UNAVAILABLE;
+		state = AST_DEVICE_UNAVAILABLE;
 	} else if (line->state == SCCP_ONHOOK) {
-			state = AST_DEVICE_NOT_INUSE;
+		state = AST_DEVICE_NOT_INUSE;
 	} else {
 		state = AST_DEVICE_INUSE;
 	}
@@ -2917,15 +2941,16 @@ static int cb_ast_devicestate(void *data)
 }
 
 static struct ast_channel *cb_ast_request(const char *type,
-					format_t format,
+					struct ast_format_cap *cap,
 					const struct ast_channel *requestor,
-					void *destination,
+					const char *destination,
 					int *cause)
 {
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 	struct ast_channel *channel = NULL;
 	char *option = NULL;
+	char buf[256];
 
 	if (type == NULL)
 		return NULL;
@@ -2936,6 +2961,10 @@ static struct ast_channel *cb_ast_request(const char *type,
 	if (cause == NULL)
 		return NULL;
 
+	if (!(ast_format_cap_has_type(cap, AST_FORMAT_TYPE_AUDIO))) {
+		ast_log(LOG_NOTICE, "Invalid format type: %s\n", ast_getformatname_multiple(buf, sizeof(buf), cap));
+	}
+
 	option = strchr(destination, '/');
 	if (option != NULL) {
 		*option = '\0';
@@ -2943,23 +2972,23 @@ static struct ast_channel *cb_ast_request(const char *type,
 	}
 
 	ast_log(LOG_DEBUG, "type: %s "
-			"format: %s "
+			"capability: %s "
 			"destination: %s "
 			"option: %s "
 			"cause: %d\n",
-			type, ast_getformatname(format),
-			(char *)destination, option? option: "", *cause);
+			type, ast_getformatname_multiple(buf, sizeof(buf), cap),
+			destination, option? option: "", *cause);
 
-	line = find_line_by_name((char *)destination, &sccp_config->list_line);
+	line = find_line_by_name(destination, &sccp_config->list_line);
 
 	if (line == NULL) {
-		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", (char *)destination);
+		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", destination);
 		*cause = AST_CAUSE_UNREGISTERED;
 		return NULL;
 	}
 
 	if (line->device == NULL) {
-		ast_log(LOG_NOTICE, "This line has no device: %s\n", (char *)destination);
+		ast_log(LOG_NOTICE, "This line has no device: %s\n", destination);
 		*cause = AST_CAUSE_UNREGISTERED;
 		return NULL;
 	}
@@ -2980,7 +3009,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 	}
 
 	subchan = sccp_new_subchannel(line);
-	channel = sccp_new_channel(subchan, requestor ? requestor->linkedid : NULL);
+	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL);
 
 	if (!line->active_subchan && !line->device->early_remote && sccp_config->directmedia) {
 		line->device->early_remote = 1;
@@ -3021,7 +3050,7 @@ static int sccp_autoanswer_call(void *data)
 	return 0;
 }
 
-static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
+static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeout)
 {
 	int ret = 0;
 	struct sccp_subchannel *subchan = NULL;
@@ -3039,7 +3068,7 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 		return -1;
 	}
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "channel has no valid tech_pvt\n");
 		return -1;
@@ -3098,13 +3127,13 @@ static int cb_ast_call(struct ast_channel *channel, char *dest, int timeout)
 	char *numberstr = NULL;
 
 	if (line->device->protoVersion <= 11) {
-		namestr = utf8_to_iso88591(channel->connected.id.name.str);
-		numberstr = utf8_to_iso88591(channel->connected.id.number.str);
+		namestr = utf8_to_iso88591(ast_channel_connected(channel)->id.name.str);
+		numberstr = utf8_to_iso88591(ast_channel_connected(channel)->id.number.str);
 	}
 
 	ret = transmit_callinfo(session,
-				namestr ? namestr : channel->connected.id.name.str,
-				numberstr ? numberstr : channel->connected.id.number.str,
+				namestr ? namestr : ast_channel_connected(channel)->id.name.str,
+				numberstr ? numberstr : ast_channel_connected(channel)->id.number.str,
 					line->cid_name,
 					line->cid_num,
 					line->instance,
@@ -3140,13 +3169,13 @@ static int cb_ast_hangup(struct ast_channel *channel)
 		return -1;
 	}
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	if (subchan != NULL) {
 		do_clear_subchannel(subchan);
 	}
 
 	ast_setstate(channel, AST_STATE_DOWN);
-	channel->tech_pvt = NULL;
+	ast_channel_tech_pvt_set(channel, NULL);
 	ast_module_unref(ast_module_info->self);
 
 	return 0;
@@ -3162,7 +3191,7 @@ static int cb_ast_answer(struct ast_channel *channel)
 		return -1;
 	}
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	line = subchan->line;
 
 	if (subchan->rtp == NULL) {
@@ -3200,7 +3229,7 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 		return NULL;
 	}
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "channel has no valid tech_pvt\n");
 		return &ast_null_frame;
@@ -3217,7 +3246,7 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 		return &ast_null_frame;
 	}
 
-	switch (channel->fdno) {
+	switch (ast_channel_fdno(channel)) {
 	case 0:
 		frame = ast_rtp_instance_read(subchan->rtp, 0);
 		break;
@@ -3231,10 +3260,11 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 	}
 
 	if (frame && frame->frametype == AST_FRAME_VOICE) {
-		if (frame->subclass.codec != channel->nativeformats) {
-			channel->nativeformats = frame->subclass.codec;
-			ast_set_read_format(channel, channel->readformat);
-			ast_set_write_format(channel, channel->writeformat);
+
+		if (!(ast_format_cap_iscompatible(ast_channel_nativeformats(channel), &frame->subclass.format))) {
+			ast_format_cap_set(ast_channel_nativeformats(channel), &frame->subclass.format);
+			ast_set_read_format(channel, ast_channel_readformat(channel));
+			ast_set_write_format(channel, ast_channel_writeformat(channel));
 		}
 	}
 
@@ -3257,7 +3287,7 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 		return -1;
 	}
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "channel has no tech_pvt\n");
 		return 0;
@@ -3294,7 +3324,7 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		return -1;
 	}
 
-	subchan = channel->tech_pvt;
+	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return 0;
@@ -3427,7 +3457,7 @@ static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newc
 		return -1;
 	}
 
-	subchan = newchannel->tech_pvt;
+	subchan = ast_channel_tech_pvt(newchannel);
 	subchan->channel = newchannel;
 
 	cb_ast_set_rtp_peer(newchannel, NULL, NULL, NULL, 0, 0);
@@ -3796,16 +3826,9 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	ret = codec_ast2sccp(0xFF);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: codec_ast2sccp(0xFF)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = codec_sccp2ast(0xFF);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: codec_sccp2ast(0xFF)\n");
+	retptr = codec_sccp2ast(0, (struct ast_format *)0xFF);
+	if (retptr == NULL) {
+		ast_test_status_update(test, "failed: codec_sccp2ast(0, (struct ast_format *)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
@@ -3915,21 +3938,21 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	retptr = cb_ast_request(NULL, 0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF);
+	retptr = cb_ast_request(NULL, (void*)0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF);
 	if (retptr != NULL) {
 		ast_test_status_update(test, "failed: cb_ast_request(NULL, 0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	retptr = cb_ast_request((void*)0xFF, 0xFF, (void*)0xFF, NULL, (void*)0xFF);
+	retptr = cb_ast_request((void*)0xFF, (void*)0xFF, (void*)0xFF, NULL, (void*)0xFF);
 	if (retptr != NULL) {
 		ast_test_status_update(test, "failed: cb_ast_request((void*)0xFF, 0xFF, NULL, (void*)0xFF, (void*)0xFF)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	retptr = cb_ast_request((void*)0xFF, 0xFF, (void*)0xFF, (void*)0xFF, NULL);
+	retptr = cb_ast_request((void*)0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF, NULL);
 	if (retptr != NULL) {
 		ast_test_status_update(test, "failed: cb_ast_request((void*)0xFF, 0xFF, (void*)0xFF, (void*)0xFF, NULL)\n");
 		result = AST_TEST_FAIL;
@@ -4187,6 +4210,17 @@ void sccp_rtp_init(const struct ast_module_info *module_info)
 {
 	ast_module_info = module_info;
 	ast_rtp_glue_register(&sccp_rtp_glue);
+
+	struct ast_format tmpfmt;
+	default_cap = ast_format_cap_alloc();
+
+	sccp_tech.capabilities = ast_format_cap_alloc();
+
+	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
+	ast_format_cap_add(default_cap, ast_format_set(&tmpfmt, AST_FORMAT_ULAW, 0));
+	ast_format_cap_add(default_cap, ast_format_set(&tmpfmt, AST_FORMAT_ALAW, 0));
+
+	ast_parse_allow_disallow(&default_prefs, default_cap, "all", 1);
 }
 
 int sccp_server_init(struct sccp_configs *sccp_cfg)
@@ -4227,7 +4261,7 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 		return -1;
 	}
 
-	sched = sched_context_create();
+	sched = ast_sched_context_create();
 	if (sched == NULL) {
 		ast_log(LOG_ERROR, "Unable to create schedule context\n");
 	}
