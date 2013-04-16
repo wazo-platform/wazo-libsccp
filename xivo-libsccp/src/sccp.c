@@ -154,7 +154,12 @@ static void update_displaymessage(struct sccp_session *session, struct sccp_line
 static int speeddial_hints_cb(char *context, char *id, struct ast_state_cb_info *info, void *data)
 {
 	struct sccp_speeddial *speeddial = NULL;
-	int state = info->exten_state;
+	int state;
+
+	if (info == NULL) {
+		ast_log(LOG_DEBUG, "info is NULL\n");
+		return -1;
+	}
 
 	if (data == NULL) {
 		ast_log(LOG_DEBUG, "data is NULL\n");
@@ -162,6 +167,7 @@ static int speeddial_hints_cb(char *context, char *id, struct ast_state_cb_info 
 	}
 
 	speeddial = data;
+	state = info->exten_state;
 
 	ast_log(LOG_DEBUG, "hint extension (%s) state (%s)\n", ast_extension_state2str(state), speeddial->extension);
 
@@ -3826,9 +3832,9 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-	retptr = codec_sccp2ast(0, (struct ast_format *)0xFF);
-	if (retptr == NULL) {
-		ast_test_status_update(test, "failed: codec_sccp2ast(0, (struct ast_format *)0xFF)\n");
+	retptr = codec_sccp2ast(0, NULL);
+	if (retptr != NULL) {
+		ast_test_status_update(test, "failed: codec_sccp2ast(0, NULL)\n");
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
