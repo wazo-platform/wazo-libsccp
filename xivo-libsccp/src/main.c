@@ -1198,7 +1198,7 @@ static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		return NULL;
 	}
 
-	ast_cli(a->fd, "%s <%s>\n", PACKAGE_STRING, PACKAGE_BUGREPORT);
+	ast_cli(a->fd, "%s\n", PACKAGE_STRING);
 
 	return CLI_SUCCESS;
 }
