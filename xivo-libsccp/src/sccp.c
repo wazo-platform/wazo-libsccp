@@ -4213,7 +4213,7 @@ void sccp_server_fini()
 	freeaddrinfo(sccp_srv.res);
 	shutdown(sccp_srv.sockfd, SHUT_RDWR);
 
-	sched_context_destroy(sched);
+	ast_sched_context_destroy(sched);
 }
 
 void sccp_rtp_fini()
