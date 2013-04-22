@@ -1085,8 +1085,9 @@ static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli
 	switch (cmd) {
 	case CLI_INIT:
 		e->command = "sccp resync";
-		e->usage = "Usage: sccp resync <device>\n"
-		       "Cause a SCCP device to resynchronize with updated configuration";
+		e->usage =
+			"Usage: sccp resync <device>\n"
+		        "       Resynchronize an SCCP device with it's updated configuration.\n";
 		return NULL;
 
 	case CLI_GENERATE:
@@ -1253,7 +1254,6 @@ static int load_module(void)
 
 	ret = sccp_server_init(sccp_config);
 	if (ret == -1) {
-		ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 		ast_free(sccp_config);
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -1294,9 +1294,8 @@ static int reload_module(void)
 }
 
 AST_MODULE_INFO(
-
 	ASTERISK_GPL_KEY,
-	AST_MODFLAG_DEFAULT,
+	AST_MODFLAG_LOAD_ORDER,
 	"Skinny Client Control Protocol",
 	.load = load_module,
 	.reload = reload_module,

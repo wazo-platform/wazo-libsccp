@@ -10,7 +10,7 @@
 #include "sccp.h"
 #include "utils.h"
 
-struct sccp_msg *msg_alloc(size_t data_length, int message_id)
+struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -21,7 +21,7 @@ struct sccp_msg *msg_alloc(size_t data_length, int message_id)
 	}
 
 	msg->length = htolel(4 + data_length);
-	msg->id = message_id;
+	msg->id = htolel(message_id);
 
 	if (!msg->id == KEEP_ALIVE_MESSAGE || !msg->id == REGISTER_MESSAGE)
 		msg->reserved = htolel(0x11);
@@ -411,8 +411,7 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	}
 
 	msg->data.notify.displayTimeout = htolel(0);
-        ast_copy_string(msg->data.notify.displayMessage, text,
-				sizeof(msg->data.notify.displayMessage));
+	ast_copy_string(msg->data.notify.displayMessage, text, sizeof(msg->data.notify.displayMessage));
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)

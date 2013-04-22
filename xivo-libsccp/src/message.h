@@ -7,7 +7,7 @@
 #include "device.h"
 #include "sccp.h"
 
-struct sccp_msg *msg_alloc(size_t data_length, int message_id);
+struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
 int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 int transmit_speaker_mode(struct sccp_session *session, int mode);
 int transmit_activatecallplane(struct sccp_line *line);

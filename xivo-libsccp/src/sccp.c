@@ -1271,8 +1271,8 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	if (session->device->protoVersion == 11) {
 		/* Newest protocols provide these informations */
 
-		line_instance = msg->data.offhook.lineInstance;
-		subchan_id = msg->data.offhook.callInstance;
+		line_instance = msg->data.onhook.lineInstance;
+		subchan_id = msg->data.onhook.callInstance;
 
 		ast_log(LOG_DEBUG, "line_instance: %d\n", line_instance);
 		ast_log(LOG_DEBUG, "subchan_id %d\n", subchan_id);
@@ -4144,8 +4144,9 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	switch (cmd) {
 	case CLI_INIT:
 		e->command = "sccp reset";
-		e->usage = "Usage: sccp reset <device> [restart]\n"
-				"Cause a SCCP device to reset itself, optionally with a full restart\n";
+		e->usage =
+			"Usage: sccp reset <device> [restart]\n"
+			"       Resets an SCCP device, optionally with a full restart.\n";
 		return NULL;
 
 	case CLI_GENERATE:
@@ -4211,6 +4212,8 @@ void sccp_server_fini()
 
 	freeaddrinfo(sccp_srv.res);
 	shutdown(sccp_srv.sockfd, SHUT_RDWR);
+
+	sched_context_destroy(sched);
 }
 
 void sccp_rtp_fini()
