@@ -90,6 +90,26 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.update_peer = cb_ast_set_rtp_peer,
 };
 
+void sccp_debug_fwdcid(struct ast_channel *requestor)
+{
+       if (requestor) {
+	    ast_log(LOG_WARNING, "Orig------ name: %s\n", ast_channel_redirecting(requestor)->orig.name.str);
+	    ast_log(LOG_WARNING, "Orig------ valid: %d\n", ast_channel_redirecting(requestor)->orig.name.valid);
+	    ast_log(LOG_WARNING, "Orig------ number: %s\n", ast_channel_redirecting(requestor)->orig.number.str);
+	    ast_log(LOG_WARNING, "Orig------ valid: %d\n", ast_channel_redirecting(requestor)->orig.number.valid);
+
+	    ast_log(LOG_WARNING, "From------ name: %s\n", ast_channel_redirecting(requestor)->from.name.str);
+	    ast_log(LOG_WARNING, "From------ valid: %d\n", ast_channel_redirecting(requestor)->from.name.valid);
+	    ast_log(LOG_WARNING, "From------ number: %s\n", ast_channel_redirecting(requestor)->from.number.str);
+	    ast_log(LOG_WARNING, "From------ valid: %d\n", ast_channel_redirecting(requestor)->from.number.valid);
+
+	    ast_log(LOG_WARNING, "To-------- name: %s\n", ast_channel_redirecting(requestor)->to.name.str);
+	    ast_log(LOG_WARNING, "To-------- valid: %d\n", ast_channel_redirecting(requestor)->to.name.valid);
+	    ast_log(LOG_WARNING, "To-------- number: %s\n", ast_channel_redirecting(requestor)->to.number.str);
+	    ast_log(LOG_WARNING, "To-------- valid: %d\n", ast_channel_redirecting(requestor)->to.number.valid);
+       }
+}
+
 int extstate_ast2sccp(int state)
 {
 	switch (state) {
@@ -3014,6 +3034,9 @@ static struct ast_channel *cb_ast_request(const char *type,
 		line->device->autoanswer = 1;
 	}
 
+
+	sccp_debug_fwdcid(requestor);
+
 	subchan = sccp_new_subchannel(line);
 	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL);
 
@@ -3136,6 +3159,8 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 		namestr = utf8_to_iso88591(ast_channel_connected(channel)->id.name.str);
 		numberstr = utf8_to_iso88591(ast_channel_connected(channel)->id.number.str);
 	}
+
+	sccp_debug_fwdcid(channel);
 
 	ret = transmit_callinfo(session,
 				namestr ? namestr : ast_channel_connected(channel)->id.name.str,
