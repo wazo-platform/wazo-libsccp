@@ -64,6 +64,9 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *trtp,
 				const struct ast_format_cap *codecs,
 				int nat_active);
+static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
+static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
+char *utf8_to_iso88591(char *to_convert);
 
 
 static struct ast_channel_tech sccp_tech = {
@@ -90,21 +93,68 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.update_peer = cb_ast_set_rtp_peer,
 };
 
-void sccp_debug_print_redirecting(const char* type, struct ast_party_id r)
+static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device)
 {
-	ast_log(LOG_WARNING, "%s------ name: %s\n", type, r.name.str);
-	ast_log(LOG_WARNING, "%s------ valid: %d\n", type, r.name.valid);
-	ast_log(LOG_WARNING, "%s------ number: %s\n", type, r.number.str);
-	ast_log(LOG_WARNING, "%s------ valid: %d\n", type, r.number.valid);
+	char name[64];
+	char *result = NULL;
+	struct ast_party_redirecting *redirect = NULL;
+	struct ast_party_connected_line *connected = NULL;
+
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
+		return NULL;
+	}
+
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return NULL;
+	}
+
+	connected = ast_channel_connected(channel);
+	redirect = ast_channel_redirecting(channel);
+
+	if (redirect->from.name.valid) {
+		snprintf(name, sizeof(name), "%s -> %s", redirect->from.name.str, connected->id.name.str);
+	} else if (redirect->from.number.valid) {
+		snprintf(name, sizeof(name), "%s -> %s", redirect->from.number.str, connected->id.name.str);
+	} else {
+		snprintf(name, sizeof(name), "%s", connected->id.name.str);
+	}
+
+	if (device->protoVersion <= 11) {
+		result = utf8_to_iso88591(name);
+	} else {
+		result = ast_strdup(name);
+	}
+
+	return result;
 }
 
-void sccp_debug_fwdcid(struct ast_channel *requestor)
+static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device)
 {
-	if (requestor) {
-		sccp_debug_print_redirecting("Orig", ast_channel_redirecting(requestor)->orig);
-		sccp_debug_print_redirecting("From", ast_channel_redirecting(requestor)->from);
-		sccp_debug_print_redirecting("To", ast_channel_redirecting(requestor)->to);
+	char *number = NULL;
+	char *result = NULL;
+	struct ast_party_connected_line *connected = NULL;
+
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
+		return NULL;
 	}
+
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return NULL;
+	}
+
+	number = ast_channel_connected(channel)->id.number.str;
+
+	if (device->protoVersion <= 11) {
+		result = utf8_to_iso88591(number);
+	} else {
+		result = ast_strdup(number);
+	}
+
+	return result;
 }
 
 int extstate_ast2sccp(int state)
@@ -3031,9 +3081,6 @@ static struct ast_channel *cb_ast_request(const char *type,
 		line->device->autoanswer = 1;
 	}
 
-
-	sccp_debug_fwdcid(requestor);
-
 	subchan = sccp_new_subchannel(line);
 	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL);
 
@@ -3149,23 +3196,16 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	if (ret == -1)
 		return -1;
 
-	char *namestr = NULL;
-	char *numberstr = NULL;
-
-	if (line->device->protoVersion <= 11) {
-		namestr = utf8_to_iso88591(ast_channel_connected(channel)->id.name.str);
-		numberstr = utf8_to_iso88591(ast_channel_connected(channel)->id.number.str);
-	}
-
-	sccp_debug_fwdcid(channel);
+	char *namestr = format_caller_id_name(channel, line->device);
+	char *numberstr = format_caller_id_number(channel, line->device);
 
 	ret = transmit_callinfo(session,
-				namestr ? namestr : ast_channel_connected(channel)->id.name.str,
-				numberstr ? numberstr : ast_channel_connected(channel)->id.number.str,
-					line->cid_name,
-					line->cid_num,
-					line->instance,
-					subchan->id, 1);
+							namestr,
+							numberstr,
+							line->cid_name,
+							line->cid_num,
+							line->instance,
+							subchan->id, 1);
 
 	free(namestr);
 	free(numberstr);
