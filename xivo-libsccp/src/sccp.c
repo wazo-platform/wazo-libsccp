@@ -1845,9 +1845,9 @@ static int handle_softkey_set_req_message(struct sccp_session *session)
 
 	keyset_count = sizeof(softkey_default_definitions) / sizeof(struct softkey_definitions);
 
-        msg->data.softkeysets.softKeySetOffset = htolel(0);
-        msg->data.softkeysets.softKeySetCount = htolel(keyset_count);
-        msg->data.softkeysets.totalSoftKeySetCount = htolel(keyset_count);
+	msg->data.softkeysets.softKeySetOffset = htolel(0);
+	msg->data.softkeysets.softKeySetCount = htolel(keyset_count);
+	msg->data.softkeysets.totalSoftKeySetCount = htolel(keyset_count);
 
 	for (i = 0; i < keyset_count; i++) {
 
@@ -2322,8 +2322,8 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return -1;
 	}
 
-        msg->data.regack.keepAlive = htolel(sccp_config->keepalive);
-        memcpy(msg->data.regack.dateTemplate, sccp_config->dateformat, sizeof(msg->data.regack.dateTemplate));
+	msg->data.regack.keepAlive = htolel(sccp_config->keepalive);
+	memcpy(msg->data.regack.dateTemplate, sccp_config->dateformat, sizeof(msg->data.regack.dateTemplate));
 
 	if (session->device->protoVersion <= 3) {
 
@@ -2350,9 +2350,9 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		msg->data.regack.unknown3 = 0xFF;
 	}
 
-        msg->data.regack.secondaryKeepAlive = htolel(sccp_config->keepalive);
+	msg->data.regack.secondaryKeepAlive = htolel(sccp_config->keepalive);
 
-        ret = transmit_message(msg, session);
+	ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1;
 
@@ -3592,13 +3592,13 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		goto cleanup;
 	}
 
-        retptr = NULL;
-        retptr = utf8_to_iso88591("0sïkö Düô");
-        if (retptr == NULL) {
-                ast_test_status_update(test, "failed: retptr == NULL\n");
-                result = AST_TEST_FAIL;
-                goto cleanup;
-        }
+	retptr = NULL;
+	retptr = utf8_to_iso88591("0sïkö Düô");
+	if (retptr == NULL) {
+		ast_test_status_update(test, "failed: retptr == NULL\n");
+		result = AST_TEST_FAIL;
+		goto cleanup;
+	}
 
 	retptr = NULL;
 	retptr = utf8_to_iso88591("Ã©");
