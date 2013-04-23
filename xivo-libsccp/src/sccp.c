@@ -90,24 +90,21 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.update_peer = cb_ast_set_rtp_peer,
 };
 
+void sccp_debug_print_redirecting(const char* type, struct ast_party_id r)
+{
+	ast_log(LOG_WARNING, "%s------ name: %s\n", type, r.name.str);
+	ast_log(LOG_WARNING, "%s------ valid: %d\n", type, r.name.valid);
+	ast_log(LOG_WARNING, "%s------ number: %s\n", type, r.number.str);
+	ast_log(LOG_WARNING, "%s------ valid: %d\n", type, r.number.valid);
+}
+
 void sccp_debug_fwdcid(struct ast_channel *requestor)
 {
-       if (requestor) {
-	    ast_log(LOG_WARNING, "Orig------ name: %s\n", ast_channel_redirecting(requestor)->orig.name.str);
-	    ast_log(LOG_WARNING, "Orig------ valid: %d\n", ast_channel_redirecting(requestor)->orig.name.valid);
-	    ast_log(LOG_WARNING, "Orig------ number: %s\n", ast_channel_redirecting(requestor)->orig.number.str);
-	    ast_log(LOG_WARNING, "Orig------ valid: %d\n", ast_channel_redirecting(requestor)->orig.number.valid);
-
-	    ast_log(LOG_WARNING, "From------ name: %s\n", ast_channel_redirecting(requestor)->from.name.str);
-	    ast_log(LOG_WARNING, "From------ valid: %d\n", ast_channel_redirecting(requestor)->from.name.valid);
-	    ast_log(LOG_WARNING, "From------ number: %s\n", ast_channel_redirecting(requestor)->from.number.str);
-	    ast_log(LOG_WARNING, "From------ valid: %d\n", ast_channel_redirecting(requestor)->from.number.valid);
-
-	    ast_log(LOG_WARNING, "To-------- name: %s\n", ast_channel_redirecting(requestor)->to.name.str);
-	    ast_log(LOG_WARNING, "To-------- valid: %d\n", ast_channel_redirecting(requestor)->to.name.valid);
-	    ast_log(LOG_WARNING, "To-------- number: %s\n", ast_channel_redirecting(requestor)->to.number.str);
-	    ast_log(LOG_WARNING, "To-------- valid: %d\n", ast_channel_redirecting(requestor)->to.number.valid);
-       }
+	if (requestor) {
+		sccp_debug_print_redirecting("Orig", ast_channel_redirecting(requestor)->orig);
+		sccp_debug_print_redirecting("From", ast_channel_redirecting(requestor)->from);
+		sccp_debug_print_redirecting("To", ast_channel_redirecting(requestor)->to);
+	}
 }
 
 int extstate_ast2sccp(int state)
