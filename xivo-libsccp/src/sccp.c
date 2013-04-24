@@ -134,7 +134,6 @@ static char *format_caller_id_number(struct ast_channel *channel, struct sccp_de
 {
 	char *number = NULL;
 	char *result = NULL;
-	struct ast_party_connected_line *connected = NULL;
 
 	if (channel == NULL) {
 		ast_log(LOG_DEBUG, "channel is NULL\n");
