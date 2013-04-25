@@ -29,7 +29,7 @@ void device_unregister(struct sccp_device *device)
 			subchan = AST_RWLIST_FIRST(&line_itr->subchans);
 			AST_RWLIST_UNLOCK(&line_itr->subchans);
 
-			if (subchan != NULL && subchan->channel) {
+			if (subchan != NULL) {
 				do_hangup(line_itr->instance, subchan->id, device->session);
 				sleep(1);
 			}
