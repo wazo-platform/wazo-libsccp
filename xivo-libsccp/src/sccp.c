@@ -1,6 +1,7 @@
 #include <asterisk.h>
 #include <asterisk/app.h>
 #include <asterisk/astdb.h>
+#include <asterisk/callerid.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
 #include <asterisk/cli.h>
@@ -699,9 +700,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 
 	if (subchan->line->language[0] != '\0')
 		ast_channel_language_set(channel, subchan->line->language);
-
-	if (subchan->line->callfwd == SCCP_CFWD_ACTIVE)
-		ast_channel_call_forward_set(channel, subchan->line->callfwd_exten);
 
 	ast_module_ref(ast_module_info->self);
 
@@ -3083,6 +3081,11 @@ static struct ast_channel *cb_ast_request(const char *type,
 	subchan = sccp_new_subchannel(line);
 	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL);
 
+	if (line->callfwd == SCCP_CFWD_ACTIVE) {
+		ast_log(LOG_DEBUG, "setting call forward to %s\n", line->callfwd_exten);
+		ast_channel_call_forward_set(channel, line->callfwd_exten);
+	}
+
 	if (!line->active_subchan && !line->device->early_remote && sccp_config->directmedia) {
 		line->device->early_remote = 1;
 		transmit_connect(line, subchan->id);
@@ -3170,7 +3173,24 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	ast_queue_control(channel, AST_CONTROL_RINGING);
 
 	if (line->callfwd == SCCP_CFWD_ACTIVE) {
-		ast_log(LOG_DEBUG, "CFwdALL: %s\n", line->callfwd_exten);
+		struct ast_party_redirecting redirecting;
+		struct ast_set_party_redirecting update_redirecting;
+
+		ast_party_redirecting_init(&redirecting);
+		memset(&update_redirecting, 0, sizeof(update_redirecting));
+
+		redirecting.from.name.str = ast_strdup(line->cid_name);
+		redirecting.from.name.valid = 1;
+		update_redirecting.from.name = 1;
+		redirecting.from.number.str = ast_strdup(line->cid_num);
+		redirecting.from.number.valid = 1;
+		update_redirecting.from.number = 1;
+		redirecting.reason = AST_REDIRECTING_REASON_UNCONDITIONAL;
+		redirecting.count = 1;
+
+		ast_channel_set_redirecting(channel, &redirecting, &update_redirecting);
+		ast_party_redirecting_free(&redirecting);
+
 		return 0;
 	}
 
