@@ -1277,6 +1277,7 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 {
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
+	uint32_t last_line_state = 0;
 
 	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
@@ -1291,6 +1292,7 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 		return 0;
 	}
 
+	last_line_state = line->state;
 	/* this will cause the sccp_lookup_exten thread to terminate*/
 	set_line_state(line, SCCP_ONHOOK);
 
@@ -1307,10 +1309,14 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 		return 0;
 	}
 
-	if (subchan->channel)
+	if (subchan->channel) {
+		if (last_line_state == SCCP_RINGIN) {
+			ast_channel_hangupcause_set(subchan->channel, AST_CAUSE_BUSY);
+		}
 		ast_queue_hangup(subchan->channel);
-	else
+	} else {
 		do_clear_subchannel(subchan);
+	}
 
 	return 0;
 }
