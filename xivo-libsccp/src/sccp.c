@@ -1,6 +1,7 @@
 #include <asterisk.h>
 #include <asterisk/app.h>
 #include <asterisk/astdb.h>
+#include <asterisk/callerid.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
 #include <asterisk/cli.h>
@@ -64,6 +65,9 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *trtp,
 				const struct ast_format_cap *codecs,
 				int nat_active);
+static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
+static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
+char *utf8_to_iso88591(char *to_convert);
 
 
 static struct ast_channel_tech sccp_tech = {
@@ -89,6 +93,69 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.get_rtp_info = cb_ast_get_rtp_peer,
 	.update_peer = cb_ast_set_rtp_peer,
 };
+
+static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device)
+{
+	char name[64];
+	char *result = NULL;
+	struct ast_party_redirecting *redirect = NULL;
+	struct ast_party_connected_line *connected = NULL;
+
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
+		return NULL;
+	}
+
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return NULL;
+	}
+
+	connected = ast_channel_connected(channel);
+	redirect = ast_channel_redirecting(channel);
+
+	if (redirect->from.name.valid) {
+		snprintf(name, sizeof(name), "%s -> %s", redirect->from.name.str, connected->id.name.str);
+	} else if (redirect->from.number.valid) {
+		snprintf(name, sizeof(name), "%s -> %s", redirect->from.number.str, connected->id.name.str);
+	} else {
+		snprintf(name, sizeof(name), "%s", connected->id.name.str);
+	}
+
+	if (device->protoVersion <= 11) {
+		result = utf8_to_iso88591(name);
+	} else {
+		result = ast_strdup(name);
+	}
+
+	return result;
+}
+
+static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device)
+{
+	char *number = NULL;
+	char *result = NULL;
+
+	if (channel == NULL) {
+		ast_log(LOG_DEBUG, "channel is NULL\n");
+		return NULL;
+	}
+
+	if (device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return NULL;
+	}
+
+	number = ast_channel_connected(channel)->id.number.str;
+
+	if (device->protoVersion <= 11) {
+		result = utf8_to_iso88591(number);
+	} else {
+		result = ast_strdup(number);
+	}
+
+	return result;
+}
 
 int extstate_ast2sccp(int state)
 {
@@ -633,9 +700,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 
 	if (subchan->line->language[0] != '\0')
 		ast_channel_language_set(channel, subchan->line->language);
-
-	if (subchan->line->callfwd == SCCP_CFWD_ACTIVE)
-		ast_channel_call_forward_set(channel, subchan->line->callfwd_exten);
 
 	ast_module_ref(ast_module_info->self);
 
@@ -1243,10 +1307,14 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 		return 0;
 	}
 
-	if (subchan->channel)
+	if (subchan->channel) {
+		if (subchan->state == SCCP_RINGIN) {
+			ast_channel_hangupcause_set(subchan->channel, AST_CAUSE_BUSY);
+		}
 		ast_queue_hangup(subchan->channel);
-	else
+	} else {
 		do_clear_subchannel(subchan);
+	}
 
 	return 0;
 }
@@ -3017,6 +3085,11 @@ static struct ast_channel *cb_ast_request(const char *type,
 	subchan = sccp_new_subchannel(line);
 	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL);
 
+	if (line->callfwd == SCCP_CFWD_ACTIVE) {
+		ast_log(LOG_DEBUG, "setting call forward to %s\n", line->callfwd_exten);
+		ast_channel_call_forward_set(channel, line->callfwd_exten);
+	}
+
 	if (!line->active_subchan && !line->device->early_remote && sccp_config->directmedia) {
 		line->device->early_remote = 1;
 		transmit_connect(line, subchan->id);
@@ -3104,7 +3177,24 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	ast_queue_control(channel, AST_CONTROL_RINGING);
 
 	if (line->callfwd == SCCP_CFWD_ACTIVE) {
-		ast_log(LOG_DEBUG, "CFwdALL: %s\n", line->callfwd_exten);
+		struct ast_party_redirecting redirecting;
+		struct ast_set_party_redirecting update_redirecting;
+
+		ast_party_redirecting_init(&redirecting);
+		memset(&update_redirecting, 0, sizeof(update_redirecting));
+
+		redirecting.from.name.str = ast_strdup(line->cid_name);
+		redirecting.from.name.valid = 1;
+		update_redirecting.from.name = 1;
+		redirecting.from.number.str = ast_strdup(line->cid_num);
+		redirecting.from.number.valid = 1;
+		update_redirecting.from.number = 1;
+		redirecting.reason = AST_REDIRECTING_REASON_UNCONDITIONAL;
+		redirecting.count = 1;
+
+		ast_channel_set_redirecting(channel, &redirecting, &update_redirecting);
+		ast_party_redirecting_free(&redirecting);
+
 		return 0;
 	}
 
@@ -3129,21 +3219,16 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	if (ret == -1)
 		return -1;
 
-	char *namestr = NULL;
-	char *numberstr = NULL;
-
-	if (line->device->protoVersion <= 11) {
-		namestr = utf8_to_iso88591(ast_channel_connected(channel)->id.name.str);
-		numberstr = utf8_to_iso88591(ast_channel_connected(channel)->id.number.str);
-	}
+	char *namestr = format_caller_id_name(channel, line->device);
+	char *numberstr = format_caller_id_number(channel, line->device);
 
 	ret = transmit_callinfo(session,
-				namestr ? namestr : ast_channel_connected(channel)->id.name.str,
-				numberstr ? numberstr : ast_channel_connected(channel)->id.number.str,
-					line->cid_name,
-					line->cid_num,
-					line->instance,
-					subchan->id, 1);
+							namestr,
+							numberstr,
+							line->cid_name,
+							line->cid_num,
+							line->instance,
+							subchan->id, 1);
 
 	free(namestr);
 	free(numberstr);
