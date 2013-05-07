@@ -80,8 +80,9 @@ def command_makei(profile):
     remote_script = []
     remote_script.append(_build_cd_script(profile['directory']))
     remote_script.append(_build_make_script())
+    remote_script.append('/etc/init.d/asterisk stop')
     remote_script.append('cp ./src/.libs/libsccp.so /usr/lib/asterisk/modules/chan_sccp.so')
-    remote_script.append('/etc/init.d/asterisk restart')
+    remote_script.append('/etc/init.d/asterisk start')
     _exec_remote_script('\n'.join(remote_script), profile['host'])
 
 
