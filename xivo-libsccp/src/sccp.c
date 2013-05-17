@@ -72,7 +72,6 @@ int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line
 							struct sccp_subchannel *subchan, struct sccp_session *session);
 
 
-
 static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
 	.description = "Skinny Client Control Protocol",
