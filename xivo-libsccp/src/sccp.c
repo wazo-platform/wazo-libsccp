@@ -1538,6 +1538,11 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		return -1;
 	}
 
+	if (line->active_subchan->channel == NULL) {
+		ast_log(LOG_DEBUG, "line subchan channel is NULL\n");
+		return -1;
+	}
+
 	/* first time we press transfer */
 	if (line->active_subchan->related == NULL) {
 
@@ -1596,7 +1601,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 			line->device->lookup = 1;
 		}
 
-	} else if (line->active_subchan->channel) {
+	} else {
 
 		ast_log(LOG_DEBUG, "channel state: %d\n",
 					ast_channel_state(line->active_subchan->channel));
