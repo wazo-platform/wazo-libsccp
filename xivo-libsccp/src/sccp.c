@@ -68,6 +68,8 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
 static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
 char *utf8_to_iso88591(char *to_convert);
+int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
+							struct sccp_subchannel *subchan, struct sccp_session *session);
 
 
 static struct ast_channel_tech sccp_tech = {
@@ -1038,6 +1040,40 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		handle_softkey_hold(line_instance, line->active_subchan->id, session);
 	}
 
+	ast_mutex_lock(&line->lock);
+
+	ret = set_device_state_new_call(device, line, subchan, session);
+
+	ast_mutex_unlock(&line->lock);
+
+	return ret;
+}
+
+int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
+							struct sccp_subchannel *subchan, struct sccp_session *session)
+{
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	if (device == NULL) {
+		ast_log(LOG_ERROR, "device is NULL\n");
+		return -1;
+	}
+
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "line is NULL\n");
+		return -1;
+	}
+
+	if (subchan == NULL) {
+		 ast_log(LOG_ERROR, "subchan is NULL\n");
+		 return -1;
+	}
+
 	/* Now, set the new call instance as active */
 	line_select_subchan(line, subchan);
 
@@ -1067,7 +1103,7 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 
-	return 0;
+	return ret;
 }
 
 static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
