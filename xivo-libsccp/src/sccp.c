@@ -1550,11 +1550,6 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ret == -1)
 			return -1;
 
-		/* close our speaker */
-		ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
-		if (ret == -1)
-			return -1;
-
 		/* stop audio stream */
 		ret = transmit_close_receive_channel(line, line->active_subchan->id);
 		if (ret == -1)
