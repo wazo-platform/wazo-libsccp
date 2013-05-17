@@ -1544,8 +1544,12 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	ast_mutex_unlock(&line->lock);
 
-	if (line->active_subchan->channel)
+	if (line->active_subchan == NULL || line->active_subchan->channel == NULL)
+	{
+		ast_log(LOG_DEBUG, "active_subchan or subchan channel is NULL\n");
+	} else {
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_UNHOLD);
+	}
 
 	return 0;
 }
