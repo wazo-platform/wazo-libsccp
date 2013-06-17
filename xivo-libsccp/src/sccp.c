@@ -891,7 +891,6 @@ static int sccp_start_the_call(struct ast_channel *channel)
 
 static void *sccp_callfwd_timeout(void *data)
 {
-	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 	size_t len = 0, next_len = 0;
 	int timeout = 0;

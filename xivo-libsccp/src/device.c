@@ -4,7 +4,6 @@
 void device_unregister(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
-	struct sccp_subchannel *subchan_itr = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
 	if (device == NULL) {
