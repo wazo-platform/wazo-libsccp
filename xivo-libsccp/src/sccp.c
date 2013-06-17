@@ -2674,7 +2674,6 @@ static void destroy_session(struct sccp_session **session)
 		return;
 	}
 
-	ast_mutex_destroy(&(*session)->lock);
 	ast_free((*session)->ipaddr);
 	close((*session)->sockfd);
 
@@ -3005,7 +3004,6 @@ static void *thread_accept(void *data)
 		session->tid = AST_PTHREADT_NULL;
 		session->sockfd = new_sockfd;
 		session->ipaddr = ast_strdup(ast_inet_ntoa(addr.sin_addr));
-		ast_mutex_init(&session->lock);
 		time(&session->start_time);
 
 		AST_LIST_LOCK(&list_session);

@@ -43,7 +43,6 @@ struct sccp_configs {
 
 struct sccp_session {
 
-	ast_mutex_t lock;
 	pthread_t tid;
 	time_t start_time;
 	int sockfd;
