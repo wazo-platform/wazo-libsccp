@@ -1570,17 +1570,17 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line instance [%i] doesn't exist\n", line_instance);
-		return -1;
+		return 0;
 	}
 
 	if (line->active_subchan == NULL) {
 		ast_log(LOG_DEBUG, "line instance [%i] has no active subchannel\n", line_instance);
-		return -1;
+		return 0;
 	}
 
 	if (line->active_subchan->channel == NULL) {
 		ast_log(LOG_DEBUG, "line subchan channel is NULL\n");
-		return -1;
+		return 0;
 	}
 
 	/* first time we press transfer */
