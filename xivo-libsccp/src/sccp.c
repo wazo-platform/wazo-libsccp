@@ -925,9 +925,7 @@ static void *sccp_callfwd_timeout(void *data)
 
 		next_len = strlen(line->device->exten);
 		if (len == next_len) {
-			if (len == 0)
-				len = next_len;
-			else
+			if (len != 0)
 				timeout--;
 		} else {
 			timeout = 10;
@@ -989,9 +987,7 @@ static void *sccp_lookup_exten(void *data)
 
 		next_len = strlen(line->device->exten);
 		if (len == next_len) {
-			if (len == 0)
-				len = next_len;
-			else
+			if (len != 0)
 				timeout--;
 		} else {
 			timeout = sccp_config->dialtimeout * 2;
