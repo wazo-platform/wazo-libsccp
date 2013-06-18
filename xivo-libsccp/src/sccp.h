@@ -18,7 +18,6 @@ static struct sccp_server {
 	int sockfd;
 	struct addrinfo *res;
 	pthread_t thread_accept;
-	pthread_t thread_session;
 
 } sccp_srv;
 
