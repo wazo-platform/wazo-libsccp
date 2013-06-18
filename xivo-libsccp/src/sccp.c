@@ -581,30 +581,31 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	} else {
 
 		struct sockaddr_in localip;
-		socklen_t slen;
-
-		getsockname(session->sockfd, (struct sockaddr *)&localip, &slen);
+		socklen_t slen = sizeof(localip);
 
 		ast_log(LOG_NOTICE, "Device found [%s]\n", device_itr->name);
 
-		device_prepare(device_itr);
-		device_register(device_itr,
-				letohl(msg->data.reg.protoVersion),
-				letohl(msg->data.reg.type),
-				session,
-				localip);
+		ret = getsockname(session->sockfd, (struct sockaddr *)&localip, &slen);
+		if (ret != 0) {
+			ast_log(LOG_ERROR, "error calling getsockname: %s\n", strerror(errno));
+			ret = -1;
+		} else {
+			device_prepare(device_itr);
+			device_register(device_itr,
+					letohl(msg->data.reg.protoVersion),
+					letohl(msg->data.reg.type),
+					session,
+					localip);
 
-		session->device = device_itr;
-		mwi_subscribe(device_itr);
-		speeddial_hints_subscribe(device_itr, speeddial_hints_cb);
+			session->device = device_itr;
+			mwi_subscribe(device_itr);
+			speeddial_hints_subscribe(device_itr, speeddial_hints_cb);
 
-		if (device_itr->default_line)
-			ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", device_itr->default_line->name);
-		ret = 1;
+			if (device_itr->default_line)
+				ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", device_itr->default_line->name);
+			ret = 1;
+		}
 	}
-
-	if (ret == 0)
-		ast_log(LOG_WARNING, "Device is not configured [%s]\n", msg->data.reg.name);
 
 	return ret;
 }
