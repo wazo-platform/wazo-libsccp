@@ -1633,30 +1633,29 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		}
 
 	} else {
+		struct ast_channel *active_channel = line->active_subchan->channel;
+		struct ast_channel *related_channel = line->active_subchan->related->channel;
 
-		ast_log(LOG_DEBUG, "channel state: %d\n",
-					ast_channel_state(line->active_subchan->channel));
+		if (related_channel == NULL) {
+			ast_log(LOG_NOTICE, "ignoring transfer softkey event; related channel is NULL\n");
+			return 0;
+		}
 
-		ast_log(LOG_DEBUG, "channel state: %d\n",
-					ast_channel_state(line->active_subchan->related->channel));
-
-		if (ast_channel_state(line->active_subchan->channel) == AST_STATE_DOWN
-			|| ast_channel_state(line->active_subchan->related->channel) == AST_STATE_DOWN) {
+		if (ast_channel_state(active_channel) == AST_STATE_DOWN
+			|| ast_channel_state(related_channel) == AST_STATE_DOWN) {
 			ast_log(LOG_DEBUG, "channel state AST_STATE_DOWN\n");
 			return 0;
 		}
 
-		ast_queue_control(line->active_subchan->related->channel, AST_CONTROL_UNHOLD);
+		ast_queue_control(related_channel, AST_CONTROL_UNHOLD);
 
-		if (ast_bridged_channel(line->active_subchan->channel)) {
-			ast_channel_masquerade(line->active_subchan->related->channel, ast_bridged_channel(line->active_subchan->channel));
-		}
-		else if (ast_bridged_channel(line->active_subchan->related->channel)) {
-			ast_channel_masquerade(line->active_subchan->channel, ast_bridged_channel(line->active_subchan->related->channel));
-			ast_queue_hangup(line->active_subchan->related->channel);
+		if (ast_bridged_channel(active_channel)) {
+			ast_channel_masquerade(related_channel, ast_bridged_channel(active_channel));
+		} else if (ast_bridged_channel(related_channel)) {
+			ast_channel_masquerade(active_channel, ast_bridged_channel(related_channel));
+			ast_queue_hangup(related_channel);
 		} else {
-			ast_queue_hangup(line->active_subchan->channel);
-			return 0;
+			ast_queue_hangup(active_channel);
 		}
 	}
 
