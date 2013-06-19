@@ -25,6 +25,7 @@
 
 struct sccp_configs *sccp_config; /* global settings */
 static void config_unload(struct sccp_configs *sccp_cfg);
+extern struct ast_sched_context *sched;
 
 AST_TEST_DEFINE(sccp_test_resync)
 {
@@ -1228,7 +1229,7 @@ static void garbage_ast_database()
 	}
 }
 
-static int load_module(void)
+int module_repeatable_load(void)
 {
 	int ret = 0;
 	ast_log(LOG_NOTICE, "sccp channel loading...\n");
@@ -1263,7 +1264,7 @@ static int load_module(void)
 	return AST_MODULE_LOAD_SUCCESS;
 }
 
-static int unload_module(void)
+static int module_repeatable_unload(void)
 {
 	ast_log(LOG_DEBUG, "sccp channel unloading...\n");
 
@@ -1284,10 +1285,30 @@ static int unload_module(void)
 	return 0;
 }
 
+static int load_module(void)
+{
+	sched = ast_sched_context_create();
+	if (sched == NULL) {
+		ast_log(LOG_ERROR, "Unable to create schedule context\n");
+	}
+
+	return module_repeatable_load();
+}
+
+static int unload_module(void)
+{
+	int ret = module_repeatable_unload();
+
+	ast_sched_context_destroy(sched);
+	sched = NULL;
+
+	return ret;
+}
+
 static int reload_module(void)
 {
-	unload_module();
-	return load_module();
+	module_repeatable_unload();
+	return module_repeatable_load();
 }
 
 AST_MODULE_INFO(
