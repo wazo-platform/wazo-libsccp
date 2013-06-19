@@ -169,8 +169,9 @@ void speeddial_hints_unsubscribe(struct sccp_device *device)
 void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
-	char hint[40];
+	struct sccp_line *default_line = NULL;
 	int dev_state;
+	char *context;
 
 	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
@@ -182,16 +183,24 @@ void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type spe
 		return;
 	}
 
+	default_line = device->default_line;
+	if (default_line == NULL) {
+		ast_log(LOG_WARNING, "Not subscribing to speeddial hints; device has no line\n");
+		return;
+	}
+
+	context = default_line->context;
+
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
 		if (speeddial_itr->blf) {
-			speeddial_itr->state_id = ast_extension_state_add("default", speeddial_itr->extension, speeddial_hints_cb, speeddial_itr);
-			ast_get_hint(hint, sizeof(hint), NULL, 0, NULL, "default", speeddial_itr->extension);
-
-			dev_state = ast_extension_state(NULL, "default", speeddial_itr->extension);
-			speeddial_itr->state = dev_state;
-
-			ast_log(LOG_DEBUG, "hint of (%s) is (%s) state: (%d)(%s)\n", speeddial_itr->extension, hint, dev_state, ast_extension_state2str(dev_state));
+			speeddial_itr->state_id = ast_extension_state_add(context, speeddial_itr->extension, speeddial_hints_cb, speeddial_itr);
+			if (speeddial_itr->state_id == -1) {
+				ast_log(LOG_WARNING, "Could not subscribe to %s@%s\n", speeddial_itr->extension, context);
+			} else {
+				dev_state = ast_extension_state(NULL, context, speeddial_itr->extension);
+				speeddial_itr->state = dev_state;
+			}
 		}
 	}
 	AST_RWLIST_UNLOCK(&device->speeddials);
