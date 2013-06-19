@@ -269,8 +269,8 @@ struct sccp_speeddial {
 	uint32_t instance;
 	uint32_t index;
 	uint8_t blf;
-	uint32_t state_id;
-	uint32_t state;
+	int state_id;
+	int state;
 	struct sccp_device *device;
 	AST_LIST_ENTRY(sccp_speeddial) list;
 	AST_LIST_ENTRY(sccp_speeddial) list_per_device;
