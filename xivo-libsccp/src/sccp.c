@@ -2862,7 +2862,7 @@ static int fetch_data(struct sccp_session *session)
 	}
 
 	fds[0].fd = session->sockfd;
-	fds[0].events = POLLIN;
+	fds[0].events = POLLIN | POLLPRI;
 	fds[0].revents = 0;
 
 	/* wait N times the keepalive frequence */
