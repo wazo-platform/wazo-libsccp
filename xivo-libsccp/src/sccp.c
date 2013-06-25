@@ -2845,20 +2845,20 @@ static int fetch_data(struct sccp_session *session)
 {
 	struct pollfd fds[1];
 	int nfds = 0;
-	time_t now = 0;
 	ssize_t nbyte = 0;
 	int msg_len = 0;
 
 	if (session == NULL)
 		return -1;
 
-	time(&now);
-
 	/* if no device or device is not registered and time has elapsed */
-	if ((session->device == NULL || (session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE))
-		&& now > session->start_time + sccp_config->authtimeout) {
-		ast_log(LOG_WARNING, "Time has elapsed [%dsec]\n", sccp_config->authtimeout);
-		return -1;
+	if (session->device == NULL || session->device->registered == DEVICE_REGISTERED_FALSE) {
+		time_t now = time(NULL);
+
+		if (now > session->start_time + sccp_config->authtimeout) {
+			ast_log(LOG_WARNING, "Device authentication timed out [%dsec]\n", sccp_config->authtimeout);
+			return -1;
+		}
 	}
 
 	fds[0].fd = session->sockfd;
