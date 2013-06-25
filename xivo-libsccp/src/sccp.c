@@ -2034,11 +2034,9 @@ char *utf8_to_iso88591(char *to_convert)
 	size_t inbytesleft;
 	size_t iconv_value;
 
-	char *outbuf = NULL;
 	char *inbuf = NULL;
-
+	char *outbuf = NULL;
 	char *outbufptr = NULL;
-	char *inbufptr = NULL;
 
 	if (to_convert == NULL) {
 		ast_log(LOG_DEBUG, "to_convert is NULL\n");
@@ -2049,14 +2047,12 @@ char *utf8_to_iso88591(char *to_convert)
 
 	len = strlen(to_convert);
 
-	outbuf = ast_calloc(1, len);
-	outbufptr = outbuf;
+	outbufptr = ast_calloc(1, len + 1);
 
-	outbytesleft = len;
+	inbuf = to_convert;
 	inbytesleft = len;
-
-	inbuf = ast_strdup(to_convert);
-	inbufptr = inbuf;
+	outbuf = outbufptr;
+	outbytesleft = len;
 
 	iconv_value = iconv(cd,
 			&inbuf,
@@ -2071,7 +2067,7 @@ char *utf8_to_iso88591(char *to_convert)
 			ast_log(LOG_ERROR, "Invalid multibyte sequence\n");
 			break;
 		case EINVAL:
-			ast_log(LOG_ERROR, "Incomplete multibyte sequebec\n");
+			ast_log(LOG_ERROR, "Incomplete multibyte sequence\n");
 			break;
 		case E2BIG:
 			ast_log(LOG_ERROR, "Not enough space in outbuf\n");
@@ -2080,9 +2076,10 @@ char *utf8_to_iso88591(char *to_convert)
 
 		free(outbufptr);
 		outbufptr = NULL;
+	} else {
+		*outbuf = '\x00';
 	}
 
-	free(inbufptr);
 	iconv_close(cd);
 
 	return outbufptr;
