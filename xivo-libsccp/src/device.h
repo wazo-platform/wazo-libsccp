@@ -339,7 +339,7 @@ struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device,
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
 char *line_state_str(int line_state);
 int device_type_is_supported(int device_type);
-int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl);
+int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
 
 struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line);

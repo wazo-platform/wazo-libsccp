@@ -375,9 +375,9 @@ int device_type_is_supported(int device_type)
 	return supported;
 }
 
-int device_get_button_template(struct sccp_device *device, struct button_definition_template *btl)
+int device_get_button_count(struct sccp_device *device)
 {
-	int ret = 0;
+	int button_count = 0;
 	int i = 0;
 
 	if (device == NULL) {
@@ -385,53 +385,40 @@ int device_get_button_template(struct sccp_device *device, struct button_definit
 		return -1;
 	}
 
-	if (btl == NULL) {
-		ast_log(LOG_DEBUG, "button definition template is NULL\n");
-		return -1;
-	}
-
-	ast_log(LOG_DEBUG, "Device type %d\n", device->type);
-
 	switch (device->type) {
 	case SCCP_DEVICE_7905:
 	case SCCP_DEVICE_7906:
 	case SCCP_DEVICE_7911:
 	case SCCP_DEVICE_7912:
 	case SCCP_DEVICE_7937:
-		(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
+		button_count = 1;
 		break;
 
 	case SCCP_DEVICE_7940:
 	case SCCP_DEVICE_7941:
 	case SCCP_DEVICE_7941GE:
 	case SCCP_DEVICE_7942:
-		for (i = 0; i < 2; i++) {
-			(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
-		}
+		button_count = 2;
 		break;
 
 	case SCCP_DEVICE_7921:
 	case SCCP_DEVICE_7960:
 	case SCCP_DEVICE_7961:
 	case SCCP_DEVICE_7962:
-		for (i = 0; i < 6; i++) {
-			(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
-		}
+		button_count = 6;
 		break;
 
 	case SCCP_DEVICE_7970:
-		for (i = 0; i < 8; i++) {
-			(btl++)->buttonDefinition = BT_CUST_LINESPEEDDIAL;
-		}
+		button_count = 8;
 		break;
 
 	default:
-		ast_log(LOG_WARNING, "Unknown device type (%d)\n", device->type);
-		ret = -1;
+		ast_log(LOG_WARNING, "unknown number of button for device type %d; assuming 1\n", device->type);
+		button_count = 1;
 		break;
 	}
 
-	return ret;
+	return button_count;
 }
 
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device)

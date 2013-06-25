@@ -435,11 +435,12 @@ static int handle_button_template_req_message(struct sccp_session *session)
 	int ret = 0;
 	struct sccp_msg *msg = NULL;
 	struct button_definition_template btl[42];
-	int button_count = 0;
+	int active_button_count = 0;
+	int device_button_count = 0;
 	uint32_t line_instance = 1;
 	struct sccp_line *line_itr = NULL;
 	struct sccp_speeddial *speeddial_itr = NULL;
-	uint8_t button_set = 0;
+	int button_set = 0;
 	int i = 0;
 
 	if (session == NULL) {
@@ -453,58 +454,52 @@ static int handle_button_template_req_message(struct sccp_session *session)
 		return -1;
 	}
 
-	ret = device_get_button_template(session->device, btl);
-	if (ret == -1)
+	device_button_count = device_get_button_count(session->device);
+	if (device_button_count == -1)
 		return -1;
 
-	for (i = 0; i < 42; i++) {
+	for (i = 0; i < device_button_count; i++) {
 		button_set = 0;
-		switch (btl[i].buttonDefinition) {
-			case BT_CUST_LINESPEEDDIAL:
 
-				msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
+		msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
+		msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
+
+		AST_RWLIST_RDLOCK(&session->device->lines);
+		AST_RWLIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
+			if (line_itr->instance == line_instance) {
+				msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
 				msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
 
-				AST_RWLIST_RDLOCK(&session->device->lines);
-				AST_RWLIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
-					if (line_itr->instance == line_instance) {
-						msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
-						msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
+				line_instance++;
+				active_button_count++;
+				button_set = 1;
+			}
+		}
+		AST_RWLIST_UNLOCK(&session->device->lines);
 
-						line_instance++;
-						button_count++;
-						button_set = 1;
-					}
+		if (button_set != 1) {
+			AST_RWLIST_RDLOCK(&session->device->speeddials);
+			AST_RWLIST_TRAVERSE(&session->device->speeddials, speeddial_itr, list_per_device) {
+				if (speeddial_itr->instance == line_instance) {
+					msg->data.buttontemplate.definition[i].buttonDefinition = STIMULUS_FEATUREBUTTON;
+					msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
+
+					line_instance++;
+					active_button_count++;
 				}
-				AST_RWLIST_UNLOCK(&session->device->lines);
-
-				if (button_set != 1) {
-					AST_RWLIST_RDLOCK(&session->device->speeddials);
-					AST_RWLIST_TRAVERSE(&session->device->speeddials, speeddial_itr, list_per_device) {
-						if (speeddial_itr->instance == line_instance) {
-							msg->data.buttontemplate.definition[i].buttonDefinition = STIMULUS_FEATUREBUTTON;
-							msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
-
-							line_instance++;
-							button_count++;
-						}
-					}
-					AST_RWLIST_UNLOCK(&session->device->speeddials);
-				}
-
-				break;
-
-			case BT_NONE:
-			default:
-				msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
-				msg->data.buttontemplate.definition[i].lineInstance = htolel(0);
-				break;
+			}
+			AST_RWLIST_UNLOCK(&session->device->speeddials);
 		}
 	}
 
+	for (; i < 42; i++) {
+		msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
+		msg->data.buttontemplate.definition[i].lineInstance = htolel(0);
+	}
+
 	msg->data.buttontemplate.buttonOffset = htolel(0);
-	msg->data.buttontemplate.buttonCount = htolel(button_count);
-	msg->data.buttontemplate.totalButtonCount = htolel(button_count);
+	msg->data.buttontemplate.buttonCount = htolel(active_button_count);
+	msg->data.buttontemplate.totalButtonCount = htolel(active_button_count);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -2039,11 +2034,9 @@ char *utf8_to_iso88591(char *to_convert)
 	size_t inbytesleft;
 	size_t iconv_value;
 
-	char *outbuf = NULL;
 	char *inbuf = NULL;
-
+	char *outbuf = NULL;
 	char *outbufptr = NULL;
-	char *inbufptr = NULL;
 
 	if (to_convert == NULL) {
 		ast_log(LOG_DEBUG, "to_convert is NULL\n");
@@ -2054,14 +2047,12 @@ char *utf8_to_iso88591(char *to_convert)
 
 	len = strlen(to_convert);
 
-	outbuf = ast_calloc(1, len);
-	outbufptr = outbuf;
+	outbufptr = ast_calloc(1, len + 1);
 
-	outbytesleft = len;
+	inbuf = to_convert;
 	inbytesleft = len;
-
-	inbuf = ast_strdup(to_convert);
-	inbufptr = inbuf;
+	outbuf = outbufptr;
+	outbytesleft = len;
 
 	iconv_value = iconv(cd,
 			&inbuf,
@@ -2076,7 +2067,7 @@ char *utf8_to_iso88591(char *to_convert)
 			ast_log(LOG_ERROR, "Invalid multibyte sequence\n");
 			break;
 		case EINVAL:
-			ast_log(LOG_ERROR, "Incomplete multibyte sequebec\n");
+			ast_log(LOG_ERROR, "Incomplete multibyte sequence\n");
 			break;
 		case E2BIG:
 			ast_log(LOG_ERROR, "Not enough space in outbuf\n");
@@ -2085,9 +2076,10 @@ char *utf8_to_iso88591(char *to_convert)
 
 		free(outbufptr);
 		outbufptr = NULL;
+	} else {
+		*outbuf = '\x00';
 	}
 
-	free(inbufptr);
 	iconv_close(cd);
 
 	return outbufptr;
@@ -2332,12 +2324,12 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		displayname = utf8_to_iso88591(line->cid_name);
 	}
 
-	memcpy(msg->data.linestatus.lineDirNumber, line->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
+	ast_copy_string(msg->data.linestatus.lineDirNumber, line->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
 	if (displayname)
-		memcpy(msg->data.linestatus.lineDisplayName, displayname, sizeof(msg->data.linestatus.lineDisplayName));
+		ast_copy_string(msg->data.linestatus.lineDisplayName, displayname, sizeof(msg->data.linestatus.lineDisplayName));
 	else
-		memcpy(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
-	memcpy(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
+		ast_copy_string(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
+	ast_copy_string(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
 
 	free(displayname);
 
