@@ -868,16 +868,11 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 
 				if (!strcasecmp(var->name, "extension")) {
 					ast_copy_string(speeddial->extension, var->value, sizeof(speeddial->extension));
-					continue;
-
 				} else if (!strcasecmp(var->name, "label")) {
 					ast_copy_string(speeddial->label, var->value, sizeof(speeddial->label));
-					continue;
-
 				} else if (!strcasecmp(var->name, "blf")) {
 					if (ast_true(var->value))
 						speeddial->blf = 1;
-					continue;
 				}
 			}
 		}
@@ -929,23 +924,14 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 				if (!strcasecmp(var->name, "cid_num")) {
 					ast_copy_string(line->cid_num, var->value, sizeof(line->cid_num));
-					continue;
-
 				} else if (!strcasecmp(var->name, "cid_name")) {
 					ast_copy_string(line->cid_name, var->value, sizeof(line->cid_name));
-					continue;
-
 				} else if (!strcasecmp(var->name, "setvar")) {
 					line->chanvars = add_var(var->value, line->chanvars);
-					continue;
-
 				} else if (!strcasecmp(var->name, "language")) {
 					ast_copy_string(line->language, var->value, sizeof(line->language));
-					continue;
-
 				} else if (!strcasecmp(var->name, "context")) {
 					ast_copy_string(line->context, var->value, sizeof(line->language));
-					continue;
 				}
 			}
 		}
@@ -985,43 +971,26 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 
 		if (!strcasecmp(var->name, "bindaddr")) {
 			ast_copy_string(sccp_cfg->bindaddr, var->value, sizeof(sccp_cfg->bindaddr));
-			continue;
-
 		} else if (!strcasecmp(var->name, "dateformat")) {
 			ast_copy_string(sccp_cfg->dateformat, var->value, sizeof(sccp_cfg->dateformat));
-			continue;
-
 		} else if (!strcasecmp(var->name, "keepalive")) {
 			sccp_cfg->keepalive = atoi(var->value);
-			continue;
-
 		} else if (!strcasecmp(var->name, "authtimeout")) {
 			sccp_cfg->authtimeout = atoi(var->value);
 			if (sccp_cfg->authtimeout < 10)
 				sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
-			continue;
-
 		} else if (!strcasecmp(var->name, "dialtimeout")) {
 			sccp_cfg->dialtimeout = atoi(var->value);
 			if (sccp_cfg->dialtimeout <= 0)
 				sccp_cfg->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
-			continue;
-
 		} else if (!strcasecmp(var->name, "context")) {
 			ast_copy_string(sccp_cfg->context, var->value, sizeof(sccp_cfg->context));
-			continue;
-
 		} else if (!strcasecmp(var->name, "language")) {
 			ast_copy_string(sccp_cfg->language, var->value, sizeof(sccp_cfg->language));
-			continue;
-
 		} else if (!strcasecmp(var->name, "vmexten")) {
 			ast_copy_string(sccp_cfg->vmexten, var->value, sizeof(sccp_cfg->vmexten));
-			continue;
-
 		} else if (!strcasecmp(var->name, "directmedia")) {
 			sccp_cfg->directmedia = atoi(var->value);
-			continue;
 		}
 	}
 
