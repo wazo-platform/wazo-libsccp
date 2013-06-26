@@ -436,7 +436,6 @@ static int handle_button_template_req_message(struct sccp_session *session)
 {
 	int ret = 0;
 	struct sccp_msg *msg = NULL;
-	struct button_definition_template btl[42];
 	int active_button_count = 0;
 	int device_button_count = 0;
 	uint32_t line_instance = 1;
@@ -640,7 +639,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	struct ast_channel *channel = NULL;
 	struct ast_variable *var_itr = NULL;
 	struct ast_format tmpfmt;
-	int audio_format = 0;
 	char valuebuf[1024];
 	char buf[256];
 
@@ -2505,7 +2503,6 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 {
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
-	uint8_t lookup_index;
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -2921,7 +2918,6 @@ static int fetch_data(struct sccp_session *session)
 
 static void thread_session_cleanup(void *data)
 {
-	int ret = 0;
 	struct sccp_session *session = data;
 
 	AST_LIST_LOCK(&list_session);
@@ -4327,7 +4323,6 @@ static size_t make_thread_sessions_array(pthread_t **threads)
 
 void sccp_server_fini()
 {
-	struct sccp_session *session_itr = NULL;
 	size_t size = 0;
 	size_t i = 0;
 	pthread_t* thread_sessions = NULL;

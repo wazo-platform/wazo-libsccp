@@ -213,10 +213,6 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_AUTOANSWER, softkey_default_autoanswer, sizeof(softkey_default_autoanswer) / sizeof(uint8_t)},
 };
 
-struct button_definition_template {
-	uint8_t buttonDefinition;
-};
-
 struct sccp_subchannel {
 
 	uint32_t id;
