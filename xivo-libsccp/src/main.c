@@ -711,6 +711,7 @@ static int unload_module(void)
 	ast_free(sccp_config);
 	sccp_config = NULL;
 
+	AST_TEST_UNREGISTER(sccp_test_resync);
 	AST_TEST_UNREGISTER(sccp_test_config);
 
 	return 0;
