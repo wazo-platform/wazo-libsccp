@@ -1740,7 +1740,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 		set_line_state(line, SCCP_OFFHOOK);
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
 
-		if (ast_pthread_create(&line->callfwd_timeout_thread, NULL, sccp_callfwd_timeout, line)) {
+		if (ast_pthread_create_detached(&line->callfwd_timeout_thread, NULL, sccp_callfwd_timeout, line)) {
 			ast_log(LOG_WARNING, "Unable to create callfwd timeout thread: %s\n", strerror(errno));
 		}
 
