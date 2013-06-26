@@ -68,10 +68,10 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
 static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
 static void thread_session_cleanup(void *data);
-char *utf8_to_iso88591(char *to_convert);
-int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
-							struct sccp_subchannel *subchan, struct sccp_session *session);
-size_t make_thread_sessions_array(pthread_t **threads);
+static char *utf8_to_iso88591(char *to_convert);
+static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
+				struct sccp_subchannel *subchan, struct sccp_session *session);
+static size_t make_thread_sessions_array(pthread_t **threads);
 
 
 static struct ast_channel_tech sccp_tech = {
@@ -1047,7 +1047,7 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 	return ret;
 }
 
-int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
+static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 							struct sccp_subchannel *subchan, struct sccp_session *session)
 {
 	int ret = 0;
@@ -2032,7 +2032,7 @@ static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_
 	}
 }
 
-char *utf8_to_iso88591(char *to_convert)
+static char *utf8_to_iso88591(char *to_convert)
 {
 	iconv_t cd;
 
@@ -4308,7 +4308,7 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_set_directmedia_off, "Turn off direct media"),
 };
 
-size_t make_thread_sessions_array(pthread_t **threads)
+static size_t make_thread_sessions_array(pthread_t **threads)
 {
 	struct sccp_session *session_itr = NULL;
 	pthread_t *itr = NULL;
