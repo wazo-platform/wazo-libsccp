@@ -986,7 +986,8 @@ static void *sccp_lookup_exten(void *data)
 				sccp_start_the_call(channel);
 				memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
 				line->device->exten[0] = '\0';
-				return NULL;
+
+				break;
 		}
 
 		usleep(500000);
@@ -1000,6 +1001,8 @@ static void *sccp_lookup_exten(void *data)
 			len = next_len;
 		}
 	}
+
+	pthread_detach(pthread_self());
 
 	return NULL;
 }
