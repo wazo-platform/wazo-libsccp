@@ -67,9 +67,11 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				int nat_active);
 static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
 static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
-char *utf8_to_iso88591(char *to_convert);
-int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
-							struct sccp_subchannel *subchan, struct sccp_session *session);
+static void thread_session_cleanup(void *data);
+static char *utf8_to_iso88591(char *to_convert);
+static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
+				struct sccp_subchannel *subchan, struct sccp_session *session);
+static size_t make_thread_sessions_array(pthread_t **threads);
 
 
 static struct ast_channel_tech sccp_tech = {
@@ -1040,7 +1042,7 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 	return ret;
 }
 
-int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
+static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 							struct sccp_subchannel *subchan, struct sccp_session *session)
 {
 	int ret = 0;
@@ -2025,7 +2027,7 @@ static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_
 	}
 }
 
-char *utf8_to_iso88591(char *to_convert)
+static char *utf8_to_iso88591(char *to_convert)
 {
 	iconv_t cd;
 
@@ -2917,41 +2919,24 @@ static int fetch_data(struct sccp_session *session)
 	return -1;
 }
 
-static void *thread_session(void *data)
+static void thread_session_cleanup(void *data)
 {
 	int ret = 0;
 	struct sccp_session *session = data;
-	struct sccp_msg *msg = NULL;
-	int connected = 1;
 
-	while (connected) {
+	AST_LIST_LOCK(&list_session);
+	AST_LIST_REMOVE(&list_session, session, list);
+	AST_LIST_UNLOCK(&list_session);
 
-		ret = fetch_data(session);
-		if (ret > 0) {
-			msg = (struct sccp_msg *)session->inbuf;
-			ret = handle_message(msg, session);
-			/* take it easy, prevent DoS attack */
-			usleep(100000);
-		}
+	if (session->device) {
+		ast_verb(3, "Disconnecting device [%s]\n", session->device->name);
+		device_unregister(session->device);
+		if (session->device->default_line)
+			ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 
-		if (ret == -1) {
-			AST_LIST_LOCK(&list_session);
-			session = AST_LIST_REMOVE(&list_session, session, list);
-			AST_LIST_UNLOCK(&list_session);
-
-			if (session->device) {
-				ast_log(LOG_ERROR, "Disconnecting device [%s]\n", session->device->name);
-				device_unregister(session->device);
-				if (session->device->default_line)
-					ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
-
-				if (session->device->destroy == 1) {
-					device_destroy(session->device, sccp_config);
-					config_load("sccp.conf", sccp_config);
-				}
-			}
-
-			connected = 0;
+		if (session->device->destroy == 1) {
+			device_destroy(session->device, sccp_config);
+			config_load("sccp.conf", sccp_config);
 		}
 	}
 
@@ -2959,8 +2944,30 @@ static void *thread_session(void *data)
 		transmit_reset(session, 2);
 		destroy_session(&session);
 	}
+}
 
-	return 0;
+static void *thread_session(void *data)
+{
+	int ret = 0;
+	struct sccp_session *session = data;
+	struct sccp_msg *msg = NULL;
+
+	pthread_cleanup_push(thread_session_cleanup, data);
+
+	while ((ret = fetch_data(session)) > 0) {
+		msg = (struct sccp_msg *)session->inbuf;
+		ret = handle_message(msg, session);
+		if (ret < 0) {
+			break;
+		}
+		/* take it easy, prevent DoS attack */
+		usleep(100000);
+	}
+
+	pthread_cleanup_pop(1);
+	pthread_detach(pthread_self());
+
+	return NULL;
 }
 
 static void *thread_accept(void *data)
@@ -4291,9 +4298,39 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_set_directmedia_off, "Turn off direct media"),
 };
 
+static size_t make_thread_sessions_array(pthread_t **threads)
+{
+	struct sccp_session *session_itr = NULL;
+	pthread_t *itr = NULL;
+	size_t n = 0;
+
+	AST_LIST_LOCK(&list_session);
+
+	AST_LIST_TRAVERSE(&list_session, session_itr, list) {
+		n++;
+	}
+
+	*threads = itr = ast_calloc(n, sizeof(*threads));
+	if (*threads != NULL) {
+		AST_LIST_TRAVERSE(&list_session, session_itr, list) {
+			if (session_itr != NULL) {
+				*itr = session_itr->tid;
+				itr++;
+			}
+		}
+	}
+
+	AST_LIST_UNLOCK(&list_session);
+
+	return n;
+}
+
 void sccp_server_fini()
 {
 	struct sccp_session *session_itr = NULL;
+	size_t size = 0;
+	size_t i = 0;
+	pthread_t* thread_sessions = NULL;
 
 	AST_TEST_UNREGISTER(sccp_test_null_arguments);
 	AST_TEST_UNREGISTER(sccp_test_arguments);
@@ -4302,23 +4339,14 @@ void sccp_server_fini()
 	ast_channel_unregister(&sccp_tech);
 
 	pthread_cancel(sccp_srv.thread_accept);
-	pthread_kill(sccp_srv.thread_accept, SIGURG);
 	pthread_join(sccp_srv.thread_accept, NULL);
 
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&list_session, session_itr, list) {
-		if (session_itr != NULL) {
-
-			ast_log(LOG_DEBUG, "Session del %s\n", session_itr->ipaddr);
-			AST_LIST_REMOVE_CURRENT(list);
-
-			pthread_cancel(session_itr->tid);
-			pthread_kill(session_itr->tid, SIGURG);
-			pthread_join(session_itr->tid, NULL);
-
-			destroy_session(&session_itr);
-		}
+	size = make_thread_sessions_array(&thread_sessions);
+	for (i = 0; i < size; i++) {
+		pthread_cancel(thread_sessions[i]);
+		pthread_join(thread_sessions[i], NULL);
 	}
-	AST_LIST_TRAVERSE_SAFE_END;
+	ast_free(thread_sessions);
 
 	freeaddrinfo(sccp_srv.res);
 	shutdown(sccp_srv.sockfd, SHUT_RDWR);
