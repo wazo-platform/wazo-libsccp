@@ -4310,7 +4310,7 @@ static size_t make_thread_sessions_array(pthread_t **threads)
 		n++;
 	}
 
-	*threads = itr = ast_calloc(n, sizeof(*threads));
+	*threads = itr = ast_calloc(n, sizeof(**threads));
 	if (*threads != NULL) {
 		AST_LIST_TRAVERSE(&list_session, session_itr, list) {
 			if (session_itr != NULL) {
