@@ -667,7 +667,11 @@ static int load_module(void)
 
 	ret = config_load("sccp.conf", sccp_config);
 	if (ret == -1) {
+		AST_RWLIST_HEAD_DESTROY(&sccp_config->list_device);
+		AST_RWLIST_HEAD_DESTROY(&sccp_config->list_line);
 		ast_free(sccp_config);
+		sccp_config = NULL;
+
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
@@ -675,7 +679,12 @@ static int load_module(void)
 
 	ret = sccp_server_init(sccp_config);
 	if (ret == -1) {
+		config_unload(sccp_config);
+		AST_RWLIST_HEAD_DESTROY(&sccp_config->list_device);
+		AST_RWLIST_HEAD_DESTROY(&sccp_config->list_line);
 		ast_free(sccp_config);
+		sccp_config = NULL;
+
 		return AST_MODULE_LOAD_DECLINE;
 	}
 	sccp_rtp_init(ast_module_info);
