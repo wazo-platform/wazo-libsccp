@@ -2952,8 +2952,6 @@ static void thread_session_cleanup(void *data)
 		transmit_reset(session, 2);
 		destroy_session(&session);
 	}
-
-	return;
 }
 
 static void *thread_session(void *data)
