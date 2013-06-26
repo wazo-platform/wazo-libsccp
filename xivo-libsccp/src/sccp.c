@@ -37,7 +37,7 @@
 
 static struct sccp_configs *sccp_config; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
-struct ast_sched_context *sched = NULL;
+static struct ast_sched_context *sched = NULL;
 
 static struct ast_format_cap *default_cap;
 static struct ast_codec_pref default_prefs;
@@ -4360,6 +4360,8 @@ void sccp_server_fini()
 
 	freeaddrinfo(sccp_srv.res);
 	shutdown(sccp_srv.sockfd, SHUT_RDWR);
+
+	ast_sched_context_destroy(sched);
 }
 
 void sccp_rtp_fini()
@@ -4420,6 +4422,11 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	if (ret == -1) {
 		ast_log(LOG_ERROR, "Failed to listen socket: %s\n", strerror(errno));
 		return -1;
+	}
+
+	sched = ast_sched_context_create();
+	if (sched == NULL) {
+		ast_log(LOG_ERROR, "Unable to create schedule context\n");
 	}
 
 	ast_channel_register(&sccp_tech);
