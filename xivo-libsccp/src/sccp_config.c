@@ -1,9 +1,11 @@
 #include <asterisk.h>
 
-#include <asterisk/cli.h>
-
 #include "sccp_config.h"
 #include "device.h"
+
+#define SCCP_DEFAULT_KEEPALIVE 10
+#define SCCP_DEFAULT_AUTH_TIMEOUT 5
+#define SCCP_DEFAULT_DIAL_TIMEOUT 1
 
 static int parse_config_general(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
@@ -14,77 +16,49 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device);
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list);
 
-char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+int sccp_config_init(struct sccp_configs **config)
 {
-	struct sccp_line *line_itr = NULL;
-	struct sccp_device *device_itr = NULL;
-	struct sccp_speeddial *speeddial_itr = NULL;
+	struct sccp_configs *new_config = NULL;
 
-	switch (cmd) {
-	case CLI_INIT:
-		e->command = "sccp show config";
-		e->usage = "Usage: sccp show config\n";
-		return NULL;
-	case CLI_GENERATE:
-		return NULL;
+	if (config == NULL) {
+		ast_log(LOG_ERROR, "SCCP configuration memory allocation failed\n");
+		return -1;
 	}
 
-	ast_cli(a->fd, "bindaddr = %s\n", sccp_config->bindaddr);
-	ast_cli(a->fd, "dateformat = %s\n", sccp_config->dateformat);
-	ast_cli(a->fd, "keepalive = %d\n", sccp_config->keepalive);
-	ast_cli(a->fd, "authtimeout = %d\n", sccp_config->authtimeout);
-	ast_cli(a->fd, "dialtimeout = %d\n", sccp_config->dialtimeout);
-	ast_cli(a->fd, "context = %s\n", sccp_config->context);
-	ast_cli(a->fd, "language = %s\n", sccp_config->language);
-	ast_cli(a->fd, "directmedia = %d\n", sccp_config->directmedia);
-	ast_cli(a->fd, "\n");
-
-	AST_RWLIST_RDLOCK(&sccp_config->list_device);
-	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
-		ast_cli(a->fd, "Device: [%s]\n", device_itr->name);
-
-		AST_RWLIST_RDLOCK(&device_itr->lines);
-		AST_RWLIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
-			ast_cli(a->fd, "Line extension: (%d) <%s> <%s> <%s> <%s>\n",
-				line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context, line_itr->language);
-		}
-		AST_RWLIST_UNLOCK(&device_itr->lines);
-
-		AST_RWLIST_RDLOCK(&device_itr->speeddials);
-		AST_RWLIST_TRAVERSE(&device_itr->speeddials, speeddial_itr, list_per_device) {
-			ast_cli(a->fd, "Speeddial: (%d) <%s>\n", speeddial_itr->index, speeddial_itr->extension);
-		}
-		AST_RWLIST_UNLOCK(&device_itr->speeddials);
-
-		ast_cli(a->fd, "\n");
+	new_config = ast_calloc(1, sizeof(*new_config));
+	if (new_config == NULL) {
+		return -1;
 	}
-	AST_RWLIST_UNLOCK(&sccp_config->list_device);
+	AST_RWLIST_HEAD_INIT(&new_config->list_device);
+	AST_RWLIST_HEAD_INIT(&new_config->list_line);
 
-	return CLI_SUCCESS;
+	*config = new_config;
+
+	return 0;
 }
 
-char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+int sccp_config_destroy(struct sccp_configs **config)
 {
-	int ret = 0;
+	struct sccp_configs *to_destroy = NULL;
 
-	switch (cmd) {
-	case CLI_INIT:
-		e->command = "sccp update config";
-		e->usage = "Usage: sccp update config\n";
-		return NULL;
-	case CLI_GENERATE:
-		return NULL;
+	if (config == NULL) {
+		ast_log(LOG_ERROR, "NULL address supplied to destroy SCCP configuration\n");
+		return -1;
 	}
 
-	ret = config_load("sccp.conf", sccp_config);
-	if (ret == -1) {
-		return CLI_FAILURE;
+	to_destroy = *config;
+	if (to_destroy == NULL) {
+		return 0;
 	}
+	AST_RWLIST_HEAD_DESTROY(&to_destroy->list_device);
+	AST_RWLIST_HEAD_DESTROY(&to_destroy->list_line);
+	ast_free(to_destroy);
+	*config = NULL;
 
-	return CLI_SUCCESS;
+	return 0;
 }
 
-int config_load(char *config_file, struct sccp_configs *sccp_cfg)
+int sccp_config_load(struct sccp_configs *sccp_cfg, char *config_file)
 {
 	struct ast_config *cfg = NULL;
 	struct ast_flags config_flags = { 0 };
@@ -131,7 +105,7 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg)
 	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
 }
 
-void destroy_device_config(struct sccp_device *device, struct sccp_configs *sccp_cfg)
+void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
 	struct sccp_subchannel *subchan_itr = NULL;

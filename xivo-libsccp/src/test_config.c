@@ -27,13 +27,9 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 	ast_test_status_update(test, "Executing sccp resync device...\n");
 
-	sccp_cfg = ast_calloc(1, sizeof(struct sccp_configs));
-	if (sccp_config == NULL) {
-		ast_test_status_update(test, "ast_calloc failed\n");
+	if (sccp_config_init(&sccp_cfg) != 0) {
 		return AST_TEST_FAIL;
 	}
-	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_device);
-	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_line);
 
 	conf_file = fopen("/tmp/sccp.conf", "w");
 	if (conf_file == NULL) {
@@ -79,7 +75,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 	fwrite(conf, 1, strlen(conf), conf_file);
 	fclose(conf_file);
 
-	config_load("/tmp/sccp.conf", sccp_cfg);
+	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
 
 	line = find_line_by_name("200", &sccp_cfg->list_line);
 	if (line == NULL) {
@@ -169,8 +165,8 @@ AST_TEST_DEFINE(sccp_test_resync)
 	AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
 	transmit_reset(device->session, 2);
 	device_unregister(device);
-	destroy_device_config(device, sccp_cfg);
-	config_load("/tmp/sccp.conf", sccp_cfg);
+	destroy_device_config(sccp_cfg, device);
+	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
 
 
 	/* Verify again */
@@ -215,13 +211,8 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 cleanup:
 
-	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
-	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
-
-	sccp_config_unload(sccp_cfg);
-	ast_free(sccp_cfg);
+	sccp_config_destroy(&sccp_cfg);
 	remove("/tmp/sccp.conf");
-
 
 	return ret;
 }
@@ -251,13 +242,9 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	ast_test_status_update(test, "Executing sccp test config...\n");
 
-	sccp_cfg = ast_calloc(1, sizeof(struct sccp_configs));
-	if (sccp_config == NULL) {
-		ast_test_status_update(test, "ast_calloc failed\n");
+	if (sccp_config_init(&sccp_cfg) != 0) {
 		return AST_TEST_FAIL;
 	}
-	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_device);
-	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_line);
 
 	conf_file = fopen("/tmp/sccp.conf", "w");
 	if (conf_file == NULL) {
@@ -302,7 +289,7 @@ AST_TEST_DEFINE(sccp_test_config)
 	fwrite(conf, 1, strlen(conf), conf_file);
 	fclose(conf_file);
 
-	config_load("/tmp/sccp.conf", sccp_cfg);
+	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
 
 	if (strcmp(sccp_cfg->bindaddr, "0.0.0.0")) {
 		ast_test_status_update(test, "bindaddr %s != %s\n", sccp_cfg->bindaddr, "0.0.0.0");
@@ -487,7 +474,7 @@ AST_TEST_DEFINE(sccp_test_config)
 	fwrite(conf, 1, strlen(conf), conf_file);
 	fclose(conf_file);
 
-	config_load("/tmp/sccp.conf", sccp_cfg);
+	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
 
 	/* We removed line 200 and its associated device.
 	 * We add line 201 with a new device.
@@ -539,11 +526,7 @@ AST_TEST_DEFINE(sccp_test_config)
 
 cleanup:
 
-	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
-	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
-
-	sccp_config_unload(sccp_cfg);
-	ast_free(sccp_cfg);
+	sccp_config_destroy(&sccp_cfg);
 	remove("/tmp/sccp.conf");
 
 	return ret;

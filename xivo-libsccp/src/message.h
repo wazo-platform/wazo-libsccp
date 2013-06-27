@@ -6,6 +6,7 @@
 
 #include "device.h"
 #include "sccp.h"
+#include "sccp_config.h"
 
 struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
 int transmit_message(struct sccp_msg *msg, struct sccp_session *session);

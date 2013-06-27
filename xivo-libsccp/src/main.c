@@ -79,6 +79,76 @@ static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	return CLI_SUCCESS;
 }
 
+char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_line *line_itr = NULL;
+	struct sccp_device *device_itr = NULL;
+	struct sccp_speeddial *speeddial_itr = NULL;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show config";
+		e->usage = "Usage: sccp show config\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ast_cli(a->fd, "bindaddr = %s\n", sccp_config->bindaddr);
+	ast_cli(a->fd, "dateformat = %s\n", sccp_config->dateformat);
+	ast_cli(a->fd, "keepalive = %d\n", sccp_config->keepalive);
+	ast_cli(a->fd, "authtimeout = %d\n", sccp_config->authtimeout);
+	ast_cli(a->fd, "dialtimeout = %d\n", sccp_config->dialtimeout);
+	ast_cli(a->fd, "context = %s\n", sccp_config->context);
+	ast_cli(a->fd, "language = %s\n", sccp_config->language);
+	ast_cli(a->fd, "directmedia = %d\n", sccp_config->directmedia);
+	ast_cli(a->fd, "\n");
+
+	AST_RWLIST_RDLOCK(&sccp_config->list_device);
+	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
+		ast_cli(a->fd, "Device: [%s]\n", device_itr->name);
+
+		AST_RWLIST_RDLOCK(&device_itr->lines);
+		AST_RWLIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
+			ast_cli(a->fd, "Line extension: (%d) <%s> <%s> <%s> <%s>\n",
+				line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context, line_itr->language);
+		}
+		AST_RWLIST_UNLOCK(&device_itr->lines);
+
+		AST_RWLIST_RDLOCK(&device_itr->speeddials);
+		AST_RWLIST_TRAVERSE(&device_itr->speeddials, speeddial_itr, list_per_device) {
+			ast_cli(a->fd, "Speeddial: (%d) <%s>\n", speeddial_itr->index, speeddial_itr->extension);
+		}
+		AST_RWLIST_UNLOCK(&device_itr->speeddials);
+
+		ast_cli(a->fd, "\n");
+	}
+	AST_RWLIST_UNLOCK(&sccp_config->list_device);
+
+	return CLI_SUCCESS;
+}
+
+char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	int ret = 0;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp update config";
+		e->usage = "Usage: sccp update config\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ret = sccp_config_load(sccp_config, "sccp.conf");
+	if (ret == -1) {
+		return CLI_FAILURE;
+	}
+
+	return CLI_SUCCESS;
+}
+
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_version, "Show the version of the sccp channel"),
 	AST_CLI_DEFINE(sccp_show_config, "Show the configured devices"),
@@ -111,20 +181,14 @@ static int load_module(void)
 	int ret = 0;
 	ast_log(LOG_NOTICE, "sccp channel loading...\n");
 
-	sccp_config = ast_calloc(1, sizeof(struct sccp_configs));
-	if (sccp_config == NULL) {
+	ret = sccp_config_init(&sccp_config);
+	if (ret == -1) {
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
-	AST_RWLIST_HEAD_INIT(&sccp_config->list_device);
-	AST_RWLIST_HEAD_INIT(&sccp_config->list_line);
-
-	ret = config_load("sccp.conf", sccp_config);
+	ret = sccp_config_load(sccp_config, "sccp.conf");
 	if (ret == -1) {
-		AST_RWLIST_HEAD_DESTROY(&sccp_config->list_device);
-		AST_RWLIST_HEAD_DESTROY(&sccp_config->list_line);
-		ast_free(sccp_config);
-		sccp_config = NULL;
+		sccp_config_destroy(&sccp_config);
 
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -134,10 +198,7 @@ static int load_module(void)
 	ret = sccp_server_init(sccp_config);
 	if (ret == -1) {
 		sccp_config_unload(sccp_config);
-		AST_RWLIST_HEAD_DESTROY(&sccp_config->list_device);
-		AST_RWLIST_HEAD_DESTROY(&sccp_config->list_line);
-		ast_free(sccp_config);
-		sccp_config = NULL;
+		sccp_config_destroy(&sccp_config);
 
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -160,11 +221,7 @@ static int unload_module(void)
 
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
-	AST_RWLIST_HEAD_DESTROY(&sccp_config->list_device);
-	AST_RWLIST_HEAD_DESTROY(&sccp_config->list_line);
-
-	ast_free(sccp_config);
-	sccp_config = NULL;
+	sccp_config_destroy(&sccp_config);
 
 	AST_TEST_UNREGISTER(sccp_test_resync);
 	AST_TEST_UNREGISTER(sccp_test_config);

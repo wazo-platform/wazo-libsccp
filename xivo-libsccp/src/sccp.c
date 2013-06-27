@@ -941,12 +941,17 @@ static void *sccp_lookup_exten(void *data)
 	struct sccp_line *line = NULL;
 	size_t len = 0, next_len = 0;
 	int call_now = 0;
-	int timeout = sccp_config->dialtimeout * 2;
+	int timeout = 0;
 
 	if (data == NULL) {
 		ast_log(LOG_DEBUG, "data is NULL\n");
 		return NULL;
 	}
+
+	if (sccp_config == NULL) {
+		return NULL;
+	}
+	timeout = sccp_config->dialtimeout * 2;
 
 	subchan = (struct sccp_subchannel *)data;
 	line = subchan->line;
@@ -2850,6 +2855,11 @@ static int fetch_data(struct sccp_session *session)
 	if (session == NULL)
 		return -1;
 
+	if (sccp_config == NULL) {
+		ast_log(LOG_ERROR, "SCCP configuration is uninitialized\n");
+		return -1;
+	}
+
 	/* if no device or device is not registered and time has elapsed */
 	if (session->device == NULL || session->device->registered == DEVICE_REGISTERED_FALSE) {
 		time_t now = time(NULL);
@@ -2933,8 +2943,8 @@ static void thread_session_cleanup(void *data)
 			ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 
 		if (session->device->destroy == 1) {
-			destroy_device_config(session->device, sccp_config);
-			config_load("sccp.conf", sccp_config);
+			destroy_device_config(sccp_config, session->device);
+			sccp_config_load(sccp_config, "sccp.conf");
 		}
 	}
 
