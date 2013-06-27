@@ -31,6 +31,7 @@
 #include "message.h"
 #include "sccp.h"
 #include "utils.h"
+#include "sccp_config.h"
 
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
@@ -38,7 +39,6 @@
 AST_TEST_DEFINE(sccp_test_arguments);
 AST_TEST_DEFINE(sccp_test_null_arguments);
 
-static struct sccp_configs *sccp_config; /* global */
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
 
@@ -2933,7 +2933,7 @@ static void thread_session_cleanup(void *data)
 			ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 
 		if (session->device->destroy == 1) {
-			device_destroy(session->device, sccp_config);
+			destroy_device_config(session->device, sccp_config);
 			config_load("sccp.conf", sccp_config);
 		}
 	}

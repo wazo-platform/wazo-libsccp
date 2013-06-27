@@ -1,5 +1,7 @@
 #include <asterisk/test.h>
 
+#include "sccp_config.h"
+
 AST_TEST_DEFINE(sccp_test_resync)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
@@ -167,7 +169,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 	AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
 	transmit_reset(device->session, 2);
 	device_unregister(device);
-	device_destroy(device, sccp_cfg);
+	destroy_device_config(device, sccp_cfg);
 	config_load("/tmp/sccp.conf", sccp_cfg);
 
 
@@ -216,7 +218,7 @@ cleanup:
 	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
 	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
 
-	config_unload(sccp_cfg);
+	sccp_config_unload(sccp_cfg);
 	ast_free(sccp_cfg);
 	remove("/tmp/sccp.conf");
 
@@ -540,7 +542,7 @@ cleanup:
 	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
 	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
 
-	config_unload(sccp_cfg);
+	sccp_config_unload(sccp_cfg);
 	ast_free(sccp_cfg);
 	remove("/tmp/sccp.conf");
 
