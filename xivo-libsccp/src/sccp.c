@@ -2379,13 +2379,6 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return -1;
 	}
 
-	ast_log(LOG_DEBUG, "name %s\n", msg->data.reg.name);
-	ast_log(LOG_DEBUG, "userId %d\n", msg->data.reg.userId);
-	ast_log(LOG_DEBUG, "lineInstance %d\n", msg->data.reg.lineInstance);
-	ast_log(LOG_DEBUG, "maxStream %d\n", msg->data.reg.maxStreams);
-	ast_log(LOG_DEBUG, "activeStreams %d\n", msg->data.reg.activeStreams);
-	ast_log(LOG_DEBUG, "protoVersion %d\n", msg->data.reg.protoVersion);
-
 	ret = device_type_is_supported(msg->data.reg.type);
 	if (ret == 0) {
 		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, msg->data.reg.type);
@@ -2420,6 +2413,8 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 		return 0;
 	}
+
+	ast_verb(3, "Registered SCCP(%d) '%s' at %s\n", msg->data.reg.protoVersion, msg->data.reg.name, session->ipaddr);
 
 	msg = msg_alloc(sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
 	if (msg == NULL) {
