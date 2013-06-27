@@ -22,6 +22,8 @@
 
 #include "test_config.c"
 
+static struct sccp_configs *sccp_config;
+
 static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	struct sccp_device *device = NULL;

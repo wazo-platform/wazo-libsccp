@@ -22,8 +22,6 @@ struct sccp_configs {
 	struct list_device list_device;
 };
 
-struct sccp_configs *sccp_config; /* global settings */
-
 int sccp_config_init(struct sccp_configs **config);
 int sccp_config_destroy(struct sccp_configs **config);
 
