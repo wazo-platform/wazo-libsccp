@@ -23,14 +23,16 @@ int sccp_config_init(struct sccp_configs **config)
 	struct sccp_configs *new_config = NULL;
 
 	if (config == NULL) {
-		ast_log(LOG_ERROR, "SCCP configuration memory allocation failed\n");
+		ast_log(LOG_ERROR, "NULL address supplied to init SCCP configuration\n");
 		return -1;
 	}
 
 	new_config = ast_calloc(1, sizeof(*new_config));
 	if (new_config == NULL) {
+		ast_log(LOG_ERROR, "SCCP configuration memory allocation failed\n");
 		return -1;
 	}
+
 	AST_RWLIST_HEAD_INIT(&new_config->list_device);
 	AST_RWLIST_HEAD_INIT(&new_config->list_line);
 
@@ -52,9 +54,11 @@ int sccp_config_destroy(struct sccp_configs **config)
 	if (to_destroy == NULL) {
 		return 0;
 	}
+
 	AST_RWLIST_HEAD_DESTROY(&to_destroy->list_device);
 	AST_RWLIST_HEAD_DESTROY(&to_destroy->list_line);
 	ast_free(to_destroy);
+
 	*config = NULL;
 
 	return 0;

@@ -40,8 +40,6 @@ void device_unregister(struct sccp_device *device)
 
 	}
 	AST_RWLIST_UNLOCK(&device->lines);
-
-	return;
 }
 
 void device_register(struct sccp_device *device,
@@ -60,8 +58,6 @@ void device_register(struct sccp_device *device,
 	device->type = type;
 	device->session = session;
 	device->localip = localip;
-
-	return;
 }
 
 void device_prepare(struct sccp_device *device)
@@ -83,8 +79,6 @@ void device_prepare(struct sccp_device *device)
 		set_line_state(line_itr, SCCP_ONHOOK);
 	}
 	AST_RWLIST_UNLOCK(&device->lines);
-
-	return;
 }
 
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device)
