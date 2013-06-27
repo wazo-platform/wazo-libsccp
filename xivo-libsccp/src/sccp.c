@@ -3798,7 +3798,7 @@ void sccp_server_fini()
 	ast_free(thread_sessions);
 
 	freeaddrinfo(sccp_srv.res);
-	shutdown(sccp_srv.sockfd, SHUT_RDWR);
+	close(sccp_srv.sockfd);
 
 	ast_sched_context_destroy(sched);
 }
