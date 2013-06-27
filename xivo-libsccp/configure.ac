@@ -9,6 +9,7 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
 AC_CONFIG_SRCDIR([src/sccp.c])
 AC_CONFIG_HEADERS(config.h)
+AC_DEFINE([AST_MODULE],["chan_sccp"],[Module name])
 
 CFLAGS=-g
 AC_PROG_CC

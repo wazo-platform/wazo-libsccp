@@ -1,7 +1,9 @@
 #include <asterisk.h>
 
-#include "sccp_config.h"
 #include "device.h"
+#include "sccp_config.h"
+
+#include "../config.h"
 
 #define SCCP_DEFAULT_KEEPALIVE 10
 #define SCCP_DEFAULT_AUTH_TIMEOUT 5

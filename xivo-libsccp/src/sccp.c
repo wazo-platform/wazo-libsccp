@@ -33,6 +33,8 @@
 #include "utils.h"
 #include "sccp_config.h"
 
+#include "../config.h"
+
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
 

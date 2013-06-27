@@ -1,11 +1,7 @@
-#ifndef SCCP_CONFIG_H_
-#define SCCP_CONFIG_H_
+#ifndef SCCP_CONFIG_H
+#define SCCP_CONFIG_H
 
 #include "device.h"
-
-#ifndef AST_MODULE
-#define AST_MODULE "chan_sccp"
-#endif
 
 struct sccp_configs {
 
@@ -36,4 +32,4 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg);
 
 void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *device);
 
-#endif /* SCCP_CONFIG_H_ */
+#endif /* SCCP_CONFIG_H */
