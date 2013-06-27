@@ -40,15 +40,15 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
+		nbyte = -1;
+	} else {
+		memcpy(session->outbuf, msg, 12);
+		memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
 
-	memcpy(session->outbuf, msg, 12);
-	memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
-
-	nbyte = write(session->sockfd, session->outbuf, letohl(msg->length)+8);
-	if (nbyte == -1) {
-		ast_log(LOG_WARNING, "message transmit failed: %s\n", strerror(errno));
+		nbyte = write(session->sockfd, session->outbuf, letohl(msg->length)+8);
+		if (nbyte == -1) {
+			ast_log(LOG_WARNING, "message transmit failed: %s\n", strerror(errno));
+		}
 	}
 
 	ast_free(msg);
