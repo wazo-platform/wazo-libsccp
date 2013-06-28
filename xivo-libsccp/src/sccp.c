@@ -3492,12 +3492,84 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	return CLI_SUCCESS;
 }
 
+static void sccp_dump_session_state(int cli_fd, struct sccp_session *session)
+{
+	struct sccp_device *device = NULL;
+	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = NULL;
+
+	device = session->device;
+	ast_cli(cli_fd, "session\n");
+	ast_cli(cli_fd, "    addr: %p\n", session);
+	if (device) {
+		ast_cli(cli_fd, "    device\n");
+		ast_cli(cli_fd, "        addr: %p\n", device);
+		ast_cli(cli_fd, "        name: %s\n", device->name);
+		AST_RWLIST_TRAVERSE(&device->lines, line, list_per_device) {
+			ast_cli(cli_fd, "    line\n");
+			ast_cli(cli_fd, "        addr: %p\n", line);
+			ast_cli(cli_fd, "        instance: %u\n", line->instance);
+			ast_cli(cli_fd, "        state: %s\n", line_state_str(line->state));
+			ast_cli(cli_fd, "        serial_callid: %u\n", line->serial_callid);
+			ast_cli(cli_fd, "        active_subchan: %p\n", line->active_subchan);
+			AST_RWLIST_RDLOCK(&line->subchans);
+			AST_RWLIST_TRAVERSE(&line->subchans, subchan, list) {
+				ast_cli(cli_fd, "    subchan\n");
+				ast_cli(cli_fd, "        addr: %p\n", subchan);
+				ast_cli(cli_fd, "        id: %u\n", subchan->id);
+				ast_cli(cli_fd, "        state: %s\n", line_state_str(subchan->state));
+			}
+			AST_RWLIST_UNLOCK(&line->subchans);
+		}
+	}
+}
+
+static char *sccp_dump_state(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_session *session = NULL;
+	const char *device_name = NULL;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp dump state";
+		e->usage =
+			"Usage: sccp dump state <device>\n"
+			"       Dump session state\n";
+		return NULL;
+
+	case CLI_GENERATE:
+		if (a->pos == 3) {
+			return complete_sccp_devices(a->word, a->n, &sccp_config->list_device);
+		}
+		return NULL;
+	}
+
+	if (a->argc == 4) {
+		device_name = a->argv[3];
+	}
+
+	AST_LIST_LOCK(&list_session);
+	AST_LIST_TRAVERSE(&list_session, session, list) {
+		if (device_name) {
+			if (session->device && strcmp(session->device->name, device_name) == 0) {
+				sccp_dump_session_state(a->fd, session);
+			}
+		} else {
+			sccp_dump_session_state(a->fd, session);
+		}
+	}
+	AST_LIST_UNLOCK(&list_session);
+
+	return CLI_SUCCESS;
+}
+
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
 	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
 	AST_CLI_DEFINE(sccp_set_directmedia_on, "Turn on direct media"),
 	AST_CLI_DEFINE(sccp_set_directmedia_off, "Turn off direct media"),
+	AST_CLI_DEFINE(sccp_dump_state, "Dump session state")
 };
 
 static size_t make_thread_sessions_array(pthread_t **threads)
