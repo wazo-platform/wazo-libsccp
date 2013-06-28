@@ -615,6 +615,30 @@ int transmit_dialed_number(struct sccp_session *session, const char *extension, 
 	return 0;
 }
 
+int transmit_softkey_template_res(struct sccp_session *session)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct softkey_template_res_message), SOFTKEY_TEMPLATE_RES_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "message allocation failed\n");
+		return -1;
+	}
+
+	msg->data.softkeytemplate.softKeyOffset = htolel(0);
+	msg->data.softkeytemplate.softKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
+	msg->data.softkeytemplate.totalSoftKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
+	memcpy(msg->data.softkeytemplate.softKeyTemplateDefinition, softkey_template_default, sizeof(softkey_template_default));
+
+	ret = transmit_message(msg, session);
+	if (ret == -1) {
+		return -1;
+	}
+
+	return 0;
+}
+
 int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int callid, int softkey)
 {
 	struct sccp_msg *msg = NULL;

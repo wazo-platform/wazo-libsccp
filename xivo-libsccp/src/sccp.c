@@ -340,25 +340,13 @@ static void post_register_check(struct sccp_session *session)
 static int handle_softkey_template_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
 
 	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+		ast_log(LOG_ERROR, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct softkey_template_res_message), SOFTKEY_TEMPLATE_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.softkeytemplate.softKeyOffset = htolel(0);
-	msg->data.softkeytemplate.softKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
-	msg->data.softkeytemplate.totalSoftKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
-	memcpy(msg->data.softkeytemplate.softKeyTemplateDefinition, softkey_template_default, sizeof(softkey_template_default));
-
-	ret = transmit_message(msg, session);
+	ret = transmit_softkey_template_res(session);
 	if (ret == -1)
 		return -1;
 

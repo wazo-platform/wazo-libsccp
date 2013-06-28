@@ -10,6 +10,7 @@
 
 struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
 int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
+
 int transmit_speaker_mode(struct sccp_session *session, int mode);
 int transmit_activatecallplane(struct sccp_line *line);
 int transmit_close_receive_channel(struct sccp_line *line, uint32_t callInstance);
@@ -30,6 +31,7 @@ int transmit_reset(struct sccp_session *session, uint32_t type);
 int transmit_ringer_mode(struct sccp_session *session, int mode);
 int transmit_dialed_number(struct sccp_session *session, const char *extension, int instance, int callid);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);
+int transmit_softkey_template_res(struct sccp_session *session);
 
 #define KEEP_ALIVE_MESSAGE 0x0000
 
