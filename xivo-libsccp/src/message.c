@@ -56,31 +56,6 @@ int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	return nbyte;
 }
 
-int transmit_speaker_mode(struct sccp_session *session, int mode)
-{
-	struct sccp_msg *msg = NULL;
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct set_speaker_message), SET_SPEAKER_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.setspeaker.mode = htolel(mode);
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
 int transmit_activatecallplane(struct sccp_line *line)
 {
 	struct sccp_msg *msg = NULL;
@@ -110,6 +85,91 @@ int transmit_activatecallplane(struct sccp_line *line)
 	msg->data.activatecallplane.lineInstance = htolel(line->instance);
 
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
+			const char *to_name, const char *to_num, int line_instance, int callid, int calltype)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct call_info_message), CALL_INFO_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg allocation failed\n");
+		return -1;
+	}
+
+	ast_copy_string(msg->data.callinfo.callingPartyName, from_name ? from_name: "", sizeof(msg->data.callinfo.callingPartyName));
+	ast_copy_string(msg->data.callinfo.callingParty, from_num ? from_num: "", sizeof(msg->data.callinfo.callingParty));
+	ast_copy_string(msg->data.callinfo.calledPartyName, to_name ? to_name: "", sizeof(msg->data.callinfo.calledPartyName));
+	ast_copy_string(msg->data.callinfo.calledParty, to_num ? to_num: "", sizeof(msg->data.callinfo.calledParty));
+
+	msg->data.callinfo.lineInstance = htolel(line_instance);
+	msg->data.callinfo.callInstance = htolel(callid);
+	msg->data.callinfo.type = htolel(calltype);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_callstate(struct sccp_session *session, int line_instance, int state, uint32_t callid)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct call_state_message), CALL_STATE_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.callstate.callState = htolel(state);
+	msg->data.callstate.lineInstance = htolel(line_instance);
+	msg->data.callstate.callReference = htolel(callid);
+	msg->data.callstate.visibility = htolel(0);
+	msg->data.callstate.priority = htolel(4);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_clearmessage(struct sccp_session *session)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(0, CLEAR_NOTIFY_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg allocation failed\n");
+		return -1;
+	}
+
+	ret = transmit_message(msg, session);
 	if (ret == -1)
 		return -1;
 
@@ -147,74 +207,6 @@ int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid)
 	msg->data.closereceivechannel.conferenceId1 = htolel(callid);
 
 	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
-{
-	struct sccp_msg *msg = NULL;
-	int ret = 0;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
-
-	if (line->device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return -1;
-	}
-
-	if (line->device->session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg allocation faile\n");
-		return -1;
-	}
-
-	msg->data.stopmedia.conferenceId = htolel(callid);
-	msg->data.stopmedia.partyId = htolel(callid ^ 0xFFFFFFFF);
-	msg->data.stopmedia.conferenceId1 = htolel(callid);
-
-	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt)
-{
-	struct sccp_msg *msg = NULL;
-	int ret = 0;
-
-	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.startmedia.conferenceId = htolel(callid);
-	msg->data.startmedia.passThruPartyId = htolel(callid ^ 0xFFFFFFFF);
-	msg->data.startmedia.remoteIp = htolel(endpoint.sin_addr.s_addr);
-	msg->data.startmedia.remotePort = htolel(ntohs(endpoint.sin_port));
-	msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
-	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(&fmt.format));
-	msg->data.startmedia.qualifier.precedence = htolel(127);
-	msg->data.startmedia.qualifier.vad = htolel(0);
-	msg->data.startmedia.qualifier.packets = htolel(0);
-	msg->data.startmedia.qualifier.bitRate = htolel(0);
-	msg->data.startmedia.conferenceId1 = htolel(callid);
-	msg->data.startmedia.rtpTimeout = htolel(10);
-
-	ret = transmit_message(msg, line->device->session);
 	if (ret == -1)
 		return -1;
 
@@ -269,7 +261,7 @@ int transmit_connect(struct sccp_line *line, uint32_t callid)
 	return 0;
 }
 
-int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label)
+int transmit_dialed_number(struct sccp_session *session, const char *extension, int line_instance, int callid)
 {
 	int ret = 0;
 	struct sccp_msg *msg = NULL;
@@ -279,113 +271,21 @@ int transmit_feature_status(struct sccp_session *session, int instance, int type
 		return -1;
 	}
 
-	if (label == NULL) {
-		ast_log(LOG_DEBUG, "label is NULL\n");
+	if (extension == NULL) {
+		ast_log(LOG_DEBUG, "extension is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct feature_stat_message), FEATURE_STAT_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.featurestatus.bt_instance = htolel(instance);
-	msg->data.featurestatus.type = htolel(type);
-	msg->data.featurestatus.status = htolel(status);
-	ast_copy_string(msg->data.featurestatus.label, label, sizeof(msg->data.featurestatus.label));
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
-			const char *to_name, const char *to_num, int line_instance, int callid, int calltype)
-{
-	struct sccp_msg *msg = NULL;
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct call_info_message), CALL_INFO_MESSAGE);
+	msg = msg_alloc(sizeof(struct dialed_number_message), DIALED_NUMBER_MESSAGE);
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg allocation failed\n");
 		return -1;
 	}
 
-	ast_copy_string(msg->data.callinfo.callingPartyName, from_name ? from_name: "", sizeof(msg->data.callinfo.callingPartyName));
-	ast_copy_string(msg->data.callinfo.callingParty, from_num ? from_num: "", sizeof(msg->data.callinfo.callingParty));
-	ast_copy_string(msg->data.callinfo.calledPartyName, to_name ? to_name: "", sizeof(msg->data.callinfo.calledPartyName));
-	ast_copy_string(msg->data.callinfo.calledParty, to_num ? to_num: "", sizeof(msg->data.callinfo.calledParty));
+	ast_copy_string(msg->data.dialednumber.calledParty, extension, sizeof(msg->data.dialednumber.calledParty));
 
-	msg->data.callinfo.lineInstance = htolel(line_instance);
-	msg->data.callinfo.callInstance = htolel(callid);
-	msg->data.callinfo.type = htolel(calltype);
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-int transmit_forward_status_message(struct sccp_session *session , int line_instance, const char *extension, int status)
-{
-	struct sccp_msg *msg = NULL;
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.forwardstatus.status = htolel(status);
-	msg->data.forwardstatus.lineInstance = htolel(line_instance);
-	msg->data.forwardstatus.cfwdAllStatus = htolel(status);
-
-	ast_copy_string(msg->data.forwardstatus.cfwdAllNumber, extension,
-				sizeof(msg->data.forwardstatus.cfwdAllNumber));
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-int transmit_callstate(struct sccp_session *session, int line_instance, int state, uint32_t callid)
-{
-	struct sccp_msg *msg = NULL;
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct call_state_message), CALL_STATE_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.callstate.callState = htolel(state);
-	msg->data.callstate.lineInstance = htolel(line_instance);
-	msg->data.callstate.callReference = htolel(callid);
-	msg->data.callstate.visibility = htolel(0);
-	msg->data.callstate.priority = htolel(4);
+	msg->data.dialednumber.lineInstance = htolel(line_instance);
+	msg->data.dialednumber.callInstance = htolel(callid);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -420,21 +320,31 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	return 0;
 }
 
-int transmit_clearmessage(struct sccp_session *session)
+int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label)
 {
-	struct sccp_msg *msg = NULL;
 	int ret = 0;
+	struct sccp_msg *msg = NULL;
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(0, CLEAR_NOTIFY_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg allocation failed\n");
+	if (label == NULL) {
+		ast_log(LOG_DEBUG, "label is NULL\n");
 		return -1;
 	}
+
+	msg = msg_alloc(sizeof(struct feature_stat_message), FEATURE_STAT_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.featurestatus.bt_instance = htolel(instance);
+	msg->data.featurestatus.type = htolel(type);
+	msg->data.featurestatus.status = htolel(status);
+	ast_copy_string(msg->data.featurestatus.label, label, sizeof(msg->data.featurestatus.label));
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -443,7 +353,7 @@ int transmit_clearmessage(struct sccp_session *session)
 	return 0;
 }
 
-int transmit_stop_tone(struct sccp_session *session, int line_instance, int callid)
+int transmit_forward_status_message(struct sccp_session *session , int line_instance, const char *extension, int status)
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
@@ -453,41 +363,18 @@ int transmit_stop_tone(struct sccp_session *session, int line_instance, int call
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct stop_tone_message), STOP_TONE_MESSAGE);
+	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg allocation failed\n");
 		return -1;
 	}
 
-	msg->data.stop_tone.lineInstance = htolel(line_instance);
-	msg->data.stop_tone.callInstance = htolel(callid);
+	msg->data.forwardstatus.status = htolel(status);
+	msg->data.forwardstatus.lineInstance = htolel(line_instance);
+	msg->data.forwardstatus.cfwdAllStatus = htolel(status);
 
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
-int transmit_tone(struct sccp_session *session, int tone, int line_instance, int callid)
-{
-	struct sccp_msg *msg = NULL;
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct start_tone_message), START_TONE_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.starttone.tone = htolel(tone);
-	msg->data.starttone.lineInstance = htolel(line_instance);
-	msg->data.starttone.callInstance = htolel(callid);
+	ast_copy_string(msg->data.forwardstatus.cfwdAllNumber, extension,
+				sizeof(msg->data.forwardstatus.cfwdAllNumber));
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -582,31 +469,26 @@ int transmit_ringer_mode(struct sccp_session *session, int mode)
 	return 0;
 }
 
-int transmit_dialed_number(struct sccp_session *session, const char *extension, int line_instance, int callid)
+int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int callid, int softkey)
 {
-	int ret = 0;
 	struct sccp_msg *msg = NULL;
+	int ret = 0;
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	if (extension == NULL) {
-		ast_log(LOG_DEBUG, "extension is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct dialed_number_message), DIALED_NUMBER_MESSAGE);
+	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg allocation failed\n");
 		return -1;
 	}
 
-	ast_copy_string(msg->data.dialednumber.calledParty, extension, sizeof(msg->data.dialednumber.calledParty));
-
-	msg->data.dialednumber.lineInstance = htolel(line_instance);
-	msg->data.dialednumber.callInstance = htolel(callid);
+	msg->data.selectsoftkey.lineInstance = htolel(line_instance);
+	msg->data.selectsoftkey.callInstance = htolel(callid);
+	msg->data.selectsoftkey.softKeySetIndex = htolel(softkey);
+	msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
@@ -639,7 +521,7 @@ int transmit_softkey_template_res(struct sccp_session *session)
 	return 0;
 }
 
-int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int callid, int softkey)
+int transmit_speaker_mode(struct sccp_session *session, int mode)
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
@@ -649,16 +531,134 @@ int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
+	msg = msg_alloc(sizeof(struct set_speaker_message), SET_SPEAKER_MESSAGE);
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg allocation failed\n");
 		return -1;
 	}
 
-	msg->data.selectsoftkey.lineInstance = htolel(line_instance);
-	msg->data.selectsoftkey.callInstance = htolel(callid);
-	msg->data.selectsoftkey.softKeySetIndex = htolel(softkey);
-	msg->data.selectsoftkey.validKeyMask = htolel(0xFFFFFFFF);
+	msg->data.setspeaker.mode = htolel(mode);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.startmedia.conferenceId = htolel(callid);
+	msg->data.startmedia.passThruPartyId = htolel(callid ^ 0xFFFFFFFF);
+	msg->data.startmedia.remoteIp = htolel(endpoint.sin_addr.s_addr);
+	msg->data.startmedia.remotePort = htolel(ntohs(endpoint.sin_port));
+	msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
+	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(&fmt.format));
+	msg->data.startmedia.qualifier.precedence = htolel(127);
+	msg->data.startmedia.qualifier.vad = htolel(0);
+	msg->data.startmedia.qualifier.packets = htolel(0);
+	msg->data.startmedia.qualifier.bitRate = htolel(0);
+	msg->data.startmedia.conferenceId1 = htolel(callid);
+	msg->data.startmedia.rtpTimeout = htolel(10);
+
+	ret = transmit_message(msg, line->device->session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return -1;
+	}
+
+	if (line->device == NULL) {
+		ast_log(LOG_DEBUG, "device is NULL\n");
+		return -1;
+	}
+
+	if (line->device->session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg allocation faile\n");
+		return -1;
+	}
+
+	msg->data.stopmedia.conferenceId = htolel(callid);
+	msg->data.stopmedia.partyId = htolel(callid ^ 0xFFFFFFFF);
+	msg->data.stopmedia.conferenceId1 = htolel(callid);
+
+	ret = transmit_message(msg, (struct sccp_session *)line->device->session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_stop_tone(struct sccp_session *session, int line_instance, int callid)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct stop_tone_message), STOP_TONE_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.stop_tone.lineInstance = htolel(line_instance);
+	msg->data.stop_tone.callInstance = htolel(callid);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_tone(struct sccp_session *session, int tone, int line_instance, int callid)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct start_tone_message), START_TONE_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_DEBUG, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.starttone.tone = htolel(tone);
+	msg->data.starttone.lineInstance = htolel(line_instance);
+	msg->data.starttone.callInstance = htolel(callid);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)

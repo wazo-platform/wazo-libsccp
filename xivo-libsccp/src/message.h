@@ -11,27 +11,26 @@
 struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
 int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 
-int transmit_speaker_mode(struct sccp_session *session, int mode);
 int transmit_activatecallplane(struct sccp_line *line);
-int transmit_close_receive_channel(struct sccp_line *line, uint32_t callInstance);
-int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callInstance);
-int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt);
-int transmit_connect(struct sccp_line *line, uint32_t callInstance);
-int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label);
-int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
-			const char *to_name, const char *to_num, int lineInstance, int callInstance, int calltype);
-int transmit_forward_status_message(struct sccp_session *session , int instance, const char *extension, int status);
+int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num, const char *to_name, const char *to_num, int lineInstance, int callInstance, int calltype);
 int transmit_callstate(struct sccp_session *session, int lineInstance, int state, unsigned callInstance);
-int transmit_displaymessage(struct sccp_session *session, const char *text);
 int transmit_clearmessage(struct sccp_session *session);
-int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
+int transmit_close_receive_channel(struct sccp_line *line, uint32_t callInstance);
+int transmit_connect(struct sccp_line *line, uint32_t callInstance);
+int transmit_dialed_number(struct sccp_session *session, const char *extension, int instance, int callid);
+int transmit_displaymessage(struct sccp_session *session, const char *text);
+int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label);
+int transmit_forward_status_message(struct sccp_session *session , int instance, const char *extension, int status);
 int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, int state);
-int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
 int transmit_reset(struct sccp_session *session, uint32_t type);
 int transmit_ringer_mode(struct sccp_session *session, int mode);
-int transmit_dialed_number(struct sccp_session *session, const char *extension, int instance, int callid);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);
 int transmit_softkey_template_res(struct sccp_session *session);
+int transmit_speaker_mode(struct sccp_session *session, int mode);
+int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt);
+int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callInstance);
+int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
+int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
 
 #define KEEP_ALIVE_MESSAGE 0x0000
 
