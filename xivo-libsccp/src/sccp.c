@@ -3854,18 +3854,25 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	ret = bind(sccp_srv.sockfd, sccp_srv.res->ai_addr, sccp_srv.res->ai_addrlen);
 	if (ret == -1) {
 		ast_log(LOG_ERROR, "Failed to bind socket: %s\n", strerror(errno));
+		freeaddrinfo(sccp_srv.res);
+		close(sccp_srv.sockfd);
 		return -1;
 	}
 
 	ret = listen(sccp_srv.sockfd, SCCP_BACKLOG);
 	if (ret == -1) {
 		ast_log(LOG_ERROR, "Failed to listen socket: %s\n", strerror(errno));
+		freeaddrinfo(sccp_srv.res);
+		close(sccp_srv.sockfd);
 		return -1;
 	}
 
 	sched = ast_sched_context_create();
 	if (sched == NULL) {
 		ast_log(LOG_ERROR, "Unable to create schedule context\n");
+		freeaddrinfo(sccp_srv.res);
+		close(sccp_srv.sockfd);
+		return -1;
 	}
 
 	ast_channel_register(&sccp_tech);
