@@ -2172,6 +2172,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 {
 	int ret = 0;
 	uint32_t device_type = 0;
+	uint8_t proto_version = 0;
 	char device_name[16];
 
 	if (msg == NULL) {
@@ -2207,45 +2208,11 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return 0;
 	}
 
-	ast_verb(3, "Registered SCCP(%d) '%s' at %s\n", msg->data.reg.protoVersion, device_name, session->ipaddr);
+	proto_version = msg->data.reg.protoVersion;
 
-	msg = msg_alloc(sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
+	ast_verb(3, "Registered SCCP(%d) '%s' at %s\n", proto_version, device_name, session->ipaddr);
 
-	msg->data.regack.keepAlive = htolel(sccp_config->keepalive);
-	memcpy(msg->data.regack.dateTemplate, sccp_config->dateformat, sizeof(msg->data.regack.dateTemplate));
-
-	if (session->device->protoVersion <= 3) {
-
-		msg->data.regack.protoVersion = 3;
-
-		msg->data.regack.unknown1 = 0x00;
-		msg->data.regack.unknown2 = 0x00;
-		msg->data.regack.unknown3 = 0x00;
-
-	} else if (session->device->protoVersion <= 10) {
-
-		msg->data.regack.protoVersion = session->device->protoVersion;
-
-		msg->data.regack.unknown1 = 0x20;
-		msg->data.regack.unknown2 = 0x00;
-		msg->data.regack.unknown3 = 0xFE;
-
-	} else if (session->device->protoVersion >= 11) {
-
-		msg->data.regack.protoVersion = 11;
-
-		msg->data.regack.unknown1 = 0x20;
-		msg->data.regack.unknown2 = 0xF1;
-		msg->data.regack.unknown3 = 0xFF;
-	}
-
-	msg->data.regack.secondaryKeepAlive = htolel(sccp_config->keepalive);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_register_ack(session, proto_version, sccp_config->keepalive, sccp_config->dateformat);
 	if (ret == -1)
 		return -1;
 

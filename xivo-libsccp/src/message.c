@@ -609,6 +609,58 @@ int transmit_line_status_res(struct sccp_session *session, int lineInstance, str
 	return 0;
 }
 
+int transmit_register_ack(struct sccp_session *session, uint8_t protoVersion, int keepalive, char *dateFormat)
+{
+	int ret = 0;
+	struct sccp_msg *msg = NULL;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.regack.keepAlive = htolel(keepalive);
+	msg->data.regack.secondaryKeepAlive = htolel(keepalive);
+	ast_copy_string(msg->data.regack.dateTemplate, dateFormat, sizeof(msg->data.regack.dateTemplate));
+
+	if (protoVersion <= 3) {
+
+		msg->data.regack.protoVersion = 3;
+
+		msg->data.regack.unknown1 = 0x00;
+		msg->data.regack.unknown2 = 0x00;
+		msg->data.regack.unknown3 = 0x00;
+
+	} else if (protoVersion <= 10) {
+
+		msg->data.regack.protoVersion = protoVersion;
+
+		msg->data.regack.unknown1 = 0x20;
+		msg->data.regack.unknown2 = 0x00;
+		msg->data.regack.unknown3 = 0xFE;
+
+	} else if (protoVersion >= 11) {
+
+		msg->data.regack.protoVersion = 11;
+
+		msg->data.regack.unknown1 = 0x20;
+		msg->data.regack.unknown2 = 0xF1;
+		msg->data.regack.unknown3 = 0xFF;
+	}
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_register_rej(struct sccp_session *session, const char *errorMessage)
 {
 	int ret = 0;
