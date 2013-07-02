@@ -609,6 +609,30 @@ int transmit_line_status_res(struct sccp_session *session, int lineInstance, str
 	return 0;
 }
 
+int transmit_register_rej(struct sccp_session *session, const char *errorMessage)
+{
+	int ret = 0;
+	struct sccp_msg *msg = NULL;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	ast_copy_string(msg->data.regrej.errMsg, errorMessage, sizeof(msg->data.regrej.errMsg));
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_reset(struct sccp_session *session, uint32_t type)
 {
 	struct sccp_msg *msg = NULL;

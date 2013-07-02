@@ -2172,6 +2172,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 {
 	int ret = 0;
 	uint32_t device_type = 0;
+	char device_name[16];
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -2184,17 +2185,12 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	}
 
 	device_type = letohl(msg->data.reg.type);
+	ast_copy_string(device_name, msg->data.reg.name, sizeof(device_name));
+
 	ret = device_type_is_supported(device_type);
 	if (ret == 0) {
-		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, device_type);
-		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
-
-		if (msg == NULL) {
-			return -1;
-		}
-
-		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Unsupported device type [%d]\n", device_type);
-		ret = transmit_message(msg, session);
+		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", device_name, device_type);
+		ret = transmit_register_rej(session, "Unsupported device type\n");
 		if (ret == -1)
 			return -1;
 
@@ -2203,23 +2199,15 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 	ret = register_device(msg, session);
 	if (ret <= 0) {
-		ast_log(LOG_ERROR, "Rejecting device [%s]\n", msg->data.reg.name);
-		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
-
-		if (msg == NULL) {
-			ast_log(LOG_ERROR, "msg allocation failed\n");
-			return -1;
-		}
-
-		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Access denied [%s]\n", msg->data.reg.name);
-		ret = transmit_message(msg, session);
+		ast_log(LOG_ERROR, "Rejecting device [%s]\n", device_name);
+		ret = transmit_register_rej(session, "Access denied\n");
 		if (ret == -1)
 			return -1;
 
 		return 0;
 	}
 
-	ast_verb(3, "Registered SCCP(%d) '%s' at %s\n", msg->data.reg.protoVersion, msg->data.reg.name, session->ipaddr);
+	ast_verb(3, "Registered SCCP(%d) '%s' at %s\n", msg->data.reg.protoVersion, device_name, session->ipaddr);
 
 	msg = msg_alloc(sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
 	if (msg == NULL) {
