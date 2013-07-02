@@ -2745,7 +2745,7 @@ static void *thread_accept(void *data)
 		setsockopt(new_sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay));
 
 		/* session constructor */
-		session = ast_calloc(1, sizeof(struct sccp_session));
+		session = ast_calloc(1, sizeof(*session));
 		if (session == NULL) {
 			ast_log(LOG_ERROR, "Failed to allocate new session, "
 						"the main thread is going down now\n");
