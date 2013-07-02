@@ -97,6 +97,7 @@ def _build_make_script():
 def _build_rsync_script(host, directory):
     return '''
 rsync -vrtlp \
+    --include config_undef.h \
     --include configure.ac \
     --include Makefile.am \
     --include /src \
