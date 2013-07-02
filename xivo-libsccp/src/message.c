@@ -10,7 +10,10 @@
 #include "sccp.h"
 #include "utils.h"
 
-struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id)
+static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
+static struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
+
+static struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -29,7 +32,7 @@ struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id)
 	return msg;
 }
 
-int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
+static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	ssize_t nbyte = 0;
 
