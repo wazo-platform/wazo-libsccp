@@ -2171,6 +2171,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
+	uint32_t device_type = 0;
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -2182,16 +2183,17 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return -1;
 	}
 
-	ret = device_type_is_supported(msg->data.reg.type);
+	device_type = letohl(msg->data.reg.type);
+	ret = device_type_is_supported(device_type);
 	if (ret == 0) {
-		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, msg->data.reg.type);
+		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, device_type);
 		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
 
 		if (msg == NULL) {
 			return -1;
 		}
 
-		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Unsupported device type [%d]\n", msg->data.reg.type);
+		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Unsupported device type [%d]\n", device_type);
 		ret = transmit_message(msg, session);
 		if (ret == -1)
 			return -1;
