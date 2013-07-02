@@ -2092,7 +2092,7 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 
 	speeddial = device_get_speeddial_by_index(session->device, index);
 	if (speeddial == NULL) {
-		ast_log(LOG_DEBUG, "No speeddial [%d] on device [%s]\n", index, session->device->name);
+		ast_debug(2, "No speeddial [%d] on device [%s]\n", index, session->device->name);
 		return 0;
 	}
 
