@@ -2096,18 +2096,7 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 		return 0;
 	}
 
-	msg = msg_alloc(sizeof(struct speeddial_stat_res_message), SPEEDDIAL_STAT_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.speeddialstatus.instance = letohl(index);
-
-	memcpy(msg->data.speeddialstatus.extension, speeddial->extension, sizeof(msg->data.speeddialstatus.extension));
-	memcpy(msg->data.speeddialstatus.label, speeddial->label, sizeof(msg->data.speeddialstatus.label));
-
-	ret = transmit_message(msg, session);
+	ret = transmit_speeddial_stat_res(session, index, speeddial);
 	if (ret == -1)
 		return -1;
 

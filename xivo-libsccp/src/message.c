@@ -669,6 +669,38 @@ int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int
 	return 0;
 }
 
+int transmit_speeddial_stat_res(struct sccp_session *session, int index, struct sccp_speeddial *speeddial)
+{
+	int ret = 0;
+	struct sccp_msg *msg = NULL;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	if (speeddial == NULL) {
+		return 0;
+	}
+
+	msg = msg_alloc(sizeof(struct speeddial_stat_res_message), SPEEDDIAL_STAT_RES_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.speeddialstatus.instance = letohl(index);
+
+	memcpy(msg->data.speeddialstatus.extension, speeddial->extension, sizeof(msg->data.speeddialstatus.extension));
+	memcpy(msg->data.speeddialstatus.label, speeddial->label, sizeof(msg->data.speeddialstatus.label));
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_softkey_set_res(struct sccp_session *session)
 {
 	int ret = 0;
