@@ -539,6 +539,50 @@ int transmit_lamp_state(struct sccp_session *session, int stimulus, int line_ins
 	return 0;
 }
 
+int transmit_line_status_res(struct sccp_session *session, int lineInstance, struct sccp_line *line)
+{
+	int ret = 0;
+	struct sccp_msg *msg = NULL;
+	char *displayname = NULL;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "Line instance [%d] is not attached to device [%s]\n", lineInstance, session->device->name);
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct line_status_res_message), LINE_STATUS_RES_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.linestatus.lineNumber = letohl(lineInstance);
+
+	if (line->device->protoVersion <= 11) {
+		displayname = utf8_to_iso88591(line->cid_name);
+	}
+
+	ast_copy_string(msg->data.linestatus.lineDirNumber, line->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
+	if (displayname)
+		ast_copy_string(msg->data.linestatus.lineDisplayName, displayname, sizeof(msg->data.linestatus.lineDisplayName));
+	else
+		ast_copy_string(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
+	ast_copy_string(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
+
+	free(displayname);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_reset(struct sccp_session *session, uint32_t type)
 {
 	struct sccp_msg *msg = NULL;

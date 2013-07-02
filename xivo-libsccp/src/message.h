@@ -25,6 +25,7 @@ int transmit_feature_status(struct sccp_session *session, int instance, int type
 int transmit_forward_status_message(struct sccp_session *session, int instance, const char *extension, int status);
 int transmit_keep_alive_ack(struct sccp_session *session);
 int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, int state);
+int transmit_line_status_res(struct sccp_session *session, int lineInstance, struct sccp_line *line);
 int transmit_reset(struct sccp_session *session, uint32_t type);
 int transmit_ringer_mode(struct sccp_session *session, int mode);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);

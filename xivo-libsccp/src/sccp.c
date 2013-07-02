@@ -74,7 +74,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
 static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
 static void thread_session_cleanup(void *data);
-static char *utf8_to_iso88591(char *to_convert);
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 				struct sccp_subchannel *subchan, struct sccp_session *session);
 static size_t make_thread_sessions_array(pthread_t **threads);
@@ -1881,7 +1880,7 @@ static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_
 	}
 }
 
-static char *utf8_to_iso88591(char *to_convert)
+char *utf8_to_iso88591(char *to_convert)
 {
 	iconv_t cd;
 
@@ -2157,28 +2156,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct line_status_res_message), LINE_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.linestatus.lineNumber = letohl(line_instance);
-
-	if (line->device->protoVersion <= 11) {
-		displayname = utf8_to_iso88591(line->cid_name);
-	}
-
-	ast_copy_string(msg->data.linestatus.lineDirNumber, line->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
-	if (displayname)
-		ast_copy_string(msg->data.linestatus.lineDisplayName, displayname, sizeof(msg->data.linestatus.lineDisplayName));
-	else
-		ast_copy_string(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
-	ast_copy_string(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
-
-	free(displayname);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_line_status_res(session, line_instance, line);
 	if (ret == -1)
 		return -1;
 
