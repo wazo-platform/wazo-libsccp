@@ -372,40 +372,13 @@ static int handle_config_status_req_message(struct sccp_session *session)
 static int handle_time_date_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
-	time_t now = 0;
-	struct tm *cmtime = NULL;
-	time_t systime = 0;
-
-	systime = time(0); /* + tz_offset * 3600 */
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct time_date_res_message), DATE_TIME_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	now = time(NULL);
-	cmtime = localtime(&now);
-	if (cmtime == NULL)
-		return -1;
-
-	msg->data.timedate.year = htolel(cmtime->tm_year + 1900);
-	msg->data.timedate.month = htolel(cmtime->tm_mon + 1);
-	msg->data.timedate.dayOfWeek = htolel(cmtime->tm_wday);
-	msg->data.timedate.day = htolel(cmtime->tm_mday);
-	msg->data.timedate.hour = htolel(cmtime->tm_hour);
-	msg->data.timedate.minute = htolel(cmtime->tm_min);
-	msg->data.timedate.seconds = htolel(cmtime->tm_sec);
-	msg->data.timedate.milliseconds = htolel(0);
-	msg->data.timedate.systemTime = htolel(systime);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_time_date_res(session);
 	if (ret == -1)
 		return -1;
 

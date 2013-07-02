@@ -18,6 +18,7 @@ int transmit_clearmessage(struct sccp_session *session);
 int transmit_close_receive_channel(struct sccp_line *line, uint32_t callInstance);
 int transmit_config_status_res(struct sccp_session *session);
 int transmit_connect(struct sccp_line *line, uint32_t callInstance);
+int transmit_time_date_res(struct sccp_session *session);
 int transmit_dialed_number(struct sccp_session *session, const char *extension, int instance, int callid);
 int transmit_displaymessage(struct sccp_session *session, const char *text);
 int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label);
