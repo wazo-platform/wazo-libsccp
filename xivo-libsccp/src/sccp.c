@@ -404,20 +404,8 @@ static int handle_button_template_req_message(struct sccp_session *session)
 static int handle_keep_alive_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(0, KEEP_ALIVE_ACK_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	ret = transmit_message(msg, session);
+	ret = transmit_keep_alive_ack(session);
 	if (ret == -1)
 		return -1;
 

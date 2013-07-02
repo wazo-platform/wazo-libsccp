@@ -502,7 +502,7 @@ int transmit_feature_status(struct sccp_session *session, int instance, int type
 	return 0;
 }
 
-int transmit_forward_status_message(struct sccp_session *session , int line_instance, const char *extension, int status)
+int transmit_forward_status_message(struct sccp_session *session, int line_instance, const char *extension, int status)
 {
 	struct sccp_msg *msg = NULL;
 	int ret = 0;
@@ -524,6 +524,29 @@ int transmit_forward_status_message(struct sccp_session *session , int line_inst
 
 	ast_copy_string(msg->data.forwardstatus.cfwdAllNumber, extension,
 				sizeof(msg->data.forwardstatus.cfwdAllNumber));
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_keep_alive_ack(struct sccp_session *session)
+{
+	int ret = 0;
+	struct sccp_msg *msg = NULL;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(0, KEEP_ALIVE_ACK_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
