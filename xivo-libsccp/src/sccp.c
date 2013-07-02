@@ -74,7 +74,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
 static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
 static void thread_session_cleanup(void *data);
-static char *utf8_to_iso88591(char *to_convert);
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 				struct sccp_subchannel *subchan, struct sccp_session *session);
 static size_t make_thread_sessions_array(pthread_t **threads);
@@ -340,25 +339,13 @@ static void post_register_check(struct sccp_session *session)
 static int handle_softkey_template_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
 
 	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+		ast_log(LOG_ERROR, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct softkey_template_res_message), SOFTKEY_TEMPLATE_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.softkeytemplate.softKeyOffset = htolel(0);
-	msg->data.softkeytemplate.softKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
-	msg->data.softkeytemplate.totalSoftKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
-	memcpy(msg->data.softkeytemplate.softKeyTemplateDefinition, softkey_template_default, sizeof(softkey_template_default));
-
-	ret = transmit_message(msg, session);
+	ret = transmit_softkey_template_res(session);
 	if (ret == -1)
 		return -1;
 
@@ -368,26 +355,13 @@ static int handle_softkey_template_req_message(struct sccp_session *session)
 static int handle_config_status_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct config_status_res_message), CONFIG_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	memcpy(msg->data.configstatus.deviceName, session->device->name, sizeof(msg->data.configstatus.deviceName));
-	msg->data.configstatus.stationUserId = htolel(0);
-	msg->data.configstatus.stationInstance = htolel(1);
-	msg->data.configstatus.numberLines = htolel(session->device->line_count);
-	msg->data.configstatus.numberSpeedDials = htolel(session->device->speeddial_count);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_config_status_res(session);
 	if (ret == -1)
 		return -1;
 
@@ -397,40 +371,13 @@ static int handle_config_status_req_message(struct sccp_session *session)
 static int handle_time_date_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
-	time_t now = 0;
-	struct tm *cmtime = NULL;
-	time_t systime = 0;
-
-	systime = time(0); /* + tz_offset * 3600 */
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct time_date_res_message), DATE_TIME_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	now = time(NULL);
-	cmtime = localtime(&now);
-	if (cmtime == NULL)
-		return -1;
-
-	msg->data.timedate.year = htolel(cmtime->tm_year + 1900);
-	msg->data.timedate.month = htolel(cmtime->tm_mon + 1);
-	msg->data.timedate.dayOfWeek = htolel(cmtime->tm_wday);
-	msg->data.timedate.day = htolel(cmtime->tm_mday);
-	msg->data.timedate.hour = htolel(cmtime->tm_hour);
-	msg->data.timedate.minute = htolel(cmtime->tm_min);
-	msg->data.timedate.seconds = htolel(cmtime->tm_sec);
-	msg->data.timedate.milliseconds = htolel(0);
-	msg->data.timedate.systemTime = htolel(systime);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_time_date_res(session);
 	if (ret == -1)
 		return -1;
 
@@ -440,74 +387,13 @@ static int handle_time_date_req_message(struct sccp_session *session)
 static int handle_button_template_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
-	int active_button_count = 0;
-	int device_button_count = 0;
-	uint32_t line_instance = 1;
-	struct sccp_line *line_itr = NULL;
-	struct sccp_speeddial *speeddial_itr = NULL;
-	int button_set = 0;
-	int i = 0;
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct button_template_res_message), BUTTON_TEMPLATE_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	device_button_count = device_get_button_count(session->device);
-	if (device_button_count == -1)
-		return -1;
-
-	for (i = 0; i < device_button_count; i++) {
-		button_set = 0;
-
-		msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
-		msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
-
-		AST_RWLIST_RDLOCK(&session->device->lines);
-		AST_RWLIST_TRAVERSE(&session->device->lines, line_itr, list_per_device) {
-			if (line_itr->instance == line_instance) {
-				msg->data.buttontemplate.definition[i].buttonDefinition = BT_LINE;
-				msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
-
-				line_instance++;
-				active_button_count++;
-				button_set = 1;
-			}
-		}
-		AST_RWLIST_UNLOCK(&session->device->lines);
-
-		if (button_set != 1) {
-			AST_RWLIST_RDLOCK(&session->device->speeddials);
-			AST_RWLIST_TRAVERSE(&session->device->speeddials, speeddial_itr, list_per_device) {
-				if (speeddial_itr->instance == line_instance) {
-					msg->data.buttontemplate.definition[i].buttonDefinition = STIMULUS_FEATUREBUTTON;
-					msg->data.buttontemplate.definition[i].lineInstance = htolel(line_instance);
-
-					line_instance++;
-					active_button_count++;
-				}
-			}
-			AST_RWLIST_UNLOCK(&session->device->speeddials);
-		}
-	}
-
-	for (; i < 42; i++) {
-		msg->data.buttontemplate.definition[i].buttonDefinition = BT_NONE;
-		msg->data.buttontemplate.definition[i].lineInstance = htolel(0);
-	}
-
-	msg->data.buttontemplate.buttonOffset = htolel(0);
-	msg->data.buttontemplate.buttonCount = htolel(active_button_count);
-	msg->data.buttontemplate.totalButtonCount = htolel(active_button_count);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_button_template_res(session);
 	if (ret == -1)
 		return -1;
 
@@ -517,20 +403,8 @@ static int handle_button_template_req_message(struct sccp_session *session)
 static int handle_keep_alive_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(0, KEEP_ALIVE_ACK_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	ret = transmit_message(msg, session);
+	ret = transmit_keep_alive_ack(session);
 	if (ret == -1)
 		return -1;
 
@@ -1937,42 +1811,13 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 static int handle_softkey_set_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	const struct softkey_definitions *softkeymode = softkey_default_definitions;
-	struct sccp_msg *msg = NULL;
-	int keyset_count = 0;
-	int i = 0;
-	int j = 0;
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	keyset_count = sizeof(softkey_default_definitions) / sizeof(struct softkey_definitions);
-
-	msg->data.softkeysets.softKeySetOffset = htolel(0);
-	msg->data.softkeysets.softKeySetCount = htolel(keyset_count);
-	msg->data.softkeysets.totalSoftKeySetCount = htolel(keyset_count);
-
-	for (i = 0; i < keyset_count; i++) {
-
-		for (j = 0; j < softkeymode->count; j++) {
-			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyTemplateIndex[j]
-				= htolel(softkeymode->defaults[j]);
-
-			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyInfoIndex[j]
-				= htolel(softkeymode->defaults[j]);
-		}
-		softkeymode++;
-	}
-
-	ret = transmit_message(msg, session);
+	ret = transmit_softkey_set_res(session);
 	if (ret == -1)
 		return -1;
 
@@ -2038,7 +1883,7 @@ static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_
 	}
 }
 
-static char *utf8_to_iso88591(char *to_convert)
+char *utf8_to_iso88591(char *to_convert)
 {
 	iconv_t cd;
 
@@ -2249,22 +2094,11 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 
 	speeddial = device_get_speeddial_by_index(session->device, index);
 	if (speeddial == NULL) {
-		ast_log(LOG_DEBUG, "No speeddial [%d] on device [%s]\n", index, session->device->name);
+		ast_debug(2, "No speeddial [%d] on device [%s]\n", index, session->device->name);
 		return 0;
 	}
 
-	msg = msg_alloc(sizeof(struct speeddial_stat_res_message), SPEEDDIAL_STAT_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.speeddialstatus.instance = letohl(index);
-
-	memcpy(msg->data.speeddialstatus.extension, speeddial->extension, sizeof(msg->data.speeddialstatus.extension));
-	memcpy(msg->data.speeddialstatus.label, speeddial->label, sizeof(msg->data.speeddialstatus.label));
-
-	ret = transmit_message(msg, session);
+	ret = transmit_speeddial_stat_res(session, index, speeddial);
 	if (ret == -1)
 		return -1;
 
@@ -2304,7 +2138,6 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 {
 	int ret = 0;
 	int line_instance = 0;
-	char *displayname = NULL;
 	struct sccp_line *line = NULL;
 
 	if (msg == NULL) {
@@ -2325,41 +2158,11 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct line_status_res_message), LINE_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.linestatus.lineNumber = letohl(line_instance);
-
-	if (line->device->protoVersion <= 11) {
-		displayname = utf8_to_iso88591(line->cid_name);
-	}
-
-	ast_copy_string(msg->data.linestatus.lineDirNumber, line->cid_num, sizeof(msg->data.linestatus.lineDirNumber));
-	if (displayname)
-		ast_copy_string(msg->data.linestatus.lineDisplayName, displayname, sizeof(msg->data.linestatus.lineDisplayName));
-	else
-		ast_copy_string(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
-	ast_copy_string(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
-
-	free(displayname);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_line_status_res(session, line_instance, line);
 	if (ret == -1)
 		return -1;
 
-	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.forwardstatus.status = 0;
-	msg->data.forwardstatus.lineInstance = htolel(line_instance);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_forward_status_res(session, line_instance);
 	if (ret == -1)
 		return -1;
 
@@ -2371,6 +2174,9 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
+	uint32_t device_type = 0;
+	uint8_t proto_version = 0;
+	char device_name[16];
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -2382,17 +2188,13 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return -1;
 	}
 
-	ret = device_type_is_supported(msg->data.reg.type);
+	device_type = letohl(msg->data.reg.type);
+	ast_copy_string(device_name, msg->data.reg.name, sizeof(device_name));
+
+	ret = device_type_is_supported(device_type);
 	if (ret == 0) {
-		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, msg->data.reg.type);
-		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
-
-		if (msg == NULL) {
-			return -1;
-		}
-
-		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Unsupported device type [%d]\n", msg->data.reg.type);
-		ret = transmit_message(msg, session);
+		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", device_name, device_type);
+		ret = transmit_register_rej(session, "Unsupported device type\n");
 		if (ret == -1)
 			return -1;
 
@@ -2401,71 +2203,23 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 	ret = register_device(msg, session);
 	if (ret <= 0) {
-		ast_log(LOG_ERROR, "Rejecting device [%s]\n", msg->data.reg.name);
-		msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
-
-		if (msg == NULL) {
-			ast_log(LOG_ERROR, "msg allocation failed\n");
-			return -1;
-		}
-
-		snprintf(msg->data.regrej.errMsg, sizeof(msg->data.regrej.errMsg), "Access denied [%s]\n", msg->data.reg.name);
-		ret = transmit_message(msg, session);
+		ast_log(LOG_ERROR, "Rejecting device [%s]\n", device_name);
+		ret = transmit_register_rej(session, "Access denied\n");
 		if (ret == -1)
 			return -1;
 
 		return 0;
 	}
 
-	ast_verb(3, "Registered SCCP(%d) '%s' at %s\n", msg->data.reg.protoVersion, msg->data.reg.name, session->ipaddr);
+	proto_version = msg->data.reg.protoVersion;
 
-	msg = msg_alloc(sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
+	ast_verb(3, "Registered SCCP(%d) '%s' at %s\n", proto_version, device_name, session->ipaddr);
 
-	msg->data.regack.keepAlive = htolel(sccp_config->keepalive);
-	memcpy(msg->data.regack.dateTemplate, sccp_config->dateformat, sizeof(msg->data.regack.dateTemplate));
-
-	if (session->device->protoVersion <= 3) {
-
-		msg->data.regack.protoVersion = 3;
-
-		msg->data.regack.unknown1 = 0x00;
-		msg->data.regack.unknown2 = 0x00;
-		msg->data.regack.unknown3 = 0x00;
-
-	} else if (session->device->protoVersion <= 10) {
-
-		msg->data.regack.protoVersion = session->device->protoVersion;
-
-		msg->data.regack.unknown1 = 0x20;
-		msg->data.regack.unknown2 = 0x00;
-		msg->data.regack.unknown3 = 0xFE;
-
-	} else if (session->device->protoVersion >= 11) {
-
-		msg->data.regack.protoVersion = 11;
-
-		msg->data.regack.unknown1 = 0x20;
-		msg->data.regack.unknown2 = 0xF1;
-		msg->data.regack.unknown3 = 0xFF;
-	}
-
-	msg->data.regack.secondaryKeepAlive = htolel(sccp_config->keepalive);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_register_ack(session, proto_version, sccp_config->keepalive, sccp_config->dateformat);
 	if (ret == -1)
 		return -1;
 
-	msg = msg_alloc(0, CAPABILITIES_REQ_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	ret = transmit_message(msg, session);
+	ret = transmit_capabilities_req(session);
 	if (ret == -1)
 		return -1;
 
