@@ -367,49 +367,6 @@ int transmit_connect(struct sccp_line *line, uint32_t callid)
 	return 0;
 }
 
-int transmit_time_date_res(struct sccp_session *session)
-{
-	int ret = 0;
-	struct sccp_msg *msg = NULL;
-	time_t systime = time(0);  /* + tz_offset * 3600 */
-	time_t now = 0;
-	struct tm *cmtime = NULL;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	now = time(NULL);
-	cmtime = localtime(&now);
-	if (cmtime == NULL) {
-		ast_log(LOG_ERROR, "local time initialisation failed\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct time_date_res_message), DATE_TIME_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.timedate.year = htolel(cmtime->tm_year + 1900);
-	msg->data.timedate.month = htolel(cmtime->tm_mon + 1);
-	msg->data.timedate.dayOfWeek = htolel(cmtime->tm_wday);
-	msg->data.timedate.day = htolel(cmtime->tm_mday);
-	msg->data.timedate.hour = htolel(cmtime->tm_hour);
-	msg->data.timedate.minute = htolel(cmtime->tm_min);
-	msg->data.timedate.seconds = htolel(cmtime->tm_sec);
-	msg->data.timedate.milliseconds = htolel(0);
-	msg->data.timedate.systemTime = htolel(systime);
-
-	ret = transmit_message(msg, session);
-	if (ret == -1)
-		return -1;
-
-	return 0;
-}
-
 int transmit_dialed_number(struct sccp_session *session, const char *extension, int line_instance, int callid)
 {
 	int ret = 0;
@@ -881,6 +838,49 @@ int transmit_stop_tone(struct sccp_session *session, int line_instance, int call
 
 	msg->data.stop_tone.lineInstance = htolel(line_instance);
 	msg->data.stop_tone.callInstance = htolel(callid);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
+int transmit_time_date_res(struct sccp_session *session)
+{
+	int ret = 0;
+	struct sccp_msg *msg = NULL;
+	time_t systime = time(0);  /* + tz_offset * 3600 */
+	time_t now = 0;
+	struct tm *cmtime = NULL;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	now = time(NULL);
+	cmtime = localtime(&now);
+	if (cmtime == NULL) {
+		ast_log(LOG_ERROR, "local time initialisation failed\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct time_date_res_message), DATE_TIME_RES_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.timedate.year = htolel(cmtime->tm_year + 1900);
+	msg->data.timedate.month = htolel(cmtime->tm_mon + 1);
+	msg->data.timedate.dayOfWeek = htolel(cmtime->tm_wday);
+	msg->data.timedate.day = htolel(cmtime->tm_mday);
+	msg->data.timedate.hour = htolel(cmtime->tm_hour);
+	msg->data.timedate.minute = htolel(cmtime->tm_min);
+	msg->data.timedate.seconds = htolel(cmtime->tm_sec);
+	msg->data.timedate.milliseconds = htolel(0);
+	msg->data.timedate.systemTime = htolel(systime);
 
 	ret = transmit_message(msg, session);
 	if (ret == -1)
