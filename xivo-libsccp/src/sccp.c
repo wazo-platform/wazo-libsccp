@@ -356,26 +356,13 @@ static int handle_softkey_template_req_message(struct sccp_session *session)
 static int handle_config_status_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	struct sccp_msg *msg = NULL;
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct config_status_res_message), CONFIG_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	memcpy(msg->data.configstatus.deviceName, session->device->name, sizeof(msg->data.configstatus.deviceName));
-	msg->data.configstatus.stationUserId = htolel(0);
-	msg->data.configstatus.stationInstance = htolel(1);
-	msg->data.configstatus.numberLines = htolel(session->device->line_count);
-	msg->data.configstatus.numberSpeedDials = htolel(session->device->speeddial_count);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_config_status_res(session);
 	if (ret == -1)
 		return -1;
 

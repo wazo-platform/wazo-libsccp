@@ -213,6 +213,35 @@ int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid)
 	return 0;
 }
 
+int transmit_config_status_res(struct sccp_session *session)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct config_status_res_message), CONFIG_STATUS_RES_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	memcpy(msg->data.configstatus.deviceName, session->device->name, sizeof(msg->data.configstatus.deviceName));
+	msg->data.configstatus.stationUserId = htolel(0);
+	msg->data.configstatus.stationInstance = htolel(1);
+	msg->data.configstatus.numberLines = htolel(session->device->line_count);
+	msg->data.configstatus.numberSpeedDials = htolel(session->device->speeddial_count);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_connect(struct sccp_line *line, uint32_t callid)
 {
 	struct ast_format_list fmt;
