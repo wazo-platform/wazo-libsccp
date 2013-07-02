@@ -2216,13 +2216,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	if (ret == -1)
 		return -1;
 
-	msg = msg_alloc(0, CAPABILITIES_REQ_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	ret = transmit_message(msg, session);
+	ret = transmit_capabilities_req(session);
 	if (ret == -1)
 		return -1;
 

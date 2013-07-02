@@ -15,6 +15,7 @@ int transmit_activatecallplane(struct sccp_line *line);
 int transmit_button_template_res(struct sccp_session *session);
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num, const char *to_name, const char *to_num, int lineInstance, int callInstance, int calltype);
 int transmit_callstate(struct sccp_session *session, int lineInstance, int state, unsigned callInstance);
+int transmit_capabilities_req(struct sccp_session *session);
 int transmit_clearmessage(struct sccp_session *session);
 int transmit_close_receive_channel(struct sccp_line *line, uint32_t callInstance);
 int transmit_config_status_res(struct sccp_session *session);
