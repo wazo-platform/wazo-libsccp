@@ -986,7 +986,8 @@ static void *sccp_lookup_exten(void *data)
 				sccp_start_the_call(channel);
 				memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
 				line->device->exten[0] = '\0';
-				return NULL;
+
+				break;
 		}
 
 		usleep(500000);
@@ -1000,6 +1001,8 @@ static void *sccp_lookup_exten(void *data)
 			len = next_len;
 		}
 	}
+
+	pthread_detach(pthread_self());
 
 	return NULL;
 }
@@ -1737,7 +1740,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 		set_line_state(line, SCCP_OFFHOOK);
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
 
-		if (ast_pthread_create(&line->callfwd_timeout_thread, NULL, sccp_callfwd_timeout, line)) {
+		if (ast_pthread_create_detached(&line->callfwd_timeout_thread, NULL, sccp_callfwd_timeout, line)) {
 			ast_log(LOG_WARNING, "Unable to create callfwd timeout thread: %s\n", strerror(errno));
 		}
 
