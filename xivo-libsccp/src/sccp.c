@@ -554,13 +554,8 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	}
 
 	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
-
 		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
-		ast_log(LOG_DEBUG, "var_name: %s  var_value: %s valuebuf: %s\n",
-					var_itr->name, var_itr->value, valuebuf);
-
-		pbx_builtin_setvar_helper(channel, var_itr->name,
-			ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf)));
+		pbx_builtin_setvar_helper(channel, var_itr->name, valuebuf);
 	}
 
 	ast_best_codec(ast_channel_nativeformats(channel), &tmpfmt);
@@ -2838,10 +2833,9 @@ static struct ast_channel *cb_ast_request(const char *type,
 	ast_log(LOG_DEBUG, "type: %s "
 			"capability: %s "
 			"destination: %s "
-			"option: %s "
-			"cause: %d\n",
+			"option: %s\n",
 			type, ast_getformatname_multiple(buf, sizeof(buf), cap),
-			destination, option? option: "", *cause);
+			destination, option ? option : "");
 
 	line = find_line_by_name(destination, &sccp_config->list_line);
 
