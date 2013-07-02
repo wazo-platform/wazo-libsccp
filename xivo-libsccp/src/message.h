@@ -29,6 +29,7 @@ int transmit_lamp_state(struct sccp_session *session, int callInstance, int line
 int transmit_reset(struct sccp_session *session, uint32_t type);
 int transmit_ringer_mode(struct sccp_session *session, int mode);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);
+int transmit_softkey_set_res(struct sccp_session *session);
 int transmit_softkey_template_res(struct sccp_session *session);
 int transmit_speaker_mode(struct sccp_session *session, int mode);
 int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt);

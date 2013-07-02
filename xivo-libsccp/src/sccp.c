@@ -1809,42 +1809,13 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 static int handle_softkey_set_req_message(struct sccp_session *session)
 {
 	int ret = 0;
-	const struct softkey_definitions *softkeymode = softkey_default_definitions;
-	struct sccp_msg *msg = NULL;
-	int keyset_count = 0;
-	int i = 0;
-	int j = 0;
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
 
-	msg = msg_alloc(sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	keyset_count = sizeof(softkey_default_definitions) / sizeof(struct softkey_definitions);
-
-	msg->data.softkeysets.softKeySetOffset = htolel(0);
-	msg->data.softkeysets.softKeySetCount = htolel(keyset_count);
-	msg->data.softkeysets.totalSoftKeySetCount = htolel(keyset_count);
-
-	for (i = 0; i < keyset_count; i++) {
-
-		for (j = 0; j < softkeymode->count; j++) {
-			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyTemplateIndex[j]
-				= htolel(softkeymode->defaults[j]);
-
-			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyInfoIndex[j]
-				= htolel(softkeymode->defaults[j]);
-		}
-		softkeymode++;
-	}
-
-	ret = transmit_message(msg, session);
+	ret = transmit_softkey_set_res(session);
 	if (ret == -1)
 		return -1;
 

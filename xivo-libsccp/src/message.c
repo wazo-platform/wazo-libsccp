@@ -669,6 +669,51 @@ int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int
 	return 0;
 }
 
+int transmit_softkey_set_res(struct sccp_session *session)
+{
+	int ret = 0;
+	int keyset_count = 0;
+	int i = 0;
+	int j = 0;
+	struct sccp_msg *msg = NULL;
+	const struct softkey_definitions *softkeymode = softkey_default_definitions;
+
+	if (session == NULL) {
+		ast_log(LOG_DEBUG, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	keyset_count = sizeof(softkey_default_definitions) / sizeof(struct softkey_definitions);
+
+	msg->data.softkeysets.softKeySetOffset = htolel(0);
+	msg->data.softkeysets.softKeySetCount = htolel(keyset_count);
+	msg->data.softkeysets.totalSoftKeySetCount = htolel(keyset_count);
+
+	for (i = 0; i < keyset_count; i++) {
+
+		for (j = 0; j < softkeymode->count; j++) {
+			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyTemplateIndex[j]
+				= htolel(softkeymode->defaults[j]);
+
+			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyInfoIndex[j]
+				= htolel(softkeymode->defaults[j]);
+		}
+		softkeymode++;
+	}
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_softkey_template_res(struct sccp_session *session)
 {
 	struct sccp_msg *msg = NULL;
