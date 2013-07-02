@@ -2135,7 +2135,6 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 {
 	int ret = 0;
 	int line_instance = 0;
-	char *displayname = NULL;
 	struct sccp_line *line = NULL;
 
 	if (msg == NULL) {
@@ -2160,16 +2159,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	if (ret == -1)
 		return -1;
 
-	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg allocation failed\n");
-		return -1;
-	}
-
-	msg->data.forwardstatus.status = 0;
-	msg->data.forwardstatus.lineInstance = htolel(line_instance);
-
-	ret = transmit_message(msg, session);
+	ret = transmit_forward_status_res(session, line_instance);
 	if (ret == -1)
 		return -1;
 

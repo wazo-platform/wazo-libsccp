@@ -489,6 +489,32 @@ int transmit_forward_status_message(struct sccp_session *session, int line_insta
 	return 0;
 }
 
+int transmit_forward_status_res(struct sccp_session *session, int lineInstance)
+{
+	struct sccp_msg *msg = NULL;
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
+	if (msg == NULL) {
+		ast_log(LOG_ERROR, "msg allocation failed\n");
+		return -1;
+	}
+
+	msg->data.forwardstatus.status = 0;
+	msg->data.forwardstatus.lineInstance = htolel(lineInstance);
+
+	ret = transmit_message(msg, session);
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 int transmit_keep_alive_ack(struct sccp_session *session)
 {
 	int ret = 0;
