@@ -832,8 +832,8 @@ static void *sccp_lookup_exten(void *data)
 	}
 
 	len = strlen(line->device->exten);
-	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
-		line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
+	while (line->device->registered == DEVICE_REGISTERED_TRUE && line->device->lookup == 1
+			&& line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
 
 		/* when pound key is pressed, call the extension without further waiting */
 		if (len > 0 && line->device->exten[len-1] == '#') {
@@ -963,10 +963,10 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 	if (ret == -1)
 		return -1;
 
+	device->lookup = 1;
 	if (ast_pthread_create(&device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
 		ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
-	} else {
-		device->lookup = 1;
+		device->lookup = 0;
 	}
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
@@ -1171,33 +1171,34 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
-	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
+	ast_log(LOG_DEBUG, "do_hangup line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
 	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+		ast_log(LOG_ERROR, "session is NULL\n");
 		return -1;
 	}
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
+		ast_log(LOG_WARNING, "do_hangup called with unknown line %u\n", line_instance);
 		return 0;
-	}
-
-	/* this will cause the sccp_lookup_exten thread to terminate*/
-	set_line_state(line, SCCP_ONHOOK);
-
-	/* wait for lookup thread to terminate */
-	if (session->device->lookup == 1) {
-		pthread_join(session->device->lookup_thread, NULL);
-		session->device->lookup = 0;
-		line->device->exten[0] = '\0';
 	}
 
 	subchan = line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "subchan is NULL\n");
+		ast_log(LOG_WARNING, "do_hangup called with unknown subchan %u\n", subchan_id);
 		return 0;
+	}
+
+	/* wait for lookup thread to terminate */
+	if (session->device->lookup == 1) {
+		session->device->lookup = 0;
+		pthread_join(session->device->lookup_thread, NULL);
+		line->device->exten[0] = '\0';
+	}
+
+	if (line->active_subchan == NULL || line->active_subchan == subchan) {
+		set_line_state(line, SCCP_ONHOOK);
 	}
 
 	if (subchan->channel) {
@@ -1479,10 +1480,10 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ret == -1)
 			return -1;
 
+		line->device->lookup = 1;
 		if (ast_pthread_create(&line->device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
 			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
-		} else {
-			line->device->lookup = 1;
+			line->device->lookup = 0;
 		}
 
 	} else {

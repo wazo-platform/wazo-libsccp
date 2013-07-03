@@ -463,7 +463,7 @@ struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subcha
 		return NULL;
 	}
 
-	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr->id == subchan_id)
 			break;
 	}

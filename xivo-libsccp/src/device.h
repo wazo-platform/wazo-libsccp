@@ -295,7 +295,7 @@ struct sccp_device {
 	char exten[AST_MAX_EXTENSION];
 	char last_exten[AST_MAX_EXTENSION];
 	pthread_t lookup_thread;
-	int lookup;
+	volatile int lookup;
 
 	uint8_t autoanswer;
 
