@@ -296,7 +296,7 @@ struct sccp_device {
 	char exten[AST_MAX_EXTENSION];
 	char last_exten[AST_MAX_EXTENSION];
 	pthread_t lookup_thread;
-	int lookup;
+	volatile int lookup;
 
 	uint8_t autoanswer;
 
@@ -309,9 +309,9 @@ struct sccp_device {
 
 	void *session;
 
+	// A registered device must have a default line. This means that a device
+	// with no default line must not be able to register.
 	struct sccp_line *default_line;
-	struct sccp_line *active_line;
-	uint32_t active_line_cnt;
 
 	AST_RWLIST_HEAD(, sccp_line) lines;
 	AST_RWLIST_HEAD(, sccp_speeddial) speeddials;
@@ -347,9 +347,6 @@ void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id);
 void set_line_state(struct sccp_line *line, int state);
-void device_enqueue_line(struct sccp_device *device, struct sccp_line *line);
-void device_release_line(struct sccp_device *device, struct sccp_line *line);
-struct sccp_line *device_get_active_line(struct sccp_device *device);
 char *device_regstate_str(int device_state);
 int device_type_is_supported(int device_type);
 char *device_type_str(int device_type);

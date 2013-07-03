@@ -476,8 +476,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			mwi_subscribe(device_itr);
 			speeddial_hints_subscribe(device_itr, speeddial_hints_cb);
 
-			if (device_itr->default_line)
-				ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", device_itr->default_line->name);
+			ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", device_itr->default_line->name);
 			ret = 1;
 		}
 	}
@@ -554,13 +553,8 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	}
 
 	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
-
 		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
-		ast_log(LOG_DEBUG, "var_name: %s  var_value: %s valuebuf: %s\n",
-					var_itr->name, var_itr->value, valuebuf);
-
-		pbx_builtin_setvar_helper(channel, var_itr->name,
-			ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf)));
+		pbx_builtin_setvar_helper(channel, var_itr->name, valuebuf);
 	}
 
 	ast_best_codec(ast_channel_nativeformats(channel), &tmpfmt);
@@ -838,8 +832,8 @@ static void *sccp_lookup_exten(void *data)
 	}
 
 	len = strlen(line->device->exten);
-	while (line->device->registered == DEVICE_REGISTERED_TRUE &&
-		line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
+	while (line->device->registered == DEVICE_REGISTERED_TRUE && line->device->lookup == 1
+			&& line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
 
 		/* when pound key is pressed, call the extension without further waiting */
 		if (len > 0 && line->device->exten[len-1] == '#') {
@@ -901,11 +895,7 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		return -1;
 	}
 
-	line = device_get_active_line(device);
-	if (line == NULL) {
-		ast_log(LOG_ERROR, "line is NULL\n");
-		return -1;
-	}
+	line = device->default_line;
 
 	subchan = sccp_new_subchannel(line);
 	if (subchan == NULL) {
@@ -973,10 +963,10 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 	if (ret == -1)
 		return -1;
 
+	device->lookup = 1;
 	if (ast_pthread_create(&device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
 		ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
-	} else {
-		device->lookup = 1;
+		device->lookup = 0;
 	}
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
@@ -1083,12 +1073,6 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		return -1;
 	}
 
-	line = device_get_active_line(device);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
-
 	if (session->device->protoVersion == 11) {
 
 		/* Newest protocols provide these informations */
@@ -1104,12 +1088,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	}
 	else {
 		/* With older protocols, we manually get the line and the subchannel */
-		line = device_get_active_line(session->device);
-		if (line == NULL) {
-			ast_log(LOG_DEBUG, "line is NULL\n");
-			return -1;
-		}
-
+		line = device->default_line;
 		line_instance = line->instance;
 
 		subchan = line_get_next_ringin_subchan(line);
@@ -1192,33 +1171,34 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
-	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
+	ast_log(LOG_DEBUG, "do_hangup line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
 	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+		ast_log(LOG_ERROR, "session is NULL\n");
 		return -1;
 	}
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
+		ast_log(LOG_WARNING, "do_hangup called with unknown line %u\n", line_instance);
 		return 0;
-	}
-
-	/* this will cause the sccp_lookup_exten thread to terminate*/
-	set_line_state(line, SCCP_ONHOOK);
-
-	/* wait for lookup thread to terminate */
-	if (session->device->lookup == 1) {
-		pthread_join(session->device->lookup_thread, NULL);
-		session->device->lookup = 0;
-		line->device->exten[0] = '\0';
 	}
 
 	subchan = line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "subchan is NULL\n");
+		ast_log(LOG_WARNING, "do_hangup called with unknown subchan %u\n", subchan_id);
 		return 0;
+	}
+
+	/* wait for lookup thread to terminate */
+	if (session->device->lookup == 1) {
+		session->device->lookup = 0;
+		pthread_join(session->device->lookup_thread, NULL);
+		line->device->exten[0] = '\0';
+	}
+
+	if (line->active_subchan == NULL || line->active_subchan == subchan) {
+		set_line_state(line, SCCP_ONHOOK);
 	}
 
 	if (subchan->channel) {
@@ -1263,11 +1243,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	}
 	else {
 		/* With older protocols, we manually get the line and the subchannel */
-		line = device_get_active_line(session->device);
-		if (line == NULL) {
-			ast_log(LOG_DEBUG, "line is NULL\n");
-			return -1;
-		}
+		line = session->device->default_line;
 
 		subchan = line->active_subchan;
 		if (subchan) {
@@ -1300,10 +1276,6 @@ static int handle_softkey_dnd(struct sccp_session *session)
 	}
 
 	line = session->device->default_line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
 
 	if (line->dnd == 0) {
 		ast_log(LOG_DEBUG, "enabling DND on line %s\n", line->name);
@@ -1508,10 +1480,10 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ret == -1)
 			return -1;
 
+		line->device->lookup = 1;
 		if (ast_pthread_create(&line->device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
 			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
-		} else {
-			line->device->lookup = 1;
+			line->device->lookup = 0;
 		}
 
 	} else {
@@ -1585,16 +1557,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 	if (session == NULL)
 		return -1;
 
-	if (!session->device->default_line) {
-		ast_log(LOG_DEBUG, "default_line is NULL\n");
-		return 0;
-	}
-
-	line = device_get_line(session->device, session->device->default_line->instance);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
+	line = session->device->default_line;
 
 	switch (line->callfwd) {
 	case SCCP_CFWD_UNACTIVE:
@@ -2021,11 +1984,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		return -1;
 	}
 
-	line = device_get_active_line(session->device);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return 0;
-	}
+	line = session->device->default_line;
 
 	addr = msg->data.openreceivechannelack.ipAddr;
 	port = letohl(msg->data.openreceivechannelack.port);
@@ -2282,10 +2241,6 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	}
 
 	line = session->device->default_line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "default_line is NULL\n");
-		return 0;
-	}
 
 	if (line->callfwd != SCCP_CFWD_INPUTEXTEN) {
 		do_newcall(line->instance, 0, session);
@@ -2316,12 +2271,7 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 	}
 
 	device = session->device;
-	line = device_get_active_line(device);
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
+	line = device->default_line;
 
 	/* contains all the digits entered before pressing 'Dial' */
 	if (line->state == SCCP_OFFHOOK) {
@@ -2689,8 +2639,7 @@ static void thread_session_cleanup(void *data)
 	if (session->device) {
 		ast_verb(3, "Disconnecting device [%s]\n", session->device->name);
 		device_unregister(session->device);
-		if (session->device->default_line)
-			ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
+		ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 
 		if (session->device->destroy == 1) {
 			destroy_device_config(sccp_config, session->device);
@@ -2750,7 +2699,7 @@ static void *thread_accept(void *data)
 		setsockopt(new_sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay));
 
 		/* session constructor */
-		session = ast_calloc(1, sizeof(struct sccp_session));
+		session = ast_calloc(1, sizeof(*session));
 		if (session == NULL) {
 			ast_log(LOG_ERROR, "Failed to allocate new session, "
 						"the main thread is going down now\n");
@@ -2838,10 +2787,9 @@ static struct ast_channel *cb_ast_request(const char *type,
 	ast_log(LOG_DEBUG, "type: %s "
 			"capability: %s "
 			"destination: %s "
-			"option: %s "
-			"cause: %d\n",
+			"option: %s\n",
 			type, ast_getformatname_multiple(buf, sizeof(buf), cap),
-			destination, option? option: "", *cause);
+			destination, option ? option : "");
 
 	line = find_line_by_name(destination, &sccp_config->list_line);
 
@@ -2900,11 +2848,7 @@ static int sccp_autoanswer_call(void *data)
 		return 0;
 	}
 
-	line = device_get_active_line(subchan->line->device);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return 0;
-	}
+	line = subchan->line->device->default_line;
 
 	session = line->device->session;
 	if (session == NULL) {
@@ -2988,7 +2932,6 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 		return 0;
 	}
 
-	device_enqueue_line(device, line);
 	subchan_set_state(subchan, SCCP_RINGIN);
 
 	/* If the line has an active subchannel, it means that
@@ -3492,12 +3435,84 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	return CLI_SUCCESS;
 }
 
+static void sccp_dump_session_state(int cli_fd, struct sccp_session *session)
+{
+	struct sccp_device *device = NULL;
+	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = NULL;
+
+	device = session->device;
+	ast_cli(cli_fd, "session\n");
+	ast_cli(cli_fd, "    addr: %p\n", session);
+	if (device) {
+		ast_cli(cli_fd, "    device\n");
+		ast_cli(cli_fd, "        addr: %p\n", device);
+		ast_cli(cli_fd, "        name: %s\n", device->name);
+		AST_RWLIST_TRAVERSE(&device->lines, line, list_per_device) {
+			ast_cli(cli_fd, "    line\n");
+			ast_cli(cli_fd, "        addr: %p\n", line);
+			ast_cli(cli_fd, "        instance: %u\n", line->instance);
+			ast_cli(cli_fd, "        state: %s\n", line_state_str(line->state));
+			ast_cli(cli_fd, "        serial_callid: %u\n", line->serial_callid);
+			ast_cli(cli_fd, "        active_subchan: %p\n", line->active_subchan);
+			AST_RWLIST_RDLOCK(&line->subchans);
+			AST_RWLIST_TRAVERSE(&line->subchans, subchan, list) {
+				ast_cli(cli_fd, "    subchan\n");
+				ast_cli(cli_fd, "        addr: %p\n", subchan);
+				ast_cli(cli_fd, "        id: %u\n", subchan->id);
+				ast_cli(cli_fd, "        state: %s\n", line_state_str(subchan->state));
+			}
+			AST_RWLIST_UNLOCK(&line->subchans);
+		}
+	}
+}
+
+static char *sccp_dump_state(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_session *session = NULL;
+	const char *device_name = NULL;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp dump state";
+		e->usage =
+			"Usage: sccp dump state <device>\n"
+			"       Dump session state\n";
+		return NULL;
+
+	case CLI_GENERATE:
+		if (a->pos == 3) {
+			return complete_sccp_devices(a->word, a->n, &sccp_config->list_device);
+		}
+		return NULL;
+	}
+
+	if (a->argc == 4) {
+		device_name = a->argv[3];
+	}
+
+	AST_LIST_LOCK(&list_session);
+	AST_LIST_TRAVERSE(&list_session, session, list) {
+		if (device_name) {
+			if (session->device && strcmp(session->device->name, device_name) == 0) {
+				sccp_dump_session_state(a->fd, session);
+			}
+		} else {
+			sccp_dump_session_state(a->fd, session);
+		}
+	}
+	AST_LIST_UNLOCK(&list_session);
+
+	return CLI_SUCCESS;
+}
+
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
 	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
 	AST_CLI_DEFINE(sccp_set_directmedia_on, "Turn on direct media"),
 	AST_CLI_DEFINE(sccp_set_directmedia_off, "Turn off direct media"),
+	AST_CLI_DEFINE(sccp_dump_state, "Dump session state")
 };
 
 static size_t make_thread_sessions_array(pthread_t **threads)

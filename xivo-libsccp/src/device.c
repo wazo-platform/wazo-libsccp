@@ -69,9 +69,6 @@ void device_prepare(struct sccp_device *device)
 		return;
 	}
 
-	device->active_line = NULL;
-	device->active_line_cnt = 0;
-
 	device->exten[0] = '\0';
 
 	AST_RWLIST_RDLOCK(&device->lines);
@@ -163,7 +160,6 @@ void speeddial_hints_unsubscribe(struct sccp_device *device)
 void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
-	struct sccp_line *default_line = NULL;
 	int dev_state;
 	char *context;
 
@@ -177,13 +173,7 @@ void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type spe
 		return;
 	}
 
-	default_line = device->default_line;
-	if (default_line == NULL) {
-		ast_log(LOG_WARNING, "Not subscribing to speeddial hints; device has no line\n");
-		return;
-	}
-
-	context = default_line->context;
+	context = device->default_line->context;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
@@ -483,7 +473,7 @@ struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subcha
 		return NULL;
 	}
 
-	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr->id == subchan_id)
 			break;
 	}
@@ -541,53 +531,4 @@ void subchan_set_state(struct sccp_subchannel *subchan, int state)
 void set_line_state(struct sccp_line *line, int state)
 {
 	line->state = state;
-}
-
-void device_enqueue_line(struct sccp_device *device, struct sccp_line *line)
-{
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return ;
-	}
-
-	device->active_line_cnt++;
-}
-
-void device_release_line(struct sccp_device *device, struct sccp_line *line)
-{
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL");
-		return;
-	}
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return;
-	}
-
-	if (device->active_line == line) {
-		device->active_line = NULL;
-	}
-
-	device->active_line_cnt--;
-}
-
-struct sccp_line *device_get_active_line(struct sccp_device *device)
-{
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return NULL;
-	}
-
-	if (device->active_line == NULL) {
-		device->active_line = device->default_line;
-		device->active_line_cnt++;
-	}
-
-	return device->active_line;
 }
