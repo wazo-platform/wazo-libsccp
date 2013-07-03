@@ -476,8 +476,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			mwi_subscribe(device_itr);
 			speeddial_hints_subscribe(device_itr, speeddial_hints_cb);
 
-			if (device_itr->default_line)
-				ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", device_itr->default_line->name);
+			ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", device_itr->default_line->name);
 			ret = 1;
 		}
 	}
@@ -896,11 +895,7 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		return -1;
 	}
 
-	line = device_get_active_line(device);
-	if (line == NULL) {
-		ast_log(LOG_ERROR, "line is NULL\n");
-		return -1;
-	}
+	line = device->default_line;
 
 	subchan = sccp_new_subchannel(line);
 	if (subchan == NULL) {
@@ -1078,12 +1073,6 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		return -1;
 	}
 
-	line = device_get_active_line(device);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
-
 	if (session->device->protoVersion == 11) {
 
 		/* Newest protocols provide these informations */
@@ -1099,12 +1088,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	}
 	else {
 		/* With older protocols, we manually get the line and the subchannel */
-		line = device_get_active_line(session->device);
-		if (line == NULL) {
-			ast_log(LOG_DEBUG, "line is NULL\n");
-			return -1;
-		}
-
+		line = device->default_line;
 		line_instance = line->instance;
 
 		subchan = line_get_next_ringin_subchan(line);
@@ -1258,11 +1242,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	}
 	else {
 		/* With older protocols, we manually get the line and the subchannel */
-		line = device_get_active_line(session->device);
-		if (line == NULL) {
-			ast_log(LOG_DEBUG, "line is NULL\n");
-			return -1;
-		}
+		line = session->device->default_line;
 
 		subchan = line->active_subchan;
 		if (subchan) {
@@ -1295,10 +1275,6 @@ static int handle_softkey_dnd(struct sccp_session *session)
 	}
 
 	line = session->device->default_line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
 
 	if (line->dnd == 0) {
 		ast_log(LOG_DEBUG, "enabling DND on line %s\n", line->name);
@@ -1580,16 +1556,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 	if (session == NULL)
 		return -1;
 
-	if (!session->device->default_line) {
-		ast_log(LOG_DEBUG, "default_line is NULL\n");
-		return 0;
-	}
-
-	line = device_get_line(session->device, session->device->default_line->instance);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
+	line = session->device->default_line;
 
 	switch (line->callfwd) {
 	case SCCP_CFWD_UNACTIVE:
@@ -2016,11 +1983,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		return -1;
 	}
 
-	line = device_get_active_line(session->device);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return 0;
-	}
+	line = session->device->default_line;
 
 	addr = msg->data.openreceivechannelack.ipAddr;
 	port = letohl(msg->data.openreceivechannelack.port);
@@ -2277,10 +2240,6 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	}
 
 	line = session->device->default_line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "default_line is NULL\n");
-		return 0;
-	}
 
 	if (line->callfwd != SCCP_CFWD_INPUTEXTEN) {
 		do_newcall(line->instance, 0, session);
@@ -2311,12 +2270,7 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 	}
 
 	device = session->device;
-	line = device_get_active_line(device);
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
+	line = device->default_line;
 
 	/* contains all the digits entered before pressing 'Dial' */
 	if (line->state == SCCP_OFFHOOK) {
@@ -2684,8 +2638,7 @@ static void thread_session_cleanup(void *data)
 	if (session->device) {
 		ast_verb(3, "Disconnecting device [%s]\n", session->device->name);
 		device_unregister(session->device);
-		if (session->device->default_line)
-			ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
+		ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 
 		if (session->device->destroy == 1) {
 			destroy_device_config(sccp_config, session->device);
@@ -2894,11 +2847,7 @@ static int sccp_autoanswer_call(void *data)
 		return 0;
 	}
 
-	line = device_get_active_line(subchan->line->device);
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return 0;
-	}
+	line = subchan->line->device->default_line;
 
 	session = line->device->session;
 	if (session == NULL) {
@@ -2982,7 +2931,6 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 		return 0;
 	}
 
-	device_enqueue_line(device, line);
 	subchan_set_state(subchan, SCCP_RINGIN);
 
 	/* If the line has an active subchannel, it means that
