@@ -304,6 +304,8 @@ char *device_type_str(int device_type)
 		return "7912";
 	case SCCP_DEVICE_7921:
 		return "7921";
+	case SCCP_DEVICE_7931:
+		return "7931";
 	case SCCP_DEVICE_7937:
 		return "7937";
 	case SCCP_DEVICE_7940:
@@ -349,6 +351,7 @@ int device_type_is_supported(int device_type)
 	case SCCP_DEVICE_7911:
 	case SCCP_DEVICE_7912:
 	case SCCP_DEVICE_7921:
+	case SCCP_DEVICE_7931:
 	case SCCP_DEVICE_7937:
 	case SCCP_DEVICE_7940:
 	case SCCP_DEVICE_7941:
@@ -404,6 +407,10 @@ int device_get_button_count(struct sccp_device *device)
 
 	case SCCP_DEVICE_7970:
 		button_count = 8;
+		break;
+
+	case SCCP_DEVICE_7931:
+		button_count = 24;
 		break;
 
 	default:
