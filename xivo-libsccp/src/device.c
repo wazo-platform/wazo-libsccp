@@ -387,6 +387,13 @@ int device_get_button_count(struct sccp_device *device)
 	case SCCP_DEVICE_7906:
 	case SCCP_DEVICE_7911:
 	case SCCP_DEVICE_7912:
+		button_count = 1;
+		break;
+
+	case SCCP_DEVICE_7931:
+		button_count = 24;
+		break;
+
 	case SCCP_DEVICE_7937:
 		button_count = 1;
 		break;
@@ -407,10 +414,6 @@ int device_get_button_count(struct sccp_device *device)
 
 	case SCCP_DEVICE_7970:
 		button_count = 8;
-		break;
-
-	case SCCP_DEVICE_7931:
-		button_count = 24;
 		break;
 
 	default:
