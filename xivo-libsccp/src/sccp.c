@@ -3512,7 +3512,9 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
 	AST_CLI_DEFINE(sccp_set_directmedia_on, "Turn on direct media"),
 	AST_CLI_DEFINE(sccp_set_directmedia_off, "Turn off direct media"),
-	AST_CLI_DEFINE(sccp_dump_state, "Dump session state")
+#ifdef DEBUG_STATE
+	AST_CLI_DEFINE(sccp_dump_state, "Dump session state"),
+#endif
 };
 
 static size_t make_thread_sessions_array(pthread_t **threads)

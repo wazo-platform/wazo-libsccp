@@ -91,7 +91,7 @@ def _build_cd_script(directory):
 
 
 def _build_make_script():
-    return 'make'
+    return 'make CFLAGS+=-DDEBUG_STATE'
 
 
 def _build_rsync_script(host, directory):
