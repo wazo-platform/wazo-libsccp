@@ -179,6 +179,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	}
 
 	ast_mutex_init(&device->lock);
+	ast_cond_init(&device->lookup_cond, NULL);
 	ast_copy_string(device->name, name, sizeof(device->name));
 
 	device->voicemail[0] = '\0';
