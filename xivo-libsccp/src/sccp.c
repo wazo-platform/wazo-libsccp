@@ -832,17 +832,6 @@ static void *sccp_lookup_exten(void *data)
 		return NULL;
 	}
 
-	ast_mutex_lock(&line->device->lock);
-	if (line->device->lookup == 1) {
-		ast_log(LOG_WARNING, "another sccp_lookup_exten is already running; returning\n");
-		ast_mutex_unlock(&line->device->lock);
-		do_clear_subchannel(subchan);
-		return NULL;
-	}
-
-	line->device->lookup = 1;
-	ast_mutex_unlock(&line->device->lock);
-
 	len = strlen(line->device->exten);
 	while (line->device->registered == DEVICE_REGISTERED_TRUE && line->device->lookup == 1
 			&& line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
@@ -959,6 +948,16 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 		 return -1;
 	}
 
+	ast_mutex_lock(&device->lock);
+	if (device->lookup == 1) {
+		ast_log(LOG_WARNING, "another sccp_lookup_exten is already running\n");
+		ast_mutex_unlock(&device->lock);
+		return 0;
+	}
+
+	device->lookup = 1;
+	ast_mutex_unlock(&device->lock);
+
 	/* Now, set the new call instance as active */
 	line_select_subchan(line, subchan);
 
@@ -982,6 +981,10 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 
 	if (ast_pthread_create_detached(&device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
 		ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
+		ast_mutex_lock(&line->device->lock);
+		line->device->lookup = 0;
+		ast_cond_signal(&line->device->lookup_cond);
+		ast_mutex_unlock(&line->device->lock);
 	}
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
@@ -1452,6 +1455,16 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	/* first time we press transfer */
 	if (line->active_subchan->related == NULL) {
 
+		ast_mutex_lock(&line->device->lock);
+		if (line->device->lookup == 1) {
+			ast_log(LOG_WARNING, "another sccp_lookup_exten is already running\n");
+			ast_mutex_unlock(&line->device->lock);
+			return 0;
+		}
+
+		line->device->lookup = 1;
+		ast_mutex_unlock(&line->device->lock);
+
 		/* put on hold */
 		ret = transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
 		if (ret == -1)
@@ -1498,6 +1511,10 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 		if (ast_pthread_create_detached(&line->device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
 			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
+			ast_mutex_lock(&line->device->lock);
+			line->device->lookup = 0;
+			ast_cond_signal(&line->device->lookup_cond);
+			ast_mutex_unlock(&line->device->lock);
 		}
 
 	} else {
