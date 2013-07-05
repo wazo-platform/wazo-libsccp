@@ -849,14 +849,13 @@ static void *sccp_lookup_exten(void *data)
 			channel = sccp_new_channel(subchan, NULL);
 			if (channel == NULL) {
 				ast_log(LOG_ERROR, "channel is NULL\n");
-				goto cleanup;
+				goto end;
 			}
 
 			sccp_start_the_call(channel);
 			memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
-			line->device->exten[0] = '\0';
 
-			goto cleanup;
+			goto end;
 		}
 
 		usleep(500000);
@@ -871,9 +870,10 @@ static void *sccp_lookup_exten(void *data)
 		}
 	}
 
-cleanup:
-	ast_mutex_lock(&line->device->lock);
+end:
 	line->device->exten[0] = '\0';
+
+	ast_mutex_lock(&line->device->lock);
 	line->device->lookup = 0;
 	ast_cond_signal(&line->device->lookup_cond);
 	ast_mutex_unlock(&line->device->lock);
@@ -901,6 +901,13 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		return -1;
 	}
 
+	if (device->lookup == 1) {
+		ast_log(LOG_NOTICE, "another lookup thread is already running\n");
+		return 0;
+	}
+
+	device->lookup = 1;
+
 	line = device->default_line;
 
 	subchan = sccp_new_subchannel(line);
@@ -927,6 +934,7 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 							struct sccp_subchannel *subchan, struct sccp_session *session)
 {
 	int ret = 0;
+	pthread_t lookup_thread;
 
 	if (session == NULL) {
 		ast_log(LOG_ERROR, "session is NULL\n");
@@ -947,16 +955,6 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 		 ast_log(LOG_ERROR, "subchan is NULL\n");
 		 return -1;
 	}
-
-	ast_mutex_lock(&device->lock);
-	if (device->lookup == 1) {
-		ast_log(LOG_WARNING, "another sccp_lookup_exten is already running\n");
-		ast_mutex_unlock(&device->lock);
-		return 0;
-	}
-
-	device->lookup = 1;
-	ast_mutex_unlock(&device->lock);
 
 	/* Now, set the new call instance as active */
 	line_select_subchan(line, subchan);
@@ -979,12 +977,9 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 	if (ret == -1)
 		return -1;
 
-	if (ast_pthread_create_detached(&device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
-		ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
-		ast_mutex_lock(&line->device->lock);
+	if (ast_pthread_create_detached(&lookup_thread, NULL, sccp_lookup_exten, subchan)) {
+		ast_log(LOG_WARNING, "Unable to create lookup thread\n");
 		line->device->lookup = 0;
-		ast_cond_signal(&line->device->lookup_cond);
-		ast_mutex_unlock(&line->device->lock);
 	}
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
@@ -1428,6 +1423,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	int ret = 0;
 	struct sccp_subchannel *subchan = NULL, *xfer_subchan = NULL;
 	struct sccp_line *line = NULL;
+	pthread_t lookup_thread;
 
 	ast_log(LOG_DEBUG, "handle_softkey_transfer: line_instance(%i)\n", line_instance);
 
@@ -1455,15 +1451,12 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	/* first time we press transfer */
 	if (line->active_subchan->related == NULL) {
 
-		ast_mutex_lock(&line->device->lock);
 		if (line->device->lookup == 1) {
-			ast_log(LOG_WARNING, "another sccp_lookup_exten is already running\n");
-			ast_mutex_unlock(&line->device->lock);
+			ast_log(LOG_WARNING, "another lookup thread is already running\n");
 			return 0;
 		}
 
 		line->device->lookup = 1;
-		ast_mutex_unlock(&line->device->lock);
 
 		/* put on hold */
 		ret = transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
@@ -1509,12 +1502,9 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ret == -1)
 			return -1;
 
-		if (ast_pthread_create_detached(&line->device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
-			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
-			ast_mutex_lock(&line->device->lock);
+		if (ast_pthread_create_detached(&lookup_thread, NULL, sccp_lookup_exten, subchan)) {
+			ast_log(LOG_WARNING, "Unable to create lookup thread\n");
 			line->device->lookup = 0;
-			ast_cond_signal(&line->device->lookup_cond);
-			ast_mutex_unlock(&line->device->lock);
 		}
 
 	} else {
