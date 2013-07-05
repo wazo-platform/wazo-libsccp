@@ -48,6 +48,7 @@ static struct sccp_configs *sccp_config;
 static struct ast_format_cap *default_cap;
 static struct ast_codec_pref default_prefs;
 
+static int do_clear_subchannel(struct sccp_subchannel *subchan);
 static int handle_softkey_dnd(struct sccp_session *session);
 static int handle_callforward(struct sccp_session *session, uint32_t softkey);
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
@@ -845,17 +846,16 @@ static void *sccp_lookup_exten(void *data)
 			call_now = 1;
 
 		if (call_now) {
-				channel = sccp_new_channel(subchan, NULL);
-				if (channel == NULL) {
-					ast_log(LOG_ERROR, "channel is NULL\n");
-					return NULL;
-				}
+			channel = sccp_new_channel(subchan, NULL);
+			if (channel == NULL) {
+				ast_log(LOG_ERROR, "channel is NULL\n");
+				goto end;
+			}
 
-				sccp_start_the_call(channel);
-				memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
-				line->device->exten[0] = '\0';
+			sccp_start_the_call(channel);
+			memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
 
-				break;
+			goto end;
 		}
 
 		usleep(500000);
@@ -870,7 +870,13 @@ static void *sccp_lookup_exten(void *data)
 		}
 	}
 
-	pthread_detach(pthread_self());
+end:
+	line->device->exten[0] = '\0';
+
+	ast_mutex_lock(&line->device->lock);
+	line->device->lookup = 0;
+	ast_cond_signal(&line->device->lookup_cond);
+	ast_mutex_unlock(&line->device->lock);
 
 	return NULL;
 }
@@ -894,6 +900,13 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		ast_log(LOG_ERROR, "device is NULL\n");
 		return -1;
 	}
+
+	if (device->lookup == 1) {
+		ast_log(LOG_NOTICE, "another lookup thread is already running\n");
+		return 0;
+	}
+
+	device->lookup = 1;
 
 	line = device->default_line;
 
@@ -921,6 +934,7 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 							struct sccp_subchannel *subchan, struct sccp_session *session)
 {
 	int ret = 0;
+	pthread_t lookup_thread;
 
 	if (session == NULL) {
 		ast_log(LOG_ERROR, "session is NULL\n");
@@ -963,10 +977,9 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 	if (ret == -1)
 		return -1;
 
-	device->lookup = 1;
-	if (ast_pthread_create(&device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
-		ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
-		device->lookup = 0;
+	if (ast_pthread_create_detached(&lookup_thread, NULL, sccp_lookup_exten, subchan)) {
+		ast_log(LOG_WARNING, "Unable to create lookup thread\n");
+		line->device->lookup = 0;
 	}
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
@@ -1191,11 +1204,12 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 	}
 
 	/* wait for lookup thread to terminate */
+	ast_mutex_lock(&session->device->lock);
 	if (session->device->lookup == 1) {
 		session->device->lookup = 0;
-		pthread_join(session->device->lookup_thread, NULL);
-		line->device->exten[0] = '\0';
+		ast_cond_wait(&session->device->lookup_cond, &session->device->lock);
 	}
+	ast_mutex_unlock(&session->device->lock);
 
 	if (line->active_subchan == NULL || line->active_subchan == subchan) {
 		set_line_state(line, SCCP_ONHOOK);
@@ -1409,6 +1423,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 	int ret = 0;
 	struct sccp_subchannel *subchan = NULL, *xfer_subchan = NULL;
 	struct sccp_line *line = NULL;
+	pthread_t lookup_thread;
 
 	ast_log(LOG_DEBUG, "handle_softkey_transfer: line_instance(%i)\n", line_instance);
 
@@ -1435,6 +1450,13 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	/* first time we press transfer */
 	if (line->active_subchan->related == NULL) {
+
+		if (line->device->lookup == 1) {
+			ast_log(LOG_WARNING, "another lookup thread is already running\n");
+			return 0;
+		}
+
+		line->device->lookup = 1;
 
 		/* put on hold */
 		ret = transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
@@ -1480,9 +1502,8 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		if (ret == -1)
 			return -1;
 
-		line->device->lookup = 1;
-		if (ast_pthread_create(&line->device->lookup_thread, NULL, sccp_lookup_exten, subchan)) {
-			ast_log(LOG_WARNING, "Unable to create switch thread: %s\n", strerror(errno));
+		if (ast_pthread_create_detached(&lookup_thread, NULL, sccp_lookup_exten, subchan)) {
+			ast_log(LOG_WARNING, "Unable to create lookup thread\n");
 			line->device->lookup = 0;
 		}
 

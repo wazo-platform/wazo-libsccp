@@ -145,6 +145,7 @@ void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *de
 	AST_RWLIST_UNLOCK(&device->lines);
 
 	ast_mutex_destroy(&device->lock);
+	ast_cond_destroy(&device->lookup_cond);
 	ast_format_cap_destroy(device->codecs);
 	free(device);
 }
@@ -179,6 +180,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	}
 
 	ast_mutex_init(&device->lock);
+	ast_cond_init(&device->lookup_cond, NULL);
 	ast_copy_string(device->name, name, sizeof(device->name));
 
 	device->voicemail[0] = '\0';
