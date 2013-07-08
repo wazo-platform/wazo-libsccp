@@ -2,7 +2,7 @@
 #
 
 AC_PREREQ(2.61)
-AC_INIT([xivo-libsccp], [m4_esyscmd([./print_version])])
+AC_INIT([xivo-libsccp], [m4_esyscmd([build-tools/print-version])])
 
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 #LT_PREREQ([1.5])

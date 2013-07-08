@@ -66,7 +66,7 @@ def command_init(profile):
 def command_make(profile):
     local_script = _build_rsync_script(profile['host'], profile['directory'])
     _exec_local_script(local_script)
-    
+
     remote_script = []
     remote_script.append(_build_cd_script(profile['directory']))
     remote_script.append(_build_make_script())
@@ -99,9 +99,10 @@ def _build_rsync_script(host, directory):
 git describe --long | cut -d "-" -f 4-6 | tr -d '\n' > .version
 rsync -vrtlp \
     --include /.version \
+    --include /build-tools \
+    --include /build-tools/print-version \
     --include /config_undef.h \
     --include /configure.ac \
-    --include /print_version \
     --include /src \
     --include '/src/*.c' \
     --include '/src/*.h' \
