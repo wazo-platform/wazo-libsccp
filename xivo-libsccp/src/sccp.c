@@ -2689,8 +2689,6 @@ static void *thread_session(void *data)
 		if (ret < 0) {
 			break;
 		}
-		/* take it easy, prevent DoS attack */
-		usleep(100000);
 	}
 
 	pthread_cleanup_pop(1);
