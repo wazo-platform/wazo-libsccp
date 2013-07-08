@@ -1,0 +1,9 @@
+#!/bin/sh -e
+
+if [ "$VERSION" ]; then
+    echo -n "$VERSION"
+elif [ -f .version ]; then
+    cat .version
+else
+    echo -n "unknown version"
+fi

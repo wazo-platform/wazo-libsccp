@@ -96,13 +96,16 @@ def _build_make_script():
 
 def _build_rsync_script(host, directory):
     return '''
+git describe --long | cut -d "-" -f 4-6 | tr -d '\n' > .version
 rsync -vrtlp \
-    --include config_undef.h \
-    --include configure.ac \
-    --include Makefile.am \
+    --include /.version \
+    --include /config_undef.h \
+    --include /configure.ac \
+    --include /print_version \
     --include /src \
     --include '/src/*.c' \
     --include '/src/*.h' \
+    --include Makefile.am \
     --exclude '*' \
     . {host}:{directory}
 '''.format(host=host, directory=directory)

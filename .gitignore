@@ -38,3 +38,4 @@ src/libsccp_la-message.o
 src/libsccp_la-sccp.lo
 src/libsccp_la-sccp.o
 
+.version
