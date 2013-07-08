@@ -2311,7 +2311,7 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
-	struct ast_frame frame = { AST_FRAME_DTMF, };
+	struct ast_frame frame = { .frametype = AST_FRAME_DTMF, };
 
 	char digit;
 	int button;
