@@ -24,10 +24,8 @@ static struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id)
 	}
 
 	msg->length = htolel(4 + data_length);
+	msg->reserved = 0;
 	msg->id = htolel(message_id);
-
-	if (!msg->id == KEEP_ALIVE_MESSAGE || !msg->id == REGISTER_MESSAGE)
-		msg->reserved = htolel(0x11);
 
 	return msg;
 }
