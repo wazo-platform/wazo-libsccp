@@ -1105,17 +1105,11 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 
 		subchan = line_get_next_ringin_subchan(line);
 		if (subchan) {
-			ast_log(LOG_DEBUG, "subchan exist\n");
 			subchan_id = subchan->id;
 			do_answer(line_instance, subchan_id, session);
 		}
-		else {
-			ast_log(LOG_DEBUG, "line->active_subchan (%p)\n", line->active_subchan);
-
-			if (line->active_subchan == NULL) {
-				ast_log(LOG_DEBUG, "subchan do not exist\n");
-				do_newcall(line_instance, 0, session);
-			}
+		else if (line->active_subchan == NULL) {
+			do_newcall(line_instance, 0, session);
 		}
 	}
 
@@ -1646,6 +1640,9 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 
 static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	uint32_t softkey_event;
+	uint32_t line_instance;
+	uint32_t call_instance;
 	int ret = 0;
 
 	if (msg == NULL) {
@@ -1663,11 +1660,14 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		return -1;
 	}
 
-	ast_log(LOG_DEBUG, "softKeyEvent: %d\n", letohl(msg->data.softkeyevent.softKeyEvent));
-	ast_log(LOG_DEBUG, "instance: %d\n", msg->data.softkeyevent.lineInstance);
-	ast_log(LOG_DEBUG, "callid: %d\n", msg->data.softkeyevent.callInstance);
+	softkey_event = letohl(msg->data.softkeyevent.softKeyEvent);
+	line_instance = letohl(msg->data.softkeyevent.lineInstance);
+	call_instance = letohl(msg->data.softkeyevent.callInstance);
 
-	switch (letohl(msg->data.softkeyevent.softKeyEvent)) {
+	ast_debug(1, "Softkey event message: event 0x%02X, line_instance %u, subchan_id %u\n",
+			softkey_event, line_instance, call_instance);
+
+	switch (softkey_event) {
 	case SOFTKEY_NONE:
 		break;
 
@@ -1681,9 +1681,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 			if (ret == -1)
 				return -1;
 
-			ret = do_newcall(msg->data.softkeyevent.lineInstance,
-					msg->data.softkeyevent.callInstance,
-					session);
+			ret = do_newcall(line_instance, call_instance, session);
 			if (ret == -1)
 				return -1;
 			snprintf(session->device->exten, AST_MAX_EXTENSION, "%s#", session->device->last_exten);
@@ -1695,22 +1693,17 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		if (ret == -1)
 			return -1;
 
-		ret = do_newcall(msg->data.softkeyevent.lineInstance,
-				msg->data.softkeyevent.callInstance,
-				session);
+		ret = do_newcall(line_instance, call_instance, session);
 		if (ret == -1)
 			return -1;
 		break;
 
 	case SOFTKEY_HOLD:
-
-		handle_softkey_hold(msg->data.softkeyevent.lineInstance,
-					msg->data.softkeyevent.callInstance,
-					 session);
+		handle_softkey_hold(line_instance, call_instance, session);
 		break;
 
 	case SOFTKEY_TRNSFER:
-		ret = handle_softkey_transfer(msg->data.softkeyevent.lineInstance, session);
+		ret = handle_softkey_transfer(line_instance, session);
 		if (ret == -1)
 			return -1;
 		break;
@@ -1734,31 +1727,23 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_ENDCALL:
-
-		ret = do_hangup(msg->data.softkeyevent.lineInstance,
-				msg->data.softkeyevent.callInstance,
-				session);
+		ret = do_hangup(line_instance, call_instance, session);
 		if (ret == -1)
 			return -1;
 		break;
 
 	case SOFTKEY_RESUME:
-		ret = handle_softkey_resume(msg->data.softkeyevent.lineInstance,
-					msg->data.softkeyevent.callInstance,
-					session);
+		ret = handle_softkey_resume(line_instance, call_instance, session);
 		if (ret == -1)
 			return -1;
 		break;
 
 	case SOFTKEY_ANSWER:
-
 		ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
 		if (ret == -1)
 			return -1;
 
-		ret = do_answer(msg->data.softkeyevent.lineInstance,
-				msg->data.softkeyevent.callInstance,
-				session);
+		ret = do_answer(line_instance, call_instance, session);
 		if (ret == -1)
 			return -1;
 
@@ -2420,6 +2405,8 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	msg_id = letohl(msg->id);
 
+	ast_debug(1, "Message received: 0x%04X %s\n", msg_id, msg_id_str(msg_id));
+
 	/* Device is not configured */
 	if (session->device == NULL &&
 		(msg_id != REGISTER_MESSAGE && msg_id != ALARM_MESSAGE)) {
@@ -2442,127 +2429,100 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 		break;
 
 	case REGISTER_MESSAGE:
-		ast_log(LOG_DEBUG, "Register message\n");
 		ret = handle_register_message(msg, session);
 		break;
 
 	case IP_PORT_MESSAGE:
-		ast_log(LOG_DEBUG, "Ip port message\n");
 		ret = handle_ipport_message(msg, session);
 		break;
 
 	case ENBLOC_CALL_MESSAGE:
-		ast_log(LOG_DEBUG, "Enbloc call message\n");
 		ret = handle_enbloc_call_message(msg, session);
 		break;
 
 	case STIMULUS_MESSAGE:
 		switch (msg->data.stimulus.stimulus) {
 		case STIMULUS_VOICEMAIL:
-			ast_log(LOG_DEBUG, "voicemail message\n");
+			ast_debug(1, "Stimulus message: voicemail\n");
 			ret = handle_voicemail_message(msg, session);
 			break;
 		case STIMULUS_FEATUREBUTTON:
-			ast_log(LOG_DEBUG, "stimulus message\n");
+			ast_debug(1, "Stimulus message: featurebutton\n");
+			ret = handle_speeddial_message(msg, session);
+			break;
 		case STIMULUS_SPEEDDIAL:
-			ast_log(LOG_DEBUG, "speeddial message\n");
+			ast_debug(1, "Stimulus message: speeddial\n");
 			ret = handle_speeddial_message(msg, session);
 			break;
 		}
 		break;
 
 	case KEYPAD_BUTTON_MESSAGE:
-		ast_log(LOG_DEBUG, "keypad button message\n");
 		ret = handle_keypad_button_message(msg, session);
 		break;
 
 	case OFFHOOK_MESSAGE:
-		ast_log(LOG_DEBUG, "Offhook message\n");
 		ret = handle_offhook_message(msg, session);
 		break;
 
 	case ONHOOK_MESSAGE:
-		ast_log(LOG_DEBUG, "Onhook message\n");
 		ret = handle_onhook_message(msg, session);
 		break;
 
 	case FORWARD_STATUS_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Forward status message\n");
 		ret = handle_forward_status_req_message(msg, session);
 		break;
 
 	case CAPABILITIES_RES_MESSAGE:
-		ast_log(LOG_DEBUG, "Capabilities message\n");
 		ret = handle_capabilities_res_message(msg, session);
 		break;
 
 	case SPEEDDIAL_STAT_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Speeddial status message\n");
 		ret = handle_speeddial_status_req_message(msg, session);
 		break;
 
 	case FEATURE_STATUS_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Feature status message\n");
 		ret = handle_feature_status_req_message(msg, session);
 		break;
 
 	case LINE_STATUS_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Line status message\n");
 		ret = handle_line_status_req_message(msg, session);
 		break;
 
 	case CONFIG_STATUS_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Config status message\n");
 		ret = handle_config_status_req_message(session);
 		break;
 
 	case TIME_DATE_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Time date message\n");
 		ret = handle_time_date_req_message(session);
 		break;
 
 	case BUTTON_TEMPLATE_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Button template request message\n");
 		ret = handle_button_template_req_message(session);
 		break;
 
 	case SOFTKEY_TEMPLATE_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Softkey template request message\n");
 		ret = handle_softkey_template_req_message(session);
 		break;
 
 	case ALARM_MESSAGE:
-		ast_log(LOG_DEBUG, "Alarm message: %s\n", msg->data.alarm.displayMessage);
+		ast_debug(1, "Alarm message: %s\n", msg->data.alarm.displayMessage);
 		break;
 
 	case SOFTKEY_EVENT_MESSAGE:
-		ast_log(LOG_DEBUG, "Softkey event message\n");
 		ret = handle_softkey_event_message(msg, session);
 		break;
 
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
-		ast_log(LOG_DEBUG, "Open receive channel ack message\n");
 		ret = handle_open_receive_channel_ack_message(msg, session);
 		break;
 
 	case SOFTKEY_SET_REQ_MESSAGE:
-		ast_log(LOG_DEBUG, "Softkey set request message\n");
 		ret = handle_softkey_set_req_message(session);
 		break;
 
-	case REGISTER_AVAILABLE_LINES_MESSAGE:
-		ast_log(LOG_DEBUG, "Register available lines message\n");
-		break;
-
-	case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
-		ast_log(LOG_DEBUG, "Start media transmission ack message\n");
-		break;
-
-	case ACCESSORY_STATUS_MESSAGE:
-		break;
-
 	default:
-		ast_log(LOG_DEBUG, "Unknown message %x\n", msg->id);
+		ast_debug(1, "Message not handled\n");
 		break;
 	}
 
