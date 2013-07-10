@@ -2784,9 +2784,6 @@ static struct ast_channel *cb_ast_request(const char *type,
 	char *option = NULL;
 	char buf[256];
 
-	if (type == NULL)
-		return NULL;
-
 	if (destination == NULL)
 		return NULL;
 
@@ -2803,11 +2800,8 @@ static struct ast_channel *cb_ast_request(const char *type,
 		option++;
 	}
 
-	ast_log(LOG_DEBUG, "type: %s "
-			"capability: %s "
-			"destination: %s "
-			"option: %s\n",
-			type, ast_getformatname_multiple(buf, sizeof(buf), cap),
+	ast_log(LOG_DEBUG, "capability: %s destination: %s option: %s\n",
+			ast_getformatname_multiple(buf, sizeof(buf), cap),
 			destination, option ? option : "");
 
 	line = find_line_by_name(destination, &sccp_config->list_line);
