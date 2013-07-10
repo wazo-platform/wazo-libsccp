@@ -333,7 +333,7 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance);
 struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index);
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
-char *line_state_str(int line_state);
+const char *line_state_str(int line_state);
 int device_type_is_supported(int device_type);
 int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
@@ -346,9 +346,9 @@ void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id);
 void set_line_state(struct sccp_line *line, int state);
-char *device_regstate_str(int device_state);
+const char *device_regstate_str(int device_state);
 int device_type_is_supported(int device_type);
-char *device_type_str(int device_type);
+const char *device_type_str(int device_type);
 
 typedef int (*state_cb_type)(char *context, char* id, struct ast_state_cb_info *info, void *data);
 void speeddial_hints_unsubscribe(struct sccp_device *device);

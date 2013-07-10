@@ -247,7 +247,7 @@ struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
 	return line_itr;
 }
 
-char *line_state_str(int line_state)
+const char *line_state_str(int line_state)
 {
 	switch (line_state) {
 	case SCCP_OFFHOOK:
@@ -281,7 +281,7 @@ char *line_state_str(int line_state)
 	}
 }
 
-char *device_type_str(int device_type)
+const char *device_type_str(int device_type)
 {
 	switch (device_type) {
 	case SCCP_DEVICE_7905:
@@ -319,7 +319,7 @@ char *device_type_str(int device_type)
 	}
 }
 
-char *device_regstate_str(int device_state)
+const char *device_regstate_str(int device_state)
 {
 	switch (device_state) {
 	case DEVICE_REGISTERED_TRUE:
