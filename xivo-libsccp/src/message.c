@@ -109,6 +109,8 @@ const char *msg_id_str(uint32_t msg_id) {
 		return "softkey template res";
 	case SOFTKEY_SET_RES_MESSAGE:
 		return "softkey set res";
+	case SELECT_SOFT_KEYS_MESSAGE:
+		return "select soft keys";
 	case CALL_STATE_MESSAGE:
 		return "call state";
 	case DISPLAY_NOTIFY_MESSAGE:
