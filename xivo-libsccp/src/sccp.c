@@ -3303,34 +3303,26 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 	return CLI_SUCCESS;
 }
 
-static char *sccp_set_directmedia_on(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+static char *sccp_set_directmedia(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	switch (cmd) {
 	case CLI_INIT:
-		e->command = "sccp set directmedia on";
-		e->usage = "usage: sccp set directmedia on\n";
+		e->command = "sccp set directmedia {on|off}";
+		e->usage = "Usage: sccp set directmedia {on|off}\n";
 		return NULL;
 	case CLI_GENERATE:
 		return NULL;
 	}
 
-	sccp_config->directmedia = 1;
-
-	return CLI_SUCCESS;
-}
-
-static char *sccp_set_directmedia_off(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
-{
-	switch (cmd) {
-	case CLI_INIT:
-		e->command = "sccp set directmedia off";
-		e->usage = "usage: sccp set directmedia off\n";
-		return NULL;
-	case CLI_GENERATE:
-		return NULL;
+	if (strcasecmp(a->argv[3], "on") == 0) {
+		ast_cli(a->fd, "SCCP direct media enabled\n");
+		sccp_config->directmedia = 1;
+	} else if (strcasecmp(a->argv[3], "off") == 0) {
+		ast_cli(a->fd, "SCCP direct media disabled\n");
+		sccp_config->directmedia = 0;
+	} else {
+		return CLI_SHOWUSAGE;
 	}
-
-	sccp_config->directmedia = 0;
 
 	return CLI_SUCCESS;
 }
@@ -3485,8 +3477,7 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
 	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
-	AST_CLI_DEFINE(sccp_set_directmedia_on, "Turn on direct media"),
-	AST_CLI_DEFINE(sccp_set_directmedia_off, "Turn off direct media"),
+	AST_CLI_DEFINE(sccp_set_directmedia, "Enable/Disable direct media"),
 #ifdef DEBUG_STATE
 	AST_CLI_DEFINE(sccp_dump_state, "Dump session state"),
 #endif
