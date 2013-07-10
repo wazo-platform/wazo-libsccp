@@ -2405,6 +2405,7 @@ static void destroy_session(struct sccp_session **session)
 
 static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	uint32_t msg_id;
 	int ret = 0;
 
 	if (msg == NULL) {
@@ -2417,23 +2418,25 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 		return -1;
 	}
 
+	msg_id = letohl(msg->id);
+
 	/* Device is not configured */
 	if (session->device == NULL &&
-		(msg->id != REGISTER_MESSAGE && msg->id != ALARM_MESSAGE)) {
+		(msg_id != REGISTER_MESSAGE && msg_id != ALARM_MESSAGE)) {
 			ast_log(LOG_ERROR, "session->device is NULL\n");
 			return -1;
 	}
 
 	/* Prevent unregistered phone from sending non-registering messages */
 	if (((session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE)) &&
-		(msg->id != REGISTER_MESSAGE && msg->id != ALARM_MESSAGE)) {
+		(msg_id != REGISTER_MESSAGE && msg_id != ALARM_MESSAGE)) {
 
 			ast_log(LOG_ERROR, "Session from [%s::%d] sending non-registering messages\n",
 						session->ipaddr, session->sockfd);
 			return -1;
 	}
 
-	switch (msg->id) {
+	switch (msg_id) {
 	case KEEP_ALIVE_MESSAGE:
 		ret = handle_keep_alive_message(session);
 		break;
