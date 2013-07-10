@@ -680,6 +680,10 @@ static int start_rtp(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr bindaddr_tmp;
 	struct ast_sockaddr remote_tmp;
+	struct ast_format tmpfmt;
+
+	struct sockaddr_in local;
+	struct ast_sockaddr local_tmp;
 
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
@@ -711,6 +715,16 @@ static int start_rtp(struct sccp_subchannel *subchan)
 			ast_rtp_instance_set_remote_address(subchan->rtp, &remote_tmp);
 			subchan->line->device->early_remote = 0;
 
+			// What happens when direct media is enabled in SIP and SCCP
+			ast_best_codec(subchan->line->device->codecs, &tmpfmt);
+
+			ast_rtp_instance_get_local_address(subchan->line->active_subchan->rtp, &local_tmp);
+			ast_sockaddr_to_sin(&local_tmp, &local);
+
+			if (local.sin_addr.s_addr == 0)
+				local.sin_addr.s_addr = subchan->line->device->localip.sin_addr.s_addr;
+
+			transmit_start_media_transmission(subchan->line, subchan->id, local, ast_codec_pref_getsize(&subchan->line->codec_pref, &tmpfmt));
 		} else {
 			transmit_open_receive_channel(subchan->line, subchan->id);
 		}
