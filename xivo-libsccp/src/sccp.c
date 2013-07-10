@@ -204,7 +204,7 @@ static void update_displaymessage(struct sccp_session *session, struct sccp_line
 	}
 
 	if (line == NULL) {
-		ast_log(LOG_DEBUG, "session->device is NULL\n");
+		ast_log(LOG_DEBUG, "line is NULL\n");
 		return;
 	}
 
