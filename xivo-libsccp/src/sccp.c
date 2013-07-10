@@ -712,7 +712,7 @@ static int start_rtp(struct sccp_subchannel *subchan)
 			subchan->line->device->early_remote = 0;
 
 		} else {
-			transmit_connect(subchan->line, subchan->id);
+			transmit_open_receive_channel(subchan->line, subchan->id);
 		}
 	}
 
@@ -2805,7 +2805,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 
 	if (!line->active_subchan && !line->device->early_remote && sccp_config->directmedia) {
 		line->device->early_remote = 1;
-		transmit_connect(line, subchan->id);
+		transmit_open_receive_channel(line, subchan->id);
 	}
 
 	return channel;

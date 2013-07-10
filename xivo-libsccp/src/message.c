@@ -464,7 +464,7 @@ int transmit_config_status_res(struct sccp_session *session)
 	return 0;
 }
 
-int transmit_connect(struct sccp_line *line, uint32_t callid)
+int transmit_open_receive_channel(struct sccp_line *line, uint32_t callid)
 {
 	struct ast_format_list fmt;
 	struct ast_format tmpfmt;
