@@ -77,6 +77,7 @@ static void thread_session_cleanup(void *data);
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 				struct sccp_subchannel *subchan, struct sccp_session *session);
 static size_t make_thread_sessions_array(pthread_t **threads);
+void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local);
 static void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt);
 
 static struct ast_channel_tech sccp_tech = {
@@ -676,11 +677,8 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 static int start_rtp(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr bindaddr_tmp;
-	struct ast_sockaddr remote_tmp;
 	struct ast_format_list fmt;
-
 	struct sockaddr_in local;
-	struct ast_sockaddr local_tmp;
 
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
@@ -708,18 +706,9 @@ static int start_rtp(struct sccp_subchannel *subchan)
 						subchan->rtp, &subchan->line->codec_pref);
 
 		if (subchan->line->device->early_remote) {
-			ast_sockaddr_from_sin(&remote_tmp, &subchan->line->device->remote);
-			ast_rtp_instance_set_remote_address(subchan->rtp, &remote_tmp);
 			subchan->line->device->early_remote = 0;
 			line_get_format_list(subchan->line, &fmt);
-
-
-			ast_rtp_instance_get_local_address(subchan->line->active_subchan->rtp, &local_tmp);
-			ast_sockaddr_to_sin(&local_tmp, &local);
-
-			if (local.sin_addr.s_addr == 0)
-				local.sin_addr.s_addr = subchan->line->device->localip.sin_addr.s_addr;
-
+			subchan_set_rtp_addresses_get_local(subchan, &local);
 			transmit_start_media_transmission(subchan->line, subchan->id, local, fmt);
 		} else {
 			transmit_open_receive_channel(subchan->line, subchan->id);
@@ -1979,9 +1968,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
-	struct ast_sockaddr remote_tmp;
 	struct sockaddr_in local;
-	struct ast_sockaddr local_tmp;
 	struct ast_format_list fmt;
 	uint32_t passthruid = 0;
 	uint32_t addr = 0;
@@ -2014,24 +2001,13 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	}
 
 	if (line->active_subchan->rtp) {
-
-		ast_sockaddr_from_sin(&remote_tmp, &line->device->remote);
-		ast_rtp_instance_set_remote_address(line->active_subchan->rtp, &remote_tmp);
-
-		ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
-		ast_sockaddr_to_sin(&local_tmp, &local);
-
-		if (local.sin_addr.s_addr == 0)
-			local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
+		subchan_set_rtp_addresses_get_local(line->active_subchan, &local);
 	}
 	else {
 		ast_log(LOG_DEBUG, "line->active_subchan->rtp is NULL\n");
 		ast_mutex_unlock(&line->lock);
 		return 0;
 	}
-
-	ast_log(LOG_DEBUG, "local address %s:%d\n", ast_inet_ntoa(local.sin_addr), ntohs(local.sin_port));
-	ast_log(LOG_DEBUG, "remote address %s:%d\n", ast_inet_ntoa(line->device->remote.sin_addr), ntohs(line->device->remote.sin_port));
 
 	line_get_format_list(line, &fmt);
 
@@ -3520,6 +3496,27 @@ static size_t make_thread_sessions_array(pthread_t **threads)
 	AST_LIST_UNLOCK(&list_session);
 
 	return n;
+}
+
+void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local)
+{
+	struct ast_sockaddr remote_tmp;
+	struct ast_sockaddr local_tmp;
+
+	if (subchan == NULL) {
+		ast_log(LOG_ERROR, "Subchan is NULL\n");
+		return;
+	}
+
+	ast_sockaddr_from_sin(&remote_tmp, &subchan->line->device->remote);
+	ast_rtp_instance_set_remote_address(subchan->rtp, &remote_tmp);
+
+	ast_rtp_instance_get_local_address(subchan->line->active_subchan->rtp, &local_tmp);
+	ast_sockaddr_to_sin(&local_tmp, local);
+
+	if (local->sin_addr.s_addr == 0) {
+		local->sin_addr.s_addr = subchan->line->device->localip.sin_addr.s_addr;
+	}
 }
 
 void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt)
