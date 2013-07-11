@@ -77,6 +77,7 @@ static void thread_session_cleanup(void *data);
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 				struct sccp_subchannel *subchan, struct sccp_session *session);
 static size_t make_thread_sessions_array(pthread_t **threads);
+static void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt);
 
 static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
@@ -626,7 +627,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
 
-	struct ast_format tmpfmt;
 	struct ast_format_list fmt;
 
 	subchan = ast_channel_tech_pvt(channel);
@@ -646,10 +646,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	}
 
 	if (sccp_config->directmedia && rtp) {
-
-		ast_best_codec(line->device->codecs, &tmpfmt);
-		ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&tmpfmt));
-		fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
+		line_get_format_list(line, &fmt);
 
 		ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
 		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
@@ -680,7 +677,7 @@ static int start_rtp(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr bindaddr_tmp;
 	struct ast_sockaddr remote_tmp;
-	struct ast_format tmpfmt;
+	struct ast_format_list fmt;
 
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
@@ -714,9 +711,8 @@ static int start_rtp(struct sccp_subchannel *subchan)
 			ast_sockaddr_from_sin(&remote_tmp, &subchan->line->device->remote);
 			ast_rtp_instance_set_remote_address(subchan->rtp, &remote_tmp);
 			subchan->line->device->early_remote = 0;
+			line_get_format_list(subchan->line, &fmt);
 
-			// What happens when direct media is enabled in SIP and SCCP
-			ast_best_codec(subchan->line->device->codecs, &tmpfmt);
 
 			ast_rtp_instance_get_local_address(subchan->line->active_subchan->rtp, &local_tmp);
 			ast_sockaddr_to_sin(&local_tmp, &local);
@@ -724,7 +720,7 @@ static int start_rtp(struct sccp_subchannel *subchan)
 			if (local.sin_addr.s_addr == 0)
 				local.sin_addr.s_addr = subchan->line->device->localip.sin_addr.s_addr;
 
-			transmit_start_media_transmission(subchan->line, subchan->id, local, ast_codec_pref_getsize(&subchan->line->codec_pref, &tmpfmt));
+			transmit_start_media_transmission(subchan->line, subchan->id, local, fmt);
 		} else {
 			transmit_open_receive_channel(subchan->line, subchan->id);
 		}
@@ -1987,7 +1983,6 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
 	struct ast_format_list fmt;
-	struct ast_format tmpfmt;
 	uint32_t passthruid = 0;
 	uint32_t addr = 0;
 	uint32_t port = 0;
@@ -2038,8 +2033,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	ast_log(LOG_DEBUG, "local address %s:%d\n", ast_inet_ntoa(local.sin_addr), ntohs(local.sin_port));
 	ast_log(LOG_DEBUG, "remote address %s:%d\n", ast_inet_ntoa(line->device->remote.sin_addr), ntohs(line->device->remote.sin_port));
 
-	ast_best_codec(line->device->codecs, &tmpfmt);
-	fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
+	line_get_format_list(line, &fmt);
 
 	ret = transmit_start_media_transmission(line, line->active_subchan->id, local, fmt);
 
@@ -3526,6 +3520,20 @@ static size_t make_thread_sessions_array(pthread_t **threads)
 	AST_LIST_UNLOCK(&list_session);
 
 	return n;
+}
+
+void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt)
+{
+	struct ast_format tmpfmt;
+
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "Line is NULL\n");
+		return;
+	}
+
+	ast_best_codec(line->device->codecs, &tmpfmt);
+	ast_debug(1, "Best codec: %s\n", ast_getformatname(&tmpfmt));
+	*fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
 }
 
 void sccp_server_fini()
