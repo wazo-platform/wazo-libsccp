@@ -2758,11 +2758,6 @@ static struct ast_channel *cb_ast_request(const char *type,
 		ast_channel_call_forward_set(channel, line->callfwd_exten);
 	}
 
-	if (!line->active_subchan && !line->device->early_remote && sccp_config->directmedia) {
-		line->device->early_remote = 1;
-		transmit_open_receive_channel(line, subchan->id);
-	}
-
 	return channel;
 }
 
@@ -2902,6 +2897,12 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 	if (ret == -1)
 		return -1;
+
+
+	if (!line->active_subchan && !line->device->early_remote && sccp_config->directmedia) {
+		line->device->early_remote = 1;
+		transmit_open_receive_channel(line, subchan->id);
+	}
 
 	if (line->device->autoanswer == 1) {
 		line->device->autoanswer = 0;
