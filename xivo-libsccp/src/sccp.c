@@ -1963,9 +1963,7 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 
 static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int ret = 0;
 	struct sccp_line *line = NULL;
-	uint32_t passthruid = 0;
 	uint32_t addr = 0;
 	uint32_t port = 0;
 
@@ -1983,7 +1981,6 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	addr = msg->data.openreceivechannelack.ipAddr;
 	port = letohl(msg->data.openreceivechannelack.port);
-	passthruid = letohl(msg->data.openreceivechannelack.passThruId);
 
 	device_set_remote(line->device, addr, port);
 
