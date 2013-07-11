@@ -77,7 +77,8 @@ static void thread_session_cleanup(void *data);
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 				struct sccp_subchannel *subchan, struct sccp_session *session);
 static size_t make_thread_sessions_array(pthread_t **threads);
-void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local);
+static void subchan_start_media_transmission(struct sccp_subchannel *subchan);
+static void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local);
 static void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt);
 
 static struct ast_channel_tech sccp_tech = {
@@ -677,8 +678,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 static int start_rtp(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr bindaddr_tmp;
-	struct ast_format_list fmt;
-	struct sockaddr_in local;
 
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
@@ -707,9 +706,7 @@ static int start_rtp(struct sccp_subchannel *subchan)
 
 		if (subchan->line->device->early_remote) {
 			subchan->line->device->early_remote = 0;
-			line_get_format_list(subchan->line, &fmt);
-			subchan_set_rtp_addresses_get_local(subchan, &local);
-			transmit_start_media_transmission(subchan->line, subchan->id, local, fmt);
+			subchan_start_media_transmission(subchan);
 		} else {
 			transmit_open_receive_channel(subchan->line, subchan->id);
 		}
@@ -1968,8 +1965,6 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
-	struct sockaddr_in local;
-	struct ast_format_list fmt;
 	uint32_t passthruid = 0;
 	uint32_t addr = 0;
 	uint32_t port = 0;
@@ -2001,17 +1996,10 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	}
 
 	if (line->active_subchan->rtp) {
-		subchan_set_rtp_addresses_get_local(line->active_subchan, &local);
-	}
-	else {
+		subchan_start_media_transmission(line->active_subchan);
+	} else {
 		ast_log(LOG_DEBUG, "line->active_subchan->rtp is NULL\n");
-		ast_mutex_unlock(&line->lock);
-		return 0;
 	}
-
-	line_get_format_list(line, &fmt);
-
-	ret = transmit_start_media_transmission(line, line->active_subchan->id, local, fmt);
 
 	ast_mutex_unlock(&line->lock);
 	return 0;
@@ -3531,6 +3519,21 @@ void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt)
 	ast_best_codec(line->device->codecs, &tmpfmt);
 	ast_debug(1, "Best codec: %s\n", ast_getformatname(&tmpfmt));
 	*fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
+}
+
+void subchan_start_media_transmission(struct sccp_subchannel *subchan)
+{
+	struct ast_format_list fmt;
+	struct sockaddr_in local;
+
+	if (subchan == NULL) {
+		ast_log(LOG_ERROR, "Cannot start media transmission on a NULL subchannel\n");
+		return;
+	}
+
+	line_get_format_list(subchan->line, &fmt);
+	subchan_set_rtp_addresses_get_local(subchan, &local);
+	transmit_start_media_transmission(subchan->line, subchan->id, local, fmt);
 }
 
 void sccp_server_fini()
