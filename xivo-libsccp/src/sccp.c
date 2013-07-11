@@ -1983,7 +1983,6 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
-	struct sockaddr_in remote;
 	struct ast_sockaddr remote_tmp;
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
@@ -2009,11 +2008,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	port = letohl(msg->data.openreceivechannelack.port);
 	passthruid = letohl(msg->data.openreceivechannelack.passThruId);
 
-	remote.sin_family = AF_INET;
-	remote.sin_addr.s_addr = addr;
-	remote.sin_port = htons(port);
-
-	line->device->remote = remote;
+	device_set_remote(line->device, addr, port);
 
 	ast_mutex_lock(&line->lock);
 
@@ -2025,7 +2020,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	if (line->active_subchan->rtp) {
 
-		ast_sockaddr_from_sin(&remote_tmp, &remote);
+		ast_sockaddr_from_sin(&remote_tmp, &line->device->remote);
 		ast_rtp_instance_set_remote_address(line->active_subchan->rtp, &remote_tmp);
 
 		ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
@@ -2041,7 +2036,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	}
 
 	ast_log(LOG_DEBUG, "local address %s:%d\n", ast_inet_ntoa(local.sin_addr), ntohs(local.sin_port));
-	ast_log(LOG_DEBUG, "remote address %s:%d\n", ast_inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+	ast_log(LOG_DEBUG, "remote address %s:%d\n", ast_inet_ntoa(line->device->remote.sin_addr), ntohs(line->device->remote.sin_port));
 
 	ast_best_codec(line->device->codecs, &tmpfmt);
 	fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);

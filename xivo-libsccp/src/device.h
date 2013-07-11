@@ -328,6 +328,7 @@ void device_register(struct sccp_device *device,
 			void *session,
 			struct sockaddr_in localip);
 void device_prepare(struct sccp_device *device);
+int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port);
 struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line);
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device);
 struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance);

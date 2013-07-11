@@ -78,6 +78,20 @@ void device_prepare(struct sccp_device *device)
 	AST_RWLIST_UNLOCK(&device->lines);
 }
 
+int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
+{
+	if (device == NULL) {
+		ast_log(LOG_ERROR, "Device is NULL\n");
+		return -1;
+	}
+
+	device->remote.sin_family = AF_INET;
+	device->remote.sin_addr.s_addr = addr;
+	device->remote.sin_port = htons(port);
+
+	return 0;
+}
+
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device)
 {
 	struct sccp_device *device_itr = NULL;
