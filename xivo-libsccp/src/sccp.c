@@ -77,6 +77,7 @@ static void thread_session_cleanup(void *data);
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 				struct sccp_subchannel *subchan, struct sccp_session *session);
 static size_t make_thread_sessions_array(pthread_t **threads);
+static void subchan_init_rtp_instance(struct sccp_subchannel *subchan);
 static void subchan_start_media_transmission(struct sccp_subchannel *subchan);
 static void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local);
 static void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt);
@@ -690,19 +691,7 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	subchan->rtp = ast_rtp_instance_new("asterisk", sched, &bindaddr_tmp, NULL);
 
 	if (subchan->rtp) {
-
-		ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_RTCP, 1);
-
-		if (subchan->channel) {
-			ast_channel_set_fd(subchan->channel, 0, ast_rtp_instance_fd(subchan->rtp, 0));
-			ast_channel_set_fd(subchan->channel, 1, ast_rtp_instance_fd(subchan->rtp, 1));
-		}
-
-		ast_rtp_instance_set_qos(subchan->rtp, 0, 0, "sccp rtp");
-		ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_NAT, 0);
-
-		ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
-						subchan->rtp, &subchan->line->codec_pref);
+		subchan_init_rtp_instance(subchan);
 
 		if (subchan->line->device->early_remote) {
 			subchan->line->device->early_remote = 0;
@@ -3481,6 +3470,27 @@ static size_t make_thread_sessions_array(pthread_t **threads)
 	AST_LIST_UNLOCK(&list_session);
 
 	return n;
+}
+
+void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
+{
+	if (subchan == NULL) {
+		ast_log(LOG_ERROR, "Cannot initialise RTP instance on a NULL subchan\n");
+		return;
+	}
+
+	ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_RTCP, 1);
+
+	if (subchan->channel) {
+		ast_channel_set_fd(subchan->channel, 0, ast_rtp_instance_fd(subchan->rtp, 0));
+		ast_channel_set_fd(subchan->channel, 1, ast_rtp_instance_fd(subchan->rtp, 1));
+	}
+
+	ast_rtp_instance_set_qos(subchan->rtp, 0, 0, "sccp rtp");
+	ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_NAT, 0);
+
+	ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
+					subchan->rtp, &subchan->line->codec_pref);
 }
 
 void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local)
