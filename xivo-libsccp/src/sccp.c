@@ -1986,7 +1986,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	if (line->active_subchan->rtp) {
 		subchan_start_media_transmission(line->active_subchan);
 	} else {
-		ast_log(LOG_DEBUG, "line->active_subchan->rtp is NULL\n");
+		// early_remote is on and it's too early to transmit media start
 	}
 
 	ast_mutex_unlock(&line->lock);
