@@ -680,25 +680,27 @@ static int start_rtp(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr bindaddr_tmp;
 
+	ast_debug(1, "start rtp\n");
+
 	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "subchan is NULL\n");
+		ast_log(LOG_ERROR, "subchan is NULL\n");
 		return -1;
 	}
 
-	ast_log(LOG_DEBUG, "start rtp\n");
-
 	ast_sockaddr_from_sin(&bindaddr_tmp, (struct sockaddr_in *)sccp_srv.res->ai_addr);
 	subchan->rtp = ast_rtp_instance_new("asterisk", sched, &bindaddr_tmp, NULL);
+	if (subchan->rtp == NULL) {
+		ast_log(LOG_ERROR, "RTP instance creation failed\n");
+		return -1;
+	}
 
-	if (subchan->rtp) {
-		subchan_init_rtp_instance(subchan);
+	subchan_init_rtp_instance(subchan);
 
-		if (subchan->line->device->early_remote) {
-			subchan->line->device->early_remote = 0;
-			subchan_start_media_transmission(subchan);
-		} else {
-			transmit_open_receive_channel(subchan->line, subchan->id);
-		}
+	if (subchan->line->device->early_remote) {
+		subchan->line->device->early_remote = 0;
+		subchan_start_media_transmission(subchan);
+	} else {
+		transmit_open_receive_channel(subchan->line, subchan->id);
 	}
 
 	return 0;
