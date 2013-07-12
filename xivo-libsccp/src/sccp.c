@@ -534,9 +534,8 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 					subchan->line->context,		/* context */
 					linkedid,			/* linked ID */
 					0,				/* amaflag */
-					"sccp/%s@%s-%d",		/* format */
+					"SCCP/%s-%d",			/* format */
 					subchan->line->name,		/* name */
-					subchan->line->device->name,	/* name */
 					1);				/* callnums */
 
 	if (channel == NULL) {
