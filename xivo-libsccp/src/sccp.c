@@ -47,6 +47,8 @@ static struct sccp_configs *sccp_config;
 
 static struct ast_format_cap *default_cap;
 
+static unsigned int chan_idx;
+
 static int do_clear_subchannel(struct sccp_subchannel *subchan);
 static int handle_softkey_dnd(struct sccp_session *session);
 static int handle_callforward(struct sccp_session *session, uint32_t softkey);
@@ -534,9 +536,9 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 					subchan->line->context,		/* context */
 					linkedid,			/* linked ID */
 					0,				/* amaflag */
-					"SCCP/%s-%d",			/* format */
-					subchan->line->name,		/* name */
-					1);				/* callnums */
+					"SCCP/%s-%08x",
+					subchan->line->name,
+					ast_atomic_fetchadd_int((int *)&chan_idx, +1));
 
 	if (channel == NULL) {
 		ast_log(LOG_ERROR, "channel allocation failed\n");
