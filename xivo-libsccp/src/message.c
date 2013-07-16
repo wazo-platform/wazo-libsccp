@@ -734,7 +734,7 @@ int transmit_line_status_res(struct sccp_session *session, int lineInstance, str
 
 	msg->data.linestatus.lineNumber = letohl(lineInstance);
 
-	if (line->device->protoVersion <= 11) {
+	if (line->device->proto_version <= 11) {
 		displayname = utf8_to_iso88591(line->cid_name);
 	}
 

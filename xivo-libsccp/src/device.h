@@ -282,7 +282,7 @@ struct sccp_device {
 	char name[80];
 	int type;
 	int state;
-	uint8_t protoVersion;
+	uint8_t proto_version;
 	uint32_t station_port;
 	struct sockaddr_in localip;
 	struct sockaddr_in remote;

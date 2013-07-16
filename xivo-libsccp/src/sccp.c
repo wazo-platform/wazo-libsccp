@@ -132,7 +132,7 @@ static char *format_caller_id_name(struct ast_channel *channel, struct sccp_devi
 		snprintf(name, sizeof(name), "%s", connected->id.name.str);
 	}
 
-	if (device->protoVersion <= 11) {
+	if (device->proto_version <= 11) {
 		result = utf8_to_iso88591(name);
 	} else {
 		result = ast_strdup(name);
@@ -158,7 +158,7 @@ static char *format_caller_id_number(struct ast_channel *channel, struct sccp_de
 
 	number = ast_channel_connected(channel)->id.number.str;
 
-	if (device->protoVersion <= 11) {
+	if (device->proto_version <= 11) {
 		result = utf8_to_iso88591(number);
 	} else {
 		result = ast_strdup(number);
@@ -1086,7 +1086,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		return -1;
 	}
 
-	if (device->protoVersion >= 11) {
+	if (device->proto_version >= 11) {
 		/* Newest protocols provide these informations */
 		line_instance = msg->data.offhook.lineInstance;
 		subchan_id = msg->data.offhook.callInstance;
@@ -1237,7 +1237,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		return -1;
 	}
 
-	if (session->device->protoVersion == 11) {
+	if (session->device->proto_version == 11) {
 		/* Newest protocols provide these informations */
 
 		line_instance = msg->data.onhook.lineInstance;
@@ -3353,7 +3353,7 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 							session && session->ipaddr ? session->ipaddr: "-",
 							device_type_str(device_itr->type),
 							device_regstate_str(device_itr->registered),
-							device_itr->protoVersion);
+							device_itr->proto_version);
 
 		dev_cnt++;
 		if (device_itr->registered == DEVICE_REGISTERED_TRUE)
