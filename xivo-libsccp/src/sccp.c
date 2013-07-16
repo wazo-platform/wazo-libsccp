@@ -1166,7 +1166,6 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 	ast_free(subchan);
 
-
 	ast_mutex_unlock(&line->lock);
 
 	return 0;

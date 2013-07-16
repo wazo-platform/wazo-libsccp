@@ -148,6 +148,7 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 void speeddial_hints_unsubscribe(struct sccp_device *device)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
+
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
 		if (speeddial_itr->blf) {
