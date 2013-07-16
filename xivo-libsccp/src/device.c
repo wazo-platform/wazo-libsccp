@@ -113,7 +113,7 @@ struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line)
 
 	AST_RWLIST_RDLOCK(&line->subchans);
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr != NULL && subchan_itr->state == SCCP_RINGIN)
+		if (subchan_itr->state == SCCP_RINGIN)
 			break;
 	}
 	AST_RWLIST_UNLOCK(&line->subchans);
