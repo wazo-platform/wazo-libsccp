@@ -9,7 +9,6 @@
 #include <asterisk/pbx.h>
 
 #include <stdint.h>
-#include <sys/queue.h>
 
 #define SCCP_DEVICE_7960	7
 #define SCCP_DEVICE_7940	8
@@ -353,4 +352,5 @@ const char *device_type_str(int device_type);
 typedef int (*state_cb_type)(char *context, char* id, struct ast_state_cb_info *info, void *data);
 void speeddial_hints_unsubscribe(struct sccp_device *device);
 void speeddial_hints_subscribe(struct sccp_device *device, state_cb_type speeddial_hints_cb);
+
 #endif /* SCCP_DEVICE_H */

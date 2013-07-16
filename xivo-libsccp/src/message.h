@@ -1,9 +1,6 @@
 #ifndef SCCP_MESSAGE_H
 #define SCCP_MESSAGE_H
 
-#include <stdlib.h>
-#include <stdint.h>
-
 #include "device.h"
 #include "sccp.h"
 #include "sccp_config.h"
