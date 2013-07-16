@@ -483,13 +483,14 @@ struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subcha
 
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 {
+	struct sccp_subchannel *subchan_itr;
+
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return;
 	}
 
-	struct sccp_subchannel *subchan_itr;
-	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr->id == subchan_id) {
 			line_select_subchan(line, subchan_itr);
 			break;

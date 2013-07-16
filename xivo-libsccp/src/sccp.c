@@ -509,7 +509,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
 	subchan->channel = NULL;
 	subchan->related = NULL;
 
-	AST_LIST_INSERT_HEAD(&line->subchans, subchan, list);
+	AST_RWLIST_INSERT_HEAD(&line->subchans, subchan, list);
 
 	return subchan;
 }
@@ -1147,7 +1147,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	transmit_stop_tone(session, line->instance, subchan->id);
 	transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
 
-	AST_LIST_REMOVE(&line->subchans, subchan, list);
+	AST_RWLIST_REMOVE(&line->subchans, subchan, list);
 
 	subchan->channel = NULL;
 
@@ -1155,7 +1155,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		subchan->related->related = NULL;
 	}
 
-	if (AST_LIST_EMPTY(&line->subchans)) {
+	if (AST_RWLIST_EMPTY(&line->subchans)) {
 		transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
 		ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 		set_line_state(line, SCCP_ONHOOK);
