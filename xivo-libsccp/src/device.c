@@ -24,7 +24,7 @@ void device_unregister(struct sccp_device *device)
 		do {
 			subchan = NULL;
 
-			AST_RWLIST_WRLOCK(&line_itr->subchans);
+			AST_RWLIST_RDLOCK(&line_itr->subchans);
 			subchan = AST_RWLIST_FIRST(&line_itr->subchans);
 			AST_RWLIST_UNLOCK(&line_itr->subchans);
 
