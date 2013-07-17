@@ -2744,12 +2744,6 @@ static struct ast_channel *cb_ast_request(const char *type,
 	char *option = NULL;
 	char buf[256];
 
-	if (destination == NULL)
-		return NULL;
-
-	if (cause == NULL)
-		return NULL;
-
 	if (!(ast_format_cap_has_type(cap, AST_FORMAT_TYPE_AUDIO))) {
 		ast_log(LOG_NOTICE, "Invalid format type: %s\n", ast_getformatname_multiple(buf, sizeof(buf), cap));
 	}
@@ -2843,16 +2837,6 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	struct sccp_line *line = NULL;
 	struct sccp_device *device = NULL;
 	struct sccp_session *session = NULL;
-
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
-
-	if (dest == NULL) {
-		ast_log(LOG_DEBUG, "dest is NULL\n");
-		return -1;
-	}
 
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
@@ -2961,11 +2945,6 @@ static int cb_ast_hangup(struct ast_channel *channel)
 {
 	struct sccp_subchannel *subchan = NULL;
 
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
-
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan != NULL) {
 		do_clear_subchannel(subchan);
@@ -2982,11 +2961,6 @@ static int cb_ast_answer(struct ast_channel *channel)
 {
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
-
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
 
 	subchan = ast_channel_tech_pvt(channel);
 	line = subchan->line;
@@ -3020,11 +2994,6 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 	struct ast_frame *frame = NULL;
-
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return NULL;
-	}
 
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
@@ -3074,16 +3043,6 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
-
-	if (frame == NULL) {
-		ast_log(LOG_DEBUG, "frame is NULL\n");
-		return -1;
-	}
-
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "channel has no tech_pvt\n");
@@ -3115,11 +3074,6 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
-
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
 
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
@@ -3243,16 +3197,6 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
 {
 	struct sccp_subchannel *subchan = NULL;
-
-	if (oldchannel == NULL) {
-		ast_log(LOG_DEBUG, "oldchannel is NULL\n");
-		return -1;
-	}
-
-	if (newchannel == NULL) {
-		ast_log(LOG_DEBUG, "newchannel is NULL\n");
-		return -1;
-	}
 
 	subchan = ast_channel_tech_pvt(newchannel);
 	subchan->channel = newchannel;
