@@ -1237,7 +1237,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	}
 
 	if (session->device->proto_version == 11) {
-		/* Newest protocols provide these informations */
 
 		line_instance = msg->data.onhook.lineInstance;
 		subchan_id = msg->data.onhook.callInstance;
@@ -1248,7 +1247,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		do_hangup(line_instance, subchan_id, session);
 	}
 	else {
-		/* With older protocols, we manually get the line and the subchannel */
+		/* With other protocols, we manually get the line and the subchannel */
 		line = session->device->default_line;
 
 		subchan = line->active_subchan;
