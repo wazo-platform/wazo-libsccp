@@ -1236,7 +1236,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		return -1;
 	}
 
-	if (session->device->proto_version >= 11) {
+	if (session->device->proto_version == 11) {
 		/* Newest protocols provide these informations */
 
 		line_instance = msg->data.onhook.lineInstance;
