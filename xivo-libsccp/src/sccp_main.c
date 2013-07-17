@@ -14,8 +14,8 @@
 #include <stdlib.h>
 
 #include "sccp.h"
-#include "message.h"
-#include "device.h"
+#include "sccp_message.h"
+#include "sccp_device.h"
 #include "sccp_config.h"
 
 #include "../config.h"
