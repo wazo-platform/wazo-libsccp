@@ -2706,8 +2706,6 @@ static void *thread_accept(void *data)
 
 static int cb_ast_devicestate(const char *data)
 {
-	ast_log(LOG_DEBUG, "devicestate %s\n", data);
-
 	struct sccp_line *line = NULL;
 	char *name = NULL;
 	char *ptr = NULL;
