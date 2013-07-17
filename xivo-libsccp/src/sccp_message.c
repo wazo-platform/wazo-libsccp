@@ -5,10 +5,10 @@
 #include <asterisk/utils.h>
 #include <asterisk/rtp_engine.h>
 
-#include "device.h"
-#include "message.h"
+#include "sccp_device.h"
+#include "sccp_message.h"
 #include "sccp.h"
-#include "utils.h"
+#include "sccp_utils.h"
 
 #include "../config.h"
 

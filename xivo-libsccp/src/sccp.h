@@ -5,7 +5,7 @@
 #include <asterisk/linkedlists.h>
 #include <asterisk/module.h>
 
-#include "device.h"
+#include "sccp_device.h"
 #include "sccp_config.h"
 
 #define SCCP_MAX_PACKET_SZ 2000

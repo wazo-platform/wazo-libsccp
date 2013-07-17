@@ -27,10 +27,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "device.h"
-#include "message.h"
+#include "sccp_device.h"
+#include "sccp_message.h"
 #include "sccp.h"
-#include "utils.h"
+#include "sccp_utils.h"
 #include "sccp_config.h"
 
 #include "../config.h"

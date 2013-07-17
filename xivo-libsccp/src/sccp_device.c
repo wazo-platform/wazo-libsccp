@@ -1,4 +1,4 @@
-#include "device.h"
+#include "sccp_device.h"
 #include "sccp.h"
 
 void device_unregister(struct sccp_device *device)
