@@ -82,7 +82,7 @@ static size_t make_thread_sessions_array(pthread_t **threads);
 static void subchan_init_rtp_instance(struct sccp_subchannel *subchan);
 static void subchan_start_media_transmission(struct sccp_subchannel *subchan);
 static void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local);
-static void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt);
+static void line_get_format_list(struct sccp_line *line, struct ast_format_list *fmt);
 
 static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
@@ -3434,7 +3434,7 @@ void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct
 	struct ast_sockaddr local_tmp;
 
 	if (subchan == NULL) {
-		ast_log(LOG_ERROR, "Subchan is NULL\n");
+		ast_log(LOG_ERROR, "subchan is NULL\n");
 		return;
 	}
 
@@ -3454,7 +3454,7 @@ void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt)
 	struct ast_format tmpfmt;
 
 	if (line == NULL) {
-		ast_log(LOG_ERROR, "Line is NULL\n");
+		ast_log(LOG_ERROR, "line is NULL\n");
 		return;
 	}
 
