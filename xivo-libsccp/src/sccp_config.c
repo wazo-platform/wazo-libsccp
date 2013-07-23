@@ -1,6 +1,6 @@
 #include <asterisk.h>
 
-#include "device.h"
+#include "sccp_device.h"
 #include "sccp_config.h"
 
 #include "../config.h"

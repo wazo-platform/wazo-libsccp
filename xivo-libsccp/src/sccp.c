@@ -27,10 +27,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "device.h"
-#include "message.h"
+#include "sccp_device.h"
+#include "sccp_message.h"
 #include "sccp.h"
-#include "utils.h"
+#include "sccp_utils.h"
 #include "sccp_config.h"
 
 #include "../config.h"
@@ -46,6 +46,8 @@ static struct ast_sched_context *sched = NULL;
 static struct sccp_configs *sccp_config;
 
 static struct ast_format_cap *default_cap;
+
+static unsigned int chan_idx;
 
 static int do_clear_subchannel(struct sccp_subchannel *subchan);
 static int handle_softkey_dnd(struct sccp_session *session);
@@ -134,7 +136,7 @@ static char *format_caller_id_name(struct ast_channel *channel, struct sccp_devi
 		snprintf(name, sizeof(name), "%s", connected->id.name.str);
 	}
 
-	if (device->protoVersion <= 11) {
+	if (device->proto_version <= 11) {
 		result = utf8_to_iso88591(name);
 	} else {
 		result = ast_strdup(name);
@@ -160,7 +162,7 @@ static char *format_caller_id_number(struct ast_channel *channel, struct sccp_de
 
 	number = ast_channel_connected(channel)->id.number.str;
 
-	if (device->protoVersion <= 11) {
+	if (device->proto_version <= 11) {
 		result = utf8_to_iso88591(number);
 	} else {
 		result = ast_strdup(number);
@@ -511,7 +513,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
 	subchan->channel = NULL;
 	subchan->related = NULL;
 
-	AST_LIST_INSERT_HEAD(&line->subchans, subchan, list);
+	AST_RWLIST_INSERT_HEAD(&line->subchans, subchan, list);
 
 	return subchan;
 }
@@ -538,10 +540,9 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 					subchan->line->context,		/* context */
 					linkedid,			/* linked ID */
 					0,				/* amaflag */
-					"sccp/%s@%s-%d",		/* format */
-					subchan->line->name,		/* name */
-					subchan->line->device->name,	/* name */
-					1);				/* callnums */
+					"SCCP/%s-%08x",
+					subchan->line->name,
+					ast_atomic_fetchadd_int((int *)&chan_idx, +1));
 
 	if (channel == NULL) {
 		ast_log(LOG_ERROR, "channel allocation failed\n");
@@ -1072,7 +1073,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		return -1;
 	}
 
-	if (device->protoVersion >= 11) {
+	if (device->proto_version >= 11) {
 		/* Newest protocols provide these informations */
 		line_instance = msg->data.offhook.lineInstance;
 		subchan_id = msg->data.offhook.callInstance;
@@ -1133,7 +1134,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	transmit_stop_tone(session, line->instance, subchan->id);
 	transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
 
-	AST_LIST_REMOVE(&line->subchans, subchan, list);
+	AST_RWLIST_REMOVE(&line->subchans, subchan, list);
 
 	subchan->channel = NULL;
 
@@ -1141,7 +1142,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		subchan->related->related = NULL;
 	}
 
-	if (AST_LIST_EMPTY(&line->subchans)) {
+	if (AST_RWLIST_EMPTY(&line->subchans)) {
 		transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
 		ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 		set_line_state(line, SCCP_ONHOOK);
@@ -1151,7 +1152,6 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		subchan->line->active_subchan = NULL;
 
 	ast_free(subchan);
-
 
 	ast_mutex_unlock(&line->lock);
 
@@ -1223,8 +1223,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		return -1;
 	}
 
-	if (session->device->protoVersion == 11) {
-		/* Newest protocols provide these informations */
+	if (session->device->proto_version == 11) {
 
 		line_instance = msg->data.onhook.lineInstance;
 		subchan_id = msg->data.onhook.callInstance;
@@ -1235,7 +1234,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		do_hangup(line_instance, subchan_id, session);
 	}
 	else {
-		/* With older protocols, we manually get the line and the subchannel */
+		/* With other protocols, we manually get the line and the subchannel */
 		line = session->device->default_line;
 
 		subchan = line->active_subchan;
@@ -2661,8 +2660,6 @@ static void *thread_accept(void *data)
 
 static int cb_ast_devicestate(const char *data)
 {
-	ast_log(LOG_DEBUG, "devicestate %s\n", data);
-
 	struct sccp_line *line = NULL;
 	char *name = NULL;
 	char *ptr = NULL;
@@ -2700,12 +2697,6 @@ static struct ast_channel *cb_ast_request(const char *type,
 	struct ast_channel *channel = NULL;
 	char *option = NULL;
 	char buf[256];
-
-	if (destination == NULL)
-		return NULL;
-
-	if (cause == NULL)
-		return NULL;
 
 	if (!(ast_format_cap_has_type(cap, AST_FORMAT_TYPE_AUDIO))) {
 		ast_log(LOG_NOTICE, "Invalid format type: %s\n", ast_getformatname_multiple(buf, sizeof(buf), cap));
@@ -2795,16 +2786,6 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	struct sccp_line *line = NULL;
 	struct sccp_device *device = NULL;
 	struct sccp_session *session = NULL;
-
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
-
-	if (dest == NULL) {
-		ast_log(LOG_DEBUG, "dest is NULL\n");
-		return -1;
-	}
 
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
@@ -2919,11 +2900,6 @@ static int cb_ast_hangup(struct ast_channel *channel)
 {
 	struct sccp_subchannel *subchan = NULL;
 
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
-
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan != NULL) {
 		do_clear_subchannel(subchan);
@@ -2940,11 +2916,6 @@ static int cb_ast_answer(struct ast_channel *channel)
 {
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
-
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
 
 	subchan = ast_channel_tech_pvt(channel);
 	line = subchan->line;
@@ -2978,11 +2949,6 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 	struct ast_frame *frame = NULL;
-
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return NULL;
-	}
 
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
@@ -3032,16 +2998,6 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
-
-	if (frame == NULL) {
-		ast_log(LOG_DEBUG, "frame is NULL\n");
-		return -1;
-	}
-
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "channel has no tech_pvt\n");
@@ -3073,11 +3029,6 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
-
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return -1;
-	}
 
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
@@ -3202,16 +3153,6 @@ static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newc
 {
 	struct sccp_subchannel *subchan = NULL;
 
-	if (oldchannel == NULL) {
-		ast_log(LOG_DEBUG, "oldchannel is NULL\n");
-		return -1;
-	}
-
-	if (newchannel == NULL) {
-		ast_log(LOG_DEBUG, "newchannel is NULL\n");
-		return -1;
-	}
-
 	subchan = ast_channel_tech_pvt(newchannel);
 	subchan->channel = newchannel;
 
@@ -3259,34 +3200,26 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 	return CLI_SUCCESS;
 }
 
-static char *sccp_set_directmedia_on(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+static char *sccp_set_directmedia(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	switch (cmd) {
 	case CLI_INIT:
-		e->command = "sccp set directmedia on";
-		e->usage = "usage: sccp set directmedia on\n";
+		e->command = "sccp set directmedia {on|off}";
+		e->usage = "Usage: sccp set directmedia {on|off}\n";
 		return NULL;
 	case CLI_GENERATE:
 		return NULL;
 	}
 
-	sccp_config->directmedia = 1;
-
-	return CLI_SUCCESS;
-}
-
-static char *sccp_set_directmedia_off(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
-{
-	switch (cmd) {
-	case CLI_INIT:
-		e->command = "sccp set directmedia off";
-		e->usage = "usage: sccp set directmedia off\n";
-		return NULL;
-	case CLI_GENERATE:
-		return NULL;
+	if (strcasecmp(a->argv[3], "on") == 0) {
+		ast_cli(a->fd, "SCCP direct media enabled\n");
+		sccp_config->directmedia = 1;
+	} else if (strcasecmp(a->argv[3], "off") == 0) {
+		ast_cli(a->fd, "SCCP direct media disabled\n");
+		sccp_config->directmedia = 0;
+	} else {
+		return CLI_SHOWUSAGE;
 	}
-
-	sccp_config->directmedia = 0;
 
 	return CLI_SUCCESS;
 }
@@ -3316,7 +3249,7 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 							session && session->ipaddr ? session->ipaddr: "-",
 							device_type_str(device_itr->type),
 							device_regstate_str(device_itr->registered),
-							device_itr->protoVersion);
+							device_itr->proto_version);
 
 		dev_cnt++;
 		if (device_itr->registered == DEVICE_REGISTERED_TRUE)
@@ -3441,8 +3374,7 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
 	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
-	AST_CLI_DEFINE(sccp_set_directmedia_on, "Turn on direct media"),
-	AST_CLI_DEFINE(sccp_set_directmedia_off, "Turn off direct media"),
+	AST_CLI_DEFINE(sccp_set_directmedia, "Enable/Disable direct media"),
 #ifdef DEBUG_STATE
 	AST_CLI_DEFINE(sccp_dump_state, "Dump session state"),
 #endif

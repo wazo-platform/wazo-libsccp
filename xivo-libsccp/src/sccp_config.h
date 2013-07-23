@@ -1,7 +1,7 @@
 #ifndef SCCP_CONFIG_H
 #define SCCP_CONFIG_H
 
-#include "device.h"
+#include "sccp_device.h"
 
 struct sccp_configs {
 

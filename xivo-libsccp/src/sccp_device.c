@@ -1,4 +1,4 @@
-#include "device.h"
+#include "sccp_device.h"
 #include "sccp.h"
 
 void device_unregister(struct sccp_device *device)
@@ -24,7 +24,7 @@ void device_unregister(struct sccp_device *device)
 		do {
 			subchan = NULL;
 
-			AST_RWLIST_WRLOCK(&line_itr->subchans);
+			AST_RWLIST_RDLOCK(&line_itr->subchans);
 			subchan = AST_RWLIST_FIRST(&line_itr->subchans);
 			AST_RWLIST_UNLOCK(&line_itr->subchans);
 
@@ -43,7 +43,7 @@ void device_unregister(struct sccp_device *device)
 }
 
 void device_register(struct sccp_device *device,
-			int8_t protoVersion,
+			int8_t proto_version,
 			int type,
 			void *session,
 			struct sockaddr_in localip)
@@ -54,7 +54,7 @@ void device_register(struct sccp_device *device,
 	}
 
 	device->registered = DEVICE_REGISTERED_TRUE;
-	device->protoVersion = protoVersion;
+	device->proto_version = proto_version;
 	device->type = type;
 	device->session = session;
 	device->localip = localip;
@@ -127,7 +127,7 @@ struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line)
 
 	AST_RWLIST_RDLOCK(&line->subchans);
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr != NULL && subchan_itr->state == SCCP_RINGIN)
+		if (subchan_itr->state == SCCP_RINGIN)
 			break;
 	}
 	AST_RWLIST_UNLOCK(&line->subchans);
@@ -162,6 +162,7 @@ struct sccp_line *find_line_by_name(const char *name, struct list_line *list_lin
 void speeddial_hints_unsubscribe(struct sccp_device *device)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
+
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
 		if (speeddial_itr->blf) {
@@ -497,13 +498,14 @@ struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subcha
 
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 {
+	struct sccp_subchannel *subchan_itr;
+
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return;
 	}
 
-	struct sccp_subchannel *subchan_itr;
-	AST_LIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr->id == subchan_id) {
 			line_select_subchan(line, subchan_itr);
 			break;
