@@ -286,7 +286,7 @@ struct sccp_device {
 	uint32_t station_port;
 	struct sockaddr_in localip;
 	struct sockaddr_in remote;
-	uint8_t early_remote;
+	uint8_t open_receive_sent;
 
 	char voicemail[AST_MAX_EXTENSION];
 	struct ast_event_sub *mwi_event_sub;
