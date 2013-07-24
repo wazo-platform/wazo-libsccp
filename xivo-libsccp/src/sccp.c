@@ -1238,15 +1238,10 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		line = session->device->default_line;
 
 		subchan = line->active_subchan;
-		if (subchan) {
-			if (!subchan->on_hold) {
-				line_instance = line->instance;
-				subchan_id = subchan->id;
-				do_hangup(line_instance, subchan_id, session);
-			}
-		}
-		else {
-			ast_log(LOG_DEBUG, "subchan is NULL\n");
+		if (subchan && !subchan->on_hold) {
+			line_instance = line->instance;
+			subchan_id = subchan->id;
+			do_hangup(line_instance, subchan_id, session);
 		}
 	}
 
@@ -2358,7 +2353,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	msg_id = letohl(msg->id);
 
-	ast_debug(1, "Message received: 0x%04X %s\n", msg_id, msg_id_str(msg_id));
+	ast_debug(2, "Message received: 0x%04X %s\n", msg_id, msg_id_str(msg_id));
 
 	/* Device is not configured */
 	if (session->device == NULL &&
@@ -3155,8 +3150,6 @@ static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newc
 
 	subchan = ast_channel_tech_pvt(newchannel);
 	subchan->channel = newchannel;
-
-	cb_ast_set_rtp_peer(newchannel, NULL, NULL, NULL, 0, 0);
 
 	return 0;
 }
