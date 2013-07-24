@@ -2941,22 +2941,10 @@ static int cb_ast_answer(struct ast_channel *channel)
 
 static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 {
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+	struct sccp_line *line = subchan->line;
 	struct ast_frame *frame = NULL;
 	struct ast_rtp_instance *rtp = NULL;
-
-	subchan = ast_channel_tech_pvt(channel);
-	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "channel has no valid tech_pvt\n");
-		return &ast_null_frame;
-	}
-
-	line = subchan->line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return &ast_null_frame;
-	}
 
 	ast_mutex_lock(&line->lock);
 	if (subchan->rtp) {
@@ -2999,22 +2987,10 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 
 static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 {
-	int res = 0;
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+	struct sccp_line *line = subchan->line;
 	struct ast_rtp_instance *rtp = NULL;
-
-	subchan = ast_channel_tech_pvt(channel);
-	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "channel has no tech_pvt\n");
-		return 0;
-	}
-
-	line = subchan->line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "subchan has no valid line\n");
-		return 0;
-	}
+	int res = 0;
 
 	ast_mutex_lock(&line->lock);
 	if (subchan->rtp) {
