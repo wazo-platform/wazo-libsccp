@@ -94,8 +94,9 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg)
 
 	AST_RWLIST_WRLOCK(&sccp_cfg->list_device);
 	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_device, device_itr, list) {
-
 		ast_mutex_destroy(&device_itr->lock);
+		AST_RWLIST_HEAD_DESTROY(&device_itr->lines);
+		AST_RWLIST_HEAD_DESTROY(&device_itr->speeddials);
 		AST_RWLIST_REMOVE_CURRENT(list);
 	}
 	AST_RWLIST_TRAVERSE_SAFE_END;
@@ -103,8 +104,8 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg)
 
 	AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
 	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_line, line_itr, list) {
-
 		ast_mutex_destroy(&line_itr->lock);
+		AST_RWLIST_HEAD_DESTROY(&line_itr->subchans);
 		AST_RWLIST_REMOVE_CURRENT(list);
 	}
 	AST_RWLIST_TRAVERSE_SAFE_END;
