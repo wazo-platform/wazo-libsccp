@@ -1284,6 +1284,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 {
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
+	struct ast_channel *channel = NULL;
 
 	ast_log(LOG_DEBUG, "handle_softkey_hold: line_instance(%i) subchan_id(%i)\n", line_instance, subchan_id);
 
@@ -1306,17 +1307,22 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 		return -1;
 	}
 
-	/* put on hold */
-	if (line->active_subchan && line->active_subchan->channel) {
-		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
-		ast_channel_set_fd(line->active_subchan->channel, 0, -1);
-		ast_channel_set_fd(line->active_subchan->channel, 1, -1);
-	}
+	if (line->active_subchan) {
+		if (line->active_subchan->channel) {
+			ast_channel_set_fd(line->active_subchan->channel, 0, -1);
+			ast_channel_set_fd(line->active_subchan->channel, 1, -1);
+			channel = ast_channel_ref(line->active_subchan->channel);
+		}
 
-	if (line->active_subchan && line->active_subchan->rtp) {
-		ast_rtp_instance_stop(line->active_subchan->rtp);
-		ast_rtp_instance_destroy(line->active_subchan->rtp);
-		line->active_subchan->rtp = NULL;
+		if (line->active_subchan->rtp) {
+			ast_rtp_instance_stop(line->active_subchan->rtp);
+			ast_rtp_instance_destroy(line->active_subchan->rtp);
+			line->active_subchan->rtp = NULL;
+		}
+
+		if (line->active_subchan->id == subchan_id) {
+			line->active_subchan = NULL;
+		}
 	}
 
 	transmit_callstate(session, line_instance, SCCP_HOLD, subchan_id);
@@ -1331,10 +1337,13 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 	subchan_set_on_hold(line, subchan_id);
 
-	if (line->active_subchan && line->active_subchan->id == subchan_id)
-		line->active_subchan = NULL;
-
 	ast_mutex_unlock(&line->lock);
+
+	if (channel) {
+		/* put on hold */
+		ast_queue_control(channel, AST_CONTROL_HOLD);
+		ast_channel_unref(channel);
+	}
 
 	return 0;
 }
