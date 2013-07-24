@@ -158,7 +158,7 @@ static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	}
 
 	msg_id = letohl(msg->id);
-	ast_debug(1, "Sending message: 0x%04X %s\n", msg_id, msg_id_str(msg_id));
+	ast_debug(2, "Sending message: 0x%04X %s\n", msg_id, msg_id_str(msg_id));
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");

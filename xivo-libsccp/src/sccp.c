@@ -2353,7 +2353,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	msg_id = letohl(msg->id);
 
-	ast_debug(1, "Message received: 0x%04X %s\n", msg_id, msg_id_str(msg_id));
+	ast_debug(2, "Message received: 0x%04X %s\n", msg_id, msg_id_str(msg_id));
 
 	/* Device is not configured */
 	if (session->device == NULL &&
