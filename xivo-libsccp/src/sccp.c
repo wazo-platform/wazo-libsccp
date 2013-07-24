@@ -1238,15 +1238,10 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		line = session->device->default_line;
 
 		subchan = line->active_subchan;
-		if (subchan) {
-			if (!subchan->on_hold) {
-				line_instance = line->instance;
-				subchan_id = subchan->id;
-				do_hangup(line_instance, subchan_id, session);
-			}
-		}
-		else {
-			ast_log(LOG_DEBUG, "subchan is NULL\n");
+		if (subchan && !subchan->on_hold) {
+			line_instance = line->instance;
+			subchan_id = subchan->id;
+			do_hangup(line_instance, subchan_id, session);
 		}
 	}
 
