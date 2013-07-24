@@ -644,10 +644,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	}
 
 	line = subchan->line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
 
 	if (sccp_config->directmedia && rtp) {
 		line_get_format_list(line, &fmt);
@@ -814,10 +810,6 @@ static void *sccp_lookup_exten(void *data)
 
 	subchan = (struct sccp_subchannel *)data;
 	line = subchan->line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return NULL;
-	}
 
 	len = strlen(line->device->exten);
 	while (line->device->registered == DEVICE_REGISTERED_TRUE && line->device->lookup == 1
@@ -2786,29 +2778,11 @@ static int sccp_autoanswer_call(void *data)
 
 static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeout)
 {
-	int ret = 0;
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
-	struct sccp_device *device = NULL;
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+	struct sccp_line *line = subchan->line;
+	struct sccp_device *device = line->device;
 	struct sccp_session *session = NULL;
-
-	subchan = ast_channel_tech_pvt(channel);
-	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "channel has no valid tech_pvt\n");
-		return -1;
-	}
-
-	line = subchan->line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "subchan has no valid line\n");
-		return -1;
-	}
-
-	device = line->device;
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "Line [%s] is attached to no device\n", line->name);
-		return -1;
-	}
+	int ret = 0;
 
 	session = device->session;
 	if (session == NULL) {
@@ -2919,11 +2893,8 @@ static int cb_ast_hangup(struct ast_channel *channel)
 
 static int cb_ast_answer(struct ast_channel *channel)
 {
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
-
-	subchan = ast_channel_tech_pvt(channel);
-	line = subchan->line;
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+	struct sccp_line *line = subchan->line;
 
 	if (subchan->rtp == NULL) {
 		ast_log(LOG_DEBUG, "rtp is NULL\n");
@@ -3030,20 +3001,8 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 {
 #define _AST_PROVIDE_INBAND_SIGNALLING -1
 
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
-
-	subchan = ast_channel_tech_pvt(channel);
-	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "subchan is NULL\n");
-		return 0;
-	}
-
-	line = subchan->line;
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return 0;
-	}
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+	struct sccp_line *line = subchan->line;
 
 	switch (indicate) {
 	case AST_CONTROL_HANGUP:
