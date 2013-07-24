@@ -3151,8 +3151,6 @@ static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newc
 	subchan = ast_channel_tech_pvt(newchannel);
 	subchan->channel = newchannel;
 
-	cb_ast_set_rtp_peer(newchannel, NULL, NULL, NULL, 0, 0);
-
 	return 0;
 }
 
