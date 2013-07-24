@@ -218,6 +218,7 @@ struct sccp_subchannel {
 	uint32_t id;
 	uint32_t state;
 	uint8_t on_hold;
+	uint8_t open_receive_sent;
 	struct ast_rtp_instance *rtp;
 	struct sccp_line *line;
 	struct ast_channel *channel;
@@ -286,7 +287,6 @@ struct sccp_device {
 	uint32_t station_port;
 	struct sockaddr_in localip;
 	struct sockaddr_in remote;
-	uint8_t open_receive_sent;
 
 	char voicemail[AST_MAX_EXTENSION];
 	struct ast_event_sub *mwi_event_sub;
