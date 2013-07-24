@@ -2944,6 +2944,7 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
 	struct ast_frame *frame = NULL;
+	struct ast_rtp_instance *rtp = NULL;
 
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
@@ -2957,18 +2958,25 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 		return &ast_null_frame;
 	}
 
-	if (subchan->rtp == NULL) {
+	ast_mutex_lock(&line->lock);
+	if (subchan->rtp) {
+		rtp = subchan->rtp;
+		ao2_ref(rtp, +1);
+	}
+	ast_mutex_unlock(&line->lock);
+
+	if (!rtp) {
 		ast_log(LOG_DEBUG, "rtp is NULL\n");
 		return &ast_null_frame;
 	}
 
 	switch (ast_channel_fdno(channel)) {
 	case 0:
-		frame = ast_rtp_instance_read(subchan->rtp, 0);
+		frame = ast_rtp_instance_read(rtp, 0);
 		break;
 
 	case 1:
-		frame = ast_rtp_instance_read(subchan->rtp, 1);
+		frame = ast_rtp_instance_read(rtp, 1);
 		break;
 
 	default:
@@ -2984,6 +2992,8 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 		}
 	}
 
+	ao2_ref(rtp, -1);
+
 	return frame;
 }
 
@@ -2992,6 +3002,7 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 	int res = 0;
 	struct sccp_subchannel *subchan = NULL;
 	struct sccp_line *line = NULL;
+	struct ast_rtp_instance *rtp = NULL;
 
 	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
@@ -3005,15 +3016,24 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 		return 0;
 	}
 
-	if (subchan->rtp != NULL &&
+	ast_mutex_lock(&line->lock);
+	if (subchan->rtp) {
+		rtp = subchan->rtp;
+		ao2_ref(rtp, +1);
+	}
+	ast_mutex_unlock(&line->lock);
+
+	if (rtp != NULL &&
 		(line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS)) {
-		res = ast_rtp_instance_write(subchan->rtp, frame);
-	} else if (subchan->rtp == NULL && line->state == SCCP_PROGRESS) {
+		res = ast_rtp_instance_write(rtp, frame);
+	} else if (rtp == NULL && line->state == SCCP_PROGRESS) {
 		/* handle early rtp during progress state */
 		transmit_stop_tone(line->device->session, line->instance, subchan->id);
 		transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
 		start_rtp(subchan);
 	}
+
+	ao2_cleanup(rtp);
 
 	return res;
 }
