@@ -104,7 +104,6 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg)
 
 	AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
 	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_line, line_itr, list) {
-		ast_mutex_destroy(&line_itr->lock);
 		AST_RWLIST_HEAD_DESTROY(&line_itr->subchans);
 		AST_RWLIST_REMOVE_CURRENT(list);
 	}
@@ -211,7 +210,6 @@ static void initialize_line(struct sccp_line *line, uint32_t instance, struct sc
 		return;
 	}
 
-	ast_mutex_init(&line->lock);
 	line->state = SCCP_ONHOOK;
 	line->instance = instance;
 	line->device = device;

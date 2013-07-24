@@ -908,11 +908,11 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 		handle_softkey_hold(line_instance, line->active_subchan->id, session);
 	}
 
-	ast_mutex_lock(&line->lock);
+	ast_mutex_lock(&device->lock);
 
 	ret = set_device_state_new_call(device, line, subchan, session);
 
-	ast_mutex_unlock(&line->lock);
+	ast_mutex_unlock(&device->lock);
 
 	return ret;
 }
@@ -1116,7 +1116,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	line = subchan->line;
 	session = line->device->session;
 
-	ast_mutex_lock(&line->lock);
+	ast_mutex_lock(&line->device->lock);
 
 	if (subchan->rtp) {
 
@@ -1153,7 +1153,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 	ast_free(subchan);
 
-	ast_mutex_unlock(&line->lock);
+	ast_mutex_unlock(&line->device->lock);
 
 	return 0;
 }
@@ -1299,11 +1299,11 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 		return -1;
 	}
 
-	ast_mutex_lock(&line->lock);
+	ast_mutex_lock(&line->device->lock);
 
 	subchan = line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
-		ast_mutex_unlock(&line->lock);
+		ast_mutex_unlock(&line->device->lock);
 		return -1;
 	}
 
@@ -1337,7 +1337,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 	subchan_set_on_hold(line, subchan_id);
 
-	ast_mutex_unlock(&line->lock);
+	ast_mutex_unlock(&line->device->lock);
 
 	if (channel) {
 		/* put on hold */
@@ -1363,7 +1363,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		return -1;
 	}
 
-	ast_mutex_lock(&line->lock);
+	ast_mutex_lock(&line->device->lock);
 
 	if (line->active_subchan) {
 		/* if another channel is already active */
@@ -1388,7 +1388,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	subchan_unset_on_hold(line, subchan_id);
 
-	ast_mutex_unlock(&line->lock);
+	ast_mutex_unlock(&line->device->lock);
 
 	if (line->active_subchan == NULL || line->active_subchan->channel == NULL)
 	{
@@ -1978,11 +1978,11 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 	device_set_remote(line->device, addr, port);
 
-	ast_mutex_lock(&line->lock);
+	ast_mutex_lock(&line->device->lock);
 
 	if (line->active_subchan == NULL) {
 		ast_log(LOG_DEBUG, "active_subchan is NULL\n");
-		ast_mutex_unlock(&line->lock);
+		ast_mutex_unlock(&line->device->lock);
 		return 0;
 	}
 
@@ -1992,7 +1992,8 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		// early_remote is on and it's too early to transmit media start
 	}
 
-	ast_mutex_unlock(&line->lock);
+	ast_mutex_unlock(&line->device->lock);
+
 	return 0;
 }
 
@@ -2952,15 +2953,16 @@ static struct ast_frame *cb_ast_read(struct ast_channel *channel)
 {
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
+	struct sccp_device *device = line->device;
 	struct ast_frame *frame = NULL;
 	struct ast_rtp_instance *rtp = NULL;
 
-	ast_mutex_lock(&line->lock);
+	ast_mutex_lock(&device->lock);
 	if (subchan->rtp) {
 		rtp = subchan->rtp;
 		ao2_ref(rtp, +1);
 	}
-	ast_mutex_unlock(&line->lock);
+	ast_mutex_unlock(&device->lock);
 
 	if (!rtp) {
 		ast_log(LOG_DEBUG, "rtp is NULL\n");
@@ -2998,15 +3000,16 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 {
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
+	struct sccp_device *device = line->device;
 	struct ast_rtp_instance *rtp = NULL;
 	int res = 0;
 
-	ast_mutex_lock(&line->lock);
+	ast_mutex_lock(&device->lock);
 	if (subchan->rtp) {
 		rtp = subchan->rtp;
 		ao2_ref(rtp, +1);
 	}
-	ast_mutex_unlock(&line->lock);
+	ast_mutex_unlock(&device->lock);
 
 	if (rtp != NULL &&
 		(line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS)) {
