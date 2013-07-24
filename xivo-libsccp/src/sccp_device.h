@@ -218,7 +218,7 @@ struct sccp_subchannel {
 	uint32_t id;
 	uint32_t state;
 	uint8_t on_hold;
-	uint8_t open_receive_sent;
+	uint8_t open_receive_msg_sent;
 	struct ast_rtp_instance *rtp;
 	struct sccp_line *line;
 	struct ast_channel *channel;
