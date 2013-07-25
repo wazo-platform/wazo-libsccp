@@ -3490,7 +3490,11 @@ void sccp_rtp_init(const struct ast_module_info *module_info)
 int sccp_server_init(struct sccp_configs *sccp_cfg)
 {
 	int ret = 0;
-	struct addrinfo hints;
+	struct addrinfo hints = {
+		.ai_family = AF_INET,
+		.ai_socktype = SOCK_STREAM,
+		.ai_flags = AI_NUMERICHOST,
+	};
 	const int flag_reuse = 1;
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
@@ -3498,11 +3502,6 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	sccp_config = sccp_cfg;
-
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_NUMERICHOST;
 
 	ret = getaddrinfo(sccp_config->bindaddr, SCCP_PORT, &hints, &sccp_srv.res);
 	if (ret != 0) {
