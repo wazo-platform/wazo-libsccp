@@ -486,7 +486,7 @@ int transmit_open_receive_channel(struct sccp_line *line, uint32_t callid)
 		return -1;
 	}
 
-	ast_best_codec(line->device->codecs, &tmpfmt);
+	ast_best_codec(line->device->capabilities, &tmpfmt);
 	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&tmpfmt));
 	fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
 

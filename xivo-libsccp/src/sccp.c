@@ -552,7 +552,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	ast_channel_tech_set(channel, &sccp_tech);
 	ast_channel_tech_pvt_set(channel, subchan);
 	subchan->channel = channel;
-	ast_format_cap_copy(ast_channel_nativeformats(channel), subchan->line->device->codecs);
+	ast_format_cap_copy(ast_channel_nativeformats(channel), subchan->line->device->capabilities);
 	if (ast_format_cap_is_empty(ast_channel_nativeformats(channel))) {
 		ast_format_cap_copy(ast_channel_nativeformats(channel), default_cap);
 	}
@@ -1940,8 +1940,8 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 		ast_format_cap_add(codecs, &astcodec);
 	}
 
-	ast_format_cap_copy(device->codecs, codecs);
-	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->codecs));
+	ast_format_cap_copy(device->capabilities, codecs);
+	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->capabilities));
 
 	codecs = ast_format_cap_destroy(codecs);
 	return 0;
@@ -3418,7 +3418,7 @@ void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt)
 		return;
 	}
 
-	ast_best_codec(line->device->codecs, &tmpfmt);
+	ast_best_codec(line->device->capabilities, &tmpfmt);
 	ast_debug(1, "Best codec: %s\n", ast_getformatname(&tmpfmt));
 	*fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
 }
