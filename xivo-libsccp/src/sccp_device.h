@@ -227,8 +227,6 @@ struct sccp_subchannel {
 
 struct sccp_line {
 
-	ast_mutex_t lock;
-
 	char name[80];
 	char cid_num[80];
 	char cid_name[80];
