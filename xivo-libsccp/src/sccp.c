@@ -201,8 +201,7 @@ int extstate_ast2sccp(int state)
 
 static void update_displaymessage(struct sccp_session *session, struct sccp_line *line)
 {
-	char info_msg[AST_MAX_EXTENSION + 21];
-	memset(&info_msg, 0, sizeof(info_msg));
+	char info_msg[AST_MAX_EXTENSION + 21] = {0};
 
 	if (session == NULL) {
 		ast_log(LOG_DEBUG, "session is NULL\n");
