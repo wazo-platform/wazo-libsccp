@@ -697,8 +697,8 @@ static int start_rtp(struct sccp_subchannel *subchan)
 
 	subchan_init_rtp_instance(subchan);
 
-	if (subchan->open_receive_msg_sent) {
-		subchan->open_receive_msg_sent = 0;
+	if (subchan->line->device->open_receive_msg_sent) {
+		subchan->line->device->open_receive_msg_sent = 0;
 		subchan_start_media_transmission(subchan);
 	} else {
 		transmit_open_receive_channel(subchan->line, subchan->id);
@@ -2875,8 +2875,8 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 		return -1;
 
 
-	if (!line->active_subchan && !subchan->open_receive_msg_sent && sccp_config->directmedia) {
-		subchan->open_receive_msg_sent = 1;
+	if (!line->active_subchan && !line->device->open_receive_msg_sent && sccp_config->directmedia) {
+		line->device->open_receive_msg_sent = 1;
 		transmit_open_receive_channel(line, subchan->id);
 	}
 
