@@ -1308,8 +1308,6 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 		if (line->active_subchan->rtp) {
 			ast_rtp_instance_stop(line->active_subchan->rtp);
-			ast_rtp_instance_destroy(line->active_subchan->rtp);
-			line->active_subchan->rtp = NULL;
 		}
 
 		if (line->active_subchan->id == subchan_id) {
@@ -1374,9 +1372,10 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	/* open our speaker */
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
-	/* start audio stream */
-	if (line->active_subchan)
-		start_rtp(line->active_subchan);
+	/* restart the audio stream, which has been stopped in handle_softkey_hold */
+	if (line->active_subchan && line->active_subchan->rtp) {
+		transmit_open_receive_channel(line, line->active_subchan->id);
+	}
 
 	subchan_unset_on_hold(line, subchan_id);
 
@@ -3383,6 +3382,13 @@ void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 
 	ast_rtp_instance_set_qos(subchan->rtp, 0, 0, "sccp rtp");
 	ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_NAT, 0);
+
+	/*
+	 *  hack that add the 0 payload type (i.e. the G.711 mu-law payload type) to the list
+	 *  of payload that the rtp_instance knows about. It works because currently, we are
+	 *  always using G.711 mu-law
+	 */
+	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 0);
 
 	ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
 					subchan->rtp, &subchan->line->codec_pref);
