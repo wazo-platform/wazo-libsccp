@@ -71,7 +71,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *rtp,
 				struct ast_rtp_instance *vrtp,
 				struct ast_rtp_instance *trtp,
-				const struct ast_format_cap *codecs,
+				const struct ast_format_cap *cap,
 				int nat_active);
 static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
 static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
@@ -551,7 +551,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	ast_channel_tech_set(channel, &sccp_tech);
 	ast_channel_tech_pvt_set(channel, subchan);
 	subchan->channel = channel;
-	ast_format_cap_copy(ast_channel_nativeformats(channel), subchan->line->device->codecs);
+	ast_format_cap_copy(ast_channel_nativeformats(channel), subchan->line->device->capabilities);
 	if (ast_format_cap_is_empty(ast_channel_nativeformats(channel))) {
 		ast_format_cap_copy(ast_channel_nativeformats(channel), default_cap);
 	}
@@ -1307,8 +1307,6 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 		if (line->active_subchan->rtp) {
 			ast_rtp_instance_stop(line->active_subchan->rtp);
-			ast_rtp_instance_destroy(line->active_subchan->rtp);
-			line->active_subchan->rtp = NULL;
 		}
 
 		if (line->active_subchan->id == subchan_id) {
@@ -1373,9 +1371,10 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	/* open our speaker */
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
-	/* start audio stream */
-	if (line->active_subchan)
-		start_rtp(line->active_subchan);
+	/* restart the audio stream, which has been stopped in handle_softkey_hold */
+	if (line->active_subchan && line->active_subchan->rtp) {
+		transmit_open_receive_channel(line, line->active_subchan->id);
+	}
 
 	subchan_unset_on_hold(line, subchan_id);
 
@@ -1897,8 +1896,8 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 {
 	int count = 0;
 	int sccpcodec = 0;
-	struct ast_format astcodec;
-	struct ast_format_cap *codecs;
+	struct ast_format format;
+	struct ast_format_cap *capabilities;
 	int i = 0;
 	struct sccp_device *device = NULL;
 	char buf[256];
@@ -1927,22 +1926,22 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
 	}
 
-	codecs = ast_format_cap_alloc();
+	capabilities = ast_format_cap_alloc();
 	for (i = 0; i < count; i++) {
 
 		/* get the device supported codecs */
 		sccpcodec = letohl(msg->data.caps.caps[i].codec);
 
 		/* translate to asterisk format */
-		codec_sccp2ast(sccpcodec, &astcodec);
+		codec_sccp2ast(sccpcodec, &format);
 
-		ast_format_cap_add(codecs, &astcodec);
+		ast_format_cap_add(capabilities, &format);
 	}
 
-	ast_format_cap_copy(device->codecs, codecs);
-	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->codecs));
+	ast_format_cap_copy(device->capabilities, capabilities);
+	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->capabilities));
 
-	codecs = ast_format_cap_destroy(codecs);
+	capabilities = ast_format_cap_destroy(capabilities);
 	return 0;
 }
 
@@ -3383,6 +3382,13 @@ void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 	ast_rtp_instance_set_qos(subchan->rtp, 0, 0, "sccp rtp");
 	ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_NAT, 0);
 
+	/*
+	 *  hack that add the 0 payload type (i.e. the G.711 mu-law payload type) to the list
+	 *  of payload that the rtp_instance knows about. It works because currently, we are
+	 *  always using G.711 mu-law
+	 */
+	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 0);
+
 	ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
 					subchan->rtp, &subchan->line->codec_pref);
 }
@@ -3417,7 +3423,7 @@ void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt)
 		return;
 	}
 
-	ast_best_codec(line->device->codecs, &tmpfmt);
+	ast_best_codec(line->device->capabilities, &tmpfmt);
 	ast_debug(1, "Best codec: %s\n", ast_getformatname(&tmpfmt));
 	*fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
 }
