@@ -81,8 +81,7 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 static size_t make_thread_sessions_array(pthread_t **threads);
 static void subchan_init_rtp_instance(struct sccp_subchannel *subchan);
 static void subchan_start_media_transmission(struct sccp_subchannel *subchan);
-static void subchan_set_remote_rtp_address(struct sccp_subchannel *subchan);
-static void subchan_get_rtp_address(struct sccp_subchannel *subchan, struct sockaddr_in *addr);
+static void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local);
 static void line_get_format_list(struct sccp_line *line, struct ast_format_list *fmt);
 
 static struct ast_channel_tech sccp_tech = {
@@ -642,8 +641,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 		ast_log(LOG_DEBUG, "endpoint %s:%d\n", ast_inet_ntoa(endpoint.sin_addr), ntohs(endpoint.sin_port));
 
 		if (endpoint.sin_addr.s_addr != 0) {
-			ast_sockaddr_copy(&subchan->direct_media_remote_address, &endpoint_tmp);
-
 			transmit_stop_media_transmission(line, subchan->id);
 			transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
 		}
@@ -3386,39 +3383,24 @@ void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 					subchan->rtp, &subchan->line->codec_pref);
 }
 
-static void subchan_set_remote_rtp_address(struct sccp_subchannel *subchan)
+void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local)
 {
 	struct ast_sockaddr remote_tmp;
+	struct ast_sockaddr local_tmp;
 
 	if (subchan == NULL) {
 		ast_log(LOG_ERROR, "subchan is NULL\n");
 		return;
 	}
 
-	// XXX this doesn't feel like the right place to set it; should be
-	//     when receiving the open receive channel ack message
 	ast_sockaddr_from_sin(&remote_tmp, &subchan->line->device->remote);
 	ast_rtp_instance_set_remote_address(subchan->rtp, &remote_tmp);
-}
 
-static void subchan_get_rtp_address(struct sccp_subchannel *subchan, struct sockaddr_in *addr)
-{
-	struct ast_sockaddr addr_tmp;
+	ast_rtp_instance_get_local_address(subchan->line->active_subchan->rtp, &local_tmp);
+	ast_sockaddr_to_sin(&local_tmp, local);
 
-	if (subchan == NULL) {
-		ast_log(LOG_ERROR, "subchan is NULL\n");
-		return;
-	}
-
-	if (ast_sockaddr_isnull(&subchan->direct_media_remote_address)) {
-		ast_rtp_instance_get_local_address(subchan->rtp, &addr_tmp);
-		ast_sockaddr_to_sin(&addr_tmp, addr);
-
-		if (addr->sin_addr.s_addr == 0) {
-			addr->sin_addr.s_addr = subchan->line->device->localip.sin_addr.s_addr;
-		}
-	} else {
-		ast_sockaddr_to_sin(&subchan->direct_media_remote_address, addr);
+	if (local->sin_addr.s_addr == 0) {
+		local->sin_addr.s_addr = subchan->line->device->localip.sin_addr.s_addr;
 	}
 }
 
@@ -3439,7 +3421,7 @@ void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt)
 void subchan_start_media_transmission(struct sccp_subchannel *subchan)
 {
 	struct ast_format_list fmt;
-	struct sockaddr_in addr;
+	struct sockaddr_in local;
 
 	if (subchan == NULL) {
 		ast_log(LOG_ERROR, "Cannot start media transmission on a NULL subchannel\n");
@@ -3447,9 +3429,8 @@ void subchan_start_media_transmission(struct sccp_subchannel *subchan)
 	}
 
 	line_get_format_list(subchan->line, &fmt);
-	subchan_set_remote_rtp_address(subchan);
-	subchan_get_rtp_address(subchan, &addr);
-	transmit_start_media_transmission(subchan->line, subchan->id, addr, fmt);
+	subchan_set_rtp_addresses_get_local(subchan, &local);
+	transmit_start_media_transmission(subchan->line, subchan->id, local, fmt);
 }
 
 void sccp_server_fini()
