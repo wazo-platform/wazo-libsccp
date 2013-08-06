@@ -158,12 +158,13 @@ static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	}
 
 	msg_id = letohl(msg->id);
-	ast_debug(2, "Sending message: 0x%04X %s\n", msg_id, msg_id_str(msg_id));
 
 	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+		ast_log(LOG_DEBUG, "could not transmit message: session is NULL\n");
 		nbyte = -1;
 	} else {
+		ast_debug(2, "Sending message to %s: 0x%04X %s\n", session->ipaddr, msg_id, msg_id_str(msg_id));
+
 		memcpy(session->outbuf, msg, 12);
 		memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
 
@@ -1053,6 +1054,10 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, s
 		ast_log(LOG_DEBUG, "msg allocation failed\n");
 		return -1;
 	}
+
+	ast_debug(2, "Sending start media transmission to %s: %s %d\n",
+			((struct sccp_session*)line->device->session)->ipaddr,
+			ast_inet_ntoa(endpoint.sin_addr), ntohs(endpoint.sin_port));
 
 	msg->data.startmedia.conferenceId = htolel(callid);
 	msg->data.startmedia.passThruPartyId = htolel(callid ^ 0xFFFFFFFF);

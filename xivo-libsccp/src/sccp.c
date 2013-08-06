@@ -3271,6 +3271,8 @@ static void sccp_dump_session_state(int cli_fd, struct sccp_session *session)
 				ast_cli(cli_fd, "        addr: %p\n", subchan);
 				ast_cli(cli_fd, "        id: %u\n", subchan->id);
 				ast_cli(cli_fd, "        state: %s\n", line_state_str(subchan->state));
+				ast_cli(cli_fd, "        channel: %p\n", subchan->channel);
+				ast_cli(cli_fd, "        rtp: %p\n", subchan->rtp);
 			}
 			AST_RWLIST_UNLOCK(&line->subchans);
 		}
