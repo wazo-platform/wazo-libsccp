@@ -6,6 +6,7 @@
 #include <asterisk/event.h>
 #include <asterisk/lock.h>
 #include <asterisk/linkedlists.h>
+#include <asterisk/netsock2.h>
 #include <asterisk/pbx.h>
 
 #include <stdint.h>
@@ -222,6 +223,8 @@ struct sccp_subchannel {
 	struct sccp_line *line;
 	struct ast_channel *channel;
 	struct sccp_subchannel *related;
+	struct ast_sockaddr direct_media_remote_address;
+
 	AST_LIST_ENTRY(sccp_subchannel) list;
 };
 
