@@ -583,19 +583,8 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 
 static enum ast_rtp_glue_result cb_ast_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance)
 {
-	struct sccp_subchannel *subchan = NULL;
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
-		return AST_RTP_GLUE_RESULT_FORBID;
-	}
-
-	if (instance == NULL) {
-		ast_log(LOG_DEBUG, "instance is NULL\n");
-		return AST_RTP_GLUE_RESULT_FORBID;
-	}
-
-	subchan = ast_channel_tech_pvt(channel);
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return AST_RTP_GLUE_RESULT_FORBID;
