@@ -1289,8 +1289,6 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 	if (line->active_subchan) {
 		if (line->active_subchan->channel) {
-			ast_channel_set_fd(line->active_subchan->channel, 0, -1);
-			ast_channel_set_fd(line->active_subchan->channel, 1, -1);
 			channel = ast_channel_ref(line->active_subchan->channel);
 		}
 
