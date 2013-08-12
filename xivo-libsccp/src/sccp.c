@@ -2230,7 +2230,6 @@ static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session 
 
 static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct ast_frame frame = { .frametype = AST_FRAME_DTMF, };
 
@@ -2295,9 +2294,10 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 			line->device->exten[len+1] = '\0';
 		}
 
-		ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
-		if (ret == -1)
-			return -1;
+		if (len == 0) {
+			transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
+			transmit_stop_tone(session, line->instance, 0);
+		}
 	}
 
 	return 0;
