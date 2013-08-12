@@ -23,6 +23,7 @@ struct sccp_session {
 	pthread_t tid;
 	time_t start_time;
 	int sockfd;
+	int transmit_error;
 
 	char *ipaddr;
 	struct sccp_device *device;
