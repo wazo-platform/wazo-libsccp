@@ -1419,22 +1419,18 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		line->device->lookup = 1;
 
 		/* put on hold */
-		ret = transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
-		if (ret == -1)
-			return -1;
+		if (line->active_subchan->rtp) {
+			ast_rtp_instance_stop(line->active_subchan->rtp);
+		}
 
-		ret = transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
-		if (ret == -1)
-			return -1;
+		transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
+		transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
 
 		/* stop audio stream */
-		ret = transmit_close_receive_channel(line, line->active_subchan->id);
-		if (ret == -1)
-			return -1;
+		transmit_close_receive_channel(line, line->active_subchan->id);
+		transmit_stop_media_transmission(line, line->active_subchan->id);
 
-		ret = transmit_stop_media_transmission(line, line->active_subchan->id);
-		if (ret == -1)
-			return -1;
+		subchan_set_on_hold(line, line->active_subchan->id);
 
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
 
