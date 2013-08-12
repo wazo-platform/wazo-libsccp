@@ -64,7 +64,7 @@ int sccp_config_destroy(struct sccp_configs **config)
 	return 0;
 }
 
-int sccp_config_load(struct sccp_configs *sccp_cfg, char *config_file)
+int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
 {
 	struct ast_config *cfg = NULL;
 	struct ast_flags config_flags = { 0 };

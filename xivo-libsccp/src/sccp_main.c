@@ -27,7 +27,6 @@ static struct sccp_configs *sccp_config;
 static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	struct sccp_device *device = NULL;
-	int restart = 0;
 
 	switch (cmd) {
 	case CLI_INIT:
@@ -81,7 +80,7 @@ static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	return CLI_SUCCESS;
 }
 
-char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	struct sccp_line *line_itr = NULL;
 	struct sccp_device *device_itr = NULL;
@@ -130,7 +129,7 @@ char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 	return CLI_SUCCESS;
 }
 
-char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+static char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	int ret = 0;
 
@@ -158,7 +157,7 @@ static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_update_config, "Update the configuration"),
 };
 
-static void garbage_ast_database()
+static void garbage_ast_database(void)
 {
 	struct ast_db_entry *db_tree = NULL;
 	struct ast_db_entry *entry = NULL;

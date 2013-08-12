@@ -2,9 +2,7 @@
 
 AST_TEST_DEFINE(sccp_test_arguments)
 {
-	int ret = 0;
 	enum ast_test_result_state result = AST_TEST_PASS;
-	void *retptr = NULL;
 
 	switch (cmd) {
 	case TEST_INIT:

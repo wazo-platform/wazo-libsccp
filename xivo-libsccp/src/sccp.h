@@ -10,13 +10,13 @@
 
 #define SCCP_MAX_PACKET_SZ 2000
 
-static struct sccp_server {
+struct sccp_server {
 
 	int sockfd;
 	struct addrinfo *res;
 	pthread_t thread_accept;
 
-} sccp_srv;
+};
 
 struct sccp_session {
 
@@ -37,7 +37,7 @@ struct sccp_session {
 int codec_ast2sccp(struct ast_format *astcodec);
 int sccp_server_init(struct sccp_configs *sccp_cfg);
 void sccp_server_fini(void);
-void sccp_rtp_fini();
+void sccp_rtp_fini(void);
 void sccp_rtp_init(const struct ast_module_info *module_info);
 int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
 char *utf8_to_iso88591(char *to_convert);

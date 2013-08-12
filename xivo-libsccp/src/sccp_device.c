@@ -380,7 +380,6 @@ int device_type_is_supported(int device_type)
 int device_get_button_count(struct sccp_device *device)
 {
 	int button_count = 0;
-	int i = 0;
 
 	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");

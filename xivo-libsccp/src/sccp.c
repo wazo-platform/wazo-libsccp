@@ -44,6 +44,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments);
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
 static struct sccp_configs *sccp_config;
+static struct sccp_server sccp_srv;
 
 static struct ast_format_cap *default_cap;
 
@@ -171,7 +172,7 @@ static char *format_caller_id_number(struct ast_channel *channel, struct sccp_de
 	return result;
 }
 
-int extstate_ast2sccp(int state)
+static int extstate_ast2sccp(int state)
 {
 	switch (state) {
 	case AST_EXTENSION_DEACTIVATED:
