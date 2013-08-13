@@ -2988,21 +2988,9 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 	struct sccp_line *line = subchan->line;
 
 	switch (indicate) {
-	case AST_CONTROL_HANGUP:
-		ast_log(LOG_DEBUG, "hangup\n");
-		break;
-
-	case AST_CONTROL_RING:
-		ast_log(LOG_DEBUG, "ring\n");
-		break;
-
 	case AST_CONTROL_RINGING:
 		ast_log(LOG_DEBUG, "ringing\n");
 		return _AST_PROVIDE_INBAND_SIGNALLING;
-
-	case AST_CONTROL_ANSWER:
-		ast_log(LOG_DEBUG, "answer\n");
-		break;
 
 	case AST_CONTROL_BUSY:
 
@@ -3012,40 +3000,12 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		ast_log(LOG_DEBUG, "busy\n");
 		break;
 
-	case AST_CONTROL_TAKEOFFHOOK:
-		ast_log(LOG_DEBUG, "takeoffhook\n");
-		break;
-
-	case AST_CONTROL_OFFHOOK:
-		ast_log(LOG_DEBUG, "offhook\n");
-		break;
-
 	case AST_CONTROL_CONGESTION:
 
 		transmit_ringer_mode(line->device->session, SCCP_RING_OFF);
 		transmit_tone(line->device->session, SCCP_TONE_BUSY, line->instance, subchan->id);
 
 		ast_log(LOG_DEBUG, "congestion\n");
-		break;
-
-	case AST_CONTROL_FLASH:
-		ast_log(LOG_DEBUG, "flash\n");
-		break;
-
-	case AST_CONTROL_WINK:
-		ast_log(LOG_DEBUG, "wink\n");
-		break;
-
-	case AST_CONTROL_OPTION:
-		ast_log(LOG_DEBUG, "option\n");
-		break;
-
-	case AST_CONTROL_RADIO_KEY:
-		ast_log(LOG_DEBUG, "radio key\n");
-		break;
-
-	case AST_CONTROL_RADIO_UNKEY:
-		ast_log(LOG_DEBUG, "radio unkey\n");
 		break;
 
 	case AST_CONTROL_PROGRESS:
@@ -3065,10 +3025,6 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		ast_moh_stop(channel);
 		break;
 
-	case AST_CONTROL_VIDUPDATE:
-		ast_log(LOG_DEBUG, "vid update\n");
-		break;
-
 	case AST_CONTROL_SRCUPDATE:
 		ast_log(LOG_DEBUG, "src update\n");
 		if (subchan->rtp) {
@@ -3081,10 +3037,6 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		if (subchan->rtp) {
 			ast_rtp_instance_change_source(subchan->rtp);
 		}
-		break;
-
-	case AST_CONTROL_END_OF_Q:
-		ast_log(LOG_DEBUG, "end of q\n");
 		break;
 
 	default:
