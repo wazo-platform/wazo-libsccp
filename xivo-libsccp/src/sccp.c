@@ -612,51 +612,63 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				const struct ast_format_cap *cap,
 				int nat_active)
 {
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = NULL;
-	struct sccp_subchannel *subchan = NULL;
 	struct sockaddr_in endpoint;
 	struct ast_sockaddr endpoint_tmp;
-
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
 
 	struct ast_format_list fmt;
+	int changed = 0;
 
-	subchan = ast_channel_tech_pvt(channel);
+	ast_debug(1, "updating peer for channel %s...\n", ast_channel_name(channel));
+
 	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "subchan is NULL\n");
+		ast_debug(1, "not updating peer: subchan is NULL\n");
 		return -1;
 	}
 
 	if (subchan->on_hold) {
+		ast_debug(1, "not updating peer: subchan is on hold\n");
 		return 0;
 	}
 
 	line = subchan->line;
 
-	if (sccp_config->directmedia && rtp) {
+	if (rtp) {
+		ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
+		ast_debug(1, "remote address %s\n", ast_sockaddr_stringify(&endpoint_tmp));
+
+		changed = ast_rtp_instance_get_and_cmp_remote_address(rtp, &subchan->direct_media_addr);
+		if (!changed) {
+			ast_debug(1, "not updating peer: remote address has not changed\n");
+			return 0;
+		}
+
 		line_get_format_list(line, &fmt);
 
-		ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
 		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
-		ast_log(LOG_DEBUG, "endpoint %s:%d\n", ast_inet_ntoa(endpoint.sin_addr), ntohs(endpoint.sin_port));
-
 		if (endpoint.sin_addr.s_addr != 0) {
 			transmit_stop_media_transmission(line, subchan->id);
 			transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
+			ast_queue_control(subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
 		}
 		else {
+			ast_log(LOG_WARNING, "updating peer: remote address is 0, device will send media to asterisk\n");
+
 			ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
 			ast_sockaddr_to_sin(&local_tmp, &local);
 
 			if (local.sin_addr.s_addr == 0)
 				local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
 
-			ast_log(LOG_DEBUG, "local address %s:%d\n", ast_inet_ntoa(local.sin_addr), ntohs(local.sin_port));
-
 			transmit_stop_media_transmission(line, subchan->id);
 			transmit_start_media_transmission(line, subchan->id, local, fmt);
 		}
+	} else {
+		ast_debug(1, "rtp is NULL\n");
+		transmit_stop_media_transmission(line, subchan->id);
 	}
 
 	return 0;
@@ -1295,6 +1307,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 		if (line->active_subchan->rtp) {
 			ast_rtp_instance_stop(line->active_subchan->rtp);
+			ast_sockaddr_setnull(&line->active_subchan->direct_media_addr);
 		}
 
 		if (line->active_subchan->id == subchan_id) {
@@ -1421,6 +1434,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		/* put on hold */
 		if (line->active_subchan->rtp) {
 			ast_rtp_instance_stop(line->active_subchan->rtp);
+			ast_sockaddr_setnull(&line->active_subchan->direct_media_addr);
 		}
 
 		transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
@@ -3018,10 +3032,12 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		break;
 
 	case AST_CONTROL_HOLD:
+		ast_rtp_instance_update_source(subchan->rtp);
 		ast_moh_start(channel, data, NULL);
 		break;
 
 	case AST_CONTROL_UNHOLD:
+		ast_rtp_instance_update_source(subchan->rtp);
 		ast_moh_stop(channel);
 		break;
 
@@ -3048,9 +3064,8 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 
 static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
 {
-	struct sccp_subchannel *subchan = NULL;
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(newchannel);
 
-	subchan = ast_channel_tech_pvt(newchannel);
 	subchan->channel = newchannel;
 
 	return 0;
