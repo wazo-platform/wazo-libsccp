@@ -322,26 +322,9 @@ int transmit_clearmessage(struct sccp_session *session)
 	return transmit_message(msg, session);
 }
 
-int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid)
+int transmit_close_receive_channel(struct sccp_session *session, uint32_t callid)
 {
-	struct sccp_msg *msg = NULL;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
-
-	if (line->device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return -1;
-	}
-
-	if (line->device->session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct close_receive_channel_message), CLOSE_RECEIVE_CHANNEL_MESSAGE);
+	struct sccp_msg *msg = msg_alloc(sizeof(struct close_receive_channel_message), CLOSE_RECEIVE_CHANNEL_MESSAGE);
 	if (msg == NULL) {
 		return -1;
 	}
@@ -350,7 +333,7 @@ int transmit_close_receive_channel(struct sccp_line *line, uint32_t callid)
 	msg->data.closereceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.closereceivechannel.conferenceId1 = htolel(callid);
 
-	return transmit_message(msg, line->device->session);
+	return transmit_message(msg, session);
 }
 
 int transmit_config_status_res(struct sccp_session *session)

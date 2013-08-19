@@ -1113,7 +1113,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 	if (subchan->rtp) {
 
-		transmit_close_receive_channel(line, subchan->id);
+		transmit_close_receive_channel(session, subchan->id);
 		transmit_stop_media_transmission(line, subchan->id);
 
 		ast_rtp_instance_stop(subchan->rtp);
@@ -1322,7 +1322,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 
 	/* stop audio stream */
-	transmit_close_receive_channel(line, subchan_id);
+	transmit_close_receive_channel(session, subchan_id);
 	transmit_stop_media_transmission(line, subchan_id);
 
 	subchan_set_on_hold(line, subchan_id);
@@ -1441,7 +1441,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
 
 		/* stop audio stream */
-		transmit_close_receive_channel(line, line->active_subchan->id);
+		transmit_close_receive_channel(session, line->active_subchan->id);
 		transmit_stop_media_transmission(line, line->active_subchan->id);
 
 		subchan_set_on_hold(line, line->active_subchan->id);
