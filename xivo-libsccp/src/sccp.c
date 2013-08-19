@@ -650,7 +650,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
 		if (endpoint.sin_addr.s_addr != 0) {
-			transmit_stop_media_transmission(line, subchan->id);
+			transmit_stop_media_transmission(line->device->session, subchan->id);
 			transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
 			ast_queue_control(subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
 		}
@@ -663,12 +663,12 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 			if (local.sin_addr.s_addr == 0)
 				local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
 
-			transmit_stop_media_transmission(line, subchan->id);
+			transmit_stop_media_transmission(line->device->session, subchan->id);
 			transmit_start_media_transmission(line, subchan->id, local, fmt);
 		}
 	} else {
 		ast_debug(1, "rtp is NULL\n");
-		transmit_stop_media_transmission(line, subchan->id);
+		transmit_stop_media_transmission(line->device->session, subchan->id);
 	}
 
 	return 0;
@@ -1116,7 +1116,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	if (subchan->rtp) {
 
 		transmit_close_receive_channel(session, subchan->id);
-		transmit_stop_media_transmission(line, subchan->id);
+		transmit_stop_media_transmission(line->device->session, subchan->id);
 
 		ast_rtp_instance_stop(subchan->rtp);
 		ast_rtp_instance_destroy(subchan->rtp);
@@ -1325,7 +1325,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 	/* stop audio stream */
 	transmit_close_receive_channel(session, subchan_id);
-	transmit_stop_media_transmission(line, subchan_id);
+	transmit_stop_media_transmission(session, subchan_id);
 
 	subchan_set_on_hold(line, subchan_id);
 
@@ -1444,7 +1444,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 		/* stop audio stream */
 		transmit_close_receive_channel(session, line->active_subchan->id);
-		transmit_stop_media_transmission(line, line->active_subchan->id);
+		transmit_stop_media_transmission(session, line->active_subchan->id);
 
 		subchan_set_on_hold(line, line->active_subchan->id);
 

@@ -780,28 +780,10 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, s
 	return transmit_message(msg, line->device->session);
 }
 
-int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
+int transmit_stop_media_transmission(struct sccp_session *session, uint32_t callid)
 {
-	struct sccp_msg *msg = NULL;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
-
-	if (line->device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return -1;
-	}
-
-	if (line->device->session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
+	struct sccp_msg *msg = msg_alloc(sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
 	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg allocation faile\n");
 		return -1;
 	}
 
@@ -809,7 +791,7 @@ int transmit_stop_media_transmission(struct sccp_line *line, uint32_t callid)
 	msg->data.stopmedia.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.stopmedia.conferenceId1 = htolel(callid);
 
-	return transmit_message(msg, line->device->session);
+	return transmit_message(msg, session);
 }
 
 int transmit_stop_tone(struct sccp_session *session, int line_instance, int callid)
