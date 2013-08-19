@@ -677,6 +677,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 static int start_rtp(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr bindaddr_tmp;
+	struct sccp_session *session = NULL;
 
 	ast_debug(1, "start rtp\n");
 
@@ -694,11 +695,12 @@ static int start_rtp(struct sccp_subchannel *subchan)
 
 	subchan_init_rtp_instance(subchan);
 
+	session = subchan->line->device->session;
 	if (subchan->line->device->open_receive_msg_sent) {
 		subchan->line->device->open_receive_msg_sent = 0;
 		subchan_start_media_transmission(subchan);
 	} else {
-		transmit_open_receive_channel(subchan->line, subchan->id);
+		transmit_open_receive_channel(session, subchan);
 	}
 
 	return 0;
@@ -1374,7 +1376,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	/* restart the audio stream, which has been stopped in handle_softkey_hold */
 	if (line->active_subchan && line->active_subchan->rtp) {
-		transmit_open_receive_channel(line, line->active_subchan->id);
+		transmit_open_receive_channel(session, line->active_subchan);
 	}
 
 	subchan_unset_on_hold(line, subchan_id);
@@ -2858,7 +2860,7 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 
 	if (!line->active_subchan && !line->device->open_receive_msg_sent && sccp_config->directmedia) {
 		line->device->open_receive_msg_sent = 1;
-		transmit_open_receive_channel(line, subchan->id);
+		transmit_open_receive_channel(session, subchan);
 	}
 
 	if (line->device->autoanswer == 1) {

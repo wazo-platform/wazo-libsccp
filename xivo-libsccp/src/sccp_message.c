@@ -359,46 +359,41 @@ int transmit_config_status_res(struct sccp_session *session)
 	return transmit_message(msg, session);
 }
 
-int transmit_open_receive_channel(struct sccp_line *line, uint32_t callid)
+int transmit_open_receive_channel(struct sccp_session *session, struct sccp_subchannel *subchan)
 {
 	struct ast_format_list fmt;
 	struct ast_format tmpfmt;
 	struct sccp_msg *msg = NULL;
 
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return -1;
 	}
 
-	if (line->device == NULL) {
+	if (subchan->line->device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
 	}
 
-	if (line->device->session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	ast_best_codec(line->device->capabilities, &tmpfmt);
+	ast_best_codec(subchan->line->device->capabilities, &tmpfmt);
 	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&tmpfmt));
-	fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
+	fmt = ast_codec_pref_getsize(&subchan->line->codec_pref, &tmpfmt);
 
 	msg = msg_alloc(sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
 	if (msg == NULL) {
 		return -1;
 	}
 
-	msg->data.openreceivechannel.conferenceId = htolel(callid);
-	msg->data.openreceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
+	msg->data.openreceivechannel.conferenceId = htolel(subchan->id);
+	msg->data.openreceivechannel.partyId = htolel(subchan->id ^ 0xFFFFFFFF);
 	msg->data.openreceivechannel.packets = htolel(fmt.cur_ms);
 	msg->data.openreceivechannel.capability = htolel(codec_ast2sccp(&fmt.format));
 	msg->data.openreceivechannel.echo = htolel(0);
 	msg->data.openreceivechannel.bitrate = htolel(0);
-	msg->data.openreceivechannel.conferenceId1 = htolel(callid);
+	msg->data.openreceivechannel.conferenceId1 = htolel(subchan->id);
 	msg->data.openreceivechannel.rtpTimeout = htolel(10);
 
-	return transmit_message(msg, line->device->session);
+	return transmit_message(msg, session);
 }
 
 int transmit_dialed_number(struct sccp_session *session, const char *extension, int line_instance, int callid)
