@@ -187,35 +187,6 @@ end:
 	return session ? session->transmit_error : -1;
 }
 
-int transmit_activatecallplane(struct sccp_line *line)
-{
-	struct sccp_msg *msg = NULL;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return -1;
-	}
-
-	if (line->device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return -1;
-	}
-
-	if (line->device->session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	msg = msg_alloc(sizeof(struct activate_call_plane_message), ACTIVATE_CALL_PLANE_MESSAGE);
-	if (msg == NULL) {
-		return -1;
-	}
-
-	msg->data.activatecallplane.lineInstance = htolel(line->instance);
-
-	return transmit_message(msg, line->device->session);
-}
-
 int transmit_button_template_res(struct sccp_session *session)
 {
 	int i = 0;

@@ -7,7 +7,6 @@
 
 const char *msg_id_str(uint32_t msg_id);
 
-int transmit_activatecallplane(struct sccp_line *line);
 int transmit_button_template_res(struct sccp_session *session);
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num, const char *to_name, const char *to_num, int lineInstance, int callInstance, int calltype);
 int transmit_callstate(struct sccp_session *session, int lineInstance, int state, unsigned callInstance);
