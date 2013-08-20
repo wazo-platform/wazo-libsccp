@@ -751,18 +751,15 @@ int transmit_speaker_mode(struct sccp_session *session, int mode)
 	return transmit_message(msg, session);
 }
 
-int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt)
+int transmit_start_media_transmission(struct sccp_session *session, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt)
 {
-	struct sccp_msg *msg = NULL;
-
-	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
+	struct sccp_msg *msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
 	if (msg == NULL) {
 		return -1;
 	}
 
 	ast_debug(2, "Sending start media transmission to %s: %s %d\n",
-			((struct sccp_session*)line->device->session)->ipaddr,
-			ast_inet_ntoa(endpoint.sin_addr), ntohs(endpoint.sin_port));
+			session->ipaddr, ast_inet_ntoa(endpoint.sin_addr), ntohs(endpoint.sin_port));
 
 	msg->data.startmedia.conferenceId = htolel(callid);
 	msg->data.startmedia.passThruPartyId = htolel(callid ^ 0xFFFFFFFF);
@@ -777,7 +774,7 @@ int transmit_start_media_transmission(struct sccp_line *line, uint32_t callid, s
 	msg->data.startmedia.conferenceId1 = htolel(callid);
 	msg->data.startmedia.rtpTimeout = htolel(10);
 
-	return transmit_message(msg, line->device->session);
+	return transmit_message(msg, session);
 }
 
 int transmit_stop_media_transmission(struct sccp_session *session, uint32_t callid)

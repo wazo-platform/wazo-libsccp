@@ -618,6 +618,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	struct ast_sockaddr endpoint_tmp;
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
+	struct sccp_session *session;
 
 	struct ast_format_list fmt;
 	int changed = 0;
@@ -636,6 +637,12 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 	line = subchan->line;
 
+	if (line->device == NULL) {
+		ast_debug(1, "not updating peer: device is NULL\n");
+		return -1;
+	}
+	session = line->device->session;
+
 	if (rtp) {
 		ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
 		ast_debug(1, "remote address %s\n", ast_sockaddr_stringify(&endpoint_tmp));
@@ -650,8 +657,8 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
 		if (endpoint.sin_addr.s_addr != 0) {
-			transmit_stop_media_transmission(line->device->session, subchan->id);
-			transmit_start_media_transmission(line, subchan->id, endpoint, fmt);
+			transmit_stop_media_transmission(session, subchan->id);
+			transmit_start_media_transmission(session, subchan->id, endpoint, fmt);
 			ast_queue_control(subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
 		}
 		else {
@@ -663,12 +670,12 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 			if (local.sin_addr.s_addr == 0)
 				local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
 
-			transmit_stop_media_transmission(line->device->session, subchan->id);
-			transmit_start_media_transmission(line, subchan->id, local, fmt);
+			transmit_stop_media_transmission(session, subchan->id);
+			transmit_start_media_transmission(session, subchan->id, local, fmt);
 		}
 	} else {
 		ast_debug(1, "rtp is NULL\n");
-		transmit_stop_media_transmission(line->device->session, subchan->id);
+		transmit_stop_media_transmission(session, subchan->id);
 	}
 
 	return 0;
@@ -3396,7 +3403,7 @@ void subchan_start_media_transmission(struct sccp_subchannel *subchan)
 
 	line_get_format_list(subchan->line, &fmt);
 	subchan_set_rtp_addresses_get_local(subchan, &local);
-	transmit_start_media_transmission(subchan->line, subchan->id, local, fmt);
+	transmit_start_media_transmission(subchan->line->device->session, subchan->id, local, fmt);
 }
 
 void sccp_server_fini()
