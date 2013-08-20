@@ -325,6 +325,7 @@ int transmit_clearmessage(struct sccp_session *session)
 int transmit_close_receive_channel(struct sccp_session *session, uint32_t callid)
 {
 	struct sccp_msg *msg = msg_alloc(sizeof(struct close_receive_channel_message), CLOSE_RECEIVE_CHANNEL_MESSAGE);
+
 	if (msg == NULL) {
 		return -1;
 	}
