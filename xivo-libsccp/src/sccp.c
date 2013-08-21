@@ -3099,13 +3099,13 @@ static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newc
 
 static int cb_ast_senddigit_begin(struct ast_channel *channel, char digit)
 {
-	ast_log(LOG_DEBUG, "senddigit begin\n");
+	ast_log(LOG_DEBUG, "senddigit begin %c\n", digit);
 	return 0;
 }
 
 static int cb_ast_senddigit_end(struct ast_channel *channel, char digit, unsigned int duration)
 {
-	ast_log(LOG_DEBUG, "senddigit end\n");
+	ast_log(LOG_DEBUG, "senddigit end %c\n", digit);
 	return 0;
 }
 
