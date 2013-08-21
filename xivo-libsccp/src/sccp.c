@@ -2322,6 +2322,18 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	return 0;
 }
 
+static int handle_version_req_message(struct sccp_session *session)
+{
+	int ret = 0;
+
+	// hardcoded firmware version value taken from chan_skinny
+	ret = transmit_version_res(session, "P002F202");
+	if (ret == -1)
+		return -1;
+
+	return 0;
+}
+
 static void destroy_session(struct sccp_session **session)
 {
 	if (session == NULL) {
@@ -2475,6 +2487,10 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	case SOFTKEY_SET_REQ_MESSAGE:
 		ret = handle_softkey_set_req_message(session);
+		break;
+
+	case VERSION_REQ_MESSAGE:
+		ret = handle_version_req_message(session);
 		break;
 
 	default:

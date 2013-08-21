@@ -37,6 +37,7 @@ int transmit_stop_media_transmission(struct sccp_session *session, uint32_t call
 int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
 int transmit_time_date_res(struct sccp_session *session);
 int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
+int transmit_version_res(struct sccp_session *session, const char *version);
 
 #define KEEP_ALIVE_MESSAGE 0x0000
 
@@ -105,6 +106,7 @@ struct line_status_req_message {
 #define CONFIG_STATUS_REQ_MESSAGE 0x000C
 #define TIME_DATE_REQ_MESSAGE 0x000D
 #define BUTTON_TEMPLATE_REQ_MESSAGE 0x000E
+#define VERSION_REQ_MESSAGE 0x000F
 
 #define CAPABILITIES_RES_MESSAGE 0x0010
 struct station_capabilities {
@@ -320,6 +322,11 @@ struct button_template_res_message {
 	struct button_definition definition[42];
 };
 
+#define VERSION_RES_MESSAGE 0x0098
+struct version_res_message {
+	char version[16];
+};
+
 #define CAPABILITIES_REQ_MESSAGE 0x009B
 
 #define REGISTER_REJ_MESSAGE 0x009D
@@ -494,6 +501,7 @@ union sccp_data {
 	struct stop_media_transmission_message stopmedia;
 	struct stop_tone_message stop_tone;
 	struct time_date_res_message timedate;
+	struct version_res_message version;
 };
 
 /* message composition */

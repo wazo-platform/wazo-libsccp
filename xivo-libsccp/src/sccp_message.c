@@ -35,8 +35,6 @@ const char *msg_id_str(uint32_t msg_id) {
 		return "onhook";
 	case FORWARD_STATUS_REQ_MESSAGE:
 		return "forward status req";
-	case CAPABILITIES_RES_MESSAGE:
-		return "capabilities res";
 	case SPEEDDIAL_STAT_REQ_MESSAGE:
 		return "speeddial stat req";
 	case LINE_STATUS_REQ_MESSAGE:
@@ -47,6 +45,10 @@ const char *msg_id_str(uint32_t msg_id) {
 		return "time date req";
 	case BUTTON_TEMPLATE_REQ_MESSAGE:
 		return "button template req";
+	case VERSION_REQ_MESSAGE:
+		return "version req";
+	case CAPABILITIES_RES_MESSAGE:
+		return "capabilities res";
 	case ALARM_MESSAGE:
 		return "alarm";
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
@@ -93,6 +95,8 @@ const char *msg_id_str(uint32_t msg_id) {
 		return "date time res";
 	case BUTTON_TEMPLATE_RES_MESSAGE:
 		return "button template res";
+	case VERSION_RES_MESSAGE:
+		return "version res";
 	case CAPABILITIES_REQ_MESSAGE:
 		return "capabilities req";
 	case REGISTER_REJ_MESSAGE:
@@ -850,6 +854,19 @@ int transmit_tone(struct sccp_session *session, int tone, int line_instance, int
 	msg->data.starttone.tone = htolel(tone);
 	msg->data.starttone.lineInstance = htolel(line_instance);
 	msg->data.starttone.callInstance = htolel(callid);
+
+	return transmit_message(msg, session);
+}
+
+int transmit_version_res(struct sccp_session *session, const char *version)
+{
+	struct sccp_msg *msg = msg_alloc(sizeof(struct version_res_message), VERSION_RES_MESSAGE);
+
+	if (msg == NULL) {
+		return -1;
+	}
+
+	ast_copy_string(msg->data.version.version, version, sizeof(msg->data.version.version));
 
 	return transmit_message(msg, session);
 }
