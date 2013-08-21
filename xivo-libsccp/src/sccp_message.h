@@ -92,6 +92,20 @@ struct forward_status_req_message {
 	uint32_t lineInstance;
 };
 
+#define SPEEDDIAL_STAT_REQ_MESSAGE 0x000A
+struct speeddial_stat_req_message {
+	uint32_t instance;
+};
+
+#define LINE_STATUS_REQ_MESSAGE 0x000B
+struct line_status_req_message {
+	uint32_t lineInstance;
+};
+
+#define CONFIG_STATUS_REQ_MESSAGE 0x000C
+#define TIME_DATE_REQ_MESSAGE 0x000D
+#define BUTTON_TEMPLATE_REQ_MESSAGE 0x000E
+
 #define CAPABILITIES_RES_MESSAGE 0x0010
 struct station_capabilities {
 	uint32_t codec;
@@ -107,20 +121,6 @@ struct capabilities_res_message {
 	uint32_t count;
 	struct station_capabilities caps[SCCP_MAX_CAPABILITIES];
 };
-
-#define SPEEDDIAL_STAT_REQ_MESSAGE 0x000A
-struct speeddial_stat_req_message {
-	uint32_t instance;
-};
-
-#define LINE_STATUS_REQ_MESSAGE 0x000B
-struct line_status_req_message {
-	uint32_t lineInstance;
-};
-
-#define CONFIG_STATUS_REQ_MESSAGE 0x000C
-#define TIME_DATE_REQ_MESSAGE 0x000D
-#define BUTTON_TEMPLATE_REQ_MESSAGE 0x000E
 
 #define ALARM_MESSAGE 0x0020
 struct alarm_message {
