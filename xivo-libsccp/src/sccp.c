@@ -2612,12 +2612,9 @@ static void thread_session_cleanup(void *data)
 			destroy_device_config(sccp_config, session->device);
 			sccp_config_load(sccp_config, "sccp.conf");
 		}
-	}
-
-	if (session) {
 		transmit_reset(session, 2);
-		destroy_session(&session);
 	}
+	destroy_session(&session);
 }
 
 static void *thread_session(void *data)
