@@ -148,6 +148,7 @@ struct softkey_event_message {
 	uint32_t callInstance;
 };
 
+#define UNREGISTER_MESSAGE 0x0027
 #define SOFTKEY_TEMPLATE_REQ_MESSAGE 0x0028
 #define REGISTER_AVAILABLE_LINES_MESSAGE 0x002D
 

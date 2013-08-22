@@ -57,6 +57,8 @@ const char *msg_id_str(uint32_t msg_id) {
 		return "softkey set req";
 	case SOFTKEY_EVENT_MESSAGE:
 		return "softkey event";
+	case UNREGISTER_MESSAGE:
+		return "unregister message";
 	case SOFTKEY_TEMPLATE_REQ_MESSAGE:
 		return "softkey template req";
 	case REGISTER_AVAILABLE_LINES_MESSAGE:

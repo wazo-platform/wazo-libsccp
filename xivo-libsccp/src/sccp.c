@@ -2144,6 +2144,12 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	return 0;
 }
 
+static int handle_unregister_message(struct sccp_session *session)
+{
+	ast_log(LOG_NOTICE, "Unregistering device on session %p\n", session);
+	return -1;
+}
+
 static int handle_ipport_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	if (msg == NULL) {
@@ -2468,6 +2474,10 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	case BUTTON_TEMPLATE_REQ_MESSAGE:
 		ret = handle_button_template_req_message(session);
+		break;
+
+	case UNREGISTER_MESSAGE:
+		ret = handle_unregister_message(session);
 		break;
 
 	case SOFTKEY_TEMPLATE_REQ_MESSAGE:
