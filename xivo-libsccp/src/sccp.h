@@ -24,6 +24,7 @@ struct sccp_session {
 	time_t start_time;
 	int sockfd;
 	int transmit_error;
+	int destroy;
 
 	char *ipaddr;
 	struct sccp_device *device;

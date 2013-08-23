@@ -2363,6 +2363,38 @@ static void destroy_session(struct sccp_session **session)
 	*session = NULL;
 }
 
+/*
+ * Check if the given message can be handled considering the session current state.
+ *
+ * Return non-zero if the message can be handled, else 0.
+ */
+static int is_message_handleable(uint32_t msg_id, struct sccp_session *session) {
+	int ret = 0;
+
+	if (session == NULL) {
+		ast_log(LOG_ERROR, "session is NULL\n");
+		return 0;
+	}
+
+	if (session->device == NULL || session->device->registered == DEVICE_REGISTERED_FALSE) {
+		switch (msg_id) {
+		case KEEP_ALIVE_MESSAGE:
+		case REGISTER_MESSAGE:
+		case ALARM_MESSAGE:
+			ret = 1;
+			break;
+		default:
+			ast_log(LOG_NOTICE, "Message 0x%04X %s not handleable: no device or not registered\n",
+					msg_id, msg_id_str(msg_id));
+			session->destroy = 1;
+		}
+	} else {
+		ret = 1;
+	}
+
+	return ret;
+}
+
 static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	uint32_t msg_id;
@@ -2382,20 +2414,9 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	ast_debug(2, "Message received from %s: 0x%04X %s\n", session->ipaddr, msg_id, msg_id_str(msg_id));
 
-	/* Device is not configured */
-	if (session->device == NULL &&
-		(msg_id != REGISTER_MESSAGE && msg_id != ALARM_MESSAGE)) {
-			ast_log(LOG_ERROR, "session->device is NULL\n");
-			return -1;
-	}
-
-	/* Prevent unregistered phone from sending non-registering messages */
-	if (((session->device != NULL && session->device->registered == DEVICE_REGISTERED_FALSE)) &&
-		(msg_id != REGISTER_MESSAGE && msg_id != ALARM_MESSAGE)) {
-
-			ast_log(LOG_ERROR, "Session from [%s::%d] sending non-registering messages\n",
-						session->ipaddr, session->sockfd);
-			return -1;
+	if (!is_message_handleable(msg_id, session)) {
+		ast_log(LOG_DEBUG, "Ignoring message 0x%04X %s\n", msg_id, msg_id_str(msg_id));
+		return 0;
 	}
 
 	switch (msg_id) {
@@ -2614,6 +2635,7 @@ static void thread_session_cleanup(void *data)
 		}
 		transmit_reset(session, 2);
 	}
+
 	destroy_session(&session);
 }
 
@@ -2625,10 +2647,15 @@ static void *thread_session(void *data)
 
 	pthread_cleanup_push(thread_session_cleanup, data);
 
-	while ((ret = fetch_data(session)) > 0) {
+	while (1) {
+		ret = fetch_data(session);
+		if (ret <= 0) {
+			break;
+		}
+
 		msg = (struct sccp_msg *)session->inbuf;
 		ret = handle_message(msg, session);
-		if (ret < 0) {
+		if (ret < 0 || session->destroy) {
 			break;
 		}
 	}
