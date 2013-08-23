@@ -464,8 +464,6 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 		struct sockaddr_in localip;
 		socklen_t slen = sizeof(localip);
 
-		ast_log(LOG_NOTICE, "Device found [%s]\n", device_itr->name);
-
 		ret = getsockname(session->sockfd, (struct sockaddr *)&localip, &slen);
 		if (ret != 0) {
 			ast_log(LOG_ERROR, "error calling getsockname: %s\n", strerror(errno));
@@ -2353,8 +2351,10 @@ static void destroy_session(struct sccp_session **session)
 		return;
 	}
 
-	ast_free((*session)->ipaddr);
 	close((*session)->sockfd);
+	ast_verb(4, "SCCP connection from %s closed\n", (*session)->ipaddr);
+
+	ast_free((*session)->ipaddr);
 
 	if ((*session)->device)
 		(*session)->device->session = NULL;
@@ -2646,6 +2646,7 @@ static void *thread_accept(void *data)
 	struct sccp_session *session = NULL;
 	socklen_t addrlen = 0;
 	int flag_nodelay = 1;
+	int err;
 
 	while (1) {
 
@@ -2678,8 +2679,12 @@ static void *thread_accept(void *data)
 		AST_LIST_INSERT_HEAD(&list_session, session, list);
 		AST_LIST_UNLOCK(&list_session);
 
-		ast_log(LOG_NOTICE, "A new device has connected from: %s\n", session->ipaddr);
-		ast_pthread_create_background(&session->tid, NULL, thread_session, session);
+		ast_verb(4, "New SCCP connection from %s accepted\n", session->ipaddr);
+		err = ast_pthread_create_background(&session->tid, NULL, thread_session, session);
+		if (err) {
+			ast_log(LOG_WARNING, "Unable to create session thread: %s\n", strerror(err));
+			destroy_session(&session);
+		}
 	}
 
 	return NULL;
