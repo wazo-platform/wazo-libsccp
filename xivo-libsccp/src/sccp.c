@@ -45,6 +45,8 @@ static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
 static struct sccp_configs *sccp_config;
 static struct sccp_server sccp_srv;
+static int sccp_debug;
+static char sccp_debug_addr[16];
 
 static struct ast_format_cap *default_cap;
 
@@ -2411,6 +2413,11 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	msg_id = letohl(msg->id);
 
+	if (sccp_debug) {
+		/* TODO handle debug address... etc... */
+		dump_message_received(session, msg);
+	}
+
 	ast_debug(2, "Message received from %s: 0x%04X %s\n", session->ipaddr, msg_id, msg_id_str(msg_id));
 
 	if (!is_message_handleable(msg_id, session)) {
@@ -3273,6 +3280,42 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	return CLI_SUCCESS;
 }
 
+static char *sccp_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	const char *what;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp set debug {on|off|ip}";
+		e->usage =
+			"Usage: sccp set debug {on|off|ip addr}\n"
+			"       Enable/disable dumping of SCCP packets.\n";
+		return NULL;
+
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	what = a->argv[e->args - 1];
+
+	if (!strcasecmp(what, "on")) {
+		sccp_debug = 1;
+		*sccp_debug_addr = '\0';
+		ast_cli(a->fd, "SCCP debugging enabled\n");
+	} else if (!strcasecmp(what, "off")) {
+		sccp_debug = 0;
+		ast_cli(a->fd, "SCCP debugging disabled\n");
+	}  else if (!strcasecmp(what, "ip") && a->argc == e->args + 1) {
+		sccp_debug = 1;
+		ast_copy_string(sccp_debug_addr, a->argv[e->args], sizeof(sccp_debug_addr));
+		ast_cli(a->fd, "SCCP debugging enabled for IP: %s\n", sccp_debug_addr);
+	} else {
+		return CLI_SHOWUSAGE;
+	}
+
+	return CLI_SUCCESS;
+}
+
 static void sccp_dump_session_state(int cli_fd, struct sccp_session *session)
 {
 	struct sccp_device *device = NULL;
@@ -3347,10 +3390,11 @@ static char *sccp_dump_state(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 }
 
 static struct ast_cli_entry cli_sccp[] = {
-	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
-	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
+	AST_CLI_DEFINE(sccp_set_debug, "Enable/Disable SCCP debugging"),
 	AST_CLI_DEFINE(sccp_set_directmedia, "Enable/Disable direct media"),
+	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
+	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
 #ifdef DEBUG_STATE
 	AST_CLI_DEFINE(sccp_dump_state, "Dump session state"),
 #endif

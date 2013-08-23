@@ -15,6 +15,24 @@
 static struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 
+void dump_message_received(struct sccp_session *session, struct sccp_msg *msg) {
+	uint32_t msg_id;
+
+	if (session == NULL || msg == NULL) {
+		return;
+	}
+
+	msg_id = letohl(msg->id);
+
+	ast_verbose(
+		"\n<--- Received message from %s -->\n"
+		"Message: %s\n"
+		"Message ID: 0x%04X\n"
+		"\n<------------>\n",
+		session->ipaddr, msg_id_str(msg_id), msg_id
+	);
+}
+
 const char *msg_id_str(uint32_t msg_id) {
 	switch (msg_id) {
 	case KEEP_ALIVE_MESSAGE:
