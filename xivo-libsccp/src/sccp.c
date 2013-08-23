@@ -2378,7 +2378,6 @@ static int is_message_handleable(uint32_t msg_id, struct sccp_session *session) 
 
 	if (session->device == NULL || session->device->registered == DEVICE_REGISTERED_FALSE) {
 		switch (msg_id) {
-		case KEEP_ALIVE_MESSAGE:
 		case REGISTER_MESSAGE:
 		case ALARM_MESSAGE:
 			ret = 1;
