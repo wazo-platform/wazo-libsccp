@@ -5,15 +5,63 @@
 #include <asterisk/utils.h>
 #include <asterisk/rtp_engine.h>
 
+#include "sccp.h"
 #include "sccp_device.h"
 #include "sccp_message.h"
-#include "sccp.h"
 #include "sccp_utils.h"
 
 #include "../config.h"
 
 static struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
+
+static void dump_message(struct sccp_session *session, struct sccp_msg *msg, const char *head) {
+	char body[256];
+	uint32_t msg_id;
+
+	if (session == NULL || msg == NULL) {
+		return;
+	}
+
+	msg_id = letohl(msg->id);
+
+	if (msg_id == KEEP_ALIVE_MESSAGE || msg_id == KEEP_ALIVE_ACK_MESSAGE) {
+		// don't dump these messages
+		return;
+	}
+
+	switch (msg_id) {
+	case OFFHOOK_MESSAGE:
+		snprintf(body, sizeof(body), "Line instance: %d\nCall instance: %d\n\n",
+			letohl(msg->data.offhook.lineInstance),
+			letohl(msg->data.offhook.callInstance));
+		break;
+	case ONHOOK_MESSAGE:
+		snprintf(body, sizeof(body), "Line instance: %d\nCall instance: %d\n\n",
+			letohl(msg->data.offhook.lineInstance),
+			letohl(msg->data.offhook.callInstance));
+		break;
+	default:
+		*body = '\0';
+	}
+
+	ast_verbose(
+		"\n<--- %s %s -->\n"
+		"Length: %4u   Reserved: 0x%08X   ID: 0x%04X (%s)\n\n"
+		"%s"
+		"\n<------------>\n",
+		head, session->ipaddr, letohl(msg->length), letohl(msg->reserved),
+		msg_id, msg_id_str(msg_id), body
+	);
+}
+
+void dump_message_received(struct sccp_session *session, struct sccp_msg *msg) {
+	dump_message(session, msg, "Received message from");
+}
+
+void dump_message_transmitting(struct sccp_session *session, struct sccp_msg *msg) {
+	dump_message(session, msg, "Transmitting message to");
+}
 
 const char *msg_id_str(uint32_t msg_id) {
 	switch (msg_id) {
@@ -172,6 +220,12 @@ static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 		ast_log(LOG_ERROR, "msg is NULL\n");
 		session->transmit_error = -1;
 		goto end;
+	}
+
+	if (sccp_debug) {
+		if (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, session->ipaddr)) {
+			dump_message_transmitting(session, msg);
+		}
 	}
 
 	msg_id = letohl(msg->id);

@@ -1,10 +1,13 @@
 #ifndef SCCP_MESSAGE_H
 #define SCCP_MESSAGE_H
 
-#include "sccp_device.h"
 #include "sccp.h"
-#include "sccp_config.h"
+#include "sccp_device.h"
 
+struct sccp_msg;
+
+void dump_message_received(struct sccp_session *session, struct sccp_msg *msg);
+void dump_message_transmitting(struct sccp_session *session, struct sccp_msg *msg);
 const char *msg_id_str(uint32_t msg_id);
 
 int transmit_button_template_res(struct sccp_session *session);

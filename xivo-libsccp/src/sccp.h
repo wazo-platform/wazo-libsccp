@@ -10,6 +10,9 @@
 
 #define SCCP_MAX_PACKET_SZ 2000
 
+extern int sccp_debug;
+extern char sccp_debug_addr[16];
+
 struct sccp_server {
 
 	int sockfd;
