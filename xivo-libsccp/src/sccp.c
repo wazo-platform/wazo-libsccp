@@ -45,8 +45,8 @@ static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
 static struct sccp_configs *sccp_config;
 static struct sccp_server sccp_srv;
-static int sccp_debug;
-static char sccp_debug_addr[16];
+int sccp_debug;
+char sccp_debug_addr[16];
 
 static struct ast_format_cap *default_cap;
 
@@ -2414,8 +2414,9 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	msg_id = letohl(msg->id);
 
 	if (sccp_debug) {
-		/* TODO handle debug address... etc... */
-		dump_message_received(session, msg);
+		if (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, session->ipaddr)) {
+			dump_message_received(session, msg);
+		}
 	}
 
 	ast_debug(2, "Message received from %s: 0x%04X %s\n", session->ipaddr, msg_id, msg_id_str(msg_id));
