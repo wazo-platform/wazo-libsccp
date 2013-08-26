@@ -1026,10 +1026,6 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	if (ret == -1)
 		return -1;
 
-	ret = transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
-	if (ret == -1)
-		return -1;
-
 	ret = transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
 	if (ret == -1)
 		return -1;
@@ -1132,7 +1128,6 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
 	transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_ONHOOK);
 	transmit_stop_tone(session, line->instance, subchan->id);
-	transmit_tone(session, SCCP_TONE_NONE, line->instance, subchan->id);
 
 	AST_RWLIST_REMOVE(&line->subchans, subchan, list);
 
@@ -2970,7 +2965,6 @@ static int cb_ast_answer(struct ast_channel *channel)
 		return 0;
 	}
 
-	transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
 	transmit_stop_tone(line->device->session, line->instance, subchan->id);
 	transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_CONNECTED);
 	transmit_callstate(line->device->session, line->instance, SCCP_CONNECTED, subchan->id);
@@ -3049,7 +3043,6 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 	} else if (rtp == NULL && line->state == SCCP_PROGRESS) {
 		/* handle early rtp during progress state */
 		transmit_stop_tone(line->device->session, line->instance, subchan->id);
-		transmit_tone(line->device->session, SCCP_TONE_NONE, line->instance, subchan->id);
 		start_rtp(subchan);
 	}
 
