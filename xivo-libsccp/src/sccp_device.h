@@ -31,8 +31,10 @@ enum sccp_device_type {
 	SCCP_DEVICE_7961 = 30018,
 };
 
-#define SCCP_SPEAKERON		1
-#define SCCP_SPEAKEROFF		2
+enum sccp_speaker_mode {
+	SCCP_SPEAKERON = 1,
+	SCCP_SPEAKEROFF = 2,
+};
 
 #define SCCP_CFWD_UNACTIVE	1
 #define SCCP_CFWD_INPUTEXTEN	2

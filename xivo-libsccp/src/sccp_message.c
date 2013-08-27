@@ -814,7 +814,7 @@ int transmit_softkey_template_res(struct sccp_session *session)
 	return transmit_message(msg, session);
 }
 
-int transmit_speaker_mode(struct sccp_session *session, int mode)
+int transmit_speaker_mode(struct sccp_session *session, enum sccp_speaker_mode mode)
 {
 	struct sccp_msg *msg = NULL;
 
