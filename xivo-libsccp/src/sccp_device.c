@@ -342,6 +342,8 @@ const char *device_type_str(int device_type)
 		return "7962";
 	case SCCP_DEVICE_7970:
 		return "7970";
+	case SCCP_DEVICE_CIPC:
+		return "CIPC";
 	default:
 		return "unknown";
 	}
@@ -380,6 +382,7 @@ int device_type_is_supported(int device_type)
 	case SCCP_DEVICE_7961:
 	case SCCP_DEVICE_7962:
 	case SCCP_DEVICE_7970:
+	case SCCP_DEVICE_CIPC:
 		supported = 1;
 		break;
 
@@ -432,6 +435,7 @@ int device_get_button_count(struct sccp_device *device)
 		break;
 
 	case SCCP_DEVICE_7970:
+	case SCCP_DEVICE_CIPC:
 		button_count = 8;
 		break;
 
