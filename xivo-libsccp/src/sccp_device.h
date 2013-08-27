@@ -334,6 +334,7 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance);
 struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index);
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
+int device_supports_direct_media(struct sccp_device *device);
 const char *line_state_str(int line_state);
 int device_type_is_supported(int device_type);
 int device_get_button_count(struct sccp_device *device);

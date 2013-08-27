@@ -599,7 +599,7 @@ static enum ast_rtp_glue_result cb_ast_get_rtp_peer(struct ast_channel *channel,
 	ao2_ref(subchan->rtp, +1);
 	*instance = subchan->rtp;
 
-	if (sccp_config->directmedia)
+	if (sccp_config->directmedia && device_supports_direct_media(subchan->line->device))
 		return AST_RTP_GLUE_RESULT_REMOTE;
 
 	return AST_RTP_GLUE_RESULT_LOCAL;
@@ -2923,7 +2923,7 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 		return -1;
 
 
-	if (!line->active_subchan && !line->device->open_receive_msg_sent && sccp_config->directmedia) {
+	if (!line->active_subchan && !line->device->open_receive_msg_sent && sccp_config->directmedia && device_supports_direct_media(line->device)) {
 		line->device->open_receive_msg_sent = 1;
 		transmit_open_receive_channel(session, subchan);
 	}

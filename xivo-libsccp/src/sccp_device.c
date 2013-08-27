@@ -262,6 +262,17 @@ struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
 	return line_itr;
 }
 
+int device_supports_direct_media(struct sccp_device *device)
+{
+	switch(device->type) {
+	case SCCP_DEVICE_7920:  // When direct media is enabled the setringer message stops the media transmission
+	case SCCP_DEVICE_7921:  // There is no sound when receiving a call with directmedia enabled. The open_receive_channel_ack is not received
+		return 0;
+	default:
+		return 1;
+	}
+}
+
 const char *line_state_str(int line_state)
 {
 	switch (line_state) {
