@@ -2090,7 +2090,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
-	uint32_t device_type = 0;
+	enum sccp_device_type device_type;
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");

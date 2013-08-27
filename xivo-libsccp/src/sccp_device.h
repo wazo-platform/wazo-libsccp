@@ -11,23 +11,25 @@
 
 #include <stdint.h>
 
-#define SCCP_DEVICE_7960	7
-#define SCCP_DEVICE_7940	8
-#define SCCP_DEVICE_7941	115
-#define SCCP_DEVICE_7911	307
-#define SCCP_DEVICE_7941GE	309
-#define SCCP_DEVICE_7931	348
-#define SCCP_DEVICE_7921	365
-#define SCCP_DEVICE_7906	369
-#define SCCP_DEVICE_7962	404
-#define SCCP_DEVICE_7937	431
-#define SCCP_DEVICE_7942	434
-#define SCCP_DEVICE_7905	20000
-#define SCCP_DEVICE_7920	30002
-#define SCCP_DEVICE_7970	30006
-#define SCCP_DEVICE_7912	30007
-#define SCCP_DEVICE_CIPC	30016 /* Cisco IP Communicator */
-#define SCCP_DEVICE_7961	30018
+enum sccp_device_type {
+	SCCP_DEVICE_7960 = 7,
+	SCCP_DEVICE_7940 = 8,
+	SCCP_DEVICE_7941 = 115,
+	SCCP_DEVICE_7911 = 307,
+	SCCP_DEVICE_7941GE = 309,
+	SCCP_DEVICE_7931 = 348,
+	SCCP_DEVICE_7921 = 365,
+	SCCP_DEVICE_7906 = 369,
+	SCCP_DEVICE_7962 = 404,
+	SCCP_DEVICE_7937 = 431,
+	SCCP_DEVICE_7942 = 434,
+	SCCP_DEVICE_7905 = 20000,
+	SCCP_DEVICE_7920 = 30002,
+	SCCP_DEVICE_7970 = 30006,
+	SCCP_DEVICE_7912 = 30007,
+	SCCP_DEVICE_CIPC = 30016,
+	SCCP_DEVICE_7961 = 30018,
+};
 
 #define SCCP_SPEAKERON		1
 #define SCCP_SPEAKEROFF		2
@@ -282,7 +284,7 @@ struct sccp_device {
 	uint8_t destroy;
 
 	char name[80];
-	int type;
+	enum sccp_device_type type;
 	int state;
 	uint8_t proto_version;
 	uint32_t station_port;
@@ -337,7 +339,6 @@ struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device,
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
 int device_supports_direct_media(struct sccp_device *device);
 const char *line_state_str(int line_state);
-int device_type_is_supported(int device_type);
 int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
 
@@ -350,8 +351,8 @@ void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id);
 void set_line_state(struct sccp_line *line, int state);
 const char *device_regstate_str(int device_state);
-int device_type_is_supported(int device_type);
-const char *device_type_str(int device_type);
+int device_type_is_supported(enum sccp_device_type device_type);
+const char *device_type_str(enum sccp_device_type device_type);
 
 typedef int (*state_cb_type)(char *context, char* id, struct ast_state_cb_info *info, void *data);
 void speeddial_hints_unsubscribe(struct sccp_device *device);

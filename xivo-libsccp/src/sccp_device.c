@@ -307,7 +307,7 @@ const char *line_state_str(int line_state)
 	}
 }
 
-const char *device_type_str(int device_type)
+const char *device_type_str(enum sccp_device_type device_type)
 {
 	switch (device_type) {
 	case SCCP_DEVICE_7905:
@@ -361,7 +361,7 @@ const char *device_regstate_str(int device_state)
 	}
 }
 
-int device_type_is_supported(int device_type)
+int device_type_is_supported(enum sccp_device_type device_type)
 {
 	int supported = 0;
 
