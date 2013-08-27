@@ -36,7 +36,7 @@ enum sccp_speaker_mode {
 	SCCP_SPEAKEROFF = 2,
 };
 
-#define SCCP_CFWD_UNACTIVE	1
+#define SCCP_CFWD_INACTIVE	1
 #define SCCP_CFWD_INPUTEXTEN	2
 #define SCCP_CFWD_ACTIVE	3
 

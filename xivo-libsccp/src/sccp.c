@@ -1557,7 +1557,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 	line = session->device->default_line;
 
 	switch (line->callfwd) {
-	case SCCP_CFWD_UNACTIVE:
+	case SCCP_CFWD_INACTIVE:
 
 		line->callfwd_id = line->serial_callid++;
 
@@ -1593,7 +1593,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 				return -1;
 
 			set_line_state(line, SCCP_ONHOOK);
-			line->callfwd = SCCP_CFWD_UNACTIVE;
+			line->callfwd = SCCP_CFWD_INACTIVE;
 
 			ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 			line->device->exten[0] = '\0';
@@ -1610,7 +1610,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 		if (ret == -1)
 			return -1;
 
-		line->callfwd = SCCP_CFWD_UNACTIVE;
+		line->callfwd = SCCP_CFWD_INACTIVE;
 		ast_db_del("sccp/cfwdall", line->name);
 		update_displaymessage(session, line);
 
@@ -2794,7 +2794,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 		return NULL;
 	}
 
-	if (line->dnd == 1 && line->callfwd == SCCP_CFWD_UNACTIVE) {
+	if (line->dnd == 1 && line->callfwd == SCCP_CFWD_INACTIVE) {
 		*cause = AST_CAUSE_BUSY;
 		return NULL;
 	}
