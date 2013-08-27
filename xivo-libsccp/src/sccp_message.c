@@ -15,6 +15,20 @@
 static struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 
+static void dump_open_receive_channel_ack(char *str, size_t size, struct open_receive_channel_ack_message *m) {
+	char buf[INET_ADDRSTRLEN];
+	struct in_addr addr;
+
+	addr.s_addr = m->ipAddr;
+
+	if (!inet_ntop(AF_INET, &addr, buf, sizeof(buf))) {
+		ast_log(LOG_WARNING, "could not dump msg: error calling inet_ntop: %s\n", strerror(errno));
+		return;
+	}
+
+	snprintf(str, size, "Status: %d\nIP: %s\nPort: %u\n\n", letohl(m->status), buf, letohl(m->port));
+}
+
 static void dump_message(struct sccp_session *session, struct sccp_msg *msg, const char *head) {
 	char body[256];
 	uint32_t msg_id;
@@ -23,6 +37,7 @@ static void dump_message(struct sccp_session *session, struct sccp_msg *msg, con
 		return;
 	}
 
+	*body = '\0';
 	msg_id = letohl(msg->id);
 
 	if (msg_id == KEEP_ALIVE_MESSAGE || msg_id == KEEP_ALIVE_ACK_MESSAGE) {
@@ -41,8 +56,9 @@ static void dump_message(struct sccp_session *session, struct sccp_msg *msg, con
 			letohl(msg->data.offhook.lineInstance),
 			letohl(msg->data.offhook.callInstance));
 		break;
-	default:
-		*body = '\0';
+	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
+		dump_open_receive_channel_ack(body, sizeof(body), &msg->data.openreceivechannelack);
+		break;
 	}
 
 	ast_verbose(
