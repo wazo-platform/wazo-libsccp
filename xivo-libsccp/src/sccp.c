@@ -174,7 +174,7 @@ static char *format_caller_id_number(struct ast_channel *channel, struct sccp_de
 	return result;
 }
 
-static int extstate_ast2sccp(int state)
+static enum sccp_blf_status extstate_ast2sccp(int state)
 {
 	switch (state) {
 	case AST_EXTENSION_DEACTIVATED:
