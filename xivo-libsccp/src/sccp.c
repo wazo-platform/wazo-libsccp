@@ -2141,7 +2141,8 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 static int handle_unregister_message(struct sccp_session *session)
 {
-	ast_log(LOG_NOTICE, "Unregistering device on session %p\n", session);
+	ast_log(LOG_NOTICE, "Unregistering device\n");
+
 	return -1;
 }
 
