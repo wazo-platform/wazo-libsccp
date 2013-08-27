@@ -870,14 +870,12 @@ end:
 	return NULL;
 }
 
-static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
+static int do_newcall(struct sccp_session *session)
 {
 	int ret = 0;
 	struct sccp_device *device = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
-
-	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
 	if (session == NULL) {
 		ast_log(LOG_ERROR, "session is NULL\n");
@@ -1077,7 +1075,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		subchan_id = msg->data.offhook.callInstance;
 
 		if (line_instance == 0) { /* no active line */
-			do_newcall(line_instance, subchan_id, session);
+			do_newcall(session);
 		}
 		else {
 			do_answer(line_instance, subchan_id, session);
@@ -1094,7 +1092,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 			do_answer(line_instance, subchan_id, session);
 		}
 		else if (line->active_subchan == NULL) {
-			do_newcall(line_instance, 0, session);
+			do_newcall(session);
 		}
 	}
 
@@ -1663,7 +1661,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 			if (ret == -1)
 				return -1;
 
-			ret = do_newcall(line_instance, call_instance, session);
+			ret = do_newcall(session);
 			if (ret == -1)
 				return -1;
 			snprintf(session->device->exten, AST_MAX_EXTENSION, "%s#", session->device->last_exten);
@@ -1675,7 +1673,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		if (ret == -1)
 			return -1;
 
-		ret = do_newcall(line_instance, call_instance, session);
+		ret = do_newcall(session);
 		if (ret == -1)
 			return -1;
 		break;
@@ -2168,7 +2166,7 @@ static int handle_voicemail_message(struct sccp_msg *msg, struct sccp_session *s
 	struct sccp_line *line = NULL;
 
 	line = session->device->default_line;
-	do_newcall(line->instance, 0, session);
+	do_newcall(session);
 
 	/* open our speaker */
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
@@ -2207,7 +2205,7 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	line = session->device->default_line;
 
 	if (line->callfwd != SCCP_CFWD_INPUTEXTEN) {
-		do_newcall(line->instance, 0, session);
+		do_newcall(session);
 		transmit_speaker_mode(session, SCCP_SPEAKERON);
 	}
 
