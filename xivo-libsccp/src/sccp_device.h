@@ -36,9 +36,11 @@ enum sccp_speaker_mode {
 	SCCP_SPEAKEROFF = 2,
 };
 
-#define SCCP_CFWD_INACTIVE	1
-#define SCCP_CFWD_INPUTEXTEN	2
-#define SCCP_CFWD_ACTIVE	3
+enum sccp_call_forward_status {
+	SCCP_CFWD_INACTIVE = 1,
+	SCCP_CFWD_INPUTEXTEN = 2,
+	SCCP_CFWD_ACTIVE = 3,
+};
 
 #define SCCP_BLF_STATUS_UNKNOWN	0
 #define SCCP_BLF_STATUS_IDLE	1
@@ -248,7 +250,7 @@ struct sccp_line {
 	uint32_t state;
 
 	uint8_t dnd;
-	uint8_t callfwd;
+	enum sccp_call_forward_status callfwd;
 	uint32_t callfwd_id;
 	char callfwd_exten[AST_MAX_EXTENSION];
 
