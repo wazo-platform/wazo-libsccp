@@ -907,7 +907,7 @@ static int do_newcall(uint32_t line_instance, uint32_t subchan_id, struct sccp_s
 
 	/* If a subchannel is already active, put it on hold */
 	if (line->active_subchan != NULL) {
-		handle_softkey_hold(line_instance, line->active_subchan->id, session);
+		handle_softkey_hold(line->instance, line->active_subchan->id, session);
 	}
 
 	ast_mutex_lock(&device->lock);
