@@ -39,7 +39,7 @@ int transmit_start_media_transmission(struct sccp_session *session, uint32_t cal
 int transmit_stop_media_transmission(struct sccp_session *session, uint32_t callid);
 int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
 int transmit_time_date_res(struct sccp_session *session);
-int transmit_tone(struct sccp_session *session, int tone, int lineInstance, int callInstance);
+int transmit_tone(struct sccp_session *session, enum sccp_tone tone, int lineInstance, int callInstance);
 int transmit_version_res(struct sccp_session *session, const char *version);
 
 #define KEEP_ALIVE_MESSAGE 0x0000

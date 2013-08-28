@@ -914,7 +914,7 @@ int transmit_time_date_res(struct sccp_session *session)
 	return transmit_message(msg, session);
 }
 
-int transmit_tone(struct sccp_session *session, int tone, int line_instance, int callid)
+int transmit_tone(struct sccp_session *session, enum sccp_tone tone, int line_instance, int callid)
 {
 	struct sccp_msg *msg = NULL;
 
