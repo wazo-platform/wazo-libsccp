@@ -76,11 +76,13 @@ enum sccp_tone {
 	SCCP_TONE_NONE = 0x7F,
 };
 
-#define SCCP_LAMP_OFF		1
-#define SCCP_LAMP_ON		2
-#define SCCP_LAMP_WINK		3
-#define SCCP_LAMP_FLASH		4
-#define SCCP_LAMP_BLINK		5
+enum sccp_lamp_state {
+	SCCP_LAMP_OFF = 1,
+	SCCP_LAMP_ON = 2,
+	SCCP_LAMP_WINK = 3,
+	SCCP_LAMP_FLASH = 4,
+	SCCP_LAMP_BLINK = 5,
+};
 
 #define SCCP_RING_OFF		1
 #define SCCP_RING_INSIDE	2

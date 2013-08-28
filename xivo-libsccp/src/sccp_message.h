@@ -24,7 +24,7 @@ int transmit_feature_status(struct sccp_session *session, int instance, int type
 int transmit_forward_status_message(struct sccp_session *session, int instance, const char *extension, int status);
 int transmit_forward_status_res(struct sccp_session *session, int lineInstance);
 int transmit_keep_alive_ack(struct sccp_session *session);
-int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, int state);
+int transmit_lamp_state(struct sccp_session *session, int callInstance, int lineInstance, enum sccp_lamp_state state);
 int transmit_line_status_res(struct sccp_session *session, int lineInstance, struct sccp_line *line);
 int transmit_register_ack(struct sccp_session *session, uint8_t protoVersion, int keepalive, char* dateFormat);
 int transmit_register_rej(struct sccp_session *session, const char *errorMessage);
