@@ -273,7 +273,7 @@ int device_supports_direct_media(struct sccp_device *device)
 	}
 }
 
-const char *line_state_str(int line_state)
+const char *line_state_str(enum sccp_state line_state)
 {
 	switch (line_state) {
 	case SCCP_OFFHOOK:
@@ -557,12 +557,12 @@ void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id)
 	subchan->on_hold = 0;
 }
 
-void subchan_set_state(struct sccp_subchannel *subchan, int state)
+void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state)
 {
 	subchan->state = state;
 }
 
-void set_line_state(struct sccp_line *line, int state)
+void set_line_state(struct sccp_line *line, enum sccp_state state)
 {
 	line->state = state;
 }

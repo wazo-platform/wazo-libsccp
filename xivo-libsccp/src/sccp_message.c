@@ -356,7 +356,7 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 	return transmit_message(msg, session);
 }
 
-int transmit_callstate(struct sccp_session *session, int line_instance, int state, uint32_t callid)
+int transmit_callstate(struct sccp_session *session, int line_instance, enum sccp_state state, uint32_t callid)
 {
 	struct sccp_msg *msg = NULL;
 

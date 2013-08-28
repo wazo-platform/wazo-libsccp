@@ -50,19 +50,21 @@ enum sccp_blf_status {
 	SCCP_BLF_STATUS_ALERTING = 4,
 };
 
-#define SCCP_OFFHOOK		1
-#define SCCP_ONHOOK		2
-#define SCCP_RINGOUT		3
-#define SCCP_RINGIN		4
-#define SCCP_CONNECTED		5
-#define SCCP_BUSY		6
-#define SCCP_CONGESTION		7
-#define SCCP_HOLD		8
-#define SCCP_CALLWAIT		9
-#define SCCP_TRANSFER		10
-#define SCCP_PARK		11
-#define SCCP_PROGRESS		12
-#define SCCP_INVALID		14
+enum sccp_state {
+	SCCP_OFFHOOK = 1,
+	SCCP_ONHOOK = 2,
+	SCCP_RINGOUT = 3,
+	SCCP_RINGIN = 4,
+	SCCP_CONNECTED = 5,
+	SCCP_BUSY = 6,
+	SCCP_CONGESTION = 7,
+	SCCP_HOLD = 8,
+	SCCP_CALLWAIT = 9,
+	SCCP_TRANSFER = 10,
+	SCCP_PARK = 11,
+	SCCP_PROGRESS = 12,
+	SCCP_INVALID = 14,
+};
 
 #define SCCP_TONE_SILENCE	0x00
 #define SCCP_TONE_DIAL		0x21
@@ -227,7 +229,7 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 struct sccp_subchannel {
 
 	uint32_t id;
-	uint32_t state;
+	enum sccp_state state;
 	uint8_t on_hold;
 	struct ast_sockaddr direct_media_addr;
 	struct ast_rtp_instance *rtp;
@@ -249,7 +251,7 @@ struct sccp_line {
 
 	uint32_t serial_callid;
 	uint32_t instance;
-	uint32_t state;
+	enum sccp_state state;
 
 	uint8_t dnd;
 	enum sccp_call_forward_status callfwd;
@@ -291,7 +293,7 @@ struct sccp_device {
 
 	char name[80];
 	enum sccp_device_type type;
-	int state;
+	enum sccp_state state;
 	uint8_t proto_version;
 	uint32_t station_port;
 	struct sockaddr_in localip;
@@ -344,18 +346,18 @@ struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t
 struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index);
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
 int device_supports_direct_media(struct sccp_device *device);
-const char *line_state_str(int line_state);
+const char *line_state_str(enum sccp_state line_state);
 int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
 
 struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line);
 void subchan_set_on_hold(struct sccp_line *line, uint32_t subchan_id);
 void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id);
-void subchan_set_state(struct sccp_subchannel *subchan, int state);
+void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state);
 void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan);
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id);
-void set_line_state(struct sccp_line *line, int state);
+void set_line_state(struct sccp_line *line, enum sccp_state state);
 const char *device_regstate_str(int device_state);
 int device_type_is_supported(enum sccp_device_type device_type);
 const char *device_type_str(enum sccp_device_type device_type);
