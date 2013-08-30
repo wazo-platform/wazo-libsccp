@@ -708,7 +708,7 @@ int transmit_reset(struct sccp_session *session, uint32_t type)
 	return transmit_message(msg, session);
 }
 
-int transmit_ringer_mode(struct sccp_session *session, int mode)
+int transmit_ringer_mode(struct sccp_session *session, enum sccp_ringer_mode mode)
 {
 	struct sccp_msg *msg = NULL;
 

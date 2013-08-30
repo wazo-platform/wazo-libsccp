@@ -84,10 +84,12 @@ enum sccp_lamp_state {
 	SCCP_LAMP_BLINK = 5,
 };
 
-#define SCCP_RING_OFF		1
-#define SCCP_RING_INSIDE	2
-#define SCCP_RING_OUTSIDE	3
-#define SCCP_RING_FEATURE	4
+enum sccp_ringer_mode {
+	SCCP_RING_OFF = 1,
+	SCCP_RING_INSIDE = 2,
+	SCCP_RING_OUTSIDE = 3,
+	SCCP_RING_FEATURE = 4,
+};
 
 #define STIMULUS_REDIAL			0x01
 #define STIMULUS_SPEEDDIAL		0x02

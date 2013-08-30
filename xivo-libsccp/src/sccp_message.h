@@ -29,7 +29,7 @@ int transmit_line_status_res(struct sccp_session *session, int lineInstance, str
 int transmit_register_ack(struct sccp_session *session, uint8_t protoVersion, int keepalive, char* dateFormat);
 int transmit_register_rej(struct sccp_session *session, const char *errorMessage);
 int transmit_reset(struct sccp_session *session, uint32_t type);
-int transmit_ringer_mode(struct sccp_session *session, int mode);
+int transmit_ringer_mode(struct sccp_session *session, enum sccp_ringer_mode mode);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, int softkey);
 int transmit_speeddial_stat_res(struct sccp_session *session, int index, struct sccp_speeddial *speeddial);
 int transmit_softkey_set_res(struct sccp_session *session);
