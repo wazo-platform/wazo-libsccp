@@ -296,8 +296,10 @@ struct sccp_speeddial {
 	AST_LIST_ENTRY(sccp_speeddial) list_per_device;
 };
 
-#define DEVICE_REGISTERED_TRUE	0x1
-#define DEVICE_REGISTERED_FALSE	0x2
+enum sccp_device_registration_state {
+	DEVICE_REGISTERED_TRUE = 0x1,
+	DEVICE_REGISTERED_FALSE = 0x2,
+};
 
 struct sccp_device {
 
@@ -323,7 +325,7 @@ struct sccp_device {
 
 	uint8_t autoanswer;
 
-	uint8_t registered;
+	enum sccp_device_registration_state registered;
 	uint32_t line_count;
 	uint32_t speeddial_count;
 
@@ -371,7 +373,7 @@ void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id);
 void set_line_state(struct sccp_line *line, enum sccp_state state);
-const char *device_regstate_str(int device_state);
+const char *device_regstate_str(enum sccp_device_registration_state device_state);
 int device_type_is_supported(enum sccp_device_type device_type);
 const char *device_type_str(enum sccp_device_type device_type);
 

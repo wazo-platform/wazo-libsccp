@@ -349,7 +349,7 @@ const char *device_type_str(enum sccp_device_type device_type)
 	}
 }
 
-const char *device_regstate_str(int device_state)
+const char *device_regstate_str(enum sccp_device_registration_state device_state)
 {
 	switch (device_state) {
 	case DEVICE_REGISTERED_TRUE:
