@@ -54,7 +54,7 @@ static unsigned int chan_idx;
 
 static int do_clear_subchannel(struct sccp_subchannel *subchan);
 static int handle_softkey_dnd(struct sccp_session *session);
-static int handle_callforward(struct sccp_session *session, uint32_t softkey);
+static int handle_callforward(struct sccp_session *session, enum sccp_softkey_type softkey);
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
 static int sccp_set_callforward(struct sccp_line *line);
 
@@ -1545,7 +1545,7 @@ static int sccp_set_callforward(struct sccp_line *line)
 	return 0;
 }
 
-static int handle_callforward(struct sccp_session *session, uint32_t softkey)
+static int handle_callforward(struct sccp_session *session, enum sccp_softkey_type softkey)
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
