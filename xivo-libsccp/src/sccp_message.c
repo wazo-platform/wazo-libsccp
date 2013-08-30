@@ -510,7 +510,7 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	return transmit_message(msg, session);
 }
 
-int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label)
+int transmit_feature_status(struct sccp_session *session, int instance, enum sccp_button_type type, int status, const char *label)
 {
 	struct sccp_msg *msg = NULL;
 

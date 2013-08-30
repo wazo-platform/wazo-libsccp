@@ -20,7 +20,7 @@ int transmit_config_status_res(struct sccp_session *session);
 int transmit_open_receive_channel(struct sccp_session *session, struct sccp_subchannel *subchan);
 int transmit_dialed_number(struct sccp_session *session, const char *extension, int instance, int callid);
 int transmit_displaymessage(struct sccp_session *session, const char *text);
-int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label);
+int transmit_feature_status(struct sccp_session *session, int instance, enum sccp_button_type type, int status, const char *label);
 int transmit_forward_status_message(struct sccp_session *session, int instance, const char *extension, int status);
 int transmit_forward_status_res(struct sccp_session *session, int lineInstance);
 int transmit_keep_alive_ack(struct sccp_session *session);
