@@ -578,7 +578,7 @@ int transmit_keep_alive_ack(struct sccp_session *session)
 	return transmit_message(msg, session);
 }
 
-int transmit_lamp_state(struct sccp_session *session, int stimulus, int line_instance, enum sccp_lamp_state indication)
+int transmit_lamp_state(struct sccp_session *session, enum sccp_stimulus_type stimulus, int line_instance, enum sccp_lamp_state indication)
 {
 	struct sccp_msg *msg = NULL;
 
