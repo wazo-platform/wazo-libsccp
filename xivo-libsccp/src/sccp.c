@@ -950,7 +950,7 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 
 	set_line_state(line, SCCP_OFFHOOK);
 
-	ret = transmit_lamp_state(session, 1, line->instance, SCCP_LAMP_ON);
+	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_ON);
 	if (ret == -1)
 		return -1;
 
