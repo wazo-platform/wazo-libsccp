@@ -724,7 +724,7 @@ int transmit_ringer_mode(struct sccp_session *session, enum sccp_ringer_mode mod
 	return transmit_message(msg, session);
 }
 
-int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int callid, int softkey)
+int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int callid, enum sccp_softkey_status softkey)
 {
 	struct sccp_msg *msg = NULL;
 
