@@ -17,6 +17,7 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 static void initialize_device(struct sccp_device *device, const char *name);
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device);
 static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line);
+static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name);
 
 int sccp_config_init(struct sccp_configs **config)
 {
@@ -372,9 +373,8 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
-	struct sccp_line *line, *line_itr;
+	struct sccp_line *line;
 	char *category;
-	int duplicate = 0;
 
 	category = ast_category_browse(cfg, "lines");
 	/* handle each lines */
@@ -382,19 +382,9 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 				&& strcasecmp(category, "devices")
 				&& strcasecmp(category, "speeddials")) {
 
-		/* no duplicates allowed */
-		AST_RWLIST_RDLOCK(&sccp_cfg->list_line);
-		AST_RWLIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
-			if (!strcasecmp(category, line_itr->name)) {
-				ast_log(LOG_WARNING, "Line [%s] already exist, line ignored\n", category);
-				duplicate = 1;
-				break;
-			}
-		}
-		AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
-
-		if (!duplicate) {
-			/* configure a new line */
+		if (config_has_line_with_name(sccp_cfg, category)) {
+			ast_log(LOG_WARNING, "Line [%s] already exist, line ignored\n", category);
+		} else {
 			line = sccp_new_line(category, sccp_cfg);
 			if (line == NULL) {
 				continue;
@@ -406,11 +396,27 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 			config_add_line(sccp_cfg, line);
 		}
-		duplicate = 0;
 		category = ast_category_browse(cfg, category);
 	}
 
 	return 0;
+}
+
+static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name)
+{
+	int found = 0;
+	struct sccp_line *line_itr;
+
+	AST_RWLIST_RDLOCK(&sccp_cfg->list_line);
+	AST_RWLIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
+		if (!strcasecmp(name, line_itr->name)) {
+			found = 1;
+			break;
+		}
+	}
+	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
+
+	return found;
 }
 
 static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line)
