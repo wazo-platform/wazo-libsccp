@@ -314,7 +314,6 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 void subchan_set_on_hold(struct sccp_line *line, uint32_t subchan_id);
 void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id);
 void subchan_set_state(struct sccp_subchannel *subchan, int state);
-void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan);
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id);
 void set_line_state(struct sccp_line *line, int state);

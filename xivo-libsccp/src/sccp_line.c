@@ -90,6 +90,24 @@ struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line
 	return subchan_itr;
 }
 
+void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
+{
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return;
+	}
+
+	if (subchan == NULL) {
+		ast_log(LOG_DEBUG, "subchan is NULL\n");
+		return;
+	}
+
+	if (line->active_subchan)
+		line->active_subchan->state = line->state;
+
+	line->active_subchan = subchan;
+}
+
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
 {
 	struct ast_variable *tmpvar = NULL;
