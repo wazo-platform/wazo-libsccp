@@ -108,7 +108,7 @@ void sccp_line_select_subchan(struct sccp_line *line, struct sccp_subchannel *su
 	line->active_subchan = subchan;
 }
 
-struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id)
+struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t subchan_id)
 {
 	struct sccp_subchannel *subchan_itr = NULL;
 

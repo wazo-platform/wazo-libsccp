@@ -994,7 +994,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 		return 0;
 	}
 
-	subchan = line_get_subchan(line, subchan_id);
+	subchan = sccp_line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_log(LOG_ERROR, "subchan is NULL\n");
 		return 0;
@@ -1172,7 +1172,7 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 		return 0;
 	}
 
-	subchan = line_get_subchan(line, subchan_id);
+	subchan = sccp_line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_log(LOG_WARNING, "do_hangup called with unknown subchan %u\n", subchan_id);
 		return 0;
@@ -1297,7 +1297,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 
 	ast_mutex_lock(&line->device->lock);
 
-	subchan = line_get_subchan(line, subchan_id);
+	subchan = sccp_line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_mutex_unlock(&line->device->lock);
 		return -1;

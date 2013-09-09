@@ -491,7 +491,7 @@ void subchan_set_on_hold(struct sccp_line *line, uint32_t subchan_id)
 {
 	struct sccp_subchannel *subchan;
 
-	subchan = line_get_subchan(line, subchan_id);
+	subchan = sccp_line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_log(LOG_WARNING, "subchan is NULL\n");
 		return;
@@ -504,7 +504,7 @@ void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id)
 {
 	struct sccp_subchannel *subchan;
 
-	subchan = line_get_subchan(line, subchan_id);
+	subchan = sccp_line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_log(LOG_WARNING, "subchan is NULL\n");
 		return;
