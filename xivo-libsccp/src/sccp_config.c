@@ -413,19 +413,7 @@ static int is_line_section_complete(const char *category)
 
 static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name)
 {
-	int found = 0;
-	struct sccp_line *line_itr;
-
-	AST_RWLIST_RDLOCK(&sccp_cfg->list_line);
-	AST_RWLIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
-		if (!strcasecmp(name, line_itr->name)) {
-			found = 1;
-			break;
-		}
-	}
-	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
-
-	return found;
+	return sccp_line_find_by_name(name, &sccp_cfg->list_line) != NULL;
 }
 
 static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line)
