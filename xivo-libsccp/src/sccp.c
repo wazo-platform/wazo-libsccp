@@ -2732,7 +2732,7 @@ static int cb_ast_devicestate(const char *data)
 	if (ptr != NULL)
 		*ptr = '\0';
 
-	line = find_line_by_name(name, &sccp_config->list_line);
+	line = sccp_line_find_by_name(name, &sccp_config->list_line);
 	if (line == NULL) {
 		state = AST_DEVICE_INVALID;
 	} else if (line->device && line->device->registered == DEVICE_REGISTERED_FALSE) {
@@ -2773,7 +2773,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 			ast_getformatname_multiple(buf, sizeof(buf), cap),
 			destination, option ? option : "");
 
-	line = find_line_by_name(destination, &sccp_config->list_line);
+	line = sccp_line_find_by_name(destination, &sccp_config->list_line);
 
 	if (line == NULL) {
 		ast_log(LOG_NOTICE, "This line doesn't exist: %s\n", destination);

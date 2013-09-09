@@ -47,6 +47,30 @@ void sccp_line_set_field(struct sccp_line *line, const char *name, const char *v
 	}
 }
 
+struct sccp_line *sccp_line_find_by_name(const char *name, struct list_line *list_line)
+{
+	struct sccp_line *line_itr = NULL;
+
+	if (name == NULL) {
+		ast_log(LOG_DEBUG, "name is NULL\n");
+		return NULL;
+	}
+
+	if (list_line == NULL) {
+		ast_log(LOG_DEBUG, "list_line is NULL\n");
+		return NULL;
+	}
+
+	AST_RWLIST_RDLOCK(list_line);
+	AST_RWLIST_TRAVERSE(list_line, line_itr, list) {
+		if (!strncmp(line_itr->name, name, sizeof(line_itr->name)))
+			break;
+	}
+	AST_RWLIST_UNLOCK(list_line);
+
+	return line_itr;
+}
+
 struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line)
 {
 	struct sccp_subchannel *subchan_itr = NULL;

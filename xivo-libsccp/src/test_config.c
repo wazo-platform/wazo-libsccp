@@ -78,7 +78,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
 
-	line = find_line_by_name("200", &sccp_cfg->list_line);
+	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
 	if (line == NULL) {
 		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
 		ret = AST_TEST_FAIL;
@@ -171,7 +171,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 
 	/* Verify again */
-	line = find_line_by_name("200", &sccp_cfg->list_line);
+	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
 	if (line == NULL) {
 		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
 		ret = AST_TEST_FAIL;
@@ -340,7 +340,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
-	line = find_line_by_name("200", &sccp_cfg->list_line);
+	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
 	if (line == NULL) {
 		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
 		ret = AST_TEST_FAIL;
@@ -441,7 +441,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
-	line = find_line_by_name("201", &sccp_cfg->list_line);
+	line = sccp_line_find_by_name("201", &sccp_cfg->list_line);
 	if (line != NULL) {
 		ast_test_status_update(test, "line 201 doesn't exist...\n");
 		ret = AST_TEST_FAIL;
@@ -485,7 +485,7 @@ AST_TEST_DEFINE(sccp_test_config)
 	 * Line 200 must still be in the list.
 	 */
 
-	line = find_line_by_name("200", &sccp_cfg->list_line);
+	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
 	if (line == NULL) {
 		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
 		ret = AST_TEST_FAIL;
@@ -505,7 +505,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
-	line = find_line_by_name("201", &sccp_cfg->list_line);
+	line = sccp_line_find_by_name("201", &sccp_cfg->list_line);
 	if (line == NULL) {
 		ast_test_status_update(test, "line name %s doesn't exist\n", "200");
 		ret = AST_TEST_FAIL;

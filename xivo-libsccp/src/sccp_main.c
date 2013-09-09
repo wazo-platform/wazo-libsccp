@@ -170,7 +170,7 @@ static void garbage_ast_database(void)
 
 		line_name = entry->key + strlen("/sccp/cfwdall/");
 
-		if (find_line_by_name(line_name, &sccp_config->list_line) == NULL) {
+		if (sccp_line_find_by_name(line_name, &sccp_config->list_line) == NULL) {
 			ast_db_del("sccp/cfwdall", line_name);
 			ast_log(LOG_DEBUG, "/sccp/cfwdall/%s... removed\n", line_name);
 		}

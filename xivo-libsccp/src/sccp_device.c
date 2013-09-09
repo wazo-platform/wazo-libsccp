@@ -150,30 +150,6 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 	return device_itr;
 }
 
-struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line)
-{
-	struct sccp_line *line_itr = NULL;
-
-	if (name == NULL) {
-		ast_log(LOG_DEBUG, "name is NULL\n");
-		return NULL;
-	}
-
-	if (list_line == NULL) {
-		ast_log(LOG_DEBUG, "list_line is NULL\n");
-		return NULL;
-	}
-
-	AST_RWLIST_RDLOCK(list_line);
-	AST_RWLIST_TRAVERSE(list_line, line_itr, list) {
-		if (!strncmp(line_itr->name, name, sizeof(line_itr->name)))
-			break;
-	}
-	AST_RWLIST_UNLOCK(list_line);
-
-	return line_itr;
-}
-
 void speeddial_hints_unsubscribe(struct sccp_device *device)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;

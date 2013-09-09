@@ -4,6 +4,7 @@
 #include <asterisk/channel.h>
 
 struct sccp_configs;
+struct list_line;
 
 struct sccp_line {
 
@@ -37,5 +38,6 @@ struct sccp_line {
 struct sccp_line *sccp_new_line(const char *name, struct sccp_configs *sccp_cfg);
 void sccp_line_set_field(struct sccp_line *line, const char *name, const char *value);
 struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line);
+struct sccp_line *sccp_line_find_by_name(const char *name, struct list_line *list_line);
 
 #endif /* SCCP_LINE_H */
