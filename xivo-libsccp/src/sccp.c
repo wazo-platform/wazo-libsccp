@@ -1365,7 +1365,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		}
 	}
 
-	line_select_subchan_id(line, subchan_id);
+	sccp_line_select_subchan_id(line, subchan_id);
 	set_line_state(line, SCCP_CONNECTED);
 
 	/* put on connected */

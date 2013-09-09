@@ -125,7 +125,7 @@ struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t s
 	return subchan_itr;
 }
 
-void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
+void sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 {
 	struct sccp_subchannel *subchan_itr;
 
