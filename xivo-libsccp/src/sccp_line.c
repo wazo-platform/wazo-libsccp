@@ -125,6 +125,23 @@ struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t s
 	return subchan_itr;
 }
 
+void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan_itr;
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return;
+	}
+
+	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+		if (subchan_itr->id == subchan_id) {
+			sccp_line_select_subchan(line, subchan_itr);
+			break;
+		}
+	}
+}
+
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
 {
 	struct ast_variable *tmpvar = NULL;
