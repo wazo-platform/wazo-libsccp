@@ -945,7 +945,7 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 	}
 
 	/* Now, set the new call instance as active */
-	line_select_subchan(line, subchan);
+	sccp_line_select_subchan(line, subchan);
 
 	set_line_state(line, SCCP_OFFHOOK);
 
@@ -1006,7 +1006,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	}
 
 	/* Now, set the newly answered subchannel as active */
-	line_select_subchan(line, subchan);
+	sccp_line_select_subchan(line, subchan);
 
 	if (subchan->channel == NULL) {
 		ast_log(LOG_WARNING, "channel is NULL\n");
@@ -1455,7 +1455,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		subchan = sccp_new_subchannel(line);
 		xfer_subchan = line->active_subchan;
 
-		line_select_subchan(line, subchan);
+		sccp_line_select_subchan(line, subchan);
 
 		xfer_subchan->related = line->active_subchan;
 		line->active_subchan->related = xfer_subchan;

@@ -90,7 +90,7 @@ struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line
 	return subchan_itr;
 }
 
-void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
+void sccp_line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
 {
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");

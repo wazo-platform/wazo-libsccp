@@ -498,7 +498,7 @@ void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr->id == subchan_id) {
-			line_select_subchan(line, subchan_itr);
+			sccp_line_select_subchan(line, subchan_itr);
 			break;
 		}
 	}
