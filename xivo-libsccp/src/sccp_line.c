@@ -142,6 +142,11 @@ void sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 	}
 }
 
+void set_line_state(struct sccp_line *line, int state)
+{
+	line->state = state;
+}
+
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
 {
 	struct ast_variable *tmpvar = NULL;

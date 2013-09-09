@@ -494,8 +494,3 @@ void subchan_set_state(struct sccp_subchannel *subchan, int state)
 {
 	subchan->state = state;
 }
-
-void set_line_state(struct sccp_line *line, int state)
-{
-	line->state = state;
-}
