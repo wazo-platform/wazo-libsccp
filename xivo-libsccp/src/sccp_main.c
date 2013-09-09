@@ -85,6 +85,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	struct sccp_line *line_itr = NULL;
 	struct sccp_device *device_itr = NULL;
 	struct sccp_speeddial *speeddial_itr = NULL;
+	char buffer[128] = "";
 
 	switch (cmd) {
 	case CLI_INIT:
@@ -112,7 +113,9 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 		AST_RWLIST_RDLOCK(&device_itr->lines);
 		AST_RWLIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
 			ast_cli(a->fd, "Line extension: (%d) <%s> <%s> <%s> <%s>\n",
-				line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context, line_itr->language);
+					line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context, line_itr->language);
+			ast_codec_pref_string(&line_itr->codec_pref, buffer, sizeof(buffer));
+			ast_cli(a->fd, "Prefered codecs: %s\n", buffer);
 		}
 		AST_RWLIST_UNLOCK(&device_itr->lines);
 

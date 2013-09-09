@@ -22,6 +22,7 @@ struct sccp_line *sccp_new_line(const char *name, struct sccp_configs *sccp_cfg)
 	line->active_subchan = NULL;
 	line->serial_callid = 1;
 	line->callfwd = SCCP_CFWD_UNACTIVE;
+	memset(&line->codec_pref, 0, sizeof(line->codec_pref));
 
 	AST_RWLIST_HEAD_INIT(&line->subchans);
 
