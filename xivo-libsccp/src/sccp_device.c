@@ -150,25 +150,6 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 	return device_itr;
 }
 
-struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line)
-{
-	struct sccp_subchannel *subchan_itr = NULL;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return NULL;
-	}
-
-	AST_RWLIST_RDLOCK(&line->subchans);
-	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->state == SCCP_RINGIN)
-			break;
-	}
-	AST_RWLIST_UNLOCK(&line->subchans);
-
-	return subchan_itr;
-}
-
 struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line)
 {
 	struct sccp_line *line_itr = NULL;

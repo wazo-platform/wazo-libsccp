@@ -47,6 +47,25 @@ void sccp_line_set_field(struct sccp_line *line, const char *name, const char *v
 	}
 }
 
+struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line)
+{
+	struct sccp_subchannel *subchan_itr = NULL;
+
+	if (line == NULL) {
+		ast_log(LOG_DEBUG, "line is NULL\n");
+		return NULL;
+	}
+
+	AST_RWLIST_RDLOCK(&line->subchans);
+	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
+		if (subchan_itr->state == SCCP_RINGIN)
+			break;
+	}
+	AST_RWLIST_UNLOCK(&line->subchans);
+
+	return subchan_itr;
+}
+
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
 {
 	struct ast_variable *tmpvar = NULL;

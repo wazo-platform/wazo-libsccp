@@ -36,5 +36,6 @@ struct sccp_line {
 
 struct sccp_line *sccp_new_line(const char *name, struct sccp_configs *sccp_cfg);
 void sccp_line_set_field(struct sccp_line *line, const char *name, const char *value);
+struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line);
 
 #endif /* SCCP_LINE_H */

@@ -1087,7 +1087,7 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 		line = device->default_line;
 		line_instance = line->instance;
 
-		subchan = line_get_next_ringin_subchan(line);
+		subchan = sccp_line_get_next_ringin_subchan(line);
 		if (subchan) {
 			subchan_id = subchan->id;
 			do_answer(line_instance, subchan_id, session);
