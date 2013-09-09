@@ -7,6 +7,7 @@
 
 #include "sccp.h"
 #include "sccp_device.h"
+#include "sccp_line.h"
 #include "sccp_message.h"
 #include "sccp_utils.h"
 

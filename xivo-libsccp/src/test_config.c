@@ -1,6 +1,7 @@
 #include <asterisk/test.h>
 
 #include "sccp_config.h"
+#include "sccp_line.h"
 
 AST_TEST_DEFINE(sccp_test_resync)
 {
