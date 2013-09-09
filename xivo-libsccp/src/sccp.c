@@ -727,7 +727,7 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	subchan = ast_channel_tech_pvt(channel);
 	line = subchan->line;
 
-	set_line_state(line, SCCP_RINGOUT);
+	sccp_line_set_state(line, SCCP_RINGOUT);
 	ast_setstate(channel, AST_STATE_RING);
 
 	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);
@@ -947,7 +947,7 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 	/* Now, set the new call instance as active */
 	sccp_line_select_subchan(line, subchan);
 
-	set_line_state(line, SCCP_OFFHOOK);
+	sccp_line_set_state(line, SCCP_OFFHOOK);
 
 	ret = transmit_lamp_state(session, 1, line->instance, SCCP_LAMP_ON);
 	if (ret == -1)
@@ -1037,7 +1037,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 
 	start_rtp(subchan);
 
-	set_line_state(line, SCCP_CONNECTED);
+	sccp_line_set_state(line, SCCP_CONNECTED);
 	subchan_set_state(subchan, SCCP_CONNECTED);
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
@@ -1141,7 +1141,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	if (AST_RWLIST_EMPTY(&line->subchans)) {
 		transmit_speaker_mode(line->device->session, SCCP_SPEAKEROFF);
 		ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
-		set_line_state(line, SCCP_ONHOOK);
+		sccp_line_set_state(line, SCCP_ONHOOK);
 	}
 
 	if (subchan == line->active_subchan)
@@ -1187,7 +1187,7 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 	ast_mutex_unlock(&session->device->lock);
 
 	if (line->active_subchan == NULL || line->active_subchan == subchan) {
-		set_line_state(line, SCCP_ONHOOK);
+		sccp_line_set_state(line, SCCP_ONHOOK);
 	}
 
 	if (subchan->channel) {
@@ -1366,7 +1366,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	}
 
 	sccp_line_select_subchan_id(line, subchan_id);
-	set_line_state(line, SCCP_CONNECTED);
+	sccp_line_set_state(line, SCCP_CONNECTED);
 
 	/* put on connected */
 	transmit_callstate(session, line_instance, SCCP_CONNECTED, subchan_id);
@@ -1460,7 +1460,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		xfer_subchan->related = line->active_subchan;
 		line->active_subchan->related = xfer_subchan;
 
-		set_line_state(line, SCCP_OFFHOOK);
+		sccp_line_set_state(line, SCCP_OFFHOOK);
 
 		ret = transmit_callstate(session, line_instance, SCCP_OFFHOOK, line->active_subchan->id);
 		if (ret == -1)
@@ -1526,7 +1526,7 @@ static int sccp_set_callforward(struct sccp_line *line)
 	if (ret == -1)
 		return -1;
 
-	set_line_state(line, SCCP_ONHOOK);
+	sccp_line_set_state(line, SCCP_ONHOOK);
 
 	ast_copy_string(line->callfwd_exten, line->device->exten, sizeof(line->callfwd_exten));
 
@@ -1570,7 +1570,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 
 		ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
 
-		set_line_state(line, SCCP_OFFHOOK);
+		sccp_line_set_state(line, SCCP_OFFHOOK);
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
 
 		if (ast_pthread_create_detached(&callfwd_timeout_thread, NULL, sccp_callfwd_timeout, line)) {
@@ -1591,7 +1591,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 			if (ret == -1)
 				return -1;
 
-			set_line_state(line, SCCP_ONHOOK);
+			sccp_line_set_state(line, SCCP_ONHOOK);
 			line->callfwd = SCCP_CFWD_UNACTIVE;
 
 			ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
@@ -2886,7 +2886,7 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	/* If the line has an active subchannel, it means that
 	 * a call is already ongoing. */
 	if (line->active_subchan == NULL) {
-		set_line_state(line, SCCP_RINGIN);
+		sccp_line_set_state(line, SCCP_RINGIN);
 
 		ret = transmit_ringer_mode(session, SCCP_RING_INSIDE);
 		if (ret == -1)
@@ -2978,7 +2978,7 @@ static int cb_ast_answer(struct ast_channel *channel)
 	transmit_callstate(line->device->session, line->instance, SCCP_CONNECTED, subchan->id);
 
 	ast_setstate(channel, AST_STATE_UP);
-	set_line_state(line, SCCP_CONNECTED);
+	sccp_line_set_state(line, SCCP_CONNECTED);
 
 	return 0;
 }
@@ -3088,7 +3088,7 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		break;
 
 	case AST_CONTROL_PROGRESS:
-		set_line_state(line, SCCP_PROGRESS);
+		sccp_line_set_state(line, SCCP_PROGRESS);
 		ast_log(LOG_DEBUG, "progress\n");
 		break;
 

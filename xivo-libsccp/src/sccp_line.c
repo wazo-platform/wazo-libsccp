@@ -142,7 +142,7 @@ void sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 	}
 }
 
-void set_line_state(struct sccp_line *line, int state)
+void sccp_line_set_state(struct sccp_line *line, int state)
 {
 	line->state = state;
 }
