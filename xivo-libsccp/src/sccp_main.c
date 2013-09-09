@@ -109,7 +109,8 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	AST_RWLIST_RDLOCK(&sccp_config->list_device);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
 		ast_cli(a->fd, "Device: [%s]\n", device_itr->name);
-
+		ast_getformatname_multiple(buffer, sizeof(buffer), device_itr->capabilities);
+		ast_cli(a->fd, "Supported codecs: %s\n", buffer);
 		AST_RWLIST_RDLOCK(&device_itr->lines);
 		AST_RWLIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
 			ast_cli(a->fd, "Line extension: (%d) <%s> <%s> <%s> <%s>\n",
