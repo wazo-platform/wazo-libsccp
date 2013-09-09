@@ -1328,7 +1328,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	transmit_close_receive_channel(session, subchan_id);
 	transmit_stop_media_transmission(session, subchan_id);
 
-	subchan_set_on_hold(line, subchan_id);
+	subchan_set_on_hold(subchan);
 
 	ast_mutex_unlock(&line->device->lock);
 
@@ -1447,7 +1447,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		transmit_close_receive_channel(session, line->active_subchan->id);
 		transmit_stop_media_transmission(session, line->active_subchan->id);
 
-		subchan_set_on_hold(line, line->active_subchan->id);
+		subchan_set_on_hold(line->active_subchan);
 
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
 
