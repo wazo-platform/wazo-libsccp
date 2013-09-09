@@ -70,6 +70,7 @@ int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
 {
 	struct ast_config *cfg = NULL;
 	struct ast_flags config_flags = { 0 };
+	int res = 0;
 
 	ast_log(LOG_NOTICE, "Configuring sccp from %s...\n", config_file);
 
@@ -79,14 +80,14 @@ int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
 		return -1;
 	}
 
-	parse_config_general(cfg, sccp_cfg);
-	parse_config_lines(cfg, sccp_cfg);
-	parse_config_speeddials(cfg, sccp_cfg);
-	parse_config_devices(cfg, sccp_cfg);
+	res |= parse_config_general(cfg, sccp_cfg);
+	res |= parse_config_lines(cfg, sccp_cfg);
+	res |= parse_config_speeddials(cfg, sccp_cfg);
+	res |= parse_config_devices(cfg, sccp_cfg);
 
 	ast_config_destroy(cfg);
 
-	return 0;
+	return res;
 }
 
 void sccp_config_unload(struct sccp_configs *sccp_cfg)
