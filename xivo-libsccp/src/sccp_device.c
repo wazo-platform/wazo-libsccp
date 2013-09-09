@@ -470,23 +470,6 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 	return result;
 }
 
-struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id)
-{
-	struct sccp_subchannel *subchan_itr = NULL;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return NULL;
-	}
-
-	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->id == subchan_id)
-			break;
-	}
-
-	return subchan_itr;
-}
-
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 {
 	struct sccp_subchannel *subchan_itr;
