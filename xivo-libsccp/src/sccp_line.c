@@ -43,6 +43,10 @@ void sccp_line_set_field(struct sccp_line *line, const char *name, const char *v
 		ast_copy_string(line->language, value, sizeof(line->language));
 	} else if (!strcasecmp(name, "context")) {
 		ast_copy_string(line->context, value, sizeof(line->language));
+	} else if (!strcasecmp(name, "allow")) {
+		ast_parse_allow_disallow(&line->codec_pref, NULL, value, 1);
+	} else if (!strcasecmp(name, "disallow")) {
+		ast_parse_allow_disallow(&line->codec_pref, NULL, value, 0);
 	} else {
 		ast_log(LOG_WARNING, "Unknown line configuration option: %s\n", name);
 	}
