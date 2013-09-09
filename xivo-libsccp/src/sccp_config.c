@@ -18,6 +18,7 @@ static void initialize_device(struct sccp_device *device, const char *name);
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device);
 static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line);
 static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name);
+static int is_line_section_complete(const char *category);
 
 int sccp_config_init(struct sccp_configs **config)
 {
@@ -374,32 +375,39 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 {
 	struct ast_variable *var;
 	struct sccp_line *line;
-	char *category;
+	char *category = "lines";
 
-	category = ast_category_browse(cfg, "lines");
-	/* handle each lines */
-	while (category != NULL && strcasecmp(category, "general")
-				&& strcasecmp(category, "devices")
-				&& strcasecmp(category, "speeddials")) {
+	while (1) {
+		category = ast_category_browse(cfg, category);
+		if (is_line_section_complete(category)) {
+			break;
+		}
 
 		if (config_has_line_with_name(sccp_cfg, category)) {
 			ast_log(LOG_WARNING, "Line [%s] already exist, line ignored\n", category);
-		} else {
-			line = sccp_new_line(category, sccp_cfg);
-			if (line == NULL) {
-				continue;
-			}
-
-			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
-				sccp_line_set_field(line, var->name, var->value);
-			}
-
-			config_add_line(sccp_cfg, line);
+			continue;
 		}
-		category = ast_category_browse(cfg, category);
+
+		line = sccp_new_line(category, sccp_cfg);
+		if (line == NULL) {
+			return -1;
+		}
+
+		for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
+			sccp_line_set_field(line, var->name, var->value);
+		}
+		config_add_line(sccp_cfg, line);
 	}
 
 	return 0;
+}
+
+static int is_line_section_complete(const char *category)
+{
+	return (category == NULL
+			|| !strcasecmp(category, "general")
+			|| !strcasecmp(category, "devices")
+			|| !strcasecmp(category, "speeddials"));
 }
 
 static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name)
