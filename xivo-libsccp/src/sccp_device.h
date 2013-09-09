@@ -352,6 +352,7 @@ void set_line_state(struct sccp_line *line, int state);
 const char *device_regstate_str(int device_state);
 int device_type_is_supported(int device_type);
 const char *device_type_str(int device_type);
+int device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance);
 
 typedef int (*state_cb_type)(char *context, char* id, struct ast_state_cb_info *info, void *data);
 void speeddial_hints_unsubscribe(struct sccp_device *device);

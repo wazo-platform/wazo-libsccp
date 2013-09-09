@@ -92,6 +92,39 @@ int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
 	return 0;
 }
 
+int device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance)
+{
+	if (device == NULL) {
+		ast_log(LOG_ERROR, "device is NULL\n");
+		return -1;
+	}
+
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "line is NULL\n");
+		return -1;
+	}
+
+	if (line->device != NULL) {
+		ast_log(LOG_ERROR, "Line [%s] is already attached to device [%s]\n",
+				line->name, line->device->name);
+		return -1;
+	}
+
+	++device->line_count;
+	if (device->default_line == NULL) {
+		device->default_line = line;
+	}
+
+	line->device = device;
+	line->instance = instance;
+
+	AST_RWLIST_WRLOCK(&device->lines);
+	AST_RWLIST_INSERT_HEAD(&device->lines, line, list_per_device);
+	AST_RWLIST_UNLOCK(&device->lines);
+
+	return 0;
+}
+
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device)
 {
 	struct sccp_device *device_itr = NULL;

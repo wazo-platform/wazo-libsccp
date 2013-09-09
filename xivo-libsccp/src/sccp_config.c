@@ -14,9 +14,11 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
 static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
 static void initialize_device(struct sccp_device *device, const char *name);
-static void initialize_line(struct sccp_line *line, uint32_t instance, struct sccp_device *device);
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device);
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list);
+static struct sccp_line *new_sccp_line(const char *name, struct sccp_configs *sccp_cfg);
+static void line_set_field(struct sccp_line *line, const char *name, const char *value);
+static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line);
 
 int sccp_config_init(struct sccp_configs **config)
 {
@@ -198,30 +200,27 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	AST_RWLIST_HEAD_INIT(&device->speeddials);
 }
 
-static void initialize_line(struct sccp_line *line, uint32_t instance, struct sccp_device *device)
+static struct sccp_line *new_sccp_line(const char *name, struct sccp_configs *sccp_cfg)
 {
+	struct sccp_line* line = ast_calloc(1, sizeof(*line));
+
 	if (line == NULL) {
-		ast_log(LOG_WARNING, "line is NULL\n");
-		return;
+		ast_log(LOG_ERROR, "Failed to allocate space for SCCP line %s\n", name);
+		return NULL;
 	}
 
-	if (device == NULL) {
-		ast_log(LOG_WARNING, "device is NULL\n");
-		return;
-	}
-
+	ast_copy_string(line->name, name, sizeof(line->name));
+	ast_copy_string(line->context, "default", sizeof(line->context));
+	ast_copy_string(line->language, sccp_cfg->language, sizeof(line->language));
 	line->state = SCCP_ONHOOK;
-	line->instance = instance;
-	line->device = device;
-	line->serial_callid = 1;
+	line->device = NULL;
 	line->active_subchan = NULL;
+	line->serial_callid = 1;
 	line->callfwd = SCCP_CFWD_UNACTIVE;
+
 	AST_RWLIST_HEAD_INIT(&line->subchans);
 
-	/* set the device default line */
-	if (device->default_line == NULL) {
-		device->default_line = line;
-	}
+	return line;
 }
 
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
@@ -274,17 +273,8 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 						if (!strcasecmp(var->value, line_itr->name)) {
 							/* We found a line */
 							found_line = 1;
-
-							if (line_itr->device != NULL) {
-								ast_log(LOG_ERROR, "Line [%s] is already attached to device [%s]\n",
-									line_itr->name, line_itr->device->name);
-							} else {
-								/* link the line to the device */
-								AST_RWLIST_WRLOCK(&device->lines);
-								AST_RWLIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
-								AST_RWLIST_UNLOCK(&device->lines);
-								device->line_count++;
-								initialize_line(line_itr, line_instance++, device);
+							if (!device_add_line(device, line_itr, line_instance)) {
+								++line_instance;
 							}
 						}
 					}
@@ -429,37 +419,48 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 
 		if (!duplicate) {
 			/* configure a new line */
-			line = ast_calloc(1, sizeof(struct sccp_line));
-			ast_copy_string(line->name, category, sizeof(line->name));
-
-			AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
-			AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
-			AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
-
-			/* Default configuration */
-			ast_copy_string(line->context, "default", sizeof(line->context));
-			ast_copy_string(line->language, sccp_cfg->language, sizeof(line->language));
+			line = new_sccp_line(category, sccp_cfg);
+			if (line == NULL) {
+				continue;
+			}
 
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
-
-				if (!strcasecmp(var->name, "cid_num")) {
-					ast_copy_string(line->cid_num, var->value, sizeof(line->cid_num));
-				} else if (!strcasecmp(var->name, "cid_name")) {
-					ast_copy_string(line->cid_name, var->value, sizeof(line->cid_name));
-				} else if (!strcasecmp(var->name, "setvar")) {
-					line->chanvars = add_var(var->value, line->chanvars);
-				} else if (!strcasecmp(var->name, "language")) {
-					ast_copy_string(line->language, var->value, sizeof(line->language));
-				} else if (!strcasecmp(var->name, "context")) {
-					ast_copy_string(line->context, var->value, sizeof(line->language));
-				}
+				line_set_field(line, var->name, var->value);
 			}
+
+			config_add_line(sccp_cfg, line);
 		}
 		duplicate = 0;
 		category = ast_category_browse(cfg, category);
 	}
 
 	return 0;
+}
+
+static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line)
+{
+	AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
+	AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
+	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
+}
+
+static void line_set_field(struct sccp_line *line, const char *name, const char *value)
+{
+	if (line == NULL) return;
+
+	if (!strcasecmp(name, "cid_num")) {
+		ast_copy_string(line->cid_num, value, sizeof(line->cid_num));
+	} else if (!strcasecmp(name, "cid_name")) {
+		ast_copy_string(line->cid_name, value, sizeof(line->cid_name));
+	} else if (!strcasecmp(name, "setvar")) {
+		line->chanvars = add_var(value, line->chanvars);
+	} else if (!strcasecmp(name, "language")) {
+		ast_copy_string(line->language, value, sizeof(line->language));
+	} else if (!strcasecmp(name, "context")) {
+		ast_copy_string(line->context, value, sizeof(line->language));
+	} else {
+		ast_log(LOG_WARNING, "Unknown line configuration option: %s\n", name);
+	}
 }
 
 static int parse_config_general(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
