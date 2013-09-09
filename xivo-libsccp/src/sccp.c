@@ -1380,7 +1380,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		transmit_open_receive_channel(session, line->active_subchan);
 	}
 
-	subchan_unset_on_hold(line, subchan_id);
+	subchan_unset_on_hold(line->active_subchan);
 
 	ast_mutex_unlock(&line->device->lock);
 

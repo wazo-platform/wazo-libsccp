@@ -312,7 +312,7 @@ int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
 
 void subchan_set_on_hold(struct sccp_subchannel* subchan);
-void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id);
+void subchan_unset_on_hold(struct sccp_subchannel *subchan);
 void subchan_set_state(struct sccp_subchannel *subchan, int state);
 void set_line_state(struct sccp_line *line, int state);
 const char *device_regstate_str(int device_state);
