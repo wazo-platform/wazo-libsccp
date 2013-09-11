@@ -53,7 +53,7 @@ static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli
 
 	/* Prevent the device from reconnecting while it is
 	   getting destroyed */
-	AST_LIST_REMOVE(&sccp_config->list_device, device, list);
+	(void)AST_LIST_REMOVE(&sccp_config->list_device, device, list);
 
 	/* Tell the thread_session to destroy the device */
 	device->destroy = 1;
