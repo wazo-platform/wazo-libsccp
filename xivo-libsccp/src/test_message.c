@@ -77,19 +77,18 @@ cleanup:
 	return result;
 }
 
-AST_TEST_DEFINE(sccp_test_null_arguments)
+AST_TEST_DEFINE(sccp_test_utf8_to_iso88591)
 {
-	int ret = 0;
 	enum ast_test_result_state result = AST_TEST_PASS;
 	void *retptr = NULL;
 	struct sccp_speeddial *speeddial;
 
 	switch (cmd) {
 	case TEST_INIT:
-		info->name = "sccp_test_null_arguments";
+		info->name = "sccp_test_utf8_to_iso88591";
 		info->category = "/channel/sccp/";
-		info->summary = "test null arguments";
-		info->description = "Test how functions behave when arguments passed are NULL.";
+		info->summary = "Test for string conversions";
+		info->description = "Test how utf8_to_iso88591 behaves with different arguments.";
 
 		return AST_TEST_NOT_RUN;
 
@@ -97,7 +96,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		break;
 	}
 
-	ast_test_status_update(test, "Executing sccp test null arguments...\n");
+	ast_test_status_update(test, "Executing sccp test utf8_to_iso99581...\n");
 
 	retptr = (void*)0x1;
 	retptr = (void*)utf8_to_iso88591(NULL);
@@ -122,6 +121,32 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		result = AST_TEST_FAIL;
 		goto cleanup;
 	}
+
+cleanup:
+	return result;
+}
+
+AST_TEST_DEFINE(sccp_test_null_arguments)
+{
+	int ret = 0;
+	enum ast_test_result_state result = AST_TEST_PASS;
+	void *retptr = NULL;
+	struct sccp_speeddial *speeddial;
+
+	switch (cmd) {
+	case TEST_INIT:
+		info->name = "sccp_test_null_arguments";
+		info->category = "/channel/sccp/";
+		info->summary = "test null arguments";
+		info->description = "Test how functions behave when arguments passed are NULL.";
+
+		return AST_TEST_NOT_RUN;
+
+	case TEST_EXECUTE:
+		break;
+	}
+
+	ast_test_status_update(test, "Executing sccp test null arguments...\n");
 
 	speeddial = device_get_speeddial(NULL, 0);
 	if (speeddial != NULL) {

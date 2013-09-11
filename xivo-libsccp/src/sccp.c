@@ -40,6 +40,7 @@
 
 AST_TEST_DEFINE(sccp_test_arguments);
 AST_TEST_DEFINE(sccp_test_null_arguments);
+AST_TEST_DEFINE(sccp_test_utf8_to_iso88591);
 
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
@@ -3506,6 +3507,7 @@ void sccp_server_fini()
 
 	AST_TEST_UNREGISTER(sccp_test_null_arguments);
 	AST_TEST_UNREGISTER(sccp_test_arguments);
+	AST_TEST_UNREGISTER(sccp_test_utf8_to_iso88591);
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	ast_channel_unregister(&sccp_tech);
@@ -3559,6 +3561,7 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
 	AST_TEST_REGISTER(sccp_test_arguments);
+	AST_TEST_REGISTER(sccp_test_utf8_to_iso88591);
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	sccp_config = sccp_cfg;
