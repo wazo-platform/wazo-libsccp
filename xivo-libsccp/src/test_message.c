@@ -170,89 +170,18 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	assert_null_handled(handle_feature_status_req_message(NULL, (struct sccp_session *)0x1), -1);
 	assert_null_handled(handle_feature_status_req_message((struct sccp_msg *)0x1, NULL), -1);
 	assert_null_handled(handle_speeddial_message(NULL, (struct sccp_session *)0x1), -1);
-
-	ret = handle_speeddial_message((struct sccp_msg *)0x1, NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_speeddial_message("", NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_speeddial_status_req_message(NULL, (struct sccp_session *)0x1);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_speeddial_status_req_message\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_speeddial_status_req_message((struct sccp_msg *)0x1, NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_speeddial_status_req_message\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_softkey_template_req_message(NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_softkey_template_req_message(NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_config_status_req_message(NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_config_status_req_message(NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_time_date_req_message(NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_time_date_req_message(NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_button_template_req_message(NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_button_template_req_message(NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_keep_alive_message(NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_keep_alive_message(NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = register_device(NULL, (void*)0xFF);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: register_device(NULL, 0xFF)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = register_device((void*)0xFF, NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: register_device(0xFF, NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	retptr = sccp_new_channel(NULL, (void*)0xFF);
-	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: sccp_new_channel(NULL, 0xFF)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (cb_ast_get_rtp_peer(NULL, (void*)0xFF) != AST_RTP_GLUE_RESULT_FORBID) {
-		ast_test_status_update(test, "failed: cb_ast_get_rtp_peer(NULL, 0xFF)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
+	assert_null_handled(handle_speeddial_message((struct sccp_msg *)0x1, NULL), -1);
+	assert_null_handled(handle_speeddial_status_req_message(NULL, (struct sccp_session *)0x1), -1);
+	assert_null_handled(handle_speeddial_status_req_message((struct sccp_msg *)0x1, NULL), -1);
+	assert_null_handled(handle_softkey_template_req_message(NULL), -1);
+	assert_null_handled(handle_config_status_req_message(NULL), -1);
+	assert_null_handled(handle_time_date_req_message(NULL), -1);
+	assert_null_handled(handle_button_template_req_message(NULL), -1);
+	assert_null_handled(handle_keep_alive_message(NULL), -1);
+	assert_null_handled(register_device(NULL, (void*)0xFF), -1);
+	assert_null_handled(register_device((void*)0xFF, NULL), -1);
+	assert_null_handled(sccp_new_channel(NULL, (void*)0xFF), NULL);
+	assert_null_handled(cb_ast_get_rtp_peer(NULL, (void*)0xFF), AST_RTP_GLUE_RESULT_FORBID);
 
 	if (cb_ast_get_rtp_peer((void*)0xFF, NULL) != AST_RTP_GLUE_RESULT_FORBID) {
 		ast_test_status_update(test, "failed: cb_ast_get_rtp_peer(0xFF, NULL)\n");
