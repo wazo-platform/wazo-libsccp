@@ -142,7 +142,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	int ret = 0;
 	enum ast_test_result_state result = AST_TEST_PASS;
 	void *retptr = NULL;
-	struct sccp_speeddial *speeddial;
 
 	switch (cmd) {
 	case TEST_INIT:
@@ -159,63 +158,18 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 
 	ast_test_status_update(test, "Executing sccp test null arguments...\n");
 
-	speeddial = device_get_speeddial(NULL, 0);
-	if (speeddial != NULL) {
-		ast_test_status_update(test, "failed: device_get_speeddial(NULL, 0)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
+	assert_null_handled(device_get_speeddial(NULL, 0), NULL);
+	assert_null_handled(device_get_speeddial_by_index(NULL, 0), NULL);
+	assert_null_handled(transmit_feature_status(NULL, 0, 0, 0, ""), -1);
+	assert_null_handled(transmit_feature_status((struct sccp_session *)0x1, 0, 0, 0, NULL), -1);
+	assert_null_handled(speeddial_hints_cb("", "", 0, NULL), -1);
 
-	speeddial = device_get_speeddial_by_index(NULL, 0);
-	if (speeddial != NULL) {
-		ast_test_status_update(test, "failed: device_get_speeddial_by_index(NULL, 0)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = transmit_feature_status(NULL, 0, 0, 0, "");
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: transmit_feature_status(NULL, 0, 0, 0, "")");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = transmit_feature_status((struct sccp_session *)0x1, 0, 0, 0, NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: transmit_feature_status((struct sccp_session *)0x1, 0, 0, 0, NULL");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = speeddial_hints_cb("", "", 0, NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: speeddial_hints_cb("", "", 0, NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
+	/* returns void will segfault if it fails */
 	speeddial_hints_subscribe(NULL, NULL);
 
-	ret = handle_feature_status_req_message(NULL, (struct sccp_session *)0x1);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_feature_status_req_message(NULL, (struct sccp_session *)0x1)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_feature_status_req_message((struct sccp_msg *)0x1, NULL);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_feature_status_req_message((struct sccp_msg *)0x1, NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	ret = handle_speeddial_message(NULL, (struct sccp_session *)0x1);
-	if (ret != -1) {
-		ast_test_status_update(test, "failed: handle_speeddial_message(NULL, "")\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
+	assert_null_handled(handle_feature_status_req_message(NULL, (struct sccp_session *)0x1), -1);
+	assert_null_handled(handle_feature_status_req_message((struct sccp_msg *)0x1, NULL), -1);
+	assert_null_handled(handle_speeddial_message(NULL, (struct sccp_session *)0x1), -1);
 
 	ret = handle_speeddial_message((struct sccp_msg *)0x1, NULL);
 	if (ret != -1) {
