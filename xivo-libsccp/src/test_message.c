@@ -81,7 +81,6 @@ AST_TEST_DEFINE(sccp_test_utf8_to_iso88591)
 {
 	enum ast_test_result_state result = AST_TEST_PASS;
 	void *retptr = NULL;
-	struct sccp_speeddial *speeddial;
 
 	switch (cmd) {
 	case TEST_INIT:
