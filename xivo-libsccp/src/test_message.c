@@ -1,5 +1,17 @@
 #include <asterisk/test.h>
 
+#define assert_null_handled(x, ret) \
+	do { \
+		ast_test_status_update(test, "Running: %s", #x); \
+		if (x != ret) { \
+			ast_test_status_update(test, "... failed\n"); \
+			result = AST_TEST_FAIL; \
+			goto cleanup; \
+		} else { \
+			ast_test_status_update(test, "... success\n"); \
+		} \
+	} while(0)
+
 AST_TEST_DEFINE(sccp_test_arguments)
 {
 	enum ast_test_result_state result = AST_TEST_PASS;
