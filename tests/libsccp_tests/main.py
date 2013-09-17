@@ -27,7 +27,8 @@ from libsccp_tests.group import DevicesGroup
 from libsccp_tests.rtp import RTPPacket
 from libsccp_tests.socketproxy import SocketProxyFactory
 from libsccp_tests.device import SCCPDevice, SCCPDeviceInfo
-from sccp.msg.msg import OpenReceiveChannelMsg, StartMediaTransmissionMsg
+from sccp.msg.msg import OpenReceiveChannelMsg, StartMediaTransmissionMsg,\
+    RegisterRejMsg
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,8 @@ def main():
 
     # tests
     # main_test_rtp_direct_media_off(sock_proxy_factory, conn_info)
-    main_test_rtp_direct_media_on(sock_proxy_factory, conn_info)
+    #main_test_rtp_direct_media_on(sock_proxy_factory, conn_info)
+    main_test_unknown_device_registration_rejected(sock_proxy_factory, conn_info)
 
 
 def main_test_rtp_direct_media_off(sock_proxy_factory, conn_info):
@@ -179,6 +181,28 @@ def main_test_rtp_direct_media_on(sock_proxy_factory, conn_info):
         lambda ev: ev.name == RTP_PACKET_RECEIVED and ev.device is group.devices[0] and ev.data[0].payload == packet1.payload,
         lambda ev: ev.name == RTP_PACKET_RECEIVED and ev.device is group.devices[1] and ev.data[0].payload == packet0.payload,
     ])
+
+    print 'success'
+
+    group.close()
+
+
+def main_test_unknown_device_registration_rejected(sock_proxy_factory, conn_info):
+    dev_info = SCCPDeviceInfo('SEP001122334499')
+    dev1 = SCCPDevice(dev_info, conn_info, sock_proxy_factory)
+
+    ev_handler = CompositeEventHandler()
+    ev_handler.append(LogEventHandler())
+    ev_handler.append(UnexpectedEventHandler(lambda ev: ev.name == CONNECTION_CLOSED))
+
+    group = DevicesGroup(ev_handler, sock_proxy_factory)
+    group.add_device(dev1)
+
+    group.connect_all()
+
+    group.devices[0].register()
+
+    group.wait_for_event(lambda ev: ev.name == SCCP_MSG_RECEIVED and ev.data.id == RegisterRejMsg.id)
 
     print 'success'
 
