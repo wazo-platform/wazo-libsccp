@@ -18,7 +18,6 @@
 import argparse
 import logging
 import select
-import socket
 import time
 
 from libsccp_tests.common import ConnectionInfo
@@ -38,12 +37,15 @@ def main():
 
     logging.basicConfig(level=logging.INFO)
 
-    host = parsed_args.hostname
-    host_ipv4 = socket.gethostbyname(host)
-
     sock_proxy_factory = SocketProxyFactory(select.poll())
 
-    conn_info = ConnectionInfo(host, 2000)
+    conn_info = ConnectionInfo.new_from_hostname(parsed_args.hostname)
+
+    # tests
+    main_test_rtp_direct_media_off(sock_proxy_factory, conn_info)
+
+
+def main_test_rtp_direct_media_off(sock_proxy_factory, conn_info):
     dev1_info = SCCPDeviceInfo('SEP001122334401')
     dev2_info = SCCPDeviceInfo('SEP001122334402')
     dev1 = SCCPDevice(dev1_info, conn_info, sock_proxy_factory)
@@ -75,8 +77,8 @@ def main():
     ])
 
     # assert RTP informations
-    if group.devices[0].calls[0].remote_rtp_address[0] == host_ipv4 and \
-       group.devices[1].calls[0].remote_rtp_address[0] == host_ipv4:
+    if group.devices[0].calls[0].remote_rtp_address[0] == conn_info.host_ipv4 and \
+       group.devices[1].calls[0].remote_rtp_address[0] == conn_info.host_ipv4:
         print 'success'
     else:
         print group.devices[0].calls[0].remote_rtp_address

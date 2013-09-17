@@ -15,11 +15,28 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
+import socket
+
+
 class ConnectionInfo(object):
 
-    def __init__(self, host, port):
+    DEFAULT_SCCP_PORT = 2000
+
+    def __init__(self, host, host_ipv4):
+        """
+        host -- either a hostname in Internet domain notation like
+            'foo.example.org' or an IPv4 address like '10.0.0.2'
+        host_ipv4 -- an IPv4 address like '10.0.0.2'
+
+        """
         self.host = host
-        self.port = port
+        self.host_ipv4 = host_ipv4
+        self.sccp_port = self.DEFAULT_SCCP_PORT
+
+    @classmethod
+    def new_from_hostname(cls, hostname):
+        host_ipv4 = socket.gethostbyname(hostname)
+        return cls(hostname, host_ipv4)
 
 
 class UnexpectedEventException(Exception):

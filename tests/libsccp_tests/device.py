@@ -87,7 +87,7 @@ class SCCPDevice(object):
 
         sock = self._sock_proxy_factory.new_socket_proxy(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.connect((self.conn_info.host, self.conn_info.port))
+            sock.connect((self.conn_info.host, self.conn_info.sccp_port))
         except Exception:
             self._publish_event(event.CONNECTION_FAILURE)
             sock.close()
