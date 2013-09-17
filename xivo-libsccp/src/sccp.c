@@ -2122,7 +2122,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 		return 0;
 	}
 
-	ast_verb(3, "Registered SCCP(%d) '%s' at %s\n", msg->data.reg.protoVersion, msg->data.reg.name, session->ipaddr);
+	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", msg->data.reg.protoVersion, msg->data.reg.name, session->ipaddr, session->port);
 
 	ret = transmit_register_ack(session, msg->data.reg.protoVersion, sccp_config->keepalive, sccp_config->dateformat);
 	if (ret == -1)
@@ -2348,7 +2348,7 @@ static void destroy_session(struct sccp_session **session)
 	}
 
 	close((*session)->sockfd);
-	ast_verb(4, "SCCP connection from %s closed\n", (*session)->ipaddr);
+	ast_verb(4, "SCCP connection from %s:%d closed\n", (*session)->ipaddr, (*session)->port);
 
 	ast_free((*session)->ipaddr);
 
@@ -2701,13 +2701,14 @@ static void *thread_accept(void *data)
 		session->tid = AST_PTHREADT_NULL;
 		session->sockfd = new_sockfd;
 		session->ipaddr = ast_strdup(ast_inet_ntoa(addr.sin_addr));
+		session->port = ntohs(addr.sin_port);
 		time(&session->start_time);
 
 		AST_LIST_LOCK(&list_session);
 		AST_LIST_INSERT_HEAD(&list_session, session, list);
 		AST_LIST_UNLOCK(&list_session);
 
-		ast_verb(4, "New SCCP connection from %s accepted\n", session->ipaddr);
+		ast_verb(4, "New SCCP connection from %s:%d accepted\n", session->ipaddr, session->port);
 		err = ast_pthread_create_background(&session->tid, NULL, thread_session, session);
 		if (err) {
 			ast_log(LOG_WARNING, "Unable to create session thread: %s\n", strerror(err));

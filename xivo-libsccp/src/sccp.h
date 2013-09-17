@@ -30,6 +30,8 @@ struct sccp_session {
 	int destroy;
 
 	char *ipaddr;
+	int port;
+
 	struct sccp_device *device;
 
 	char inbuf[SCCP_MAX_PACKET_SZ];

@@ -62,11 +62,11 @@ static void dump_message(struct sccp_session *session, struct sccp_msg *msg, con
 	}
 
 	ast_verbose(
-		"\n<--- %s %s -->\n"
+		"\n<--- %s %s:%d -->\n"
 		"Length: %4u   Reserved: 0x%08X   ID: 0x%04X (%s)\n\n"
 		"%s"
 		"\n<------------>\n",
-		head, session->ipaddr, letohl(msg->length), letohl(msg->reserved),
+		head, session->ipaddr, session->port, letohl(msg->length), letohl(msg->reserved),
 		msg_id, msg_id_str(msg_id), body
 	);
 }
