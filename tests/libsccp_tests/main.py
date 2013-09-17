@@ -42,10 +42,12 @@ def main():
     conn_info = ConnectionInfo.new_from_hostname(parsed_args.hostname)
 
     # tests
-    main_test_rtp_direct_media_off(sock_proxy_factory, conn_info)
+    # main_test_rtp_direct_media_off(sock_proxy_factory, conn_info)
+    main_test_rtp_direct_media_on(sock_proxy_factory, conn_info)
 
 
 def main_test_rtp_direct_media_off(sock_proxy_factory, conn_info):
+    # When direct media is off, then RTP must go through asterisk.
     dev1_info = SCCPDeviceInfo('SEP001122334401')
     dev2_info = SCCPDeviceInfo('SEP001122334402')
     dev1 = SCCPDevice(dev1_info, conn_info, sock_proxy_factory)
@@ -76,14 +78,18 @@ def main_test_rtp_direct_media_off(sock_proxy_factory, conn_info):
         lambda ev: ev.name == SCCP_MSG_RECEIVED and ev.device is group.devices[1] and ev.data.id == StartMediaTransmissionMsg.id,
     ])
 
+    # XXX wait for more start media transmission message...
+    time.sleep(1)
+    group.wait(0.0)
+
     # assert RTP informations
-    if group.devices[0].calls[0].remote_rtp_address[0] == conn_info.host_ipv4 and \
-       group.devices[1].calls[0].remote_rtp_address[0] == conn_info.host_ipv4:
-        print 'success'
-    else:
-        print group.devices[0].calls[0].remote_rtp_address
-        print group.devices[1].calls[0].remote_rtp_address
-        raise Exception('not good')
+    # TODO replace this with hamcrest or something similar
+    if group.devices[0].calls[0].remote_rtp_address[0] != conn_info.host_ipv4:
+        raise AssertionError('expecting remote RTP address %s; got %s\n' %
+                             (conn_info.host_ipv4, group.devices[0].calls[0].remote_rtp_address[0]))
+    elif group.devices[1].calls[0].remote_rtp_address[0] != conn_info.host_ipv4:
+        raise AssertionError('expecting remote RTP address %s; got %s\n' %
+                             (conn_info.host_ipv4, group.devices[1].calls[0].remote_rtp_address[0]))
 
     # try sending a frame from 0 to 1, check that the frame is received
     # try sending a frame from 1 to 0, check that the frame is received
@@ -104,8 +110,77 @@ def main_test_rtp_direct_media_off(sock_proxy_factory, conn_info):
         lambda ev: ev.name == RTP_PACKET_RECEIVED and ev.device is group.devices[1] and ev.data[0].payload == packet0.payload,
     ])
 
-    print 'yayayay'
+    print 'success'
+
+    group.close()
+
+
+def main_test_rtp_direct_media_on(sock_proxy_factory, conn_info):
+    # When direct media is on, then RTP must go directly between devices.
+    dev1_info = SCCPDeviceInfo('SEP001122334401')
+    dev2_info = SCCPDeviceInfo('SEP001122334402')
+    dev1 = SCCPDevice(dev1_info, conn_info, sock_proxy_factory)
+    dev2 = SCCPDevice(dev2_info, conn_info, sock_proxy_factory)
+
+    ev_handler = CompositeEventHandler()
+    ev_handler.append(LogEventHandler())
+    ev_handler.append(UnexpectedEventHandler(lambda ev: ev.name == CONNECTION_CLOSED))
+
+    group = DevicesGroup(ev_handler, sock_proxy_factory)
+    group.add_device(dev1)
+    group.add_device(dev2)
+
+    group.connect_all()
+
+    group.register_all()
+
+    group.devices[0].call('02')
+
+    group.wait_for_event(lambda ev: ev.name == CALL_INCOMING and ev.device is group.devices[1])
+
+    group.devices[1].calls[0].answer()
+
+    group.wait_for_all_events([
+        lambda ev: ev.name == SCCP_MSG_RECEIVED and ev.device is group.devices[0] and ev.data.id == OpenReceiveChannelMsg.id,
+        lambda ev: ev.name == SCCP_MSG_RECEIVED and ev.device is group.devices[0] and ev.data.id == StartMediaTransmissionMsg.id,
+        lambda ev: ev.name == SCCP_MSG_RECEIVED and ev.device is group.devices[1] and ev.data.id == OpenReceiveChannelMsg.id,
+        lambda ev: ev.name == SCCP_MSG_RECEIVED and ev.device is group.devices[1] and ev.data.id == StartMediaTransmissionMsg.id,
+    ])
+
+    # XXX wait for more start media transmission message...
     time.sleep(1)
+    group.wait(0.0)
+
+    # assert RTP informations
+    # TODO replace this with hamcrest or something similar
+    # XXX hack
+    if group.devices[0].calls[0].remote_rtp_address != group.devices[1]._rtp_sock.getsockname():
+        raise AssertionError('expecting remote RTP address %s; got %s\n' %
+                             (group.devices[1]._rtp_sock.getsockname(), group.devices[0].calls[0].remote_rtp_address))
+    elif group.devices[1].calls[0].remote_rtp_address != group.devices[0]._rtp_sock.getsockname():
+        raise AssertionError('expecting remote RTP address %s; got %s\n' %
+                             (group.devices[0]._rtp_sock.getsockname(), group.devices[1].calls[0].remote_rtp_address))
+
+    # try sending a frame from 0 to 1, check that the frame is received
+    # try sending a frame from 1 to 0, check that the frame is received
+    packet0 = RTPPacket()
+    packet0.ssrc = 1
+    packet0.payload = 'from device 0'
+    # XXX hack using the _rtp_sock directly
+    group.devices[0]._rtp_sock.sendto(packet0.serialize(), group.devices[0].calls[0].remote_rtp_address)
+
+    packet1 = RTPPacket()
+    packet1.ssrc = 2
+    packet1.payload = 'from device 1'
+    # XXX hack using the _rtp_sock directly
+    group.devices[1]._rtp_sock.sendto(packet1.serialize(), group.devices[1].calls[0].remote_rtp_address)
+
+    group.wait_for_all_events([
+        lambda ev: ev.name == RTP_PACKET_RECEIVED and ev.device is group.devices[0] and ev.data[0].payload == packet1.payload,
+        lambda ev: ev.name == RTP_PACKET_RECEIVED and ev.device is group.devices[1] and ev.data[0].payload == packet0.payload,
+    ])
+
+    print 'success'
 
     group.close()
 
