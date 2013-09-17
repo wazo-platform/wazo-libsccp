@@ -178,8 +178,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	assert_null_handled(register_device(NULL, (void*)0xFF), -1);
 	assert_null_handled(register_device((void*)0xFF, NULL), -1);
 	assert_null_handled(sccp_new_channel(NULL, (void*)0xFF), NULL);
-	assert_null_handled(cb_ast_get_rtp_peer(NULL, (void*)0xFF), AST_RTP_GLUE_RESULT_FORBID);
-	assert_null_handled(cb_ast_get_rtp_peer((void*)0xFF, NULL), AST_RTP_GLUE_RESULT_FORBID);
 	assert_null_handled(start_rtp(NULL), -1);
 	assert_null_handled(sccp_start_the_call(NULL), -1);
 	assert_null_handled(sccp_lookup_exten(NULL), NULL);
@@ -207,19 +205,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	assert_null_handled(handle_message(NULL, (void*)0xFF), -1);
 	assert_null_handled(handle_message((void*)0xFF, NULL), -1);
 	assert_null_handled(fetch_data(NULL), -1);
-	assert_null_handled(cb_ast_request(NULL, (void*)0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF), NULL);
-	assert_null_handled(cb_ast_request((void*)0xFF, (void*)0xFF, (void*)0xFF, NULL, (void*)0xFF), NULL);
-	assert_null_handled(cb_ast_request((void*)0xFF, (void*)0xFF, (void*)0xFF, (void*)0xFF, NULL), NULL);
-	assert_null_handled(cb_ast_call(NULL, (void*)0xFF, 0), -1);
-	assert_null_handled(cb_ast_call((void*)0xFF, NULL, 0), -1);
-	assert_null_handled(cb_ast_hangup(NULL), -1);
-	assert_null_handled(cb_ast_answer(NULL), -1);
-	assert_null_handled(cb_ast_read(NULL), NULL);
-	assert_null_handled(cb_ast_write(NULL, (void*)0xFF), -1);
-	assert_null_handled(cb_ast_write((void*)0xFF, NULL), -1);
-	assert_null_handled(cb_ast_indicate(NULL, 0xFF, (void*)0xFF, 0xFF), -1);
-	assert_null_handled(cb_ast_fixup(NULL, (void*)0xFF), -1);
-	assert_null_handled(cb_ast_fixup((void*)0xFF, NULL), -1);
 
 cleanup:
 	return result;
