@@ -63,8 +63,6 @@ AST_TEST_DEFINE(sccp_test_utf8_to_iso88591)
 		break;
 	}
 
-	ast_test_status_update(test, "Executing sccp test utf8_to_iso99581...\n");
-
 	retptr = (void*)0x1;
 	retptr = (void*)utf8_to_iso88591(NULL);
 	if (retptr != NULL) {
@@ -95,8 +93,6 @@ cleanup:
 
 AST_TEST_DEFINE(sccp_test_null_arguments)
 {
-	enum ast_test_result_state result = AST_TEST_PASS;
-
 	switch (cmd) {
 	case TEST_INIT:
 		info->name = "sccp_test_null_arguments";
@@ -109,8 +105,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	case TEST_EXECUTE:
 		break;
 	}
-
-	ast_test_status_update(test, "Executing sccp test null arguments...\n");
 
 	assert_null_handled(speeddial_hints_subscribe(NULL, NULL));
 	assert_null_handled(device_get_speeddial(NULL, 0));
@@ -160,5 +154,5 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	assert_null_handled(handle_message((void*)0xFF, NULL));
 	assert_null_handled(fetch_data(NULL));
 
-	return result;
+	return AST_TEST_PASS;
 }
