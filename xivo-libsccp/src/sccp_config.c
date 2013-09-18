@@ -188,7 +188,7 @@ static void initialize_device(struct sccp_device *device, const char *name)
 	device->mwi_event_sub = NULL;
 	device->lookup = 0;
 	device->autoanswer = 0;
-	device->registered = DEVICE_REGISTERED_FALSE;
+	device->regstate = DEVICE_REGISTERED_FALSE;
 	device->session = NULL;
 	device->line_count = 0;
 	device->speeddial_count = 0;

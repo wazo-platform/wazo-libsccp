@@ -11,7 +11,7 @@ void device_unregister(struct sccp_device *device)
 		return;
 	}
 
-	device->registered = DEVICE_REGISTERED_FALSE;
+	device->regstate = DEVICE_REGISTERED_FALSE;
 
 	speeddial_hints_unsubscribe(device);
 
@@ -53,7 +53,7 @@ void device_register(struct sccp_device *device,
 		return;
 	}
 
-	device->registered = DEVICE_REGISTERED_TRUE;
+	device->regstate = DEVICE_REGISTERED_TRUE;
 	device->proto_version = proto_version;
 	device->type = type;
 	device->session = session;
@@ -349,9 +349,9 @@ const char *device_type_str(enum sccp_device_type device_type)
 	}
 }
 
-const char *device_regstate_str(enum sccp_device_registration_state device_state)
+const char *device_regstate_str(enum sccp_device_registration_state state)
 {
-	switch (device_state) {
+	switch (state) {
 	case DEVICE_REGISTERED_TRUE:
 		return "Registered";
 	case DEVICE_REGISTERED_FALSE:

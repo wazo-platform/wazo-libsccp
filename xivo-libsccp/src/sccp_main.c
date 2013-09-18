@@ -47,7 +47,7 @@ static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli
 	if (device == NULL)
 		return CLI_FAILURE;
 
-	if (device->registered != DEVICE_REGISTERED_TRUE) {
+	if (device->regstate != DEVICE_REGISTERED_TRUE) {
 		return CLI_FAILURE;
 	}
 

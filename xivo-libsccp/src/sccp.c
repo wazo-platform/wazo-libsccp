@@ -456,7 +456,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 		ast_log(LOG_WARNING, "Device [%s] has no default line\n", device_itr->name);
 		ret = -1;
 
-	} else if (device_itr->registered == DEVICE_REGISTERED_TRUE) {
+	} else if (device_itr->regstate == DEVICE_REGISTERED_TRUE) {
 
 		ast_log(LOG_WARNING, "Device already registered [%s]\n", device_itr->name);
 		ret = -1;
@@ -822,7 +822,7 @@ static void *sccp_lookup_exten(void *data)
 	line = subchan->line;
 
 	len = strlen(line->device->exten);
-	while (line->device->registered == DEVICE_REGISTERED_TRUE && line->device->lookup == 1
+	while (line->device->regstate == DEVICE_REGISTERED_TRUE && line->device->lookup == 1
 			&& line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
 
 		/* when pound key is pressed, call the extension without further waiting */
@@ -2372,7 +2372,7 @@ static int is_message_handleable(uint32_t msg_id, struct sccp_session *session) 
 		return 0;
 	}
 
-	if (session->device == NULL || session->device->registered == DEVICE_REGISTERED_FALSE) {
+	if (session->device == NULL || session->device->regstate == DEVICE_REGISTERED_FALSE) {
 		switch (msg_id) {
 		case REGISTER_MESSAGE:
 		case ALARM_MESSAGE:
@@ -2550,7 +2550,7 @@ static int fetch_data(struct sccp_session *session)
 	}
 
 	/* if no device or device is not registered and time has elapsed */
-	if (session->device == NULL || session->device->registered == DEVICE_REGISTERED_FALSE) {
+	if (session->device == NULL || session->device->regstate == DEVICE_REGISTERED_FALSE) {
 		time_t now = time(NULL);
 
 		if (now > session->start_time + sccp_config->authtimeout) {
@@ -2735,7 +2735,7 @@ static int cb_ast_devicestate(const char *data)
 	line = find_line_by_name(name, &sccp_config->list_line);
 	if (line == NULL) {
 		state = AST_DEVICE_INVALID;
-	} else if (line->device && line->device->registered == DEVICE_REGISTERED_FALSE) {
+	} else if (line->device && line->device->regstate == DEVICE_REGISTERED_FALSE) {
 		state = AST_DEVICE_UNAVAILABLE;
 	} else if (line->state == SCCP_ONHOOK) {
 		state = AST_DEVICE_NOT_INUSE;
@@ -2787,7 +2787,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 		return NULL;
 	}
 
-	if (line->device->registered == DEVICE_REGISTERED_FALSE) {
+	if (line->device->regstate == DEVICE_REGISTERED_FALSE) {
 		ast_log(LOG_NOTICE, "Line [%s] belong to an unregistered device [%s]\n", line->name, line->device->name);
 		*cause = AST_CAUSE_UNREGISTERED;
 		return NULL;
@@ -3223,11 +3223,11 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		ast_cli(a->fd, "%-16s %-16s %-8s %-13s %d\n", device_itr->name,
 							session && session->ipaddr ? session->ipaddr: "-",
 							device_type_str(device_itr->type),
-							device_regstate_str(device_itr->registered),
+							device_regstate_str(device_itr->regstate),
 							device_itr->proto_version);
 
 		dev_cnt++;
-		if (device_itr->registered == DEVICE_REGISTERED_TRUE)
+		if (device_itr->regstate == DEVICE_REGISTERED_TRUE)
 			reg_cnt++;
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_device);
