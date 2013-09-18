@@ -356,7 +356,7 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 	return transmit_message(msg, session);
 }
 
-int transmit_callstate(struct sccp_session *session, int line_instance, int state, uint32_t callid)
+int transmit_callstate(struct sccp_session *session, int line_instance, enum sccp_state state, uint32_t callid)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -510,7 +510,7 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	return transmit_message(msg, session);
 }
 
-int transmit_feature_status(struct sccp_session *session, int instance, int type, int status, const char *label)
+int transmit_feature_status(struct sccp_session *session, int instance, enum sccp_button_type type, int status, const char *label)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -578,7 +578,7 @@ int transmit_keep_alive_ack(struct sccp_session *session)
 	return transmit_message(msg, session);
 }
 
-int transmit_lamp_state(struct sccp_session *session, int stimulus, int line_instance, int indication)
+int transmit_lamp_state(struct sccp_session *session, enum sccp_stimulus_type stimulus, int line_instance, enum sccp_lamp_state indication)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -708,7 +708,7 @@ int transmit_reset(struct sccp_session *session, uint32_t type)
 	return transmit_message(msg, session);
 }
 
-int transmit_ringer_mode(struct sccp_session *session, int mode)
+int transmit_ringer_mode(struct sccp_session *session, enum sccp_ringer_mode mode)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -724,7 +724,7 @@ int transmit_ringer_mode(struct sccp_session *session, int mode)
 	return transmit_message(msg, session);
 }
 
-int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int callid, int softkey)
+int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int callid, enum sccp_softkey_status softkey)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -814,7 +814,7 @@ int transmit_softkey_template_res(struct sccp_session *session)
 	return transmit_message(msg, session);
 }
 
-int transmit_speaker_mode(struct sccp_session *session, int mode)
+int transmit_speaker_mode(struct sccp_session *session, enum sccp_speaker_mode mode)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -914,7 +914,7 @@ int transmit_time_date_res(struct sccp_session *session)
 	return transmit_message(msg, session);
 }
 
-int transmit_tone(struct sccp_session *session, int tone, int line_instance, int callid)
+int transmit_tone(struct sccp_session *session, enum sccp_tone tone, int line_instance, int callid)
 {
 	struct sccp_msg *msg = NULL;
 

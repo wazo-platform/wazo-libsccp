@@ -54,7 +54,7 @@ static unsigned int chan_idx;
 
 static int do_clear_subchannel(struct sccp_subchannel *subchan);
 static int handle_softkey_dnd(struct sccp_session *session);
-static int handle_callforward(struct sccp_session *session, uint32_t softkey);
+static int handle_callforward(struct sccp_session *session, enum sccp_softkey_type softkey);
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
 static int sccp_set_callforward(struct sccp_line *line);
 
@@ -174,7 +174,7 @@ static char *format_caller_id_number(struct ast_channel *channel, struct sccp_de
 	return result;
 }
 
-static int extstate_ast2sccp(int state)
+static enum sccp_blf_status extstate_ast2sccp(int state)
 {
 	switch (state) {
 	case AST_EXTENSION_DEACTIVATED:
@@ -948,7 +948,7 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 
 	set_line_state(line, SCCP_OFFHOOK);
 
-	ret = transmit_lamp_state(session, 1, line->instance, SCCP_LAMP_ON);
+	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_ON);
 	if (ret == -1)
 		return -1;
 
@@ -1543,7 +1543,7 @@ static int sccp_set_callforward(struct sccp_line *line)
 	return 0;
 }
 
-static int handle_callforward(struct sccp_session *session, uint32_t softkey)
+static int handle_callforward(struct sccp_session *session, enum sccp_softkey_type softkey)
 {
 	int ret = 0;
 	struct sccp_line *line = NULL;
@@ -1555,7 +1555,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 	line = session->device->default_line;
 
 	switch (line->callfwd) {
-	case SCCP_CFWD_UNACTIVE:
+	case SCCP_CFWD_INACTIVE:
 
 		line->callfwd_id = line->serial_callid++;
 
@@ -1591,7 +1591,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 				return -1;
 
 			set_line_state(line, SCCP_ONHOOK);
-			line->callfwd = SCCP_CFWD_UNACTIVE;
+			line->callfwd = SCCP_CFWD_INACTIVE;
 
 			ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 			line->device->exten[0] = '\0';
@@ -1608,7 +1608,7 @@ static int handle_callforward(struct sccp_session *session, uint32_t softkey)
 		if (ret == -1)
 			return -1;
 
-		line->callfwd = SCCP_CFWD_UNACTIVE;
+		line->callfwd = SCCP_CFWD_INACTIVE;
 		ast_db_del("sccp/cfwdall", line->name);
 		update_displaymessage(session, line);
 
@@ -2088,7 +2088,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
-	uint32_t device_type = 0;
+	enum sccp_device_type device_type;
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -2793,7 +2793,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 		return NULL;
 	}
 
-	if (line->dnd == 1 && line->callfwd == SCCP_CFWD_UNACTIVE) {
+	if (line->dnd == 1 && line->callfwd == SCCP_CFWD_INACTIVE) {
 		*cause = AST_CAUSE_BUSY;
 		return NULL;
 	}

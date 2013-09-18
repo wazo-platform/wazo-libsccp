@@ -11,140 +11,163 @@
 
 #include <stdint.h>
 
-#define SCCP_DEVICE_7960	7
-#define SCCP_DEVICE_7940	8
-#define SCCP_DEVICE_7941	115
-#define SCCP_DEVICE_7911	307
-#define SCCP_DEVICE_7941GE	309
-#define SCCP_DEVICE_7931	348
-#define SCCP_DEVICE_7921	365
-#define SCCP_DEVICE_7906	369
-#define SCCP_DEVICE_7962	404
-#define SCCP_DEVICE_7937	431
-#define SCCP_DEVICE_7942	434
-#define SCCP_DEVICE_7905	20000
-#define SCCP_DEVICE_7920	30002
-#define SCCP_DEVICE_7970	30006
-#define SCCP_DEVICE_7912	30007
-#define SCCP_DEVICE_CIPC	30016 /* Cisco IP Communicator */
-#define SCCP_DEVICE_7961	30018
+enum sccp_device_type {
+	SCCP_DEVICE_7960 = 7,
+	SCCP_DEVICE_7940 = 8,
+	SCCP_DEVICE_7941 = 115,
+	SCCP_DEVICE_7911 = 307,
+	SCCP_DEVICE_7941GE = 309,
+	SCCP_DEVICE_7931 = 348,
+	SCCP_DEVICE_7921 = 365,
+	SCCP_DEVICE_7906 = 369,
+	SCCP_DEVICE_7962 = 404,
+	SCCP_DEVICE_7937 = 431,
+	SCCP_DEVICE_7942 = 434,
+	SCCP_DEVICE_7905 = 20000,
+	SCCP_DEVICE_7920 = 30002,
+	SCCP_DEVICE_7970 = 30006,
+	SCCP_DEVICE_7912 = 30007,
+	SCCP_DEVICE_CIPC = 30016,
+	SCCP_DEVICE_7961 = 30018,
+};
 
-#define SCCP_SPEAKERON		1
-#define SCCP_SPEAKEROFF		2
+enum sccp_speaker_mode {
+	SCCP_SPEAKERON = 1,
+	SCCP_SPEAKEROFF = 2,
+};
 
-#define SCCP_CFWD_UNACTIVE	1
-#define SCCP_CFWD_INPUTEXTEN	2
-#define SCCP_CFWD_ACTIVE	3
+enum sccp_call_forward_status {
+	SCCP_CFWD_INACTIVE = 1,
+	SCCP_CFWD_INPUTEXTEN = 2,
+	SCCP_CFWD_ACTIVE = 3,
+};
 
-#define SCCP_BLF_STATUS_UNKNOWN	0
-#define SCCP_BLF_STATUS_IDLE	1
-#define SCCP_BLF_STATUS_INUSE	2
-#define SCCP_BLF_STATUS_DND	3
-#define SCCP_BLF_STATUS_ALERTING	4
+enum sccp_blf_status {
+	SCCP_BLF_STATUS_UNKNOWN = 0,
+	SCCP_BLF_STATUS_IDLE = 1,
+	SCCP_BLF_STATUS_INUSE = 2,
+	SCCP_BLF_STATUS_DND = 3,
+	SCCP_BLF_STATUS_ALERTING = 4,
+};
 
-#define SCCP_OFFHOOK		1
-#define SCCP_ONHOOK		2
-#define SCCP_RINGOUT		3
-#define SCCP_RINGIN		4
-#define SCCP_CONNECTED		5
-#define SCCP_BUSY		6
-#define SCCP_CONGESTION		7
-#define SCCP_HOLD		8
-#define SCCP_CALLWAIT		9
-#define SCCP_TRANSFER		10
-#define SCCP_PARK		11
-#define SCCP_PROGRESS		12
-#define SCCP_INVALID		14
+enum sccp_state {
+	SCCP_OFFHOOK = 1,
+	SCCP_ONHOOK = 2,
+	SCCP_RINGOUT = 3,
+	SCCP_RINGIN = 4,
+	SCCP_CONNECTED = 5,
+	SCCP_BUSY = 6,
+	SCCP_CONGESTION = 7,
+	SCCP_HOLD = 8,
+	SCCP_CALLWAIT = 9,
+	SCCP_TRANSFER = 10,
+	SCCP_PARK = 11,
+	SCCP_PROGRESS = 12,
+	SCCP_INVALID = 14,
+};
 
-#define SCCP_TONE_SILENCE	0x00
-#define SCCP_TONE_DIAL		0x21
-#define SCCP_TONE_BUSY		0x23
-#define SCCP_TONE_ALERT		0x24
-#define SCCP_TONE_REORDER	0x25
-#define SCCP_TONE_CALLWAIT	0x2D
-#define SCCP_TONE_NONE		0x7F
+enum sccp_tone {
+	SCCP_TONE_SILENCE = 0x00,
+	SCCP_TONE_DIAL = 0x21,
+	SCCP_TONE_BUSY = 0x23,
+	SCCP_TONE_ALERT = 0x24,
+	SCCP_TONE_REORDER = 0x25,
+	SCCP_TONE_CALLWAIT = 0x2D,
+	SCCP_TONE_NONE = 0x7F,
+};
 
-#define SCCP_LAMP_OFF		1
-#define SCCP_LAMP_ON		2
-#define SCCP_LAMP_WINK		3
-#define SCCP_LAMP_FLASH		4
-#define SCCP_LAMP_BLINK		5
+enum sccp_lamp_state {
+	SCCP_LAMP_OFF = 1,
+	SCCP_LAMP_ON = 2,
+	SCCP_LAMP_WINK = 3,
+	SCCP_LAMP_FLASH = 4,
+	SCCP_LAMP_BLINK = 5,
+};
 
-#define SCCP_RING_OFF		1
-#define SCCP_RING_INSIDE	2
-#define SCCP_RING_OUTSIDE	3
-#define SCCP_RING_FEATURE	4
+enum sccp_ringer_mode {
+	SCCP_RING_OFF = 1,
+	SCCP_RING_INSIDE = 2,
+	SCCP_RING_OUTSIDE = 3,
+	SCCP_RING_FEATURE = 4,
+};
 
-#define STIMULUS_REDIAL			0x01
-#define STIMULUS_SPEEDDIAL		0x02
-#define STIMULUS_HOLD			0x03
-#define STIMULUS_TRANSFER		0x04
-#define STIMULUS_FORWARDALL		0x05
-#define STIMULUS_FORWARDBUSY		0x06
-#define STIMULUS_FORWARDNOANSWER	0x07
-#define STIMULUS_DISPLAY		0x08
-#define STIMULUS_LINE			0x09
-#define STIMULUS_VOICEMAIL		0x0F
-#define STIMULUS_AUTOANSWER		0x11
-#define STIMULUS_DND			0x3F
-#define STIMULUS_FEATUREBUTTON		0x15
-#define STIMULUS_CONFERENCE		0x7D
-#define STIMULUS_CALLPARK		0x7E
-#define STIMULUS_CALLPICKUP		0x7F
-#define STIMULUS_NONE			0xFF
+enum sccp_stimulus_type {
+	STIMULUS_REDIAL = 0x01,
+	STIMULUS_SPEEDDIAL = 0x02,
+	STIMULUS_HOLD = 0x03,
+	STIMULUS_TRANSFER = 0x04,
+	STIMULUS_FORWARDALL = 0x05,
+	STIMULUS_FORWARDBUSY = 0x06,
+	STIMULUS_FORWARDNOANSWER = 0x07,
+	STIMULUS_DISPLAY = 0x08,
+	STIMULUS_LINE = 0x09,
+	STIMULUS_VOICEMAIL = 0x0F,
+	STIMULUS_AUTOANSWER = 0x11,
+	STIMULUS_DND = 0x3F,
+	STIMULUS_FEATUREBUTTON = 0x15,
+	STIMULUS_CONFERENCE = 0x7D,
+	STIMULUS_CALLPARK = 0x7E,
+	STIMULUS_CALLPICKUP = 0x7F,
+	STIMULUS_NONE = 0xFF,
+};
 
-/* Button types */
-#define BT_REDIAL			STIMULUS_REDIAL
-#define BT_SPEEDDIAL			STIMULUS_SPEEDDIAL
-#define BT_HOLD				STIMULUS_HOLD
-#define BT_TRANSFER			STIMULUS_TRANSFER
-#define BT_FORWARDALL			STIMULUS_FORWARDALL
-#define BT_FORWARDBUSY			STIMULUS_FORWARDBUSY
-#define BT_FORWARDNOANSWER		STIMULUS_FORWARDNOANSWER
-#define BT_DISPLAY			STIMULUS_DISPLAY
-#define BT_LINE				STIMULUS_LINE
-#define BT_VOICEMAIL			STIMULUS_VOICEMAIL
-#define BT_AUTOANSWER			STIMULUS_AUTOANSWER
-#define BT_FEATUREBUTTON		STIMULUS_FEATUREBUTTON
-#define BT_CONFERENCE			STIMULUS_CONFERENCE
-#define BT_CALLPARK			STIMULUS_CALLPARK
-#define BT_CALLPICKUP			STIMULUS_CALLPICKUP
-#define BT_NONE				STIMULUS_NONE
-#define BT_CUST_LINESPEEDDIAL		0xB0	/* line or speeddial */
+enum sccp_button_type {
+	BT_REDIAL = STIMULUS_REDIAL,
+	BT_SPEEDDIAL = STIMULUS_SPEEDDIAL,
+	BT_HOLD = STIMULUS_HOLD,
+	BT_TRANSFER = STIMULUS_TRANSFER,
+	BT_FORWARDALL = STIMULUS_FORWARDALL,
+	BT_FORWARDBUSY = STIMULUS_FORWARDBUSY,
+	BT_FORWARDNOANSWER = STIMULUS_FORWARDNOANSWER,
+	BT_DISPLAY = STIMULUS_DISPLAY,
+	BT_LINE = STIMULUS_LINE,
+	BT_VOICEMAIL = STIMULUS_VOICEMAIL,
+	BT_AUTOANSWER = STIMULUS_AUTOANSWER,
+	BT_FEATUREBUTTON = STIMULUS_FEATUREBUTTON,
+	BT_CONFERENCE = STIMULUS_CONFERENCE,
+	BT_CALLPARK = STIMULUS_CALLPARK,
+	BT_CALLPICKUP = STIMULUS_CALLPICKUP,
+	BT_NONE = STIMULUS_NONE,
+	BT_CUST_LINESPEEDDIAL = 0xB0,	/* line or speeddial */
+};
 
-#define KEYDEF_ONHOOK			0
-#define KEYDEF_CONNECTED		1
-#define KEYDEF_ONHOLD			2
-#define KEYDEF_RINGIN			3
-#define KEYDEF_OFFHOOK			4
-#define KEYDEF_CONNINTRANSFER		5
-#define KEYDEF_CALLFWD			6
-//#define KEYDEF_CONNWITHCONF		7
-//#define KEYDEF_RINGOUT			8
-#define KEYDEF_AUTOANSWER		9
-//#define KEYDEF_UNKNOWN			10
+enum sccp_softkey_status {
+	KEYDEF_ONHOOK = 0,
+	KEYDEF_CONNECTED = 1,
+	KEYDEF_ONHOLD = 2,
+	KEYDEF_RINGIN = 3,
+	KEYDEF_OFFHOOK = 4,
+	KEYDEF_CONNINTRANSFER = 5,
+	KEYDEF_CALLFWD = 6,
+	// KEYDEF_CONNWITHCONF = 7,
+	// KEYDEF_RINGOUT = 8,
+	KEYDEF_AUTOANSWER = 9,
+	// KEYDEF_UNKNOWN = 10,
+};
 
-#define SOFTKEY_NONE			0x00
-#define SOFTKEY_REDIAL			0x01
-#define SOFTKEY_NEWCALL			0x02
-#define SOFTKEY_HOLD			0x03
-#define SOFTKEY_TRNSFER			0x04
-#define SOFTKEY_CFWDALL			0x05
-#define SOFTKEY_CFWDBUSY		0x06
-#define SOFTKEY_CFWDNOANSWER		0x07
-#define SOFTKEY_BKSPC			0x08
-#define SOFTKEY_ENDCALL			0x09
-#define SOFTKEY_RESUME			0x0A
-#define SOFTKEY_ANSWER			0x0B
-#define SOFTKEY_INFO			0x0C
-#define SOFTKEY_CONFRN			0x0D
-#define SOFTKEY_PARK			0x0E
-#define SOFTKEY_JOIN			0x0F
-#define SOFTKEY_MEETME			0x10
-#define SOFTKEY_PICKUP			0x11
-#define SOFTKEY_GPICKUP			0x12
-#define SOFTKEY_CANCEL			0x08
-#define SOFTKEY_DND			0x14
+enum sccp_softkey_type {
+	SOFTKEY_NONE = 0x00,
+	SOFTKEY_REDIAL = 0x01,
+	SOFTKEY_NEWCALL = 0x02,
+	SOFTKEY_HOLD = 0x03,
+	SOFTKEY_TRNSFER = 0x04,
+	SOFTKEY_CFWDALL = 0x05,
+	SOFTKEY_CFWDBUSY = 0x06,
+	SOFTKEY_CFWDNOANSWER = 0x07,
+	SOFTKEY_BKSPC = 0x08,
+	SOFTKEY_ENDCALL = 0x09,
+	SOFTKEY_RESUME = 0x0A,
+	SOFTKEY_ANSWER = 0x0B,
+	SOFTKEY_INFO = 0x0C,
+	SOFTKEY_CONFRN = 0x0D,
+	SOFTKEY_PARK = 0x0E,
+	SOFTKEY_JOIN = 0x0F,
+	SOFTKEY_MEETME = 0x10,
+	SOFTKEY_PICKUP = 0x11,
+	SOFTKEY_GPICKUP = 0x12,
+	SOFTKEY_CANCEL = 0x08,
+	SOFTKEY_DND = 0x14,
+};
 
 enum sccp_codecs {
 	SCCP_CODEC_G711_ALAW = 2,
@@ -219,7 +242,7 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 struct sccp_subchannel {
 
 	uint32_t id;
-	uint32_t state;
+	enum sccp_state state;
 	uint8_t on_hold;
 	struct ast_sockaddr direct_media_addr;
 	struct ast_rtp_instance *rtp;
@@ -241,10 +264,10 @@ struct sccp_line {
 
 	uint32_t serial_callid;
 	uint32_t instance;
-	uint32_t state;
+	enum sccp_state state;
 
 	uint8_t dnd;
-	uint8_t callfwd;
+	enum sccp_call_forward_status callfwd;
 	uint32_t callfwd_id;
 	char callfwd_exten[AST_MAX_EXTENSION];
 
@@ -273,8 +296,10 @@ struct sccp_speeddial {
 	AST_LIST_ENTRY(sccp_speeddial) list_per_device;
 };
 
-#define DEVICE_REGISTERED_TRUE	0x1
-#define DEVICE_REGISTERED_FALSE	0x2
+enum sccp_device_registration_state {
+	DEVICE_REGISTERED_TRUE = 0x1,
+	DEVICE_REGISTERED_FALSE = 0x2,
+};
 
 struct sccp_device {
 
@@ -282,8 +307,8 @@ struct sccp_device {
 	uint8_t destroy;
 
 	char name[80];
-	int type;
-	int state;
+	enum sccp_device_type type;
+	enum sccp_state state;
 	uint8_t proto_version;
 	uint32_t station_port;
 	struct sockaddr_in localip;
@@ -300,7 +325,7 @@ struct sccp_device {
 
 	uint8_t autoanswer;
 
-	uint8_t registered;
+	enum sccp_device_registration_state registered;
 	uint32_t line_count;
 	uint32_t speeddial_count;
 
@@ -336,22 +361,21 @@ struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t
 struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index);
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
 int device_supports_direct_media(struct sccp_device *device);
-const char *line_state_str(int line_state);
-int device_type_is_supported(int device_type);
+const char *line_state_str(enum sccp_state line_state);
 int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
 
 struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line);
 void subchan_set_on_hold(struct sccp_line *line, uint32_t subchan_id);
 void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id);
-void subchan_set_state(struct sccp_subchannel *subchan, int state);
+void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state);
 void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan);
 void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id);
-void set_line_state(struct sccp_line *line, int state);
-const char *device_regstate_str(int device_state);
-int device_type_is_supported(int device_type);
-const char *device_type_str(int device_type);
+void set_line_state(struct sccp_line *line, enum sccp_state state);
+const char *device_regstate_str(enum sccp_device_registration_state device_state);
+int device_type_is_supported(enum sccp_device_type device_type);
+const char *device_type_str(enum sccp_device_type device_type);
 
 typedef int (*state_cb_type)(char *context, char* id, struct ast_state_cb_info *info, void *data);
 void speeddial_hints_unsubscribe(struct sccp_device *device);

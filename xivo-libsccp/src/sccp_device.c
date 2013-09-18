@@ -34,7 +34,7 @@ void device_unregister(struct sccp_device *device)
 			}
 
 			line_itr->active_subchan = NULL;
-			line_itr->callfwd = SCCP_CFWD_UNACTIVE;
+			line_itr->callfwd = SCCP_CFWD_INACTIVE;
 
 		} while (subchan != NULL);
 
@@ -273,7 +273,7 @@ int device_supports_direct_media(struct sccp_device *device)
 	}
 }
 
-const char *line_state_str(int line_state)
+const char *line_state_str(enum sccp_state line_state)
 {
 	switch (line_state) {
 	case SCCP_OFFHOOK:
@@ -307,7 +307,7 @@ const char *line_state_str(int line_state)
 	}
 }
 
-const char *device_type_str(int device_type)
+const char *device_type_str(enum sccp_device_type device_type)
 {
 	switch (device_type) {
 	case SCCP_DEVICE_7905:
@@ -349,7 +349,7 @@ const char *device_type_str(int device_type)
 	}
 }
 
-const char *device_regstate_str(int device_state)
+const char *device_regstate_str(enum sccp_device_registration_state device_state)
 {
 	switch (device_state) {
 	case DEVICE_REGISTERED_TRUE:
@@ -361,7 +361,7 @@ const char *device_regstate_str(int device_state)
 	}
 }
 
-int device_type_is_supported(int device_type)
+int device_type_is_supported(enum sccp_device_type device_type)
 {
 	int supported = 0;
 
@@ -557,12 +557,12 @@ void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id)
 	subchan->on_hold = 0;
 }
 
-void subchan_set_state(struct sccp_subchannel *subchan, int state)
+void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state)
 {
 	subchan->state = state;
 }
 
-void set_line_state(struct sccp_line *line, int state)
+void set_line_state(struct sccp_line *line, enum sccp_state state)
 {
 	line->state = state;
 }
