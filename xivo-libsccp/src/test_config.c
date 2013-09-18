@@ -3,10 +3,15 @@
 #include "sccp_config.h"
 #include "sccp_line.h"
 
+static void config_cleanup(struct sccp_configs *config)
+{
+     sccp_config_destroy(&config);
+}
+
 AST_TEST_DEFINE(sccp_test_resync)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	struct sccp_configs *sccp_cfg = NULL;
+	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, config_cleanup);
 	FILE *conf_file = NULL;
 	const char *conf = NULL;
 	struct sccp_line *line = NULL;
@@ -212,7 +217,6 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 cleanup:
 
-	sccp_config_destroy(&sccp_cfg);
 	remove("/tmp/sccp.conf");
 
 	return ret;
@@ -221,7 +225,7 @@ cleanup:
 AST_TEST_DEFINE(sccp_test_config)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	struct sccp_configs *sccp_cfg = NULL;
+	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, config_cleanup);
 	FILE *conf_file = NULL;
 	const char *conf = NULL;
 	struct sccp_line *line = NULL;
@@ -527,7 +531,6 @@ AST_TEST_DEFINE(sccp_test_config)
 
 cleanup:
 
-	sccp_config_destroy(&sccp_cfg);
 	remove("/tmp/sccp.conf");
 
 	return ret;
