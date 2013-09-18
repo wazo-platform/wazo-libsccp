@@ -16,25 +16,23 @@
 		} \
 	} while(0)
 
-AST_TEST_DEFINE(sccp_test_arguments)
+AST_TEST_DEFINE(sccp_test_extstate_ast2sccp)
 {
 	enum ast_test_result_state result = AST_TEST_PASS;
 	const char* fail_message = "failed: converting extention state from asterisk to sccp\n";
 
 	switch (cmd) {
 	case TEST_INIT:
-		info->name = "sccp_test_arguments";
+		info->name = "sccp_test_extstate_ast2sccp";
 		info->category = "/channel/sccp/";
-		info->summary = "test arguments";
-		info->description = "Test how functions behave when good arguments are given.";
+		info->summary = "Tests the return value of extstate_ast2sccp";
+		info->description = "Runs the extstate_ast2sccp function against multiple arguments and checks the result";
 
 		return AST_TEST_NOT_RUN;
 
 	case TEST_EXECUTE:
 		break;
 	}
-
-	ast_test_status_update(test, "Executing sccp test good arguments...\n");
 
 	assert_equal(extstate_ast2sccp(AST_EXTENSION_DEACTIVATED), SCCP_BLF_STATUS_UNKNOWN, fail_message);
 	assert_equal(extstate_ast2sccp(AST_EXTENSION_REMOVED), SCCP_BLF_STATUS_UNKNOWN, fail_message);

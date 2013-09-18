@@ -38,7 +38,7 @@
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
 
-AST_TEST_DEFINE(sccp_test_arguments);
+AST_TEST_DEFINE(sccp_test_extstate_ast2sccp);
 AST_TEST_DEFINE(sccp_test_null_arguments);
 AST_TEST_DEFINE(sccp_test_utf8_to_iso88591);
 
@@ -3506,7 +3506,7 @@ void sccp_server_fini()
 	pthread_t* thread_sessions = NULL;
 
 	AST_TEST_UNREGISTER(sccp_test_null_arguments);
-	AST_TEST_UNREGISTER(sccp_test_arguments);
+	AST_TEST_UNREGISTER(sccp_test_extstate_ast2sccp);
 	AST_TEST_UNREGISTER(sccp_test_utf8_to_iso88591);
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
@@ -3560,7 +3560,7 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	const int flag_reuse = 1;
 
 	AST_TEST_REGISTER(sccp_test_null_arguments);
-	AST_TEST_REGISTER(sccp_test_arguments);
+	AST_TEST_REGISTER(sccp_test_extstate_ast2sccp);
 	AST_TEST_REGISTER(sccp_test_utf8_to_iso88591);
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
