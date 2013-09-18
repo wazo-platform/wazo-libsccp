@@ -2,9 +2,9 @@
 
 #define assert_null_handled(f) \
 	do { \
-		ast_test_status_update(test, "Running: %s", #f); \
+		/* ast_test_status_update(test, "Running: %s", #f); */ \
 		f; \
-		ast_test_status_update(test, "... success\n"); \
+		/* ast_test_status_update(test, "... success\n"); */ \
 	} while(0)
 
 #define assert_equal(value, expected, message) \
