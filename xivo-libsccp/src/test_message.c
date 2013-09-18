@@ -7,9 +7,19 @@
 		ast_test_status_update(test, "... success\n"); \
 	} while(0)
 
+#define assert_equal(value, expected, message) \
+	do { \
+		if ((value) != (expected)) { \
+			ast_test_status_update(test, "%s", message); \
+			result = AST_TEST_FAIL; \
+			goto cleanup; \
+		} \
+	} while(0)
+
 AST_TEST_DEFINE(sccp_test_arguments)
 {
 	enum ast_test_result_state result = AST_TEST_PASS;
+	const char* fail_message = "failed: converting extention state from asterisk to sccp\n";
 
 	switch (cmd) {
 	case TEST_INIT:
@@ -26,59 +36,15 @@ AST_TEST_DEFINE(sccp_test_arguments)
 
 	ast_test_status_update(test, "Executing sccp test good arguments...\n");
 
-	if (extstate_ast2sccp(AST_EXTENSION_DEACTIVATED) != SCCP_BLF_STATUS_UNKNOWN) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (extstate_ast2sccp(AST_EXTENSION_REMOVED) != SCCP_BLF_STATUS_UNKNOWN) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (extstate_ast2sccp(AST_EXTENSION_RINGING) != SCCP_BLF_STATUS_ALERTING) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (extstate_ast2sccp(AST_EXTENSION_UNAVAILABLE) != SCCP_BLF_STATUS_UNKNOWN) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (extstate_ast2sccp(AST_EXTENSION_BUSY) != SCCP_BLF_STATUS_INUSE) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (extstate_ast2sccp(AST_EXTENSION_INUSE) != SCCP_BLF_STATUS_INUSE) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (extstate_ast2sccp(AST_EXTENSION_ONHOLD) != SCCP_BLF_STATUS_INUSE) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (extstate_ast2sccp(AST_EXTENSION_NOT_INUSE) != SCCP_BLF_STATUS_IDLE) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	if (extstate_ast2sccp(-500) != SCCP_BLF_STATUS_UNKNOWN) {
-		ast_test_status_update(test, "failed: converting extention state from asterisk to sccp\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
+	assert_equal(extstate_ast2sccp(AST_EXTENSION_DEACTIVATED), SCCP_BLF_STATUS_UNKNOWN, fail_message);
+	assert_equal(extstate_ast2sccp(AST_EXTENSION_REMOVED), SCCP_BLF_STATUS_UNKNOWN, fail_message);
+	assert_equal(extstate_ast2sccp(AST_EXTENSION_RINGING), SCCP_BLF_STATUS_ALERTING, fail_message);
+	assert_equal(extstate_ast2sccp(AST_EXTENSION_UNAVAILABLE), SCCP_BLF_STATUS_UNKNOWN, fail_message);
+	assert_equal(extstate_ast2sccp(AST_EXTENSION_BUSY), SCCP_BLF_STATUS_INUSE, fail_message);
+	assert_equal(extstate_ast2sccp(AST_EXTENSION_INUSE), SCCP_BLF_STATUS_INUSE, fail_message);
+	assert_equal(extstate_ast2sccp(AST_EXTENSION_ONHOLD), SCCP_BLF_STATUS_INUSE, fail_message);
+	assert_equal(extstate_ast2sccp(AST_EXTENSION_NOT_INUSE), SCCP_BLF_STATUS_IDLE, fail_message);
+	assert_equal(extstate_ast2sccp(-500), SCCP_BLF_STATUS_UNKNOWN, fail_message);
 
 cleanup:
 	return result;
