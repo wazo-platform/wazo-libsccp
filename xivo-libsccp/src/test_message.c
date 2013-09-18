@@ -15,6 +15,22 @@
 		} \
 	} while(0)
 
+#define assert_not_equal(value, expected, message) \
+	do { \
+		if ((value) == (expected)) { \
+			ast_test_status_update(test, "%s", message); \
+			return AST_TEST_FAIL; \
+		} \
+	} while(0)
+
+#define assert_string_equal(value, expected) \
+	do { \
+		if (strcmp(value, expected)) { \
+			ast_test_status_update(test, "failed: %s != %s\n", expected, value); \
+			return AST_TEST_FAIL; \
+		} \
+	} while(0)
+
 AST_TEST_DEFINE(sccp_test_extstate_ast2sccp)
 {
 	const char* fail_message = "failed: converting extention state from asterisk to sccp\n";
@@ -47,9 +63,6 @@ AST_TEST_DEFINE(sccp_test_extstate_ast2sccp)
 
 AST_TEST_DEFINE(sccp_test_utf8_to_iso88591)
 {
-	enum ast_test_result_state result = AST_TEST_PASS;
-	void *retptr = NULL;
-
 	switch (cmd) {
 	case TEST_INIT:
 		info->name = "sccp_test_utf8_to_iso88591";
@@ -63,32 +76,12 @@ AST_TEST_DEFINE(sccp_test_utf8_to_iso88591)
 		break;
 	}
 
-	retptr = (void*)0x1;
-	retptr = (void*)utf8_to_iso88591(NULL);
-	if (retptr != NULL) {
-		ast_test_status_update(test, "failed: utf8_to_iso88591(NULL)\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
+	assert_equal(utf8_to_iso88591(NULL), NULL, "failed: utf8_to_iso88591(NULL)\n");
+	assert_not_equal(utf8_to_iso88591("0sïkö Düô"), NULL, "failed: retptr == NULL\n");
+	assert_string_equal(utf8_to_iso88591("Ã©"), "é");
+	assert_string_equal(utf8_to_iso88591("a"), "a");
 
-	retptr = NULL;
-	retptr = utf8_to_iso88591("0sïkö Düô");
-	if (retptr == NULL) {
-		ast_test_status_update(test, "failed: retptr == NULL\n");
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-	retptr = NULL;
-	retptr = utf8_to_iso88591("Ã©");
-	if (strcmp(retptr, "é")) {
-		ast_test_status_update(test, "failed: 'é' != %s\n", (char *)retptr);
-		result = AST_TEST_FAIL;
-		goto cleanup;
-	}
-
-cleanup:
-	return result;
+	return AST_TEST_PASS;
 }
 
 AST_TEST_DEFINE(sccp_test_null_arguments)
