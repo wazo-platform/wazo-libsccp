@@ -1,15 +1,10 @@
 #include <asterisk/test.h>
 
-#define assert_null_handled(x, ret) \
+#define assert_null_handled(f) \
 	do { \
-		ast_test_status_update(test, "Running: %s", #x); \
-		if (x != ret) { \
-			ast_test_status_update(test, "... failed\n"); \
-			result = AST_TEST_FAIL; \
-			goto cleanup; \
-		} else { \
-			ast_test_status_update(test, "... success\n"); \
-		} \
+		ast_test_status_update(test, "Running: %s", #f); \
+		f; \
+		ast_test_status_update(test, "... success\n"); \
 	} while(0)
 
 AST_TEST_DEFINE(sccp_test_arguments)
@@ -156,56 +151,53 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 
 	ast_test_status_update(test, "Executing sccp test null arguments...\n");
 
-	/* returns void will segfault if it fails */
-	speeddial_hints_subscribe(NULL, NULL);
+	assert_null_handled(speeddial_hints_subscribe(NULL, NULL));
+	assert_null_handled(device_get_speeddial(NULL, 0));
+	assert_null_handled(device_get_speeddial_by_index(NULL, 0));
+	assert_null_handled(transmit_feature_status(NULL, 0, 0, 0, ""));
+	assert_null_handled(transmit_feature_status((struct sccp_session *)0x1, 0, 0, 0, NULL));
+	assert_null_handled(speeddial_hints_cb("", "", 0, NULL));
+	assert_null_handled(handle_feature_status_req_message(NULL, (struct sccp_session *)0x1));
+	assert_null_handled(handle_feature_status_req_message((struct sccp_msg *)0x1, NULL));
+	assert_null_handled(handle_speeddial_message(NULL, (struct sccp_session *)0x1));
+	assert_null_handled(handle_speeddial_message((struct sccp_msg *)0x1, NULL));
+	assert_null_handled(handle_speeddial_status_req_message(NULL, (struct sccp_session *)0x1));
+	assert_null_handled(handle_speeddial_status_req_message((struct sccp_msg *)0x1, NULL));
+	assert_null_handled(handle_softkey_template_req_message(NULL));
+	assert_null_handled(handle_config_status_req_message(NULL));
+	assert_null_handled(handle_time_date_req_message(NULL));
+	assert_null_handled(handle_button_template_req_message(NULL));
+	assert_null_handled(handle_keep_alive_message(NULL));
+	assert_null_handled(register_device(NULL, (void*)0xFF));
+	assert_null_handled(register_device((void*)0xFF, NULL));
+	assert_null_handled(sccp_new_channel(NULL, (void*)0xFF));
+	assert_null_handled(start_rtp(NULL));
+	assert_null_handled(sccp_start_the_call(NULL));
+	assert_null_handled(sccp_lookup_exten(NULL));
+	assert_null_handled(handle_offhook_message(NULL, NULL));
+	assert_null_handled(handle_onhook_message(NULL, NULL));
+	assert_null_handled(handle_softkey_hold(0, 0, NULL));
+	assert_null_handled(handle_softkey_resume(0, 0, NULL));
+	assert_null_handled(handle_softkey_transfer(0, NULL));
+	assert_null_handled(handle_softkey_event_message(NULL, (void*)0xFF));
+	assert_null_handled(handle_softkey_event_message((void*)0xFF, NULL));
+	assert_null_handled(handle_softkey_set_req_message(NULL));
+	assert_null_handled(codec_sccp2ast(0, NULL));
+	assert_null_handled(handle_capabilities_res_message(NULL, (void*)0xFF));
+	assert_null_handled(handle_capabilities_res_message((void*)0xFF, NULL));
+	assert_null_handled(handle_open_receive_channel_ack_message(NULL, (void*)0xFF));
+	assert_null_handled(handle_open_receive_channel_ack_message((void*)0xFF, NULL));
+	assert_null_handled(handle_line_status_req_message(NULL, (void*)0xFF));
+	assert_null_handled(handle_line_status_req_message((void*)0xFF, NULL));
+	assert_null_handled(handle_register_message(NULL, (void*)0xFF));
+	assert_null_handled(handle_register_message((void*)0xFF, NULL));
+	assert_null_handled(handle_ipport_message(NULL, (void*)0xFF));
+	assert_null_handled(handle_ipport_message((void*)0xFF, NULL));
+	assert_null_handled(handle_keypad_button_message(NULL, (void*)0xFF));
+	assert_null_handled(handle_keypad_button_message((void*)0xFF, NULL));
+	assert_null_handled(handle_message(NULL, (void*)0xFF));
+	assert_null_handled(handle_message((void*)0xFF, NULL));
+	assert_null_handled(fetch_data(NULL));
 
-	assert_null_handled(device_get_speeddial(NULL, 0), NULL);
-	assert_null_handled(device_get_speeddial_by_index(NULL, 0), NULL);
-	assert_null_handled(transmit_feature_status(NULL, 0, 0, 0, ""), -1);
-	assert_null_handled(transmit_feature_status((struct sccp_session *)0x1, 0, 0, 0, NULL), -1);
-	assert_null_handled(speeddial_hints_cb("", "", 0, NULL), -1);
-	assert_null_handled(handle_feature_status_req_message(NULL, (struct sccp_session *)0x1), -1);
-	assert_null_handled(handle_feature_status_req_message((struct sccp_msg *)0x1, NULL), -1);
-	assert_null_handled(handle_speeddial_message(NULL, (struct sccp_session *)0x1), -1);
-	assert_null_handled(handle_speeddial_message((struct sccp_msg *)0x1, NULL), -1);
-	assert_null_handled(handle_speeddial_status_req_message(NULL, (struct sccp_session *)0x1), -1);
-	assert_null_handled(handle_speeddial_status_req_message((struct sccp_msg *)0x1, NULL), -1);
-	assert_null_handled(handle_softkey_template_req_message(NULL), -1);
-	assert_null_handled(handle_config_status_req_message(NULL), -1);
-	assert_null_handled(handle_time_date_req_message(NULL), -1);
-	assert_null_handled(handle_button_template_req_message(NULL), -1);
-	assert_null_handled(handle_keep_alive_message(NULL), -1);
-	assert_null_handled(register_device(NULL, (void*)0xFF), -1);
-	assert_null_handled(register_device((void*)0xFF, NULL), -1);
-	assert_null_handled(sccp_new_channel(NULL, (void*)0xFF), NULL);
-	assert_null_handled(start_rtp(NULL), -1);
-	assert_null_handled(sccp_start_the_call(NULL), -1);
-	assert_null_handled(sccp_lookup_exten(NULL), NULL);
-	assert_null_handled(handle_offhook_message(NULL, NULL), -1);
-	assert_null_handled(handle_onhook_message(NULL, NULL), -1);
-	assert_null_handled(handle_softkey_hold(0, 0, NULL), -1);
-	assert_null_handled(handle_softkey_resume(0, 0, NULL), -1);
-	assert_null_handled(handle_softkey_transfer(0, NULL), -1);
-	assert_null_handled(handle_softkey_event_message(NULL, (void*)0xFF), -1);
-	assert_null_handled(handle_softkey_event_message((void*)0xFF, NULL), -1);
-	assert_null_handled(handle_softkey_set_req_message(NULL), -1);
-	assert_null_handled(codec_sccp2ast(0, NULL), NULL);
-	assert_null_handled(handle_capabilities_res_message(NULL, (void*)0xFF), -1);
-	assert_null_handled(handle_capabilities_res_message((void*)0xFF, NULL), -1);
-	assert_null_handled(handle_open_receive_channel_ack_message(NULL, (void*)0xFF), -1);
-	assert_null_handled(handle_open_receive_channel_ack_message((void*)0xFF, NULL), -1);
-	assert_null_handled(handle_line_status_req_message(NULL, (void*)0xFF), -1);
-	assert_null_handled(handle_line_status_req_message((void*)0xFF, NULL), -1);
-	assert_null_handled(handle_register_message(NULL, (void*)0xFF), -1);
-	assert_null_handled(handle_register_message((void*)0xFF, NULL), -1);
-	assert_null_handled(handle_ipport_message(NULL, (void*)0xFF), -1);
-	assert_null_handled(handle_ipport_message((void*)0xFF, NULL), -1);
-	assert_null_handled(handle_keypad_button_message(NULL, (void*)0xFF), -1);
-	assert_null_handled(handle_keypad_button_message((void*)0xFF, NULL), -1);
-	assert_null_handled(handle_message(NULL, (void*)0xFF), -1);
-	assert_null_handled(handle_message((void*)0xFF, NULL), -1);
-	assert_null_handled(fetch_data(NULL), -1);
-
-cleanup:
 	return result;
 }
