@@ -11,14 +11,12 @@
 	do { \
 		if ((value) != (expected)) { \
 			ast_test_status_update(test, "%s", message); \
-			result = AST_TEST_FAIL; \
-			goto cleanup; \
+			return AST_TEST_FAIL; \
 		} \
 	} while(0)
 
 AST_TEST_DEFINE(sccp_test_extstate_ast2sccp)
 {
-	enum ast_test_result_state result = AST_TEST_PASS;
 	const char* fail_message = "failed: converting extention state from asterisk to sccp\n";
 
 	switch (cmd) {
@@ -44,8 +42,7 @@ AST_TEST_DEFINE(sccp_test_extstate_ast2sccp)
 	assert_equal(extstate_ast2sccp(AST_EXTENSION_NOT_INUSE), SCCP_BLF_STATUS_IDLE, fail_message);
 	assert_equal(extstate_ast2sccp(-500), SCCP_BLF_STATUS_UNKNOWN, fail_message);
 
-cleanup:
-	return result;
+	return AST_TEST_PASS;
 }
 
 AST_TEST_DEFINE(sccp_test_utf8_to_iso88591)
