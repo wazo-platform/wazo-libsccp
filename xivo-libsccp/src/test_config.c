@@ -56,6 +56,33 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 		assert_string_equal(sccp_cfg->bindaddr, value);
 	}
 
+	{
+		struct ast_format first;
+
+		name = "allow";
+		value = "ulaw";
+
+		sccp_config_set_field(sccp_cfg, name, value);
+
+		ast_codec_pref_index(&sccp_cfg->codec_pref, 0, &first);
+
+		assert_equal(first.id, AST_FORMAT_ULAW, "Prefered codec did not match\n");
+	}
+
+	{
+		struct ast_format first;
+
+		name = "allow";
+		value = "ulaw";
+
+		sccp_config_set_field(sccp_cfg, name, value);
+		sccp_config_set_field(sccp_cfg, name, "alaw");
+
+		ast_codec_pref_index(&sccp_cfg->codec_pref, 0, &first);
+
+		assert_equal(first.id, AST_FORMAT_ULAW, "Prefered codec did not match\n");
+	}
+
 	return AST_TEST_PASS;
 }
 

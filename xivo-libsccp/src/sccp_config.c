@@ -441,6 +441,8 @@ void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, cons
 		ast_copy_string(sccp_cfg->vmexten, value, sizeof(sccp_cfg->vmexten));
 	} else if (!strcasecmp(name, "directmedia")) {
 		sccp_cfg->directmedia = atoi(value);
+	} else if (!strcasecmp(name, "allow")) {
+		ast_parse_allow_disallow(&sccp_cfg->codec_pref, NULL, value, 1);
 	}
 }
 
