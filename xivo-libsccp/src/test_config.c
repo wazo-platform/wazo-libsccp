@@ -89,7 +89,9 @@ AST_TEST_DEFINE(sccp_test_resync)
 		"line=200\n"
 		"speeddial=sd1001\n"
 		"voicemail=555\n";
-	config_from_string(sccp_cfg, conf);
+	if (config_from_string(sccp_cfg, conf) != 0) {
+	     return AST_TEST_FAIL;
+	}
 
 	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
 	if (line == NULL) {
@@ -165,14 +167,18 @@ AST_TEST_DEFINE(sccp_test_resync)
 		"line=200\n"
 		"speeddial=sd1001\n"
 		"voicemail=557\n";
-	config_from_string(sccp_cfg, conf);
+	if (config_from_string(sccp_cfg, conf) != 0) {
+	     return AST_TEST_FAIL;
+	}
 
 	(void)AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
 	transmit_reset(device->session, 2);
 	device_unregister(device);
 	destroy_device_config(sccp_cfg, device);
 
-	config_from_string(sccp_cfg, conf);
+	if (config_from_string(sccp_cfg, conf) != 0) {
+	     return AST_TEST_FAIL;
+	}
 
 	/* Verify again */
 	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
@@ -279,7 +285,9 @@ AST_TEST_DEFINE(sccp_test_config)
 		"speeddial=sd1000\n"
 		"line=200\n"
 		"speeddial=sd1001\n";
-	config_from_string(sccp_cfg, conf);
+	if (config_from_string(sccp_cfg, conf) != 0) {
+		return AST_TEST_FAIL;
+	}
 
 	if (strcmp(sccp_cfg->bindaddr, "0.0.0.0")) {
 		ast_test_status_update(test, "bindaddr %s != %s\n", sccp_cfg->bindaddr, "0.0.0.0");
@@ -454,7 +462,9 @@ AST_TEST_DEFINE(sccp_test_config)
 		"[SEPACA016FDF236]\n"
 		"device=SEPACA016FDF236\n"
 		"line=201";
-	config_from_string(sccp_cfg, conf);
+	if (config_from_string(sccp_cfg, conf) != 0) {
+		return AST_TEST_FAIL;
+	}
 
 	/* We removed line 200 and its associated device.
 	 * We add line 201 with a new device.
