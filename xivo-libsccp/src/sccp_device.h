@@ -179,6 +179,11 @@ enum sccp_codecs {
 	SCCP_CODEC_H263 = 101
 };
 
+enum sccp_device_registration_state {
+	DEVICE_REGISTERED_TRUE = 0x1,
+	DEVICE_REGISTERED_FALSE = 0x2,
+};
+
 struct softkey_definitions {
 	const uint8_t mode;
 	const uint8_t *defaults;
@@ -265,11 +270,6 @@ struct sccp_speeddial {
 	struct sccp_device *device;
 	AST_LIST_ENTRY(sccp_speeddial) list;
 	AST_LIST_ENTRY(sccp_speeddial) list_per_device;
-};
-
-enum sccp_device_registration_state {
-	DEVICE_REGISTERED_TRUE = 0x1,
-	DEVICE_REGISTERED_FALSE = 0x2,
 };
 
 struct sccp_device {
