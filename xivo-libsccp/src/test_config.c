@@ -4,11 +4,6 @@
 #include "sccp_line.h"
 #include "sccp_test_helpers.h"
 
-static void config_cleanup(struct sccp_configs *config)
-{
-     sccp_config_destroy(&config);
-}
-
 static int config_from_string(struct sccp_configs *config, const char *content)
 {
 	const char *fname = "/tmp/sccp.conf";
@@ -30,7 +25,7 @@ static int config_from_string(struct sccp_configs *config, const char *content)
 
 AST_TEST_DEFINE(sccp_test_config_set_field)
 {
-	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, config_cleanup);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, sccp_config_destroy);
 	char *name;
 	char *value;
 
@@ -63,7 +58,7 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 AST_TEST_DEFINE(sccp_test_resync)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, config_cleanup);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, sccp_config_destroy);
 	const char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
@@ -260,7 +255,7 @@ cleanup:
 AST_TEST_DEFINE(sccp_test_config)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, config_cleanup);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, sccp_config_destroy);
 	char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;

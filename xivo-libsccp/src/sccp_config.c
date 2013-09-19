@@ -45,25 +45,17 @@ struct sccp_configs *sccp_new_config(void)
 	return config;
 }
 
-int sccp_config_destroy(struct sccp_configs **config)
+int sccp_config_destroy(struct sccp_configs *config)
 {
-	struct sccp_configs *to_destroy = NULL;
-
 	if (config == NULL) {
-		ast_log(LOG_ERROR, "NULL address supplied to destroy SCCP configuration\n");
-		return -1;
-	}
-
-	to_destroy = *config;
-	if (to_destroy == NULL) {
 		return 0;
 	}
 
-	AST_RWLIST_HEAD_DESTROY(&to_destroy->list_device);
-	AST_RWLIST_HEAD_DESTROY(&to_destroy->list_line);
-	ast_free(to_destroy);
+	AST_RWLIST_HEAD_DESTROY(&config->list_device);
+	AST_RWLIST_HEAD_DESTROY(&config->list_line);
+	ast_free(config);
 
-	*config = NULL;
+	config = NULL;
 
 	return 0;
 }

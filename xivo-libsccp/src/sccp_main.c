@@ -193,8 +193,8 @@ static int load_module(void)
 
 	ret = sccp_config_load(sccp_config, "sccp.conf");
 	if (ret == -1) {
-		sccp_config_destroy(&sccp_config);
-
+		sccp_config_destroy(sccp_config);
+		sccp_config = NULL;
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
@@ -203,7 +203,8 @@ static int load_module(void)
 	ret = sccp_server_init(sccp_config);
 	if (ret == -1) {
 		sccp_config_unload(sccp_config);
-		sccp_config_destroy(&sccp_config);
+		sccp_config_destroy(sccp_config);
+		sccp_config = NULL;
 
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -227,7 +228,8 @@ static int unload_module(void)
 
 	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
-	sccp_config_destroy(&sccp_config);
+	sccp_config_destroy(sccp_config);
+	sccp_config = NULL;
 
 	AST_TEST_UNREGISTER(sccp_test_resync);
 	AST_TEST_UNREGISTER(sccp_test_config);
