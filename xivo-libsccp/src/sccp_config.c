@@ -2,6 +2,7 @@
 
 #include "sccp_device.h"
 #include "sccp_config.h"
+#include "sccp_line.h"
 
 #include "../config.h"
 
@@ -14,9 +15,10 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
 static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
 static void initialize_device(struct sccp_device *device, const char *name);
-static void initialize_line(struct sccp_line *line, uint32_t instance, struct sccp_device *device);
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device);
-static struct ast_variable *add_var(const char *buf, struct ast_variable *list);
+static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line);
+static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name);
+static int is_line_section_complete(const char *category);
 
 int sccp_config_init(struct sccp_configs **config)
 {
@@ -68,6 +70,7 @@ int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
 {
 	struct ast_config *cfg = NULL;
 	struct ast_flags config_flags = { 0 };
+	int res = 0;
 
 	ast_log(LOG_NOTICE, "Configuring sccp from %s...\n", config_file);
 
@@ -77,14 +80,14 @@ int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
 		return -1;
 	}
 
-	parse_config_general(cfg, sccp_cfg);
-	parse_config_lines(cfg, sccp_cfg);
-	parse_config_speeddials(cfg, sccp_cfg);
-	parse_config_devices(cfg, sccp_cfg);
+	res |= parse_config_general(cfg, sccp_cfg);
+	res |= parse_config_lines(cfg, sccp_cfg);
+	res |= parse_config_speeddials(cfg, sccp_cfg);
+	res |= parse_config_devices(cfg, sccp_cfg);
 
 	ast_config_destroy(cfg);
 
-	return 0;
+	return res;
 }
 
 void sccp_config_unload(struct sccp_configs *sccp_cfg)
@@ -148,6 +151,7 @@ void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *de
 	ast_cond_destroy(&device->lookup_cond);
 	ast_format_cap_destroy(device->capabilities);
 	free(device);
+	// lines that are not associated to a device in the configuration are leaked
 }
 
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device)
@@ -196,32 +200,6 @@ static void initialize_device(struct sccp_device *device, const char *name)
 
 	AST_RWLIST_HEAD_INIT(&device->lines);
 	AST_RWLIST_HEAD_INIT(&device->speeddials);
-}
-
-static void initialize_line(struct sccp_line *line, uint32_t instance, struct sccp_device *device)
-{
-	if (line == NULL) {
-		ast_log(LOG_WARNING, "line is NULL\n");
-		return;
-	}
-
-	if (device == NULL) {
-		ast_log(LOG_WARNING, "device is NULL\n");
-		return;
-	}
-
-	line->state = SCCP_ONHOOK;
-	line->instance = instance;
-	line->device = device;
-	line->serial_callid = 1;
-	line->active_subchan = NULL;
-	line->callfwd = SCCP_CFWD_INACTIVE;
-	AST_RWLIST_HEAD_INIT(&line->subchans);
-
-	/* set the device default line */
-	if (device->default_line == NULL) {
-		device->default_line = line;
-	}
 }
 
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
@@ -274,17 +252,8 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 						if (!strcasecmp(var->value, line_itr->name)) {
 							/* We found a line */
 							found_line = 1;
-
-							if (line_itr->device != NULL) {
-								ast_log(LOG_ERROR, "Line [%s] is already attached to device [%s]\n",
-									line_itr->name, line_itr->device->name);
-							} else {
-								/* link the line to the device */
-								AST_RWLIST_WRLOCK(&device->lines);
-								AST_RWLIST_INSERT_HEAD(&device->lines, line_itr, list_per_device);
-								AST_RWLIST_UNLOCK(&device->lines);
-								device->line_count++;
-								initialize_line(line_itr, line_instance++, device);
+							if (!device_add_line(device, line_itr, line_instance)) {
+								++line_instance;
 							}
 						}
 					}
@@ -406,60 +375,52 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
 {
 	struct ast_variable *var;
-	struct sccp_line *line, *line_itr;
-	char *category;
-	int duplicate = 0;
+	struct sccp_line *line;
+	char *category = "lines";
 
-	category = ast_category_browse(cfg, "lines");
-	/* handle each lines */
-	while (category != NULL && strcasecmp(category, "general")
-				&& strcasecmp(category, "devices")
-				&& strcasecmp(category, "speeddials")) {
-
-		/* no duplicates allowed */
-		AST_RWLIST_RDLOCK(&sccp_cfg->list_line);
-		AST_RWLIST_TRAVERSE(&sccp_cfg->list_line, line_itr, list) {
-			if (!strcasecmp(category, line_itr->name)) {
-				ast_log(LOG_WARNING, "Line [%s] already exist, line ignored\n", category);
-				duplicate = 1;
-				break;
-			}
-		}
-		AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
-
-		if (!duplicate) {
-			/* configure a new line */
-			line = ast_calloc(1, sizeof(struct sccp_line));
-			ast_copy_string(line->name, category, sizeof(line->name));
-
-			AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
-			AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
-			AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
-
-			/* Default configuration */
-			ast_copy_string(line->context, "default", sizeof(line->context));
-			ast_copy_string(line->language, sccp_cfg->language, sizeof(line->language));
-
-			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
-
-				if (!strcasecmp(var->name, "cid_num")) {
-					ast_copy_string(line->cid_num, var->value, sizeof(line->cid_num));
-				} else if (!strcasecmp(var->name, "cid_name")) {
-					ast_copy_string(line->cid_name, var->value, sizeof(line->cid_name));
-				} else if (!strcasecmp(var->name, "setvar")) {
-					line->chanvars = add_var(var->value, line->chanvars);
-				} else if (!strcasecmp(var->name, "language")) {
-					ast_copy_string(line->language, var->value, sizeof(line->language));
-				} else if (!strcasecmp(var->name, "context")) {
-					ast_copy_string(line->context, var->value, sizeof(line->language));
-				}
-			}
-		}
-		duplicate = 0;
+	while (1) {
 		category = ast_category_browse(cfg, category);
+		if (is_line_section_complete(category)) {
+			break;
+		}
+
+		if (config_has_line_with_name(sccp_cfg, category)) {
+			ast_log(LOG_WARNING, "Line [%s] already exist, line ignored\n", category);
+			continue;
+		}
+
+		line = sccp_new_line(category, sccp_cfg);
+		if (line == NULL) {
+			return -1;
+		}
+
+		for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
+			sccp_line_set_field(line, var->name, var->value);
+		}
+		config_add_line(sccp_cfg, line);
 	}
 
 	return 0;
+}
+
+static int is_line_section_complete(const char *category)
+{
+	return (category == NULL
+			|| !strcasecmp(category, "general")
+			|| !strcasecmp(category, "devices")
+			|| !strcasecmp(category, "speeddials"));
+}
+
+static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name)
+{
+	return sccp_line_find_by_name(name, &sccp_cfg->list_line) != NULL;
+}
+
+static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line)
+{
+	AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
+	AST_RWLIST_INSERT_HEAD(&sccp_cfg->list_line, line, list);
+	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
 }
 
 static int parse_config_general(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
@@ -515,19 +476,4 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	}
 
 	return 0;
-}
-
-static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
-{
-	struct ast_variable *tmpvar = NULL;
-	char *varname = ast_strdupa(buf), *varval = NULL;
-
-	if ((varval = strchr(varname, '='))) {
-		*varval++ = '\0';
-		if ((tmpvar = ast_variable_new(varname, varval, ""))) {
-			tmpvar->next = list;
-			list = tmpvar;
-		}
-	}
-	return list;
 }

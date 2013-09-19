@@ -1,4 +1,5 @@
 #include "sccp_device.h"
+#include "sccp_line.h"
 #include "sccp.h"
 
 void device_unregister(struct sccp_device *device)
@@ -73,7 +74,7 @@ void device_prepare(struct sccp_device *device)
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
-		set_line_state(line_itr, SCCP_ONHOOK);
+		sccp_line_set_state(line_itr, SCCP_ONHOOK);
 	}
 	AST_RWLIST_UNLOCK(&device->lines);
 }
@@ -88,6 +89,39 @@ int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
 	device->remote.sin_family = AF_INET;
 	device->remote.sin_addr.s_addr = addr;
 	device->remote.sin_port = htons(port);
+
+	return 0;
+}
+
+int device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance)
+{
+	if (device == NULL) {
+		ast_log(LOG_ERROR, "device is NULL\n");
+		return -1;
+	}
+
+	if (line == NULL) {
+		ast_log(LOG_ERROR, "line is NULL\n");
+		return -1;
+	}
+
+	if (line->device != NULL) {
+		ast_log(LOG_ERROR, "Line [%s] is already attached to device [%s]\n",
+				line->name, line->device->name);
+		return -1;
+	}
+
+	++device->line_count;
+	if (device->default_line == NULL) {
+		device->default_line = line;
+	}
+
+	line->device = device;
+	line->instance = instance;
+
+	AST_RWLIST_WRLOCK(&device->lines);
+	AST_RWLIST_INSERT_HEAD(&device->lines, line, list_per_device);
+	AST_RWLIST_UNLOCK(&device->lines);
 
 	return 0;
 }
@@ -114,49 +148,6 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 	AST_RWLIST_UNLOCK(list_device);
 
 	return device_itr;
-}
-
-struct sccp_subchannel *line_get_next_ringin_subchan(struct sccp_line *line)
-{
-	struct sccp_subchannel *subchan_itr = NULL;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return NULL;
-	}
-
-	AST_RWLIST_RDLOCK(&line->subchans);
-	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->state == SCCP_RINGIN)
-			break;
-	}
-	AST_RWLIST_UNLOCK(&line->subchans);
-
-	return subchan_itr;
-}
-
-struct sccp_line *find_line_by_name(const char *name, struct list_line *list_line)
-{
-	struct sccp_line *line_itr = NULL;
-
-	if (name == NULL) {
-		ast_log(LOG_DEBUG, "name is NULL\n");
-		return NULL;
-	}
-
-	if (list_line == NULL) {
-		ast_log(LOG_DEBUG, "list_line is NULL\n");
-		return NULL;
-	}
-
-	AST_RWLIST_RDLOCK(list_line);
-	AST_RWLIST_TRAVERSE(list_line, line_itr, list) {
-		if (!strncmp(line_itr->name, name, sizeof(line_itr->name)))
-			break;
-	}
-	AST_RWLIST_UNLOCK(list_line);
-
-	return line_itr;
 }
 
 void speeddial_hints_unsubscribe(struct sccp_device *device)
@@ -479,63 +470,8 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 	return result;
 }
 
-void line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
+void subchan_set_on_hold(struct sccp_subchannel *subchan)
 {
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return;
-	}
-
-	if (subchan == NULL) {
-		ast_log(LOG_DEBUG, "subchan is NULL\n");
-		return;
-	}
-
-	if (line->active_subchan)
-		line->active_subchan->state = line->state;
-
-	line->active_subchan = subchan;
-}
-
-struct sccp_subchannel *line_get_subchan(struct sccp_line *line, uint32_t subchan_id)
-{
-	struct sccp_subchannel *subchan_itr = NULL;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return NULL;
-	}
-
-	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->id == subchan_id)
-			break;
-	}
-
-	return subchan_itr;
-}
-
-void line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
-{
-	struct sccp_subchannel *subchan_itr;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return;
-	}
-
-	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->id == subchan_id) {
-			line_select_subchan(line, subchan_itr);
-			break;
-		}
-	}
-}
-
-void subchan_set_on_hold(struct sccp_line *line, uint32_t subchan_id)
-{
-	struct sccp_subchannel *subchan;
-
-	subchan = line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_log(LOG_WARNING, "subchan is NULL\n");
 		return;
@@ -544,11 +480,8 @@ void subchan_set_on_hold(struct sccp_line *line, uint32_t subchan_id)
 	subchan->on_hold = 1;
 }
 
-void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id)
+void subchan_unset_on_hold(struct sccp_subchannel *subchan)
 {
-	struct sccp_subchannel *subchan;
-
-	subchan = line_get_subchan(line, subchan_id);
 	if (subchan == NULL) {
 		ast_log(LOG_WARNING, "subchan is NULL\n");
 		return;
@@ -560,9 +493,4 @@ void subchan_unset_on_hold(struct sccp_line *line, uint32_t subchan_id)
 void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state)
 {
 	subchan->state = state;
-}
-
-void set_line_state(struct sccp_line *line, enum sccp_state state)
-{
-	line->state = state;
 }
