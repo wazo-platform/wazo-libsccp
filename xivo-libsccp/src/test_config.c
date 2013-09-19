@@ -47,10 +47,14 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 		return AST_TEST_FAIL;
 	}
 
-	name = "bindaddr";
-	value = "127.0.0.1";
-	sccp_config_set_field(sccp_cfg, name, value);
-	assert_string_equal(sccp_cfg->bindaddr, value);
+	{
+		name = "bindaddr";
+		value = "127.0.0.1";
+
+		sccp_config_set_field(sccp_cfg, name, value);
+
+		assert_string_equal(sccp_cfg->bindaddr, value);
+	}
 
 	return AST_TEST_PASS;
 }
