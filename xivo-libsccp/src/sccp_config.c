@@ -435,7 +435,7 @@ static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *lin
 	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
 }
 
-static void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, const char *value)
+void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, const char *value)
 {
 	if (!strcasecmp(name, "bindaddr")) {
 		ast_copy_string(sccp_cfg->bindaddr, value, sizeof(sccp_cfg->bindaddr));

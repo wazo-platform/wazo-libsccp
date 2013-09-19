@@ -210,6 +210,7 @@ static int load_module(void)
 	sccp_rtp_init(ast_module_info);
 
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+	AST_TEST_REGISTER(sccp_test_config_set_field);
 	AST_TEST_REGISTER(sccp_test_config);
 	AST_TEST_REGISTER(sccp_test_resync);
 
@@ -230,6 +231,7 @@ static int unload_module(void)
 
 	AST_TEST_UNREGISTER(sccp_test_resync);
 	AST_TEST_UNREGISTER(sccp_test_config);
+	AST_TEST_UNREGISTER(sccp_test_config_set_field);
 
 	return 0;
 }

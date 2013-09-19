@@ -2,6 +2,7 @@
 
 #include "sccp_config.h"
 #include "sccp_line.h"
+#include "sccp_test_helpers.h"
 
 static void config_cleanup(struct sccp_configs *config)
 {
@@ -25,6 +26,38 @@ static int config_from_string(struct sccp_configs *config, const char *content)
 	remove(fname);
 
 	return 0;
+}
+
+AST_TEST_DEFINE(sccp_test_config_set_field)
+{
+	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, config_cleanup);
+	char *name;
+	char *value;
+
+	switch (cmd) {
+	case TEST_INIT:
+		info->name = "sccp_test_config_set_field";
+		info->category = "/channel/sccp/";
+		info->summary = "Tests the sccp_config_set_field function";
+		info->description = "Tests wether a configuration option in a configuration file"
+		     " has the right behavior on the sccp_configs structure";
+
+		return AST_TEST_NOT_RUN;
+
+	case TEST_EXECUTE:
+		break;
+	}
+
+	if (sccp_config_init(&sccp_cfg) != 0) {
+		return AST_TEST_FAIL;
+	}
+
+	name = "bindaddr";
+	value = "127.0.0.1";
+	sccp_config_set_field(sccp_cfg, name, value);
+	assert_string_equal(sccp_cfg->bindaddr, value);
+
+	return AST_TEST_PASS;
 }
 
 AST_TEST_DEFINE(sccp_test_resync)

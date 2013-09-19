@@ -31,5 +31,6 @@ int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file);
 void sccp_config_unload(struct sccp_configs *sccp_cfg);
 
 void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *device);
+void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, const char *value);
 
 #endif /* SCCP_CONFIG_H */
