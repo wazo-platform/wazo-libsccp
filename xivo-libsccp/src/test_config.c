@@ -48,7 +48,7 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 		break;
 	}
 
-	if (sccp_config_init(&sccp_cfg) != 0) {
+	if ((sccp_cfg = sccp_new_config()) == NULL) {
 		return AST_TEST_FAIL;
 	}
 
@@ -84,7 +84,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 	ast_test_status_update(test, "Executing sccp resync device...\n");
 
-	if (sccp_config_init(&sccp_cfg) != 0) {
+	if ((sccp_cfg = sccp_new_config()) == NULL) {
 		return AST_TEST_FAIL;
 	}
 
@@ -281,7 +281,7 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	ast_test_status_update(test, "Executing sccp test config...\n");
 
-	if (sccp_config_init(&sccp_cfg) != 0) {
+	if ((sccp_cfg = sccp_new_config()) == NULL) {
 		return AST_TEST_FAIL;
 	}
 

@@ -20,39 +20,29 @@ static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *lin
 static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name);
 static int is_line_section_complete(const char *category);
 
-int sccp_config_init(struct sccp_configs **config)
+struct sccp_configs *sccp_new_config(void)
 {
-	struct sccp_configs *new_config = NULL;
-
+	struct sccp_configs *config = ast_calloc(1, sizeof(*config));
 	if (config == NULL) {
-		ast_log(LOG_ERROR, "NULL address supplied to init SCCP configuration\n");
-		return -1;
-	}
-
-	new_config = ast_calloc(1, sizeof(*new_config));
-	if (new_config == NULL) {
 		ast_log(LOG_ERROR, "SCCP configuration memory allocation failed\n");
-		return -1;
+		return NULL;
 	}
 
-	AST_RWLIST_HEAD_INIT(&new_config->list_device);
-	AST_RWLIST_HEAD_INIT(&new_config->list_line);
+	AST_RWLIST_HEAD_INIT(&config->list_device);
+	AST_RWLIST_HEAD_INIT(&config->list_line);
 
-	/* Default configuration */
-	ast_copy_string(new_config->bindaddr, "0.0.0.0", sizeof(new_config->bindaddr));
-	ast_copy_string(new_config->dateformat, "D.M.Y", sizeof(new_config->dateformat));
-	ast_copy_string(new_config->context, "default", sizeof(new_config->context));
-	ast_copy_string(new_config->language, "en_US", sizeof(new_config->language));
-	ast_copy_string(new_config->vmexten, "*98", sizeof(new_config->vmexten));
+	ast_copy_string(config->bindaddr, "0.0.0.0", sizeof(config->bindaddr));
+	ast_copy_string(config->dateformat, "D.M.Y", sizeof(config->dateformat));
+	ast_copy_string(config->context, "default", sizeof(config->context));
+	ast_copy_string(config->language, "en_US", sizeof(config->language));
+	ast_copy_string(config->vmexten, "*98", sizeof(config->vmexten));
 
-	new_config->keepalive = SCCP_DEFAULT_KEEPALIVE;
-	new_config->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
-	new_config->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
-	new_config->directmedia = 0; /* off by default */
+	config->keepalive = SCCP_DEFAULT_KEEPALIVE;
+	config->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
+	config->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
+	config->directmedia = 0;
 
-	*config = new_config;
-
-	return 0;
+	return config;
 }
 
 int sccp_config_destroy(struct sccp_configs **config)

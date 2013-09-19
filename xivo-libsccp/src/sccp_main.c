@@ -186,8 +186,8 @@ static int load_module(void)
 	int ret = 0;
 	ast_log(LOG_NOTICE, "sccp channel loading...\n");
 
-	ret = sccp_config_init(&sccp_config);
-	if (ret == -1) {
+	sccp_config = sccp_new_config();
+	if (sccp_config == NULL) {
 		return AST_MODULE_LOAD_DECLINE;
 	}
 

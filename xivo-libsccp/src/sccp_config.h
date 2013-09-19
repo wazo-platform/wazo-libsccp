@@ -24,7 +24,7 @@ struct sccp_configs {
 	struct list_device list_device;
 };
 
-int sccp_config_init(struct sccp_configs **config);
+struct sccp_configs *sccp_new_config(void);
 int sccp_config_destroy(struct sccp_configs **config);
 
 int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file);
