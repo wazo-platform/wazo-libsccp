@@ -25,7 +25,7 @@ static int config_from_string(struct sccp_configs *config, const char *content)
 
 AST_TEST_DEFINE(sccp_test_config_set_field)
 {
-	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
 	char *name;
 	char *value;
 
@@ -43,7 +43,7 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 		break;
 	}
 
-	if ((sccp_cfg = sccp_new_config()) == NULL) {
+	if (sccp_cfg == NULL) {
 		return AST_TEST_FAIL;
 	}
 
@@ -58,7 +58,7 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 AST_TEST_DEFINE(sccp_test_resync)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
 	const char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
@@ -79,7 +79,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 	ast_test_status_update(test, "Executing sccp resync device...\n");
 
-	if ((sccp_cfg = sccp_new_config()) == NULL) {
+	if (sccp_cfg == NULL) {
 		return AST_TEST_FAIL;
 	}
 
@@ -255,7 +255,7 @@ cleanup:
 AST_TEST_DEFINE(sccp_test_config)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
 	char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
@@ -276,7 +276,7 @@ AST_TEST_DEFINE(sccp_test_config)
 
 	ast_test_status_update(test, "Executing sccp test config...\n");
 
-	if ((sccp_cfg = sccp_new_config()) == NULL) {
+	if (sccp_cfg == NULL) {
 		return AST_TEST_FAIL;
 	}
 
@@ -545,4 +545,3 @@ AST_TEST_DEFINE(sccp_test_config)
 cleanup:
 	return ret;
 }
-
