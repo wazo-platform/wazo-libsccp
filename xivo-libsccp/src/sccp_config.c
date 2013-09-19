@@ -38,6 +38,18 @@ int sccp_config_init(struct sccp_configs **config)
 	AST_RWLIST_HEAD_INIT(&new_config->list_device);
 	AST_RWLIST_HEAD_INIT(&new_config->list_line);
 
+	/* Default configuration */
+	ast_copy_string(new_config->bindaddr, "0.0.0.0", sizeof(new_config->bindaddr));
+	ast_copy_string(new_config->dateformat, "D.M.Y", sizeof(new_config->dateformat));
+	ast_copy_string(new_config->context, "default", sizeof(new_config->context));
+	ast_copy_string(new_config->language, "en_US", sizeof(new_config->language));
+	ast_copy_string(new_config->vmexten, "*98", sizeof(new_config->vmexten));
+
+	new_config->keepalive = SCCP_DEFAULT_KEEPALIVE;
+	new_config->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
+	new_config->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
+	new_config->directmedia = 0; /* off by default */
+
 	*config = new_config;
 
 	return 0;
@@ -431,21 +443,8 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 	if (sccp_cfg->set == 1) {
 		return 0;
 	}
-	else {
-		sccp_cfg->set = 1;
-	}
 
-	/* Default configuration */
-	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0", sizeof(sccp_cfg->bindaddr));
-	ast_copy_string(sccp_cfg->dateformat, "D.M.Y", sizeof(sccp_cfg->dateformat));
-	ast_copy_string(sccp_cfg->context, "default", sizeof(sccp_cfg->context));
-	ast_copy_string(sccp_cfg->language, "en_US", sizeof(sccp_cfg->language));
-	ast_copy_string(sccp_cfg->vmexten, "*98", sizeof(sccp_cfg->vmexten));
-
-	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
-	sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
-	sccp_cfg->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
-	sccp_cfg->directmedia = 0; /* off by default */
+	sccp_cfg->set = 1;
 
 	/* Custom configuration and handle lower bound */
 	for (var = ast_variable_browse(cfg, "general"); var != NULL; var = var->next) {
