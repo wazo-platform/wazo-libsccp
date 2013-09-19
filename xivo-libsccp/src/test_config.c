@@ -8,11 +8,29 @@ static void config_cleanup(struct sccp_configs *config)
      sccp_config_destroy(&config);
 }
 
+static int config_from_string(struct sccp_configs *config, const char *content)
+{
+	const char *fname = "/tmp/sccp.conf";
+	FILE *conf_file = fopen(fname, "w");
+
+	if (conf_file == NULL) {
+		return -1;
+	}
+
+	fwrite(content, 1, strlen(content), conf_file);
+	fclose(conf_file);
+
+	sccp_config_load(config, fname);
+
+	remove(fname);
+
+	return 0;
+}
+
 AST_TEST_DEFINE(sccp_test_resync)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
 	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, config_cleanup);
-	FILE *conf_file = NULL;
 	const char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
@@ -34,12 +52,6 @@ AST_TEST_DEFINE(sccp_test_resync)
 	ast_test_status_update(test, "Executing sccp resync device...\n");
 
 	if (sccp_config_init(&sccp_cfg) != 0) {
-		return AST_TEST_FAIL;
-	}
-
-	conf_file = fopen("/tmp/sccp.conf", "w");
-	if (conf_file == NULL) {
-		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
 		return AST_TEST_FAIL;
 	}
 
@@ -77,11 +89,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		"line=200\n"
 		"speeddial=sd1001\n"
 		"voicemail=555\n";
-
-	fwrite(conf, 1, strlen(conf), conf_file);
-	fclose(conf_file);
-
-	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
+	config_from_string(sccp_cfg, conf);
 
 	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
 	if (line == NULL) {
@@ -123,12 +131,6 @@ AST_TEST_DEFINE(sccp_test_resync)
 	}
 
 	/* Create a new configuration */
-	conf_file = fopen("/tmp/sccp.conf", "w");
-	if (conf_file == NULL) {
-		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
-		return AST_TEST_FAIL;
-	}
-
 	conf =	"[general]\n"
 		"bindaddr=0.0.0.0\n"
 		"dateformat=D.M.Y\n"
@@ -163,17 +165,14 @@ AST_TEST_DEFINE(sccp_test_resync)
 		"line=200\n"
 		"speeddial=sd1001\n"
 		"voicemail=557\n";
-
-	fwrite(conf, 1, strlen(conf), conf_file);
-	fclose(conf_file);
-
+	config_from_string(sccp_cfg, conf);
 
 	(void)AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
 	transmit_reset(device->session, 2);
 	device_unregister(device);
 	destroy_device_config(sccp_cfg, device);
-	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
 
+	config_from_string(sccp_cfg, conf);
 
 	/* Verify again */
 	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
@@ -216,9 +215,6 @@ AST_TEST_DEFINE(sccp_test_resync)
 	}
 
 cleanup:
-
-	remove("/tmp/sccp.conf");
-
 	return ret;
 }
 
@@ -226,8 +222,7 @@ AST_TEST_DEFINE(sccp_test_config)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
 	RAII_VAR(struct sccp_configs *, sccp_cfg, NULL, config_cleanup);
-	FILE *conf_file = NULL;
-	const char *conf = NULL;
+	char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
 	struct sccp_device *device = NULL;
@@ -248,12 +243,6 @@ AST_TEST_DEFINE(sccp_test_config)
 	ast_test_status_update(test, "Executing sccp test config...\n");
 
 	if (sccp_config_init(&sccp_cfg) != 0) {
-		return AST_TEST_FAIL;
-	}
-
-	conf_file = fopen("/tmp/sccp.conf", "w");
-	if (conf_file == NULL) {
-		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
 		return AST_TEST_FAIL;
 	}
 
@@ -290,11 +279,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		"speeddial=sd1000\n"
 		"line=200\n"
 		"speeddial=sd1001\n";
-
-	fwrite(conf, 1, strlen(conf), conf_file);
-	fclose(conf_file);
-
-	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
+	config_from_string(sccp_cfg, conf);
 
 	if (strcmp(sccp_cfg->bindaddr, "0.0.0.0")) {
 		ast_test_status_update(test, "bindaddr %s != %s\n", sccp_cfg->bindaddr, "0.0.0.0");
@@ -452,12 +437,6 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
-	conf_file = fopen("/tmp/sccp.conf", "w");
-	if (conf_file == NULL) {
-		ast_test_status_update(test, "fopen failed %s\n", strerror(errno));
-		return AST_TEST_FAIL;
-	}
-
 	conf =	"[general]\n"
 		"bindaddr=0.0.0.0\n"
 		"dateformat=D.M.Y\n"
@@ -475,11 +454,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		"[SEPACA016FDF236]\n"
 		"device=SEPACA016FDF236\n"
 		"line=201";
-
-	fwrite(conf, 1, strlen(conf), conf_file);
-	fclose(conf_file);
-
-	sccp_config_load(sccp_cfg, "/tmp/sccp.conf");
+	config_from_string(sccp_cfg, conf);
 
 	/* We removed line 200 and its associated device.
 	 * We add line 201 with a new device.
@@ -530,9 +505,6 @@ AST_TEST_DEFINE(sccp_test_config)
 	}
 
 cleanup:
-
-	remove("/tmp/sccp.conf");
-
 	return ret;
 }
 
