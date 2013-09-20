@@ -3207,6 +3207,7 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	struct sccp_session *session = NULL;
 	int dev_cnt = 0;
 	int reg_cnt = 0;
+	char buf[128];
 
 	switch (cmd) {
 	case CLI_INIT:
@@ -3217,16 +3218,17 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		return NULL;
 	}
 
-	ast_cli(a->fd, "%-16s %-16s %-8s %-13s %s\n", "Device", "IP", "Type", "Reg.state", "Proto.Version");
-	ast_cli(a->fd, "===============  ===============  ======   ==========    ==============\n");
+	ast_cli(a->fd, "Device           IP               Type     Reg.state     Proto  Capabilities\n");
+	ast_cli(a->fd, "===============  ===============  ======   ==========    ====== ================\n");
 	AST_RWLIST_RDLOCK(&sccp_config->list_device);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
 		session = device_itr->session;
-		ast_cli(a->fd, "%-16s %-16s %-8s %-13s %d\n", device_itr->name,
+		ast_cli(a->fd, "%-16s %-16s %-8s %-13s %-6d %s\n", device_itr->name,
 							session && session->ipaddr ? session->ipaddr: "-",
 							device_type_str(device_itr->type),
 							device_regstate_str(device_itr->regstate),
-							device_itr->proto_version);
+							device_itr->proto_version,
+							ast_getformatname_multiple(buf, sizeof(buf), device_itr->capabilities));
 
 		dev_cnt++;
 		if (device_itr->regstate == DEVICE_REGISTERED_TRUE)
