@@ -2,7 +2,7 @@
 
 #include "sccp_config.h"
 #include "sccp_line.h"
-#include "sccp_test_helpers.h"
+#include "test_helpers.h"
 
 static int config_from_string(struct sccp_configs *config, const char *content)
 {

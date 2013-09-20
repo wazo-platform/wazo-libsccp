@@ -1,6 +1,6 @@
 #include <asterisk/test.h>
 
-#include "sccp_test_helpers.h"
+#include "test_helpers.h"
 
 AST_TEST_DEFINE(sccp_test_extstate_ast2sccp)
 {
