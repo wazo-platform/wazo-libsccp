@@ -45,19 +45,15 @@ struct sccp_configs *sccp_new_config(void)
 	return config;
 }
 
-int sccp_config_destroy(struct sccp_configs *config)
+void sccp_config_destroy(struct sccp_configs *config)
 {
 	if (config == NULL) {
-		return 0;
+		return;
 	}
 
 	AST_RWLIST_HEAD_DESTROY(&config->list_device);
 	AST_RWLIST_HEAD_DESTROY(&config->list_line);
 	ast_free(config);
-
-	config = NULL;
-
-	return 0;
 }
 
 int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)

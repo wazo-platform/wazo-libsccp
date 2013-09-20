@@ -26,7 +26,7 @@ struct sccp_configs {
 };
 
 struct sccp_configs *sccp_new_config(void);
-int sccp_config_destroy(struct sccp_configs *config);
+void sccp_config_destroy(struct sccp_configs *config);
 
 int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file);
 void sccp_config_unload(struct sccp_configs *sccp_cfg);
