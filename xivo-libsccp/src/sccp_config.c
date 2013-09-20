@@ -443,6 +443,8 @@ void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, cons
 		sccp_cfg->directmedia = atoi(value);
 	} else if (!strcasecmp(name, "allow")) {
 		ast_parse_allow_disallow(&sccp_cfg->codec_pref, NULL, value, 1);
+	} else if (!strcasecmp(name, "disallow")) {
+		ast_parse_allow_disallow(&sccp_cfg->codec_pref, NULL, value, 0);
 	}
 }
 

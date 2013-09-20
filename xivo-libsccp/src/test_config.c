@@ -83,6 +83,21 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 		assert_equal(first.id, AST_FORMAT_ULAW, "Prefered codec did not match\n");
 	}
 
+	{
+		struct ast_format first;
+		struct ast_format *res;
+
+		name = "disallow";
+		value = "all";
+
+		sccp_config_set_field(sccp_cfg, "allow", "ulaw");
+		sccp_config_set_field(sccp_cfg, name, value);
+
+		res = ast_codec_pref_index(&sccp_cfg->codec_pref, 0, &first);
+
+		assert_equal(res, NULL, "disallow all did not clear all preference\n");
+	}
+
 	return AST_TEST_PASS;
 }
 
