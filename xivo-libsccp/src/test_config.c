@@ -123,8 +123,6 @@ AST_TEST_DEFINE(sccp_test_resync)
 		break;
 	}
 
-	ast_test_status_update(test, "Executing sccp resync device...\n");
-
 	if (sccp_cfg == NULL) {
 		return AST_TEST_FAIL;
 	}
@@ -319,8 +317,6 @@ AST_TEST_DEFINE(sccp_test_config)
 	case TEST_EXECUTE:
 		break;
 	}
-
-	ast_test_status_update(test, "Executing sccp test config...\n");
 
 	if (sccp_cfg == NULL) {
 		return AST_TEST_FAIL;
