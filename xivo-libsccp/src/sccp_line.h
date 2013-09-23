@@ -30,6 +30,7 @@ struct sccp_line {
 	AST_RWLIST_HEAD(, sccp_subchannel) subchans;
 
 	struct ast_codec_pref codec_pref;
+	struct ast_format_cap *caps;
 	struct sccp_device *device;
 
 	AST_LIST_ENTRY(sccp_line) list;
@@ -37,6 +38,8 @@ struct sccp_line {
 };
 
 struct sccp_line *sccp_new_line(const char *name, struct sccp_configs *sccp_cfg);
+void sccp_line_destroy(struct sccp_line *line);
+
 struct sccp_line *sccp_line_find_by_name(const char *name, struct list_line *list_line);
 struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line);
 struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t subchan_id);

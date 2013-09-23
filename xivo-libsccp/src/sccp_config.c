@@ -143,7 +143,7 @@ void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *de
 
 		AST_LIST_REMOVE_CURRENT(list_per_device);
 		AST_LIST_REMOVE(&sccp_cfg->list_line, line_itr, list);
-		free(line_itr);
+		sccp_line_destroy(line_itr);
 	}
 	AST_RWLIST_TRAVERSE_SAFE_END;
 	AST_RWLIST_UNLOCK(&device->lines);

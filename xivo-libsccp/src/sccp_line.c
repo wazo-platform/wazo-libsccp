@@ -23,10 +23,27 @@ struct sccp_line *sccp_new_line(const char *name, struct sccp_configs *sccp_cfg)
 	line->serial_callid = 1;
 	line->callfwd = SCCP_CFWD_INACTIVE;
 	memset(&line->codec_pref, 0, sizeof(line->codec_pref));
+	line->caps = ast_format_cap_alloc_nolock();
+	if (!line->caps) {
+		ast_free(line);
+		return NULL;
+	}
+	ast_format_cap_copy(line->caps, sccp_cfg->caps);
 
 	AST_RWLIST_HEAD_INIT(&line->subchans);
 
 	return line;
+}
+
+void sccp_line_destroy(struct sccp_line *line)
+{
+	if (line == NULL) {
+		return;
+	}
+
+	ast_format_cap_destroy(line->caps);
+	AST_RWLIST_HEAD_DESTROY(&line->subchans);
+	ast_free(line);
 }
 
 struct sccp_line *sccp_line_find_by_name(const char *name, struct list_line *list_line)
@@ -139,9 +156,9 @@ void sccp_line_set_field(struct sccp_line *line, const char *name, const char *v
 	} else if (!strcasecmp(name, "context")) {
 		ast_copy_string(line->context, value, sizeof(line->language));
 	} else if (!strcasecmp(name, "allow")) {
-		ast_parse_allow_disallow(&line->codec_pref, NULL, value, 1);
+		ast_parse_allow_disallow(&line->codec_pref, line->caps, value, 1);
 	} else if (!strcasecmp(name, "disallow")) {
-		ast_parse_allow_disallow(&line->codec_pref, NULL, value, 0);
+		ast_parse_allow_disallow(&line->codec_pref, line->caps, value, 0);
 	} else {
 		ast_log(LOG_WARNING, "Unknown line configuration option: %s\n", name);
 	}
