@@ -3152,6 +3152,7 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 {
 	struct sccp_line *line_itr = NULL;
 	int line_cnt = 0;
+	char buf[128];
 
 	switch (cmd) {
 	case CLI_INIT:
@@ -3162,11 +3163,11 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 		return NULL;
 	}
 
-	ast_cli(a->fd, "%-9s %-8s\n", "Line", "state");
-	ast_cli(a->fd, "=======   ==========\n");
+	ast_cli(a->fd, "%-9s %-8s %s\n", "Line", "State", "Capabilities");
+	ast_cli(a->fd, "=======   =======  ================\n");
 	AST_RWLIST_RDLOCK(&sccp_config->list_line);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_line, line_itr, list) {
-		ast_cli(a->fd, "%-9s %-8s\n", line_itr->name, line_state_str(line_itr->state));
+		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, line_state_str(line_itr->state), ast_getformatname_multiple(buf, sizeof(buf), line_itr->caps));
 		line_cnt++;
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_line);
