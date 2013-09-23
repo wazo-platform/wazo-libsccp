@@ -23,6 +23,7 @@ struct sccp_configs {
 	struct list_line list_line;
 	struct list_device list_device;
 	struct ast_codec_pref codec_pref;
+	struct ast_format_cap *caps;
 };
 
 struct sccp_configs *sccp_new_config(void);

@@ -50,8 +50,6 @@ static struct sccp_server sccp_srv;
 int sccp_debug;
 char sccp_debug_addr[16];
 
-static struct ast_format_cap *default_cap;
-
 static unsigned int chan_idx;
 
 static int do_clear_subchannel(struct sccp_subchannel *subchan);
@@ -556,7 +554,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	subchan->channel = channel;
 	ast_format_cap_copy(ast_channel_nativeformats(channel), subchan->line->device->capabilities);
 	if (ast_format_cap_is_empty(ast_channel_nativeformats(channel))) {
-		ast_format_cap_copy(ast_channel_nativeformats(channel), default_cap);
+		ast_format_cap_copy(ast_channel_nativeformats(channel), sccp_config->caps);
 	}
 
 	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
@@ -3539,18 +3537,12 @@ void sccp_rtp_fini()
 
 void sccp_rtp_init(const struct ast_module_info *module_info)
 {
-	struct ast_format tmpfmt;
-
 	ast_module_info = module_info;
 	ast_rtp_glue_register(&sccp_rtp_glue);
-
-	default_cap = ast_format_cap_alloc();
 
 	sccp_tech.capabilities = ast_format_cap_alloc();
 
 	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
-	ast_format_cap_add(default_cap, ast_format_set(&tmpfmt, AST_FORMAT_ULAW, 0));
-	ast_format_cap_add(default_cap, ast_format_set(&tmpfmt, AST_FORMAT_ALAW, 0));
 }
 
 int sccp_server_init(struct sccp_configs *sccp_cfg)

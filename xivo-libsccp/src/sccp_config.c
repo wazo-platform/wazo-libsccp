@@ -23,13 +23,12 @@ static int is_line_section_complete(const char *category);
 struct sccp_configs *sccp_new_config(void)
 {
 	struct sccp_configs *config = ast_calloc(1, sizeof(*config));
+	struct ast_format tmpfmt;
+
 	if (config == NULL) {
 		ast_log(LOG_ERROR, "SCCP configuration memory allocation failed\n");
 		return NULL;
 	}
-
-	AST_RWLIST_HEAD_INIT(&config->list_device);
-	AST_RWLIST_HEAD_INIT(&config->list_line);
 
 	ast_copy_string(config->bindaddr, "0.0.0.0", sizeof(config->bindaddr));
 	ast_copy_string(config->dateformat, "D.M.Y", sizeof(config->dateformat));
@@ -42,6 +41,17 @@ struct sccp_configs *sccp_new_config(void)
 	config->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
 	config->directmedia = 0;
 
+	config->caps = ast_format_cap_alloc();
+	if (!config->caps) {
+	     ast_free(config);
+	     return NULL;
+	}
+	ast_format_cap_add(config->caps, ast_format_set(&tmpfmt, AST_FORMAT_ULAW, 0));
+	ast_format_cap_add(config->caps, ast_format_set(&tmpfmt, AST_FORMAT_ALAW, 0));
+
+	AST_RWLIST_HEAD_INIT(&config->list_device);
+	AST_RWLIST_HEAD_INIT(&config->list_line);
+
 	return config;
 }
 
@@ -53,6 +63,7 @@ void sccp_config_destroy(struct sccp_configs *config)
 
 	AST_RWLIST_HEAD_DESTROY(&config->list_device);
 	AST_RWLIST_HEAD_DESTROY(&config->list_line);
+	ast_format_cap_destroy(config->caps);
 	ast_free(config);
 }
 
@@ -438,9 +449,9 @@ void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, cons
 	} else if (!strcasecmp(name, "directmedia")) {
 		sccp_cfg->directmedia = atoi(value);
 	} else if (!strcasecmp(name, "allow")) {
-		ast_parse_allow_disallow(&sccp_cfg->codec_pref, NULL, value, 1);
+		ast_parse_allow_disallow(&sccp_cfg->codec_pref, sccp_cfg->caps, value, 1);
 	} else if (!strcasecmp(name, "disallow")) {
-		ast_parse_allow_disallow(&sccp_cfg->codec_pref, NULL, value, 0);
+		ast_parse_allow_disallow(&sccp_cfg->codec_pref, sccp_cfg->caps, value, 0);
 	}
 }
 
