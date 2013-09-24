@@ -8,7 +8,7 @@
 
 #define SCCP_DEFAULT_KEEPALIVE 10
 #define SCCP_DEFAULT_AUTH_TIMEOUT 5
-#define SCCP_DEFAULT_DIAL_TIMEOUT 1
+#define SCCP_DEFAULT_DIAL_TIMEOUT 2
 
 struct sccp_configs *sccp_config;
 
@@ -20,53 +20,59 @@ static void initialize_device(struct sccp_device *device, const char *name);
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device);
 static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line);
 static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name);
+static void config_set_defaults(struct sccp_configs *sccp_cfg);
 static int is_line_section_complete(const char *category);
 
 struct sccp_configs *sccp_new_config(void)
 {
-	struct sccp_configs *config = ast_calloc(1, sizeof(*config));
-	struct ast_format tmpfmt;
+	struct sccp_configs *sccp_cfg = ast_calloc(1, sizeof(*sccp_cfg));
 
-	if (config == NULL) {
-		ast_log(LOG_ERROR, "SCCP configuration memory allocation failed\n");
+	if (sccp_cfg == NULL) {
 		return NULL;
 	}
 
-	ast_copy_string(config->bindaddr, "0.0.0.0", sizeof(config->bindaddr));
-	ast_copy_string(config->dateformat, "D.M.Y", sizeof(config->dateformat));
-	ast_copy_string(config->context, "default", sizeof(config->context));
-	ast_copy_string(config->language, "en_US", sizeof(config->language));
-	ast_copy_string(config->vmexten, "*98", sizeof(config->vmexten));
-
-	config->keepalive = SCCP_DEFAULT_KEEPALIVE;
-	config->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
-	config->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
-	config->directmedia = 0;
-
-	config->caps = ast_format_cap_alloc();
-	if (!config->caps) {
-	     ast_free(config);
-	     return NULL;
+	sccp_cfg->caps = ast_format_cap_alloc();
+	if (sccp_cfg->caps == NULL) {
+		 ast_free(sccp_cfg);
+		 return NULL;
 	}
-	ast_format_cap_add(config->caps, ast_format_set(&tmpfmt, AST_FORMAT_ULAW, 0));
-	ast_format_cap_add(config->caps, ast_format_set(&tmpfmt, AST_FORMAT_ALAW, 0));
 
-	AST_RWLIST_HEAD_INIT(&config->list_device);
-	AST_RWLIST_HEAD_INIT(&config->list_line);
+	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_device);
+	AST_RWLIST_HEAD_INIT(&sccp_cfg->list_line);
 
-	return config;
+	config_set_defaults(sccp_cfg);
+
+	return sccp_cfg;
 }
 
-void sccp_config_destroy(struct sccp_configs *config)
+void sccp_config_destroy(struct sccp_configs *sccp_cfg)
 {
-	if (config == NULL) {
+	if (sccp_cfg == NULL) {
 		return;
 	}
 
-	AST_RWLIST_HEAD_DESTROY(&config->list_device);
-	AST_RWLIST_HEAD_DESTROY(&config->list_line);
-	ast_format_cap_destroy(config->caps);
-	ast_free(config);
+	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
+	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
+	ast_format_cap_destroy(sccp_cfg->caps);
+	ast_free(sccp_cfg);
+}
+
+void config_set_defaults(struct sccp_configs *sccp_cfg) {
+	struct ast_format tmpfmt;
+
+	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0", sizeof(sccp_cfg->bindaddr));
+	ast_copy_string(sccp_cfg->dateformat, "D.M.Y", sizeof(sccp_cfg->dateformat));
+	ast_copy_string(sccp_cfg->context, "default", sizeof(sccp_cfg->context));
+	ast_copy_string(sccp_cfg->language, "en_US", sizeof(sccp_cfg->language));
+	ast_copy_string(sccp_cfg->vmexten, "*98", sizeof(sccp_cfg->vmexten));
+
+	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
+	sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
+	sccp_cfg->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
+	sccp_cfg->directmedia = 0;
+
+	ast_format_cap_add(sccp_cfg->caps, ast_format_set(&tmpfmt, AST_FORMAT_ULAW, 0));
+	ast_format_cap_add(sccp_cfg->caps, ast_format_set(&tmpfmt, AST_FORMAT_ALAW, 0));
 }
 
 int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
@@ -432,9 +438,11 @@ void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, cons
 		ast_copy_string(sccp_cfg->dateformat, value, sizeof(sccp_cfg->dateformat));
 	} else if (!strcasecmp(name, "keepalive")) {
 		sccp_cfg->keepalive = atoi(value);
+		if (sccp_cfg->keepalive <= 0)
+			sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
 	} else if (!strcasecmp(name, "authtimeout")) {
 		sccp_cfg->authtimeout = atoi(value);
-		if (sccp_cfg->authtimeout < 10)
+		if (sccp_cfg->authtimeout <= 0)
 			sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
 	} else if (!strcasecmp(name, "dialtimeout")) {
 		sccp_cfg->dialtimeout = atoi(value);
@@ -447,7 +455,11 @@ void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, cons
 	} else if (!strcasecmp(name, "vmexten")) {
 		ast_copy_string(sccp_cfg->vmexten, value, sizeof(sccp_cfg->vmexten));
 	} else if (!strcasecmp(name, "directmedia")) {
-		sccp_cfg->directmedia = atoi(value);
+		if (ast_true(value)) {
+			sccp_cfg->directmedia = 1;
+		} else {
+			sccp_cfg->directmedia = 0;
+		}
 	} else if (!strcasecmp(name, "allow")) {
 		ast_parse_allow_disallow(&sccp_cfg->codec_pref, sccp_cfg->caps, value, 1);
 	} else if (!strcasecmp(name, "disallow")) {
