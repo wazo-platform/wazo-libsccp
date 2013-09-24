@@ -182,7 +182,6 @@ static void garbage_ast_database(void)
 static int load_module(void)
 {
 	int ret = 0;
-	ast_log(LOG_NOTICE, "sccp channel loading...\n");
 
 	sccp_config = sccp_new_config();
 	if (sccp_config == NULL) {
@@ -209,6 +208,7 @@ static int load_module(void)
 	sccp_rtp_init(ast_module_info);
 
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+
 	AST_TEST_REGISTER(sccp_test_config_set_field);
 	AST_TEST_REGISTER(sccp_test_config);
 	AST_TEST_REGISTER(sccp_test_resync);
@@ -218,14 +218,12 @@ static int load_module(void)
 
 static int unload_module(void)
 {
-	ast_log(LOG_DEBUG, "sccp channel unloading...\n");
+	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	sccp_server_fini();
 	sccp_rtp_fini();
+
 	sccp_config_unload(sccp_config);
-
-	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
-
 	sccp_config_destroy(sccp_config);
 	sccp_config = NULL;
 

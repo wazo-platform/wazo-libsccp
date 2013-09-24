@@ -73,8 +73,6 @@ int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
 	struct ast_flags config_flags = { 0 };
 	int res = 0;
 
-	ast_log(LOG_NOTICE, "Configuring sccp from %s...\n", config_file);
-
 	cfg = ast_config_load(config_file, config_flags);
 	if (!cfg) {
 		ast_log(LOG_ERROR, "Unable to load configuration file '%s'\n", config_file);
