@@ -578,7 +578,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 
 	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&subchan->fmt));
 
-	ast_format_cap_copy(ast_channel_nativeformats(channel), joint);
+	ast_format_cap_set(ast_channel_nativeformats(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_writeformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_rawwriteformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_readformat(channel), &subchan->fmt);
