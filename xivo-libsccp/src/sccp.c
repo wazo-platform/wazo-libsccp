@@ -45,7 +45,6 @@ AST_TEST_DEFINE(sccp_test_utf8_to_iso88591);
 
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
-static struct sccp_configs *sccp_config;
 static struct sccp_server sccp_srv;
 int sccp_debug;
 char sccp_debug_addr[16];
@@ -3540,7 +3539,7 @@ void sccp_rtp_init(const struct ast_module_info *module_info)
 	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
 }
 
-int sccp_server_init(struct sccp_configs *sccp_cfg)
+int sccp_server_init(void)
 {
 	int ret = 0;
 	struct addrinfo hints = {
@@ -3554,8 +3553,6 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	AST_TEST_REGISTER(sccp_test_extstate_ast2sccp);
 	AST_TEST_REGISTER(sccp_test_utf8_to_iso88591);
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
-
-	sccp_config = sccp_cfg;
 
 	ret = getaddrinfo(sccp_config->bindaddr, SCCP_PORT, &hints, &sccp_srv.res);
 	if (ret != 0) {

@@ -22,8 +22,6 @@
 
 #include "test_config.c"
 
-static struct sccp_configs *sccp_config;
-
 static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	struct sccp_device *device = NULL;
@@ -197,7 +195,7 @@ static int load_module(void)
 
 	garbage_ast_database();
 
-	ret = sccp_server_init(sccp_config);
+	ret = sccp_server_init();
 	if (ret == -1) {
 		sccp_config_unload(sccp_config);
 		sccp_config_destroy(sccp_config);

@@ -1,7 +1,7 @@
 #include <asterisk.h>
 
-#include "sccp_device.h"
 #include "sccp_config.h"
+#include "sccp_device.h"
 #include "sccp_line.h"
 
 #include "../config.h"
@@ -9,6 +9,8 @@
 #define SCCP_DEFAULT_KEEPALIVE 10
 #define SCCP_DEFAULT_AUTH_TIMEOUT 5
 #define SCCP_DEFAULT_DIAL_TIMEOUT 1
+
+struct sccp_configs *sccp_config;
 
 static int parse_config_general(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
