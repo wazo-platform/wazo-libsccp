@@ -16,7 +16,6 @@ static int parse_config_general(struct ast_config *cfg, struct sccp_configs *scc
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
 static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
 static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *sccp_cfg);
-static void initialize_device(struct sccp_device *device, const char *name);
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device);
 static void config_add_line(struct sccp_configs *sccp_cfg, struct sccp_line *line);
 static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *name);
@@ -57,7 +56,8 @@ void sccp_config_destroy(struct sccp_configs *sccp_cfg)
 	ast_free(sccp_cfg);
 }
 
-void config_set_defaults(struct sccp_configs *sccp_cfg) {
+void config_set_defaults(struct sccp_configs *sccp_cfg)
+{
 	struct ast_format tmpfmt;
 
 	ast_copy_string(sccp_cfg->bindaddr, "0.0.0.0", sizeof(sccp_cfg->bindaddr));
@@ -101,24 +101,32 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg)
 {
 	struct sccp_device *device_itr = NULL;
 	struct sccp_line *line_itr = NULL;
+	struct sccp_speeddial *speeddial_itr = NULL;
 
 	AST_RWLIST_WRLOCK(&sccp_cfg->list_device);
 	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_device, device_itr, list) {
-		ast_mutex_destroy(&device_itr->lock);
-		AST_RWLIST_HEAD_DESTROY(&device_itr->lines);
-		AST_RWLIST_HEAD_DESTROY(&device_itr->speeddials);
 		AST_RWLIST_REMOVE_CURRENT(list);
+		sccp_device_destroy(device_itr);
 	}
 	AST_RWLIST_TRAVERSE_SAFE_END;
 	AST_RWLIST_UNLOCK(&sccp_cfg->list_device);
 
 	AST_RWLIST_WRLOCK(&sccp_cfg->list_line);
 	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_line, line_itr, list) {
-		AST_RWLIST_HEAD_DESTROY(&line_itr->subchans);
 		AST_RWLIST_REMOVE_CURRENT(list);
+		sccp_line_destroy(line_itr);
 	}
 	AST_RWLIST_TRAVERSE_SAFE_END;
 	AST_RWLIST_UNLOCK(&sccp_cfg->list_line);
+
+	AST_RWLIST_WRLOCK(&sccp_cfg->list_speeddial);
+	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_speeddial, speeddial_itr, list) {
+		AST_RWLIST_REMOVE_CURRENT(list);
+		// XXX to replace with a sccp_speeddial_destroy function ?
+		ast_free(speeddial_itr);
+	}
+	AST_RWLIST_TRAVERSE_SAFE_END;
+	AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
 }
 
 void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *device)
@@ -132,7 +140,8 @@ void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *de
 
 		AST_RWLIST_REMOVE_CURRENT(list_per_device);
 		AST_LIST_REMOVE(&sccp_cfg->list_speeddial, speeddial_itr, list);
-		free(speeddial_itr);
+		// XXX to replace with a sccp_speeddial_destroy function ?
+		ast_free(speeddial_itr);
 	}
 	AST_RWLIST_TRAVERSE_SAFE_END;
 	AST_RWLIST_UNLOCK(&device->speeddials);
@@ -154,11 +163,7 @@ void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *de
 	AST_RWLIST_TRAVERSE_SAFE_END;
 	AST_RWLIST_UNLOCK(&device->lines);
 
-	ast_mutex_destroy(&device->lock);
-	ast_cond_destroy(&device->lookup_cond);
-	ast_format_cap_destroy(device->capabilities);
-	free(device);
-	// lines that are not associated to a device in the configuration are leaked
+	sccp_device_destroy(device);
 }
 
 static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t index, uint32_t instance, struct sccp_device *device)
@@ -176,37 +181,6 @@ static void initialize_speeddial(struct sccp_speeddial *speeddial, uint32_t inde
 	speeddial->index = index;
 	speeddial->instance = instance;
 	speeddial->device = device;
-}
-
-static void initialize_device(struct sccp_device *device, const char *name)
-{
-	if (device == NULL) {
-		ast_log(LOG_WARNING, "device is NULL\n");
-		return;
-	}
-
-	if (name == NULL) {
-		ast_log(LOG_WARNING, "name is NULL\n");
-		return;
-	}
-
-	ast_mutex_init(&device->lock);
-	ast_cond_init(&device->lookup_cond, NULL);
-	ast_copy_string(device->name, name, sizeof(device->name));
-
-	device->voicemail[0] = '\0';
-	device->exten[0] = '\0';
-	device->mwi_event_sub = NULL;
-	device->lookup = 0;
-	device->autoanswer = 0;
-	device->regstate = DEVICE_REGISTERED_FALSE;
-	device->session = NULL;
-	device->line_count = 0;
-	device->speeddial_count = 0;
-	device->capabilities = ast_format_cap_alloc_nolock();
-
-	AST_RWLIST_HEAD_INIT(&device->lines);
-	AST_RWLIST_HEAD_INIT(&device->speeddials);
 }
 
 static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *sccp_cfg)
@@ -241,8 +215,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 		if (!duplicate) {
 
 			/* create the new device */
-			device = ast_calloc(1, sizeof(struct sccp_device));
-			initialize_device(device, category);
+			device = sccp_new_device(category);
 
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
@@ -315,7 +288,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 				AST_RWLIST_UNLOCK(&sccp_cfg->list_device);
 			}
 			else {
-				ast_free(device);
+				sccp_device_destroy(device);
 			}
 			err = 0;
 		}

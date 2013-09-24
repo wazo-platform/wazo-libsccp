@@ -42,7 +42,9 @@ void sccp_line_destroy(struct sccp_line *line)
 	}
 
 	ast_format_cap_destroy(line->caps);
+	ast_variables_destroy(line->chanvars);
 	AST_RWLIST_HEAD_DESTROY(&line->subchans);
+
 	ast_free(line);
 }
 

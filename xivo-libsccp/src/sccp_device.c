@@ -2,6 +2,55 @@
 #include "sccp_line.h"
 #include "sccp.h"
 
+struct sccp_device *sccp_new_device(const char *name)
+{
+	struct sccp_device *device = ast_calloc(1, sizeof(*device));
+
+	if (device == NULL) {
+		return NULL;
+	}
+
+	device->capabilities = ast_format_cap_alloc_nolock();
+	if (device->capabilities == NULL) {
+		ast_free(device);
+		return NULL;
+	}
+
+	ast_mutex_init(&device->lock);
+	ast_cond_init(&device->lookup_cond, NULL);
+
+	ast_copy_string(device->name, name, sizeof(device->name));
+	device->voicemail[0] = '\0';
+	device->exten[0] = '\0';
+	device->mwi_event_sub = NULL;
+	device->lookup = 0;
+	device->autoanswer = 0;
+	device->regstate = DEVICE_REGISTERED_FALSE;
+	device->session = NULL;
+	device->line_count = 0;
+	device->speeddial_count = 0;
+
+	AST_RWLIST_HEAD_INIT(&device->lines);
+	AST_RWLIST_HEAD_INIT(&device->speeddials);
+
+	return device;
+}
+
+void sccp_device_destroy(struct sccp_device *device)
+{
+	if (device == NULL) {
+		return;
+	}
+
+	ast_format_cap_destroy(device->capabilities);
+	ast_mutex_destroy(&device->lock);
+	ast_cond_destroy(&device->lookup_cond);
+	AST_RWLIST_HEAD_DESTROY(&device->lines);
+	AST_RWLIST_HEAD_DESTROY(&device->speeddials);
+
+	ast_free(device);
+}
+
 void device_unregister(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
