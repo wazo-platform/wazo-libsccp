@@ -558,8 +558,17 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	}
 
 	joint = ast_format_cap_joint(subchan->line->caps, subchan->line->device->capabilities);
-	if (cap && !ast_format_cap_is_empty(cap)) {
+	if (! joint) {
+		ast_log(LOG_DEBUG, "No codec availaible\n");
+		return NULL;
+	}
+	if (cap && ast_format_cap_has_joint(joint, cap) && !ast_format_cap_is_empty(cap)) {
+		// leaking original joint
 		joint = ast_format_cap_joint(joint, cap);
+	}
+	if (! joint) {
+		ast_log(LOG_DEBUG, "No codec availaible\n");
+		return NULL;
 	}
 	ast_log(LOG_DEBUG, "Joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
 
@@ -2805,6 +2814,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 
 	subchan = sccp_new_subchannel(line);
 	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL, cap);
+	// if channel is null the subchan should be cleared else module reload will loop
 
 	if (line->callfwd == SCCP_CFWD_ACTIVE) {
 		ast_log(LOG_DEBUG, "setting call forward to %s\n", line->callfwd_exten);
