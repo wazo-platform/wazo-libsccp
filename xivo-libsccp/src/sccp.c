@@ -85,7 +85,6 @@ static size_t make_thread_sessions_array(pthread_t **threads);
 static void subchan_init_rtp_instance(struct sccp_subchannel *subchan);
 static void subchan_start_media_transmission(struct sccp_subchannel *subchan);
 static void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local);
-static void line_get_format_list(struct sccp_line *line, struct ast_format_list *fmt);
 
 static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
@@ -518,11 +517,10 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
 	return subchan;
 }
 
-static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, const char *linkedid)
+static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, const char *linkedid, struct ast_format_cap *cap)
 {
 	struct ast_channel *channel = NULL;
 	struct ast_variable *var_itr = NULL;
-	struct ast_format tmpfmt;
 	char valuebuf[1024];
 	char buf[256];
 
@@ -552,6 +550,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	ast_channel_tech_set(channel, &sccp_tech);
 	ast_channel_tech_pvt_set(channel, subchan);
 	subchan->channel = channel;
+
 	ast_format_cap_copy(ast_channel_nativeformats(channel), subchan->line->device->capabilities);
 	if (ast_format_cap_is_empty(ast_channel_nativeformats(channel))) {
 		ast_format_cap_copy(ast_channel_nativeformats(channel), sccp_config->caps);
@@ -562,17 +561,17 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		pbx_builtin_setvar_helper(channel, var_itr->name, valuebuf);
 	}
 
-	ast_best_codec(ast_channel_nativeformats(channel), &tmpfmt);
-	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&tmpfmt));
+	ast_best_codec(ast_channel_nativeformats(channel), &subchan->fmt);
+	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&subchan->fmt));
 
-	ast_format_copy(ast_channel_writeformat(channel), &tmpfmt);
-	ast_format_copy(ast_channel_rawwriteformat(channel), &tmpfmt);
-	ast_format_copy(ast_channel_readformat(channel), &tmpfmt);
-	ast_format_copy(ast_channel_rawreadformat(channel), &tmpfmt);
+	ast_format_copy(ast_channel_writeformat(channel), &subchan->fmt);
+	ast_format_copy(ast_channel_rawwriteformat(channel), &subchan->fmt);
+	ast_format_copy(ast_channel_readformat(channel), &subchan->fmt);
+	ast_format_copy(ast_channel_rawreadformat(channel), &subchan->fmt);
 
 	ast_log(LOG_DEBUG, "codec %s %s\n",
 		ast_getformatname_multiple(buf, sizeof(buf), ast_channel_nativeformats(channel)),
-		ast_getformatname(&tmpfmt));
+		ast_getformatname(&subchan->fmt));
 
 	if (subchan->line->language[0] != '\0')
 		ast_channel_language_set(channel, subchan->line->language);
@@ -619,8 +618,6 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	struct sockaddr_in local;
 	struct ast_sockaddr local_tmp;
 	struct sccp_session *session;
-
-	struct ast_format_list fmt;
 	int changed = 0;
 
 	ast_debug(1, "updating peer for channel %s...\n", ast_channel_name(channel));
@@ -653,12 +650,10 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 			return 0;
 		}
 
-		line_get_format_list(line, &fmt);
-
 		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
 		if (endpoint.sin_addr.s_addr != 0) {
 			transmit_stop_media_transmission(session, subchan->id);
-			transmit_start_media_transmission(session, subchan->id, endpoint, fmt);
+			transmit_start_media_transmission(session, subchan, endpoint);
 			ast_queue_control(subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
 		}
 		else {
@@ -671,7 +666,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
 
 			transmit_stop_media_transmission(session, subchan->id);
-			transmit_start_media_transmission(session, subchan->id, local, fmt);
+			transmit_start_media_transmission(session, subchan, local);
 		}
 	} else {
 		ast_debug(1, "rtp is NULL\n");
@@ -835,7 +830,7 @@ static void *sccp_lookup_exten(void *data)
 			call_now = 1;
 
 		if (call_now) {
-			channel = sccp_new_channel(subchan, NULL);
+			channel = sccp_new_channel(subchan, NULL, NULL);
 			if (channel == NULL) {
 				ast_log(LOG_ERROR, "channel is NULL\n");
 				goto end;
@@ -2803,7 +2798,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 	}
 
 	subchan = sccp_new_subchannel(line);
-	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL);
+	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL, cap);
 
 	if (line->callfwd == SCCP_CFWD_ACTIVE) {
 		ast_log(LOG_DEBUG, "setting call forward to %s\n", line->callfwd_exten);
@@ -3473,23 +3468,8 @@ void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct
 	}
 }
 
-void line_get_format_list(struct sccp_line* line, struct ast_format_list *fmt)
-{
-	struct ast_format tmpfmt;
-
-	if (line == NULL) {
-		ast_log(LOG_ERROR, "line is NULL\n");
-		return;
-	}
-
-	ast_best_codec(line->device->capabilities, &tmpfmt);
-	ast_debug(1, "Best codec: %s\n", ast_getformatname(&tmpfmt));
-	*fmt = ast_codec_pref_getsize(&line->codec_pref, &tmpfmt);
-}
-
 void subchan_start_media_transmission(struct sccp_subchannel *subchan)
 {
-	struct ast_format_list fmt;
 	struct sockaddr_in local;
 
 	if (subchan == NULL) {
@@ -3497,9 +3477,8 @@ void subchan_start_media_transmission(struct sccp_subchannel *subchan)
 		return;
 	}
 
-	line_get_format_list(subchan->line, &fmt);
 	subchan_set_rtp_addresses_get_local(subchan, &local);
-	transmit_start_media_transmission(subchan->line->device->session, subchan->id, local, fmt);
+	transmit_start_media_transmission(subchan->line->device->session, subchan, local);
 }
 
 void sccp_server_fini()

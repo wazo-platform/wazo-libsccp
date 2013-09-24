@@ -440,7 +440,6 @@ int transmit_config_status_res(struct sccp_session *session)
 int transmit_open_receive_channel(struct sccp_session *session, struct sccp_subchannel *subchan)
 {
 	struct ast_format_list fmt;
-	struct ast_format tmpfmt;
 	struct sccp_msg *msg = NULL;
 
 	if (subchan == NULL) {
@@ -453,9 +452,7 @@ int transmit_open_receive_channel(struct sccp_session *session, struct sccp_subc
 		return -1;
 	}
 
-	ast_best_codec(subchan->line->device->capabilities, &tmpfmt);
-	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&tmpfmt));
-	fmt = ast_codec_pref_getsize(&subchan->line->codec_pref, &tmpfmt);
+	fmt = ast_codec_pref_getsize(&subchan->line->codec_pref, &subchan->fmt);
 
 	msg = msg_alloc(sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
 	if (msg == NULL) {
@@ -829,12 +826,27 @@ int transmit_speaker_mode(struct sccp_session *session, enum sccp_speaker_mode m
 	return transmit_message(msg, session);
 }
 
-int transmit_start_media_transmission(struct sccp_session *session, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt)
+int transmit_start_media_transmission(struct sccp_session *session, struct sccp_subchannel *subchan, struct sockaddr_in endpoint)
 {
-	struct sccp_msg *msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
+	struct sccp_msg *msg = NULL;
+	struct ast_format_list fmt;
+	uint32_t callid;
+
+	if (subchan == NULL) {
+		return -1;
+	}
+
+	if (session == NULL) {
+		return -1;
+	}
+
+	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
 	if (msg == NULL) {
 		return -1;
 	}
+
+	callid = subchan->id;
+	fmt = ast_codec_pref_getsize(&subchan->line->codec_pref, &subchan->fmt);
 
 	ast_debug(2, "Sending start media transmission to %s: %s %d\n",
 			session->ipaddr, ast_inet_ntoa(endpoint.sin_addr), ntohs(endpoint.sin_port));

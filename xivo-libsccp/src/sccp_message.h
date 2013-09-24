@@ -35,7 +35,7 @@ int transmit_speeddial_stat_res(struct sccp_session *session, int index, struct 
 int transmit_softkey_set_res(struct sccp_session *session);
 int transmit_softkey_template_res(struct sccp_session *session);
 int transmit_speaker_mode(struct sccp_session *session, enum sccp_speaker_mode mode);
-int transmit_start_media_transmission(struct sccp_session *session, uint32_t callid, struct sockaddr_in endpoint, struct ast_format_list fmt);
+int transmit_start_media_transmission(struct sccp_session *session, struct sccp_subchannel *subchan, struct sockaddr_in endpoint);
 int transmit_stop_media_transmission(struct sccp_session *session, uint32_t callid);
 int transmit_stop_tone(struct sccp_session *session, int instance, int reference);
 int transmit_time_date_res(struct sccp_session *session);

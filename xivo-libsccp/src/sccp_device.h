@@ -254,6 +254,7 @@ struct sccp_subchannel {
 	struct sccp_line *line;
 	struct ast_channel *channel;
 	struct sccp_subchannel *related;
+	struct ast_format fmt;
 	AST_LIST_ENTRY(sccp_subchannel) list;
 };
 

@@ -89,7 +89,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	assert_null_handled(handle_keep_alive_message(NULL));
 	assert_null_handled(register_device(NULL, (void*)0xFF));
 	assert_null_handled(register_device((void*)0xFF, NULL));
-	assert_null_handled(sccp_new_channel(NULL, (void*)0xFF));
+	assert_null_handled(sccp_new_channel(NULL, (void*)0xFF, NULL));
 	assert_null_handled(start_rtp(NULL));
 	assert_null_handled(sccp_start_the_call(NULL));
 	assert_null_handled(sccp_lookup_exten(NULL));
