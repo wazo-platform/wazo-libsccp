@@ -3080,6 +3080,9 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 	switch (indicate) {
 	case AST_CONTROL_RINGING:
 		ast_log(LOG_DEBUG, "ringing\n");
+		if (ast_channel_state(channel) == AST_STATE_RING) {
+			break;
+		}
 		return _AST_PROVIDE_INBAND_SIGNALLING;
 
 	case AST_CONTROL_BUSY:
