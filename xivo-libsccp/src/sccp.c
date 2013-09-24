@@ -3445,9 +3445,11 @@ void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 	/*
 	 *  hack that add the 0 payload type (i.e. the G.711 mu-law payload type) to the list
 	 *  of payload that the rtp_instance knows about. It works because currently, we are
-	 *  always using G.711 mu-law
+	 *  always using G.711 mu-law, alaw or g729 (0, 8, 18)
 	 */
 	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 0);
+	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 8);
+	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 18);
 
 	ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
 					subchan->rtp, &subchan->line->codec_pref);
