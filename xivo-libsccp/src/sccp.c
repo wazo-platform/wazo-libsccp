@@ -521,6 +521,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 {
 	struct ast_channel *channel = NULL;
 	struct ast_variable *var_itr = NULL;
+	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(), ast_format_cap_destroy);
 	char valuebuf[1024];
 	char buf[256];
 
@@ -551,19 +552,24 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	ast_channel_tech_pvt_set(channel, subchan);
 	subchan->channel = channel;
 
-	ast_format_cap_copy(ast_channel_nativeformats(channel), subchan->line->device->capabilities);
-	if (ast_format_cap_is_empty(ast_channel_nativeformats(channel))) {
-		ast_format_cap_copy(ast_channel_nativeformats(channel), sccp_config->caps);
-	}
-
 	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
 		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
 		pbx_builtin_setvar_helper(channel, var_itr->name, valuebuf);
 	}
 
-	ast_best_codec(ast_channel_nativeformats(channel), &subchan->fmt);
+	joint = ast_format_cap_joint(subchan->line->caps, subchan->line->device->capabilities);
+	if (cap && !ast_format_cap_is_empty(cap)) {
+		joint = ast_format_cap_joint(joint, cap);
+	}
+	ast_log(LOG_DEBUG, "Joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
+
+	ast_codec_pref_string(&subchan->line->codec_pref, buf, sizeof(buf));
+	ast_log(LOG_DEBUG, "Line preferences %s\n", buf);
+	ast_codec_choose(&subchan->line->codec_pref, joint, 1, &subchan->fmt);
+
 	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&subchan->fmt));
 
+	ast_format_cap_copy(ast_channel_nativeformats(channel), joint);
 	ast_format_copy(ast_channel_writeformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_rawwriteformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_readformat(channel), &subchan->fmt);
