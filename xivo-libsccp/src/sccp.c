@@ -562,7 +562,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		ast_log(LOG_DEBUG, "No codec availaible\n");
 		return NULL;
 	}
-	if (cap && ast_format_cap_has_joint(joint, cap) && !ast_format_cap_is_empty(cap)) {
+	if (cap && ast_format_cap_has_joint(joint, cap)) {
 		// leaking original joint
 		joint = ast_format_cap_joint(joint, cap);
 	}
