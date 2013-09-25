@@ -75,6 +75,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				struct ast_rtp_instance *trtp,
 				const struct ast_format_cap *cap,
 				int nat_active);
+static void cb_ast_get_codec(struct ast_channel *channel, struct ast_format_cap *result);
 static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
 static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
 static void thread_session_cleanup(void *data);
@@ -107,6 +108,7 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.type = "sccp",
 	.get_rtp_info = cb_ast_get_rtp_peer,
 	.update_peer = cb_ast_set_rtp_peer,
+	.get_codec = cb_ast_get_codec,
 };
 
 static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device)
@@ -681,6 +683,13 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	}
 
 	return 0;
+}
+
+static void cb_ast_get_codec(struct ast_channel *channel, struct ast_format_cap *result)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	ast_format_cap_set(result, &subchan->fmt);
 }
 
 static int start_rtp(struct sccp_subchannel *subchan)
