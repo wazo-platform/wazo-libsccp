@@ -1,0 +1,42 @@
+[general]
+dialtimeout = 5
+vmexten = *98
+language = en_US
+directmedia = 1
+disallow = all
+allow = alaw,ulaw
+
+[lines]
+[1001]
+cid_name = Alìce
+cid_num = 1001
+setvar = XIVO_USERID=1
+setvar = PICKUPMARK=1001%pcmdev
+context = pcmdev
+disallow = all
+allow = g729,ulaw
+
+[1002]
+cid_name = Bõb
+cid_num = 1002
+setvar = XIVO_USERID=2
+setvar = PICKUPMARK=1002%pcmdev
+context = pcmdev
+;disallow = all
+;allow = ulaw,alaw
+
+[speeddials]
+[2-1]
+extension = 1001
+label = Alice
+blf = 1
+
+[devices]
+[SEP0015C66BFD16]
+device = SEP0015C66BFD16
+line = 1001
+
+[SEP001F6C7E71A0]
+device = SEP001F6C7E71A0
+line = 1002
+speeddial = 2-1
