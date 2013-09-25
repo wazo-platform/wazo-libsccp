@@ -103,7 +103,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	ast_cli(a->fd, "language = %s\n", sccp_config->language);
 	ast_cli(a->fd, "directmedia = %d\n", sccp_config->directmedia);
 	ast_codec_pref_string(&sccp_config->codec_pref, buf, sizeof(buf));
-	ast_cli(a->fd, "Prefered codecs: %s\n", buf);
+	ast_cli(a->fd, "preferred codecs = %s\n", buf);
 	ast_cli(a->fd, "\n");
 
 	AST_RWLIST_RDLOCK(&sccp_config->list_device);
