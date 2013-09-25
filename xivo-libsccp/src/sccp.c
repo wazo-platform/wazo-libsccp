@@ -522,6 +522,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	struct ast_channel *channel = NULL;
 	struct ast_variable *var_itr = NULL;
 	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(), ast_format_cap_destroy);
+	int has_joint;
 	char valuebuf[1024];
 	char buf[256];
 
@@ -557,36 +558,24 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		pbx_builtin_setvar_helper(channel, var_itr->name, valuebuf);
 	}
 
-	joint = ast_format_cap_joint(subchan->line->caps, subchan->line->device->capabilities);
-	if (! joint) {
-		ast_log(LOG_DEBUG, "No codec availaible\n");
+	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->capabilities, joint);
+	if (! has_joint) {
+		ast_log(LOG_WARNING, "no compatible codecs\n");
 		return NULL;
 	}
 	if (cap && ast_format_cap_has_joint(joint, cap)) {
-		// leaking original joint
-		joint = ast_format_cap_joint(joint, cap);
+		ast_format_cap_joint_copy(joint, cap, joint);
 	}
-	if (! joint) {
-		ast_log(LOG_DEBUG, "No codec availaible\n");
-		return NULL;
-	}
-	ast_log(LOG_DEBUG, "Joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
+	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
 
-	ast_codec_pref_string(&subchan->line->codec_pref, buf, sizeof(buf));
-	ast_log(LOG_DEBUG, "Line preferences %s\n", buf);
 	ast_codec_choose(&subchan->line->codec_pref, joint, 1, &subchan->fmt);
-
-	ast_log(LOG_DEBUG, "Best codec: %s\n", ast_getformatname(&subchan->fmt));
+	ast_debug(1, "best codec %s\n", ast_getformatname(&subchan->fmt));
 
 	ast_format_cap_set(ast_channel_nativeformats(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_writeformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_rawwriteformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_readformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_rawreadformat(channel), &subchan->fmt);
-
-	ast_log(LOG_DEBUG, "codec %s %s\n",
-		ast_getformatname_multiple(buf, sizeof(buf), ast_channel_nativeformats(channel)),
-		ast_getformatname(&subchan->fmt));
 
 	if (subchan->line->language[0] != '\0')
 		ast_channel_language_set(channel, subchan->line->language);
