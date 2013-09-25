@@ -1898,7 +1898,7 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	int count = 0;
 	int sccpcodec = 0;
 	struct ast_format format;
-	struct ast_format_cap *capabilities;
+	struct ast_format_cap *caps;
 	int i = 0;
 	struct sccp_device *device = NULL;
 
@@ -1925,7 +1925,7 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
 	}
 
-	capabilities = ast_format_cap_alloc();
+	caps = ast_format_cap_alloc();
 	for (i = 0; i < count; i++) {
 
 		/* get the device supported codecs */
@@ -1934,12 +1934,12 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 		/* translate to asterisk format */
 		codec_sccp2ast(sccpcodec, &format);
 
-		ast_format_cap_add(capabilities, &format);
+		ast_format_cap_add(caps, &format);
 	}
 
-	ast_format_cap_copy(device->caps, capabilities);
+	ast_format_cap_copy(device->caps, caps);
 
-	capabilities = ast_format_cap_destroy(capabilities);
+	caps = ast_format_cap_destroy(caps);
 	return 0;
 }
 
