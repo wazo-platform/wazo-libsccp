@@ -558,6 +558,10 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		pbx_builtin_setvar_helper(channel, var_itr->name, valuebuf);
 	}
 
+	if (!ast_strlen_zero(subchan->line->language)) {
+		ast_channel_language_set(channel, subchan->line->language);
+	}
+
 	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->capabilities, joint);
 	if (! has_joint) {
 		ast_log(LOG_WARNING, "no compatible codecs\n");
@@ -576,9 +580,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	ast_format_copy(ast_channel_rawwriteformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_readformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_rawreadformat(channel), &subchan->fmt);
-
-	if (subchan->line->language[0] != '\0')
-		ast_channel_language_set(channel, subchan->line->language);
 
 	ast_module_ref(ast_module_info->self);
 
