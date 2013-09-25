@@ -666,7 +666,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 			ast_queue_control(subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
 		}
 		else {
-			ast_log(LOG_WARNING, "updating peer: remote address is 0, device will send media to asterisk\n");
+			ast_debug(1, "updating peer: remote address is 0, device will send media to asterisk\n");
 
 			ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
 			ast_sockaddr_to_sin(&local_tmp, &local);
