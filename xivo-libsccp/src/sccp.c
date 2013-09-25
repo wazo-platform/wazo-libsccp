@@ -530,7 +530,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		return NULL;
 	}
 
-	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->capabilities, joint);
+	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->caps, joint);
 	if (! has_joint) {
 		ast_log(LOG_WARNING, "no compatible codecs\n");
 		return NULL;
@@ -1939,8 +1939,8 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 		ast_format_cap_add(capabilities, &format);
 	}
 
-	ast_format_cap_copy(device->capabilities, capabilities);
-	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->capabilities));
+	ast_format_cap_copy(device->caps, capabilities);
+	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->caps));
 
 	capabilities = ast_format_cap_destroy(capabilities);
 	return 0;
@@ -3235,7 +3235,7 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 							device_type_str(device_itr->type),
 							device_regstate_str(device_itr->regstate),
 							device_itr->proto_version,
-							ast_getformatname_multiple(buf, sizeof(buf), device_itr->capabilities));
+							ast_getformatname_multiple(buf, sizeof(buf), device_itr->caps));
 
 		dev_cnt++;
 		if (device_itr->regstate == DEVICE_REGISTERED_TRUE)

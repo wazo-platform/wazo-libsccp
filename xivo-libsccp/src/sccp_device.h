@@ -302,7 +302,7 @@ struct sccp_device {
 	uint32_t speeddial_count;
 
 	struct ast_codec_pref codec_pref;
-	struct ast_format_cap *capabilities;	/* Supported capabilities */
+	struct ast_format_cap *caps;	/* Supported capabilities */
 
 	void *session;
 

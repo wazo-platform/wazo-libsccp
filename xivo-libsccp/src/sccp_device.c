@@ -10,8 +10,8 @@ struct sccp_device *sccp_new_device(const char *name)
 		return NULL;
 	}
 
-	device->capabilities = ast_format_cap_alloc_nolock();
-	if (device->capabilities == NULL) {
+	device->caps = ast_format_cap_alloc_nolock();
+	if (device->caps == NULL) {
 		ast_free(device);
 		return NULL;
 	}
@@ -42,7 +42,7 @@ void sccp_device_destroy(struct sccp_device *device)
 		return;
 	}
 
-	ast_format_cap_destroy(device->capabilities);
+	ast_format_cap_destroy(device->caps);
 	ast_mutex_destroy(&device->lock);
 	ast_cond_destroy(&device->lookup_cond);
 	AST_RWLIST_HEAD_DESTROY(&device->lines);
