@@ -521,6 +521,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	struct ast_channel *channel = NULL;
 	struct ast_variable *var_itr = NULL;
 	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(), ast_format_cap_destroy);
+	struct ast_format_cap *tmpcaps = NULL;
 	int has_joint;
 	char valuebuf[1024];
 	char buf[256];
@@ -531,12 +532,14 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	}
 
 	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->caps, joint);
-	if (! has_joint) {
+	if (!has_joint) {
 		ast_log(LOG_WARNING, "no compatible codecs\n");
 		return NULL;
 	}
 	if (cap && ast_format_cap_has_joint(joint, cap)) {
-		ast_format_cap_joint_copy(joint, cap, joint);
+		tmpcaps = ast_format_cap_dup(joint);
+		ast_format_cap_joint_copy(tmpcaps, cap, joint);
+		ast_format_cap_destroy(tmpcaps);
 	}
 	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
 
