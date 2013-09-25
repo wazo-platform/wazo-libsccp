@@ -40,7 +40,7 @@ struct sccp_session {
 	AST_LIST_ENTRY(sccp_session) list;
 };
 
-int codec_ast2sccp(struct ast_format *astcodec);
+enum sccp_codecs codec_ast2sccp(struct ast_format *format);
 int sccp_server_init(void);
 void sccp_server_fini(void);
 void sccp_rtp_fini(void);
