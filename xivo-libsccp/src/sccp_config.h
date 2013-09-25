@@ -5,6 +5,8 @@
 
 #include "sccp_device.h"
 
+extern struct sccp_configs *sccp_config;	/* Global sccp configuration */
+
 struct sccp_configs {
 
 	int set;
@@ -18,12 +20,12 @@ struct sccp_configs {
 	char language[MAX_LANGUAGE];
 	char context[AST_MAX_EXTENSION];
 	char vmexten[AST_MAX_EXTENSION];
+	struct ast_codec_pref codec_pref;
+	struct ast_format_cap *caps;	/* Allowed capabilities */
 
 	struct list_speeddial list_speeddial;
 	struct list_line list_line;
 	struct list_device list_device;
-	struct ast_codec_pref codec_pref;
-	struct ast_format_cap *caps;
 };
 
 struct sccp_configs *sccp_new_config(void);

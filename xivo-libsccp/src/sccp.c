@@ -45,7 +45,6 @@ AST_TEST_DEFINE(sccp_test_utf8_to_iso88591);
 
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
-static struct sccp_configs *sccp_config;
 static struct sccp_server sccp_srv;
 int sccp_debug;
 char sccp_debug_addr[16];
@@ -531,7 +530,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		return NULL;
 	}
 
-	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->capabilities, joint);
+	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->caps, joint);
 	if (! has_joint) {
 		ast_log(LOG_WARNING, "no compatible codecs\n");
 		return NULL;
@@ -1785,9 +1784,14 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 	return 0;
 }
 
-int codec_ast2sccp(struct ast_format *astcodec)
+enum sccp_codecs codec_ast2sccp(struct ast_format *format)
 {
-	switch (astcodec->id) {
+	if (format == NULL) {
+		ast_log(LOG_DEBUG, "format is NULL\n");
+		return -1;
+	}
+
+	switch (format->id) {
 	case AST_FORMAT_ALAW:
 		return SCCP_CODEC_G711_ALAW;
 	case AST_FORMAT_ULAW:
@@ -1899,10 +1903,9 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	int count = 0;
 	int sccpcodec = 0;
 	struct ast_format format;
-	struct ast_format_cap *capabilities;
+	struct ast_format_cap *caps;
 	int i = 0;
 	struct sccp_device *device = NULL;
-	char buf[256];
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -1921,14 +1924,13 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	}
 
 	count = letohl(msg->data.caps.count);
-	ast_log(LOG_DEBUG, "Received %d capabilities\n", count);
 
 	if (count > SCCP_MAX_CAPABILITIES) {
 		count = SCCP_MAX_CAPABILITIES;
 		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
 	}
 
-	capabilities = ast_format_cap_alloc();
+	caps = ast_format_cap_alloc();
 	for (i = 0; i < count; i++) {
 
 		/* get the device supported codecs */
@@ -1937,13 +1939,12 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 		/* translate to asterisk format */
 		codec_sccp2ast(sccpcodec, &format);
 
-		ast_format_cap_add(capabilities, &format);
+		ast_format_cap_add(caps, &format);
 	}
 
-	ast_format_cap_copy(device->capabilities, capabilities);
-	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->capabilities));
+	ast_format_cap_copy(device->caps, caps);
 
-	capabilities = ast_format_cap_destroy(capabilities);
+	caps = ast_format_cap_destroy(caps);
 	return 0;
 }
 
@@ -3171,11 +3172,12 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 		return NULL;
 	}
 
-	ast_cli(a->fd, "%-9s %-8s %s\n", "Line", "State", "Capabilities");
-	ast_cli(a->fd, "=======   =======  ================\n");
+	ast_cli(a->fd, "Line      State    Pref.codecs\n");
+	ast_cli(a->fd, "=======   =======  =============\n");
 	AST_RWLIST_RDLOCK(&sccp_config->list_line);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_line, line_itr, list) {
-		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, line_state_str(line_itr->state), ast_getformatname_multiple(buf, sizeof(buf), line_itr->caps));
+		ast_codec_pref_string(&line_itr->codec_pref, buf, sizeof(buf));
+		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, line_state_str(line_itr->state), buf);
 		line_cnt++;
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_line);
@@ -3235,7 +3237,7 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 							device_type_str(device_itr->type),
 							device_regstate_str(device_itr->regstate),
 							device_itr->proto_version,
-							ast_getformatname_multiple(buf, sizeof(buf), device_itr->capabilities));
+							ast_getformatname_multiple(buf, sizeof(buf), device_itr->caps));
 
 		dev_cnt++;
 		if (device_itr->regstate == DEVICE_REGISTERED_TRUE)
@@ -3540,7 +3542,7 @@ void sccp_rtp_init(const struct ast_module_info *module_info)
 	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
 }
 
-int sccp_server_init(struct sccp_configs *sccp_cfg)
+int sccp_server_init(void)
 {
 	int ret = 0;
 	struct addrinfo hints = {
@@ -3554,8 +3556,6 @@ int sccp_server_init(struct sccp_configs *sccp_cfg)
 	AST_TEST_REGISTER(sccp_test_extstate_ast2sccp);
 	AST_TEST_REGISTER(sccp_test_utf8_to_iso88591);
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
-
-	sccp_config = sccp_cfg;
 
 	ret = getaddrinfo(sccp_config->bindaddr, SCCP_PORT, &hints, &sccp_srv.res);
 	if (ret != 0) {

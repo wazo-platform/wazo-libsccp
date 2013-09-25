@@ -301,8 +301,8 @@ struct sccp_device {
 	uint32_t line_count;
 	uint32_t speeddial_count;
 
-	struct ast_format_cap *capabilities;
 	struct ast_codec_pref codec_pref;
+	struct ast_format_cap *caps;	/* Supported capabilities */
 
 	void *session;
 
@@ -319,10 +319,13 @@ AST_RWLIST_HEAD(list_speeddial, sccp_speeddial);
 AST_RWLIST_HEAD(list_line, sccp_line);
 AST_RWLIST_HEAD(list_device, sccp_device);
 
+struct sccp_device *sccp_new_device(const char *name);
+void sccp_device_destroy(struct sccp_device *device);
+
 void device_unregister(struct sccp_device *device);
 void device_register(struct sccp_device *device,
 			int8_t protoVersion,
-			int type,
+			enum sccp_device_type type,
 			void *session,
 			struct sockaddr_in localip);
 void device_prepare(struct sccp_device *device);

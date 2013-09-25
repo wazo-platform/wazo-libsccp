@@ -22,8 +22,6 @@
 
 #include "test_config.c"
 
-static struct sccp_configs *sccp_config;
-
 static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	struct sccp_device *device = NULL;
@@ -105,7 +103,7 @@ static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	ast_cli(a->fd, "language = %s\n", sccp_config->language);
 	ast_cli(a->fd, "directmedia = %d\n", sccp_config->directmedia);
 	ast_codec_pref_string(&sccp_config->codec_pref, buf, sizeof(buf));
-	ast_cli(a->fd, "Prefered codecs: %s\n", buf);
+	ast_cli(a->fd, "preferred codecs = %s\n", buf);
 	ast_cli(a->fd, "\n");
 
 	AST_RWLIST_RDLOCK(&sccp_config->list_device);
@@ -182,7 +180,6 @@ static void garbage_ast_database(void)
 static int load_module(void)
 {
 	int ret = 0;
-	ast_log(LOG_NOTICE, "sccp channel loading...\n");
 
 	sccp_config = sccp_new_config();
 	if (sccp_config == NULL) {
@@ -198,7 +195,7 @@ static int load_module(void)
 
 	garbage_ast_database();
 
-	ret = sccp_server_init(sccp_config);
+	ret = sccp_server_init();
 	if (ret == -1) {
 		sccp_config_unload(sccp_config);
 		sccp_config_destroy(sccp_config);
@@ -209,6 +206,7 @@ static int load_module(void)
 	sccp_rtp_init(ast_module_info);
 
 	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+
 	AST_TEST_REGISTER(sccp_test_config_set_field);
 	AST_TEST_REGISTER(sccp_test_config);
 	AST_TEST_REGISTER(sccp_test_resync);
@@ -218,14 +216,12 @@ static int load_module(void)
 
 static int unload_module(void)
 {
-	ast_log(LOG_DEBUG, "sccp channel unloading...\n");
+	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	sccp_server_fini();
 	sccp_rtp_fini();
+
 	sccp_config_unload(sccp_config);
-
-	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
-
 	sccp_config_destroy(sccp_config);
 	sccp_config = NULL;
 
