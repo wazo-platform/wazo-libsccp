@@ -21,7 +21,7 @@ struct sccp_configs {
 	char context[AST_MAX_EXTENSION];
 	char vmexten[AST_MAX_EXTENSION];
 	struct ast_codec_pref codec_pref;
-	struct ast_format_cap *caps;
+	struct ast_format_cap *caps;	/* Allowed capabilities */
 
 	struct list_speeddial list_speeddial;
 	struct list_line list_line;

@@ -30,7 +30,7 @@ struct sccp_line {
 	AST_RWLIST_HEAD(, sccp_subchannel) subchans;
 
 	struct ast_codec_pref codec_pref;
-	struct ast_format_cap *caps;
+	struct ast_format_cap *caps;	/* Allowed capabilities */
 	struct sccp_device *device;
 
 	AST_LIST_ENTRY(sccp_line) list;
