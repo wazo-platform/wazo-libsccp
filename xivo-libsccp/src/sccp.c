@@ -1786,6 +1786,11 @@ static int handle_forward_status_req_message(struct sccp_msg *msg, struct sccp_s
 
 enum sccp_codecs codec_ast2sccp(struct ast_format *format)
 {
+	if (format == NULL) {
+		ast_log(LOG_DEBUG, "format is NULL\n");
+		return -1;
+	}
+
 	switch (format->id) {
 	case AST_FORMAT_ALAW:
 		return SCCP_CODEC_G711_ALAW;
