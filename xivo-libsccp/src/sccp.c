@@ -848,6 +848,7 @@ static void *sccp_lookup_exten(void *data)
 			channel = sccp_new_channel(subchan, NULL, NULL);
 			if (channel == NULL) {
 				ast_log(LOG_ERROR, "channel is NULL\n");
+				do_clear_subchannel(subchan);
 				goto end;
 			}
 
