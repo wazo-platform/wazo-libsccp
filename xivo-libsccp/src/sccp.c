@@ -1901,7 +1901,6 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	struct ast_format_cap *capabilities;
 	int i = 0;
 	struct sccp_device *device = NULL;
-	char buf[256];
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -1920,7 +1919,6 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	}
 
 	count = letohl(msg->data.caps.count);
-	ast_log(LOG_DEBUG, "Received %d capabilities\n", count);
 
 	if (count > SCCP_MAX_CAPABILITIES) {
 		count = SCCP_MAX_CAPABILITIES;
@@ -1940,7 +1938,6 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	}
 
 	ast_format_cap_copy(device->caps, capabilities);
-	ast_log(LOG_DEBUG, "device cap: %s\n", ast_getformatname_multiple(buf, sizeof(buf), device->caps));
 
 	capabilities = ast_format_cap_destroy(capabilities);
 	return 0;
