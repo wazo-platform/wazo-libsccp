@@ -531,6 +531,16 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 		return NULL;
 	}
 
+	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->capabilities, joint);
+	if (! has_joint) {
+		ast_log(LOG_WARNING, "no compatible codecs\n");
+		return NULL;
+	}
+	if (cap && ast_format_cap_has_joint(joint, cap)) {
+		ast_format_cap_joint_copy(joint, cap, joint);
+	}
+	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
+
 	channel = ast_channel_alloc(	1,				/* needqueue */
 					AST_STATE_DOWN,			/* state */
 					subchan->line->cid_num,		/* cid_num */
@@ -561,16 +571,6 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 	if (!ast_strlen_zero(subchan->line->language)) {
 		ast_channel_language_set(channel, subchan->line->language);
 	}
-
-	has_joint = ast_format_cap_joint_copy(subchan->line->caps, subchan->line->device->capabilities, joint);
-	if (! has_joint) {
-		ast_log(LOG_WARNING, "no compatible codecs\n");
-		return NULL;
-	}
-	if (cap && ast_format_cap_has_joint(joint, cap)) {
-		ast_format_cap_joint_copy(joint, cap, joint);
-	}
-	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
 
 	ast_codec_choose(&subchan->line->codec_pref, joint, 1, &subchan->fmt);
 	ast_debug(1, "best codec %s\n", ast_getformatname(&subchan->fmt));
@@ -2805,7 +2805,10 @@ static struct ast_channel *cb_ast_request(const char *type,
 
 	subchan = sccp_new_subchannel(line);
 	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL, cap);
-	// if channel is null the subchan should be cleared else module reload will loop
+	if (channel == NULL) {
+		do_clear_subchannel(subchan);
+		return NULL;
+	}
 
 	if (line->callfwd == SCCP_CFWD_ACTIVE) {
 		ast_log(LOG_DEBUG, "setting call forward to %s\n", line->callfwd_exten);
