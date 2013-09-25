@@ -3170,11 +3170,12 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 		return NULL;
 	}
 
-	ast_cli(a->fd, "%-9s %-8s %s\n", "Line", "State", "Capabilities");
-	ast_cli(a->fd, "=======   =======  ================\n");
+	ast_cli(a->fd, "Line      State    Pref.codecs\n");
+	ast_cli(a->fd, "=======   =======  =============\n");
 	AST_RWLIST_RDLOCK(&sccp_config->list_line);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_line, line_itr, list) {
-		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, line_state_str(line_itr->state), ast_getformatname_multiple(buf, sizeof(buf), line_itr->caps));
+		ast_codec_pref_string(&line_itr->codec_pref, buf, sizeof(buf));
+		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, line_state_str(line_itr->state), buf);
 		line_cnt++;
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_line);
