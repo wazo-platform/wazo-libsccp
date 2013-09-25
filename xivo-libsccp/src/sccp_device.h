@@ -325,7 +325,7 @@ void sccp_device_destroy(struct sccp_device *device);
 void device_unregister(struct sccp_device *device);
 void device_register(struct sccp_device *device,
 			int8_t protoVersion,
-			int type,
+			enum sccp_device_type type,
 			void *session,
 			struct sockaddr_in localip);
 void device_prepare(struct sccp_device *device);

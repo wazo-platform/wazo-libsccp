@@ -94,7 +94,7 @@ void device_unregister(struct sccp_device *device)
 
 void device_register(struct sccp_device *device,
 			int8_t proto_version,
-			int type,
+			enum sccp_device_type type,
 			void *session,
 			struct sockaddr_in localip)
 {
