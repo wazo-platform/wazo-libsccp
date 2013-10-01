@@ -2318,7 +2318,10 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 		frame.offset = 0;
 		frame.datalen = 0;
 
-		ast_queue_frame(line->active_subchan->channel, &frame);
+		/* Workaround for bug #4503 */
+		if (line->active_subchan->channel) {
+			ast_queue_frame(line->active_subchan->channel, &frame);
+		}
 
 	} else if (line->state == SCCP_OFFHOOK) {
 
