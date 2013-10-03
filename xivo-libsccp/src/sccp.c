@@ -3121,13 +3121,17 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		break;
 
 	case AST_CONTROL_HOLD:
-		ast_rtp_instance_update_source(subchan->rtp);
-		ast_moh_start(channel, data, NULL);
+		if (subchan->rtp) {
+			ast_rtp_instance_update_source(subchan->rtp);
+			ast_moh_start(channel, data, NULL);
+		}
 		break;
 
 	case AST_CONTROL_UNHOLD:
-		ast_rtp_instance_update_source(subchan->rtp);
-		ast_moh_stop(channel);
+		if (subchan->rtp) {
+			ast_rtp_instance_update_source(subchan->rtp);
+			ast_moh_stop(channel);
+		}
 		break;
 
 	case AST_CONTROL_SRCUPDATE:
