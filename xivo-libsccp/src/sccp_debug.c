@@ -8,15 +8,35 @@ char sccp_debug_addr[16];
 static void dump_message(struct sccp_session *session, struct sccp_msg *msg, const char *head);
 static void dump_open_receive_channel_ack(char *str, size_t size, struct open_receive_channel_ack_message *m);
 
-void dump_message_received(struct sccp_session *session, struct sccp_msg *msg) {
+void sccp_enable_debug(void)
+{
+	sccp_debug = 1;
+	*sccp_debug_addr = '\0';
+}
+
+void sccp_enable_debug_ip(const char *ip)
+{
+	sccp_debug = 1;
+	ast_copy_string(sccp_debug_addr, ip, sizeof(sccp_debug_addr));
+}
+
+void sccp_disable_debug(void)
+{
+	sccp_debug = 0;
+}
+
+void dump_message_received(struct sccp_session *session, struct sccp_msg *msg)
+{
 	dump_message(session, msg, "Received message from");
 }
 
-void dump_message_transmitting(struct sccp_session *session, struct sccp_msg *msg) {
+void dump_message_transmitting(struct sccp_session *session, struct sccp_msg *msg)
+{
 	dump_message(session, msg, "Transmitting message to");
 }
 
-static void dump_message(struct sccp_session *session, struct sccp_msg *msg, const char *head) {
+static void dump_message(struct sccp_session *session, struct sccp_msg *msg, const char *head)
+{
 	char body[256];
 	uint32_t msg_id;
 
@@ -58,7 +78,8 @@ static void dump_message(struct sccp_session *session, struct sccp_msg *msg, con
 	);
 }
 
-static void dump_open_receive_channel_ack(char *str, size_t size, struct open_receive_channel_ack_message *m) {
+static void dump_open_receive_channel_ack(char *str, size_t size, struct open_receive_channel_ack_message *m)
+{
 	char buf[INET_ADDRSTRLEN];
 	struct in_addr addr;
 

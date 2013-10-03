@@ -3320,15 +3320,13 @@ static char *sccp_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_arg
 	what = a->argv[e->args - 1];
 
 	if (!strcasecmp(what, "on")) {
-		sccp_debug = 1;
-		*sccp_debug_addr = '\0';
+		sccp_enable_debug();
 		ast_cli(a->fd, "SCCP debugging enabled\n");
 	} else if (!strcasecmp(what, "off")) {
-		sccp_debug = 0;
+		sccp_disable_debug();
 		ast_cli(a->fd, "SCCP debugging disabled\n");
 	}  else if (!strcasecmp(what, "ip") && a->argc == e->args + 1) {
-		sccp_debug = 1;
-		ast_copy_string(sccp_debug_addr, a->argv[e->args], sizeof(sccp_debug_addr));
+		sccp_enable_debug_ip(a->argv[e->args]);
 		ast_cli(a->fd, "SCCP debugging enabled for IP: %s\n", sccp_debug_addr);
 	} else {
 		return CLI_SHOWUSAGE;
