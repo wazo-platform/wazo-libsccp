@@ -5,8 +5,10 @@
 int sccp_debug;
 char sccp_debug_addr[16];
 
-static void dump_message(struct sccp_session *session, struct sccp_msg *msg, const char *head);
-static void dump_open_receive_channel_ack(char *str, size_t size, struct open_receive_channel_ack_message *m);
+static void dump_message(const struct sccp_session *session, const struct sccp_msg *msg, const char *head1, const char *head2);
+static void dump_offhook(char *str, size_t size, const struct offhook_message *m);
+static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
+static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m);
 
 void sccp_enable_debug(void)
 {
@@ -25,19 +27,20 @@ void sccp_disable_debug(void)
 	sccp_debug = 0;
 }
 
-void sccp_dump_message_received(struct sccp_session *session, struct sccp_msg *msg)
+void sccp_dump_message_received(const struct sccp_session *session, const struct sccp_msg *msg)
 {
-	dump_message(session, msg, "Received message from");
+	dump_message(session, msg, "Received message", "from");
 }
 
-void sccp_dump_message_transmitting(struct sccp_session *session, struct sccp_msg *msg)
+void sccp_dump_message_transmitting(const struct sccp_session *session, const struct sccp_msg *msg)
 {
-	dump_message(session, msg, "Transmitting message to");
+	dump_message(session, msg, "Transmitting message", "to");
 }
 
-static void dump_message(struct sccp_session *session, struct sccp_msg *msg, const char *head)
+static void dump_message(const struct sccp_session *session, const struct sccp_msg *msg, const char *head1, const char *head2)
 {
 	char body[256];
+	int pad = 1;
 	uint32_t msg_id;
 
 	if (session == NULL || msg == NULL) {
@@ -54,31 +57,40 @@ static void dump_message(struct sccp_session *session, struct sccp_msg *msg, con
 
 	switch (msg_id) {
 	case OFFHOOK_MESSAGE:
-		snprintf(body, sizeof(body), "Line instance: %d\nCall instance: %d\n\n",
-			letohl(msg->data.offhook.lineInstance),
-			letohl(msg->data.offhook.callInstance));
+		dump_offhook(body, sizeof(body), &msg->data.offhook);
 		break;
 	case ONHOOK_MESSAGE:
-		snprintf(body, sizeof(body), "Line instance: %d\nCall instance: %d\n\n",
-			letohl(msg->data.offhook.lineInstance),
-			letohl(msg->data.offhook.callInstance));
+		dump_onhook(body, sizeof(body), &msg->data.onhook);
 		break;
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
 		dump_open_receive_channel_ack(body, sizeof(body), &msg->data.openreceivechannelack);
 		break;
+	default:
+		pad = 0;
+		break;
 	}
 
 	ast_verbose(
-		"\n<--- %s %s:%d -->\n"
-		"Length: %4u   Reserved: 0x%08X   ID: 0x%04X (%s)\n\n"
+		"\n<--- %s \"%s\" %s %s:%d -->\n"
+		"Length: %4u   Reserved: 0x%08X   ID: 0x%04X\n%s"
 		"%s"
 		"\n<------------>\n",
-		head, session->ipaddr, session->port, letohl(msg->length), letohl(msg->reserved),
-		msg_id, msg_id_str(msg_id), body
+		head1, msg_id_str(msg_id), head2, session->ipaddr, session->port, letohl(msg->length),
+		letohl(msg->reserved), msg_id, pad ? "\n" : "", body
 	);
 }
 
-static void dump_open_receive_channel_ack(char *str, size_t size, struct open_receive_channel_ack_message *m)
+static void dump_offhook(char *str, size_t size, const struct offhook_message *m)
+{
+	snprintf(str, size, "Line instance: %d\nCall instance: %d\n", m->lineInstance, m->callInstance);
+}
+
+static void dump_onhook(char *str, size_t size, const struct onhook_message *m)
+{
+	snprintf(str, size, "Line instance: %d\nCall instance: %d\n", m->lineInstance, m->callInstance);
+}
+
+static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m)
 {
 	char buf[INET_ADDRSTRLEN];
 	struct in_addr addr;
@@ -86,9 +98,9 @@ static void dump_open_receive_channel_ack(char *str, size_t size, struct open_re
 	addr.s_addr = m->ipAddr;
 
 	if (!inet_ntop(AF_INET, &addr, buf, sizeof(buf))) {
-		ast_log(LOG_WARNING, "could not dump msg: error calling inet_ntop: %s\n", strerror(errno));
+		ast_log(LOG_NOTICE, "could not dump msg: error calling inet_ntop: %s\n", strerror(errno));
 		return;
 	}
 
-	snprintf(str, size, "Status: %d\nIP: %s\nPort: %u\n\n", letohl(m->status), buf, letohl(m->port));
+	snprintf(str, size, "Status: %d\nIP: %s\nPort: %u\n", letohl(m->status), buf, letohl(m->port));
 }

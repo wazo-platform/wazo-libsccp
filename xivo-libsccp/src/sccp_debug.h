@@ -11,7 +11,7 @@ void sccp_enable_debug(void);
 void sccp_enable_debug_ip(const char *ip);
 void sccp_disable_debug(void);
 
-void sccp_dump_message_received(struct sccp_session *session, struct sccp_msg *msg);
-void sccp_dump_message_transmitting(struct sccp_session *session, struct sccp_msg *msg);
+void sccp_dump_message_received(const struct sccp_session *session, const struct sccp_msg *msg);
+void sccp_dump_message_transmitting(const struct sccp_session *session, const struct sccp_msg *msg);
 
 #endif /* SCCP_DEBUG_H */
