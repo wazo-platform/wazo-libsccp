@@ -178,7 +178,7 @@ static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	if (sccp_debug) {
 		if (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, session->ipaddr)) {
-			dump_message_transmitting(session, msg);
+			sccp_dump_message_transmitting(session, msg);
 		}
 	}
 

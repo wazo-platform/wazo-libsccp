@@ -25,12 +25,12 @@ void sccp_disable_debug(void)
 	sccp_debug = 0;
 }
 
-void dump_message_received(struct sccp_session *session, struct sccp_msg *msg)
+void sccp_dump_message_received(struct sccp_session *session, struct sccp_msg *msg)
 {
 	dump_message(session, msg, "Received message from");
 }
 
-void dump_message_transmitting(struct sccp_session *session, struct sccp_msg *msg)
+void sccp_dump_message_transmitting(struct sccp_session *session, struct sccp_msg *msg)
 {
 	dump_message(session, msg, "Transmitting message to");
 }
