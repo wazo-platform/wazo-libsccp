@@ -27,12 +27,13 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "sccp.h"
+#include "sccp_config.h"
+#include "sccp_debug.h"
 #include "sccp_device.h"
 #include "sccp_line.h"
 #include "sccp_message.h"
-#include "sccp.h"
 #include "sccp_utils.h"
-#include "sccp_config.h"
 
 #include "../config.h"
 
@@ -46,8 +47,6 @@ AST_TEST_DEFINE(sccp_test_utf8_to_iso88591);
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
 static struct sccp_server sccp_srv;
-int sccp_debug;
-char sccp_debug_addr[16];
 
 static unsigned int chan_idx;
 

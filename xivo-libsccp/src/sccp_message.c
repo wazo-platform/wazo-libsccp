@@ -6,6 +6,7 @@
 #include <asterisk/rtp_engine.h>
 
 #include "sccp.h"
+#include "sccp_debug.h"
 #include "sccp_device.h"
 #include "sccp_line.h"
 #include "sccp_message.h"
