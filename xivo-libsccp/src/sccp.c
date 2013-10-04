@@ -507,6 +507,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
 	/* initialise subchannel and add it to the list */
 	subchan->state = SCCP_OFFHOOK;
 	subchan->on_hold = 0;
+	subchan->resuming = 0;
 	subchan->line = line;
 	subchan->id = line->serial_callid++;
 	subchan->channel = NULL;
@@ -606,7 +607,7 @@ static enum ast_rtp_glue_result cb_ast_get_rtp_peer(struct ast_channel *channel,
 	ao2_ref(subchan->rtp, +1);
 	*instance = subchan->rtp;
 
-	if (sccp_config->directmedia && device_supports_direct_media(subchan->line->device))
+	if (sccp_config->directmedia)
 		return AST_RTP_GLUE_RESULT_REMOTE;
 
 	return AST_RTP_GLUE_RESULT_LOCAL;
@@ -713,12 +714,9 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	subchan_init_rtp_instance(subchan);
 
 	session = subchan->line->device->session;
-	if (subchan->line->device->open_receive_msg_sent) {
-		subchan->line->device->open_receive_msg_sent = 0;
-		subchan_start_media_transmission(subchan);
-	} else {
-		transmit_open_receive_channel(session, subchan);
-	}
+	subchan_start_media_transmission(subchan);
+
+	ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
 
 	return 0;
 }
@@ -1023,8 +1021,6 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 		return 0;
 	}
 
-	ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
-
 	ret = transmit_ringer_mode(session, SCCP_RING_OFF);
 	if (ret == -1)
 		return -1;
@@ -1045,7 +1041,9 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	if (ret == -1)
 		return -1;
 
-	start_rtp(subchan);
+	ret = transmit_open_receive_channel(session, subchan);
+	if (ret == -1)
+		return -1;
 
 	sccp_line_set_state(line, SCCP_CONNECTED);
 	subchan_set_state(subchan, SCCP_CONNECTED);
@@ -1387,6 +1385,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 	/* restart the audio stream, which has been stopped in handle_softkey_hold */
 	if (line->active_subchan && line->active_subchan->rtp) {
+		line->active_subchan->resuming = 1;
 		transmit_open_receive_channel(session, line->active_subchan);
 	}
 
@@ -1990,10 +1989,11 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		return 0;
 	}
 
-	if (line->active_subchan->rtp) {
+	if (line->active_subchan->resuming) {
+		line->active_subchan->resuming = 0;
 		subchan_start_media_transmission(line->active_subchan);
 	} else {
-		// open_receive_msg_sent is on and it's too early to transmit media start
+		start_rtp(line->active_subchan);
 	}
 
 	ast_mutex_unlock(&line->device->lock);
@@ -2942,12 +2942,6 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	if (ret == -1)
 		return -1;
 
-
-	if (!line->active_subchan && !line->device->open_receive_msg_sent && sccp_config->directmedia && device_supports_direct_media(line->device)) {
-		line->device->open_receive_msg_sent = 1;
-		transmit_open_receive_channel(session, subchan);
-	}
-
 	if (line->device->autoanswer == 1) {
 		line->device->autoanswer = 0;
 		sccp_autoanswer_call(subchan);
@@ -2979,10 +2973,11 @@ static int cb_ast_answer(struct ast_channel *channel)
 {
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
+	struct sccp_session *session = line->device->session;
 
 	if (subchan->rtp == NULL) {
 		ast_log(LOG_DEBUG, "rtp is NULL\n");
-		start_rtp(subchan);
+		transmit_open_receive_channel(session, subchan);
 
 		/* Wait for the phone to provide his ip:port information
 		   before the bridging is being done. */
@@ -2993,9 +2988,9 @@ static int cb_ast_answer(struct ast_channel *channel)
 		return 0;
 	}
 
-	transmit_stop_tone(line->device->session, line->instance, subchan->id);
-	transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_CONNECTED);
-	transmit_callstate(line->device->session, line->instance, SCCP_CONNECTED, subchan->id);
+	transmit_stop_tone(session, line->instance, subchan->id);
+	transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_CONNECTED);
+	transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
 
 	ast_setstate(channel, AST_STATE_UP);
 	sccp_line_set_state(line, SCCP_CONNECTED);
@@ -3055,6 +3050,7 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
+	struct sccp_session *session = device->session;
 	struct ast_rtp_instance *rtp = NULL;
 	int res = 0;
 
@@ -3070,8 +3066,8 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 		res = ast_rtp_instance_write(rtp, frame);
 	} else if (rtp == NULL && line->state == SCCP_PROGRESS) {
 		/* handle early rtp during progress state */
-		transmit_stop_tone(line->device->session, line->instance, subchan->id);
-		start_rtp(subchan);
+		transmit_stop_tone(session, line->instance, subchan->id);
+		transmit_open_receive_channel(session, subchan);
 	}
 
 	ao2_cleanup(rtp);

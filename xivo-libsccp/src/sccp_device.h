@@ -249,6 +249,7 @@ struct sccp_subchannel {
 	uint32_t id;
 	enum sccp_state state;
 	uint8_t on_hold;
+	uint8_t resuming;
 	struct ast_sockaddr direct_media_addr;
 	struct ast_rtp_instance *rtp;
 	struct sccp_line *line;
@@ -285,7 +286,6 @@ struct sccp_device {
 	uint32_t station_port;
 	struct sockaddr_in localip;
 	struct sockaddr_in remote;
-	uint8_t open_receive_msg_sent;
 
 	char voicemail[AST_MAX_EXTENSION];
 	struct ast_event_sub *mwi_event_sub;
@@ -334,7 +334,6 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance);
 struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index);
 struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
-int device_supports_direct_media(struct sccp_device *device);
 const char *line_state_str(enum sccp_state line_state);
 int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
