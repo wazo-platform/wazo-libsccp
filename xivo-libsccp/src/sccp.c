@@ -716,8 +716,6 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	session = subchan->line->device->session;
 	subchan_start_media_transmission(subchan);
 
-	ast_queue_control(subchan->channel, AST_CONTROL_ANSWER);
-
 	return 0;
 }
 
@@ -1961,6 +1959,7 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
+	struct ast_channel *channel = NULL;
 	uint32_t addr = 0;
 	uint32_t port = 0;
 
@@ -1996,7 +1995,16 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 		start_rtp(line->active_subchan);
 	}
 
+	if (line->active_subchan->channel) {
+		channel = ast_channel_ref(line->active_subchan->channel);
+	}
+
 	ast_mutex_unlock(&line->device->lock);
+
+	if (channel) {
+		ast_queue_control(channel, AST_CONTROL_ANSWER);
+		ast_channel_unref(channel);
+	}
 
 	return 0;
 }
