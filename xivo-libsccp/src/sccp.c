@@ -679,7 +679,19 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 		}
 	} else {
 		ast_debug(1, "rtp is NULL\n");
-		transmit_stop_media_transmission(session, subchan->id);
+		/* hack for 7920 */
+		if (session->device->type == SCCP_DEVICE_7920) {
+			ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
+			ast_sockaddr_to_sin(&local_tmp, &local);
+
+			if (local.sin_addr.s_addr == 0)
+				local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
+
+			transmit_stop_media_transmission(session, subchan->id);
+			transmit_start_media_transmission(session, subchan, local);
+		} else {
+			transmit_stop_media_transmission(session, subchan->id);
+		}
 	}
 
 	return 0;
