@@ -27,12 +27,13 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "sccp.h"
+#include "sccp_config.h"
+#include "sccp_debug.h"
 #include "sccp_device.h"
 #include "sccp_line.h"
 #include "sccp_message.h"
-#include "sccp.h"
 #include "sccp_utils.h"
-#include "sccp_config.h"
 
 #include "../config.h"
 
@@ -46,8 +47,6 @@ AST_TEST_DEFINE(sccp_test_utf8_to_iso88591);
 static AST_LIST_HEAD_STATIC(list_session, sccp_session);
 static struct ast_sched_context *sched = NULL;
 static struct sccp_server sccp_srv;
-int sccp_debug;
-char sccp_debug_addr[16];
 
 static unsigned int chan_idx;
 
@@ -2426,7 +2425,7 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 
 	if (sccp_debug) {
 		if (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, session->ipaddr)) {
-			dump_message_received(session, msg);
+			sccp_dump_message_received(session, msg);
 		}
 	}
 
@@ -3325,15 +3324,13 @@ static char *sccp_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_arg
 	what = a->argv[e->args - 1];
 
 	if (!strcasecmp(what, "on")) {
-		sccp_debug = 1;
-		*sccp_debug_addr = '\0';
+		sccp_enable_debug();
 		ast_cli(a->fd, "SCCP debugging enabled\n");
 	} else if (!strcasecmp(what, "off")) {
-		sccp_debug = 0;
+		sccp_disable_debug();
 		ast_cli(a->fd, "SCCP debugging disabled\n");
 	}  else if (!strcasecmp(what, "ip") && a->argc == e->args + 1) {
-		sccp_debug = 1;
-		ast_copy_string(sccp_debug_addr, a->argv[e->args], sizeof(sccp_debug_addr));
+		sccp_enable_debug_ip(a->argv[e->args]);
 		ast_cli(a->fd, "SCCP debugging enabled for IP: %s\n", sccp_debug_addr);
 	} else {
 		return CLI_SHOWUSAGE;
