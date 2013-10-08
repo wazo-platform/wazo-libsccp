@@ -632,6 +632,11 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 
 	ast_debug(1, "updating peer for channel %s...\n", ast_channel_name(channel));
 
+	if (!rtp) {
+		ast_debug(1, "not updating peer: rtp is NULL\n");
+		return 0;
+	}
+
 	if (subchan == NULL) {
 		ast_debug(1, "not updating peer: subchan is NULL\n");
 		return -1;
@@ -650,42 +655,31 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 	}
 	session = line->device->session;
 
+	changed = ast_rtp_instance_get_and_cmp_remote_address(rtp, &subchan->direct_media_addr);
+	if (!changed) {
+		ast_debug(1, "not updating peer: remote address has not changed\n");
+		return 0;
+	}
+
 	ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
 	ast_sockaddr_to_sin(&local_tmp, &local);
 
 	if (local.sin_addr.s_addr == 0)
 		local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
 
-	if (rtp) {
-		ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
-		ast_debug(1, "remote address %s\n", ast_sockaddr_stringify(&endpoint_tmp));
+	ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
+	ast_debug(1, "remote address %s\n", ast_sockaddr_stringify(&endpoint_tmp));
 
-		changed = ast_rtp_instance_get_and_cmp_remote_address(rtp, &subchan->direct_media_addr);
-		if (!changed) {
-			ast_debug(1, "not updating peer: remote address has not changed\n");
-			return 0;
-		}
-
-		ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
-		if (endpoint.sin_addr.s_addr != 0) {
-			transmit_stop_media_transmission(session, subchan->id);
-			transmit_start_media_transmission(session, subchan, endpoint);
-			ast_queue_control(subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
-		} else {
-			ast_debug(1, "updating peer: remote address is 0, device will send media to asterisk\n");
-
-			transmit_stop_media_transmission(session, subchan->id);
-			transmit_start_media_transmission(session, subchan, local);
-		}
+	ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
+	if (endpoint.sin_addr.s_addr != 0) {
+		transmit_stop_media_transmission(session, subchan->id);
+		transmit_start_media_transmission(session, subchan, endpoint);
+		ast_queue_control(subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
 	} else {
-		ast_debug(1, "rtp is NULL\n");
-		/* hack for 7920 */
-		if (session->device->type == SCCP_DEVICE_7920) {
-			transmit_stop_media_transmission(session, subchan->id);
-			transmit_start_media_transmission(session, subchan, local);
-		} else {
-			transmit_stop_media_transmission(session, subchan->id);
-		}
+		ast_debug(1, "updating peer: remote address is 0, device will send media to asterisk\n");
+
+		transmit_stop_media_transmission(session, subchan->id);
+		transmit_start_media_transmission(session, subchan, local);
 	}
 
 	return 0;
