@@ -700,7 +700,6 @@ static void cb_ast_get_codec(struct ast_channel *channel, struct ast_format_cap 
 static int start_rtp(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr bindaddr_tmp;
-	struct sccp_session *session = NULL;
 
 	ast_debug(1, "start rtp\n");
 
@@ -718,7 +717,6 @@ static int start_rtp(struct sccp_subchannel *subchan)
 
 	subchan_init_rtp_instance(subchan);
 
-	session = subchan->line->device->session;
 	subchan_start_media_transmission(subchan);
 
 	return 0;
