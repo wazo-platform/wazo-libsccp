@@ -83,7 +83,8 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 static size_t make_thread_sessions_array(pthread_t **threads);
 static void subchan_init_rtp_instance(struct sccp_subchannel *subchan);
 static void subchan_start_media_transmission(struct sccp_subchannel *subchan);
-static void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local);
+static void subchan_set_rtp_remote_address(struct sccp_subchannel *subchan);
+static void subchan_get_rtp_local_address(struct sccp_subchannel *subchan, struct sockaddr_in *local);
 
 static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
@@ -3487,10 +3488,9 @@ void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 					subchan->rtp, &subchan->line->codec_pref);
 }
 
-void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct sockaddr_in *local)
+void subchan_set_rtp_remote_address(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr remote_tmp;
-	struct ast_sockaddr local_tmp;
 
 	if (subchan == NULL) {
 		ast_log(LOG_ERROR, "subchan is NULL\n");
@@ -3499,8 +3499,18 @@ void subchan_set_rtp_addresses_get_local(struct sccp_subchannel *subchan, struct
 
 	ast_sockaddr_from_sin(&remote_tmp, &subchan->line->device->remote);
 	ast_rtp_instance_set_remote_address(subchan->rtp, &remote_tmp);
+}
 
-	ast_rtp_instance_get_local_address(subchan->line->active_subchan->rtp, &local_tmp);
+void subchan_get_rtp_local_address(struct sccp_subchannel *subchan, struct sockaddr_in *local)
+{
+	struct ast_sockaddr local_tmp;
+
+	if (subchan == NULL) {
+		ast_log(LOG_ERROR, "subchan is NULL\n");
+		return;
+	}
+
+	ast_rtp_instance_get_local_address(subchan->rtp, &local_tmp);
 	ast_sockaddr_to_sin(&local_tmp, local);
 
 	if (local->sin_addr.s_addr == 0) {
@@ -3517,7 +3527,8 @@ void subchan_start_media_transmission(struct sccp_subchannel *subchan)
 		return;
 	}
 
-	subchan_set_rtp_addresses_get_local(subchan, &local);
+	subchan_set_rtp_remote_address(subchan);
+	subchan_get_rtp_local_address(subchan, &local);
 	transmit_start_media_transmission(subchan->line->device->session, subchan, local);
 }
 
