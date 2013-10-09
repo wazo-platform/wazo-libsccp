@@ -622,12 +622,10 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				int nat_active)
 {
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-	struct sccp_line *line = NULL;
+	struct sccp_session *session = NULL;
 	struct sockaddr_in endpoint;
 	struct ast_sockaddr endpoint_tmp;
 	struct sockaddr_in local;
-	struct ast_sockaddr local_tmp;
-	struct sccp_session *session;
 	int changed = 0;
 
 	ast_debug(1, "updating peer for channel %s...\n", ast_channel_name(channel));
@@ -647,13 +645,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 		return 0;
 	}
 
-	line = subchan->line;
-
-	if (line->device == NULL) {
-		ast_debug(1, "not updating peer: device is NULL\n");
-		return -1;
-	}
-	session = line->device->session;
+	session = subchan->line->device->session;
 
 	changed = ast_rtp_instance_get_and_cmp_remote_address(rtp, &subchan->direct_media_addr);
 	if (!changed) {
@@ -661,11 +653,7 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 		return 0;
 	}
 
-	ast_rtp_instance_get_local_address(line->active_subchan->rtp, &local_tmp);
-	ast_sockaddr_to_sin(&local_tmp, &local);
-
-	if (local.sin_addr.s_addr == 0)
-		local.sin_addr.s_addr = line->device->localip.sin_addr.s_addr;
+	subchan_get_rtp_local_address(subchan, &local);
 
 	ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
 	ast_debug(1, "remote address %s\n", ast_sockaddr_stringify(&endpoint_tmp));
