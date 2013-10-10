@@ -1960,6 +1960,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	}
 
 	line = session->device->default_line;
+	session->device->open_receive_channel_pending = 0;
 
 	addr = msg->data.openreceivechannelack.ipAddr;
 	port = letohl(msg->data.openreceivechannelack.port);

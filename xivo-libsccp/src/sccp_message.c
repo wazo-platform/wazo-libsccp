@@ -378,16 +378,23 @@ int transmit_open_receive_channel(struct sccp_session *session, struct sccp_subc
 {
 	struct ast_format_list fmt;
 	struct sccp_msg *msg = NULL;
+	struct sccp_device *device;
 
 	if (subchan == NULL) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return -1;
 	}
 
-	if (subchan->line->device == NULL) {
+	device = subchan->line->device;
+	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
 	}
+	if (device->open_receive_channel_pending == 1) {
+		ast_debug(1, "open_receive_channel already sent\n");
+		return 0;
+	}
+	device->open_receive_channel_pending = 1;
 
 	fmt = ast_codec_pref_getsize(&subchan->line->codec_pref, &subchan->fmt);
 

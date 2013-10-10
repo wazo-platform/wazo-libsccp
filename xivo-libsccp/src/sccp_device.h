@@ -278,6 +278,7 @@ struct sccp_device {
 
 	ast_mutex_t lock;
 	uint8_t destroy;
+	volatile int open_receive_channel_pending;
 
 	char name[80];
 	enum sccp_device_type type;
