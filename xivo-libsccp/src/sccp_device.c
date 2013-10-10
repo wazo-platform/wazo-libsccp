@@ -120,6 +120,7 @@ void device_prepare(struct sccp_device *device)
 	}
 
 	device->exten[0] = '\0';
+	device->open_receive_channel_pending = 0;
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
