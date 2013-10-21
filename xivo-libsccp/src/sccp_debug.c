@@ -95,7 +95,17 @@ static void dump_message(const struct sccp_session *session, const struct sccp_m
 
 static void dump_call_info(char *str, size_t size, const struct call_info_message *m)
 {
-	snprintf(str, size, "Line instance: %u\nCall ID: %u\n", letohl(m->lineInstance), letohl(m->callInstance));
+	// TODO update other dump_* function to use a similar style ?
+	snprintf(str, size,
+			"Calling name: %s\n"
+			"Calling: %s\n"
+			"Called name: %s\n"
+			"Called: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n"
+			"Type: %u\n",
+			m->callingPartyName, m->callingParty, m->calledPartyName, m->calledParty,
+			letohl(m->lineInstance), letohl(m->callInstance), letohl(m->type));
 }
 
 static void dump_call_state(char *str, size_t size, const struct call_state_message *m)

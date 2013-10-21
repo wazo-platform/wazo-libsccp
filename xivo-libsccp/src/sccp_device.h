@@ -66,6 +66,11 @@ enum sccp_state {
 	SCCP_INVALID = 14,
 };
 
+enum sccp_direction {
+	SCCP_DIR_INCOMING = 1,
+	SCCP_DIR_OUTGOING = 2,
+};
+
 enum sccp_tone {
 	SCCP_TONE_SILENCE = 0x00,
 	SCCP_TONE_DIAL = 0x21,
@@ -248,6 +253,7 @@ struct sccp_subchannel {
 
 	uint32_t id;
 	enum sccp_state state;
+	enum sccp_direction direction;
 	uint8_t on_hold;
 	uint8_t resuming;
 	struct ast_sockaddr direct_media_addr;

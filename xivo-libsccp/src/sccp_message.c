@@ -273,7 +273,7 @@ int transmit_button_template_res(struct sccp_session *session)
 }
 
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
-			const char *to_name, const char *to_num, int line_instance, int callid, int calltype)
+			const char *to_name, const char *to_num, int line_instance, int callid, enum sccp_direction direction)
 {
 	struct sccp_msg *msg = NULL;
 
@@ -289,7 +289,7 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 
 	msg->data.callinfo.lineInstance = htolel(line_instance);
 	msg->data.callinfo.callInstance = htolel(callid);
-	msg->data.callinfo.type = htolel(calltype);
+	msg->data.callinfo.type = htolel(direction);
 
 	return transmit_message(msg, session);
 }
