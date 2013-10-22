@@ -95,7 +95,6 @@ static void dump_message(const struct sccp_session *session, const struct sccp_m
 
 static void dump_call_info(char *str, size_t size, const struct call_info_message *m)
 {
-	// TODO update other dump_* function to use a similar style ?
 	snprintf(str, size,
 			"Calling name: %s\n"
 			"Calling: %s\n"
@@ -110,18 +109,27 @@ static void dump_call_info(char *str, size_t size, const struct call_info_messag
 
 static void dump_call_state(char *str, size_t size, const struct call_state_message *m)
 {
-	snprintf(str, size, "State: %s\nLine instance: %u\nCall ID: %u\n",
+	snprintf(str, size,
+			"State: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
 			line_state_str(letohl(m->callState)), letohl(m->lineInstance), letohl(m->callReference));
 }
 
 static void dump_offhook(char *str, size_t size, const struct offhook_message *m)
 {
-	snprintf(str, size, "Line instance: %u\nCall ID: %u\n", letohl(m->lineInstance), letohl(m->callInstance));
+	snprintf(str, size,
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			letohl(m->lineInstance), letohl(m->callInstance));
 }
 
 static void dump_onhook(char *str, size_t size, const struct onhook_message *m)
 {
-	snprintf(str, size, "Line instance: %u\nCall ID: %u\n", letohl(m->lineInstance), letohl(m->callInstance));
+	snprintf(str, size,
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			letohl(m->lineInstance), letohl(m->callInstance));
 }
 
 static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m)
@@ -135,7 +143,11 @@ static void dump_open_receive_channel_ack(char *str, size_t size, const struct o
 		return;
 	}
 
-	snprintf(str, size, "Status: %u\nIP: %s\nPort: %u\n", letohl(m->status), buf, letohl(m->port));
+	snprintf(str, size,
+			"Status: %u\n"
+			"IP: %s\n"
+			"Port: %u\n",
+			letohl(m->status), buf, letohl(m->port));
 }
 
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m)
@@ -149,6 +161,10 @@ static void dump_start_media_transmission(char *str, size_t size, const struct s
 		return;
 	}
 
-	snprintf(str, size, "Call ID: %u\nIP: %s\nPort: %u\nPacket size: %u\n",
+	snprintf(str, size,
+			"Call ID: %u\n"
+			"IP: %s\n"
+			"Port: %u\n"
+			"Packet size: %u\n",
 			letohl(m->conferenceId), buf, letohl(m->remotePort), letohl(m->packetSize));
 }
