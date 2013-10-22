@@ -729,10 +729,7 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	transmit_callinfo(line->device->session, "", "", line->device->exten, line->device->exten, line->instance, subchan->id, subchan->direction);
 	transmit_dialed_number(line->device->session, line->device->exten, line->instance, subchan->id);
 
-	ast_set_callerid(channel,
-			line->cid_num,
-			line->cid_name,
-			NULL);
+	ast_set_callerid(channel, line->cid_num, line->cid_name, NULL);
 
 	ast_pbx_start(channel);
 
