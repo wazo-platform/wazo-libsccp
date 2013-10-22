@@ -734,13 +734,6 @@ static int sccp_start_the_call(struct ast_channel *channel)
 			line->cid_name,
 			NULL);
 
-	ast_party_number_free(&ast_channel_connected(channel)->id.number);
-	ast_party_number_init(&ast_channel_connected(channel)->id.number);
-	ast_channel_connected(channel)->id.number.valid = 1;
-	ast_channel_connected(channel)->id.number.str = ast_strdup(ast_channel_exten(channel));
-	ast_party_name_free(&ast_channel_connected(channel)->id.name);
-	ast_party_name_init(&ast_channel_connected(channel)->id.name);
-
 	ast_pbx_start(channel);
 
 	return 0;
