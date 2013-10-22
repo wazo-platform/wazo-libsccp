@@ -75,8 +75,8 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				const struct ast_format_cap *cap,
 				int nat_active);
 static void cb_ast_get_codec(struct ast_channel *channel, struct ast_format_cap *result);
-static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
-static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
+static char *format_party_name(struct ast_channel *channel, struct sccp_device *device);
+static char *format_party_number(struct ast_channel *channel, struct sccp_device *device);
 static void thread_session_cleanup(void *data);
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 				struct sccp_subchannel *subchan, struct sccp_session *session);
@@ -112,7 +112,7 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.get_codec = cb_ast_get_codec,
 };
 
-static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device)
+static char *format_party_name(struct ast_channel *channel, struct sccp_device *device)
 {
 	char name[64];
 	char *result = NULL;
@@ -149,7 +149,7 @@ static char *format_caller_id_name(struct ast_channel *channel, struct sccp_devi
 	return result;
 }
 
-static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device)
+static char *format_party_number(struct ast_channel *channel, struct sccp_device *device)
 {
 	char *number = NULL;
 	char *result = NULL;
@@ -2904,8 +2904,8 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	if (ret == -1)
 		return -1;
 
-	char *namestr = format_caller_id_name(channel, line->device);
-	char *numberstr = format_caller_id_number(channel, line->device);
+	char *namestr = format_party_name(channel, line->device);
+	char *numberstr = format_party_number(channel, line->device);
 
 	ret = transmit_callinfo(session,
 							namestr,
@@ -3149,8 +3149,8 @@ static void indicate_connected_line(struct ast_channel *channel, struct sccp_sub
 		return;
 	}
 
-	name = format_caller_id_name(channel, subchan->line->device);
-	number = format_caller_id_number(channel, subchan->line->device);
+	name = format_party_name(channel, subchan->line->device);
+	number = format_party_number(channel, subchan->line->device);
 
 	switch (subchan->direction) {
 	case SCCP_DIR_INCOMING:
