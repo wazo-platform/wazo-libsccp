@@ -2849,6 +2849,8 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
 	struct sccp_session *session = NULL;
+	RAII_VAR(char *, name, NULL, ast_free);
+	RAII_VAR(char *, number, NULL, ast_free);
 	int ret = 0;
 
 	session = device->session;
@@ -2904,19 +2906,16 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	if (ret == -1)
 		return -1;
 
-	char *namestr = format_party_name(channel, line->device);
-	char *numberstr = format_party_number(channel, line->device);
+	name = format_party_name(channel, line->device);
+	number = format_party_number(channel, line->device);
 
 	ret = transmit_callinfo(session,
-							namestr,
-							numberstr,
+							name,
+							number,
 							line->cid_name,
 							line->cid_num,
 							line->instance,
 							subchan->id, subchan->direction);
-
-	free(namestr);
-	free(numberstr);
 
 	if (ret == -1)
 		return -1;
