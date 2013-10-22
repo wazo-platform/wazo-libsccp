@@ -85,6 +85,7 @@ static void subchan_init_rtp_instance(struct sccp_subchannel *subchan);
 static void subchan_start_media_transmission(struct sccp_subchannel *subchan);
 static void subchan_set_rtp_remote_address(struct sccp_subchannel *subchan);
 static void subchan_get_rtp_local_address(struct sccp_subchannel *subchan, struct sockaddr_in *local);
+static void indicate_connected_line(struct ast_channel *channel, struct sccp_subchannel *subchan);
 
 static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
@@ -3067,60 +3068,6 @@ static int cb_ast_write(struct ast_channel *channel, struct ast_frame *frame)
 	return res;
 }
 
-static void on_ast_control_connected_line(struct sccp_subchannel *subchan, struct ast_channel *channel) {
-	// XXX hack, this code must be reviewed before going into production
-	struct ast_party_connected_line *cline;
-	char *name;
-	char *number;
-
-	if (!subchan) {
-		ast_log(LOG_ERROR, "subchan is NULL\n");
-		return;
-	}
-	if (subchan->channel != channel) {
-		ast_log(LOG_ERROR, "subchan->channel != channel\n");
-		return;
-	}
-
-	cline = ast_channel_connected(channel);
-	ast_log(LOG_NOTICE,
-			":::: Indicate connected line for channel %s:\n"
-			"Name valid: %d\n"
-			"Name: %s\n"
-			"Number valid: %d\n"
-			"Number: %s\n"
-			,
-			ast_channel_name(channel),
-			cline->id.name.valid, cline->id.name.str, cline->id.number.valid, cline->id.number.str);
-
-	// FIXME need to do the charset conversion for some models, etc
-	if (cline->id.name.valid) {
-		name = cline->id.name.str;
-	} else {
-		// XXX this is bad
-		name = "unknown name";
-	}
-
-	if (cline->id.number.valid) {
-		number = cline->id.number.str;
-	} else {
-		// this is bad
-		number = "unknown num";
-	}
-
-	switch (subchan->direction) {
-	case SCCP_DIR_INCOMING:
-		transmit_callinfo(subchan->line->device->session, name, number, NULL, NULL, subchan->line->instance, subchan->id, subchan->direction);
-		break;
-	case SCCP_DIR_OUTGOING:
-		transmit_callinfo(subchan->line->device->session, NULL, NULL, name, number, subchan->line->instance, subchan->id, subchan->direction);
-		break;
-	default:
-		ast_log(LOG_ERROR, "invalid direction set on subchan, this is bad\n");
-		return;
-	}
-}
-
 static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void *data, size_t datalen)
 {
 #define _AST_PROVIDE_INBAND_SIGNALLING -1
@@ -3190,12 +3137,42 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		break;
 
 	case AST_CONTROL_CONNECTED_LINE:
-		on_ast_control_connected_line(subchan, channel);
+		indicate_connected_line(channel, subchan);
 		break;
 
 	}
 
 	return 0;
+}
+
+static void indicate_connected_line(struct ast_channel *channel, struct sccp_subchannel *subchan) {
+	RAII_VAR(char *, name, NULL, ast_free);
+	RAII_VAR(char *, number, NULL, ast_free);
+
+	if (!channel) {
+		ast_log(LOG_ERROR, "channel is NULL\n");
+		return;
+	}
+
+	if (!subchan) {
+		ast_log(LOG_ERROR, "subchan is NULL\n");
+		return;
+	}
+
+	name = format_caller_id_name(channel, subchan->line->device);
+	number = format_caller_id_number(channel, subchan->line->device);
+
+	switch (subchan->direction) {
+	case SCCP_DIR_INCOMING:
+		transmit_callinfo(subchan->line->device->session, name, number, NULL, NULL, subchan->line->instance, subchan->id, subchan->direction);
+		break;
+	case SCCP_DIR_OUTGOING:
+		transmit_callinfo(subchan->line->device->session, NULL, NULL, name, number, subchan->line->instance, subchan->id, subchan->direction);
+		break;
+	default:
+		ast_log(LOG_ERROR, "invalid subchan direction\n");
+		break;
+	}
 }
 
 static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
