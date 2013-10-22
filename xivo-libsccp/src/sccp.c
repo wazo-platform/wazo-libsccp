@@ -1489,13 +1489,9 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 			return 0;
 		}
 
-		ast_queue_control(related_channel, AST_CONTROL_UNHOLD);
-
-		if (ast_bridged_channel(active_channel)) {
-			ast_channel_masquerade(related_channel, ast_bridged_channel(active_channel));
-			ast_queue_hangup(active_channel);
-		} else if (ast_bridged_channel(related_channel)) {
-			ast_channel_masquerade(active_channel, ast_bridged_channel(related_channel));
+		if (ast_bridged_channel(related_channel)) {
+			ast_channel_transfer_masquerade(active_channel, ast_channel_connected(active_channel), 0,
+					ast_bridged_channel(related_channel), ast_channel_connected(related_channel), 1);
 			ast_queue_hangup(related_channel);
 		} else {
 			ast_queue_hangup(active_channel);
