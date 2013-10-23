@@ -75,8 +75,8 @@ static int cb_ast_set_rtp_peer(struct ast_channel *channel,
 				const struct ast_format_cap *cap,
 				int nat_active);
 static void cb_ast_get_codec(struct ast_channel *channel, struct ast_format_cap *result);
-static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device);
-static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device);
+static char *format_party_name(struct ast_channel *channel, struct sccp_device *device);
+static char *format_party_number(struct ast_channel *channel, struct sccp_device *device);
 static void thread_session_cleanup(void *data);
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 				struct sccp_subchannel *subchan, struct sccp_session *session);
@@ -85,6 +85,7 @@ static void subchan_init_rtp_instance(struct sccp_subchannel *subchan);
 static void subchan_start_media_transmission(struct sccp_subchannel *subchan);
 static void subchan_set_rtp_remote_address(struct sccp_subchannel *subchan);
 static void subchan_get_rtp_local_address(struct sccp_subchannel *subchan, struct sockaddr_in *local);
+static void indicate_connected_line(struct ast_channel *channel, struct sccp_subchannel *subchan);
 
 static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
@@ -111,7 +112,7 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.get_codec = cb_ast_get_codec,
 };
 
-static char *format_caller_id_name(struct ast_channel *channel, struct sccp_device *device)
+static char *format_party_name(struct ast_channel *channel, struct sccp_device *device)
 {
 	char name[64];
 	char *result = NULL;
@@ -148,7 +149,7 @@ static char *format_caller_id_name(struct ast_channel *channel, struct sccp_devi
 	return result;
 }
 
-static char *format_caller_id_number(struct ast_channel *channel, struct sccp_device *device)
+static char *format_party_number(struct ast_channel *channel, struct sccp_device *device)
 {
 	char *number = NULL;
 	char *result = NULL;
@@ -490,7 +491,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	return ret;
 }
 
-static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
+static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line, enum sccp_direction direction)
 {
 	struct sccp_subchannel *subchan = NULL;
 
@@ -507,6 +508,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line)
 
 	/* initialise subchannel and add it to the list */
 	subchan->state = SCCP_OFFHOOK;
+	subchan->direction = direction;
 	subchan->on_hold = 0;
 	subchan->resuming = 0;
 	subchan->line = line;
@@ -724,20 +726,10 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);
 	transmit_stop_tone(line->device->session, line->instance, subchan->id);
 	transmit_tone(line->device->session, SCCP_TONE_ALERT, line->instance, subchan->id);
-	transmit_callinfo(line->device->session, "", "", line->device->exten, line->device->exten, line->instance, subchan->id, 2);
+	transmit_callinfo(line->device->session, "", "", line->device->exten, line->device->exten, line->instance, subchan->id, subchan->direction);
 	transmit_dialed_number(line->device->session, line->device->exten, line->instance, subchan->id);
 
-	ast_set_callerid(channel,
-			line->cid_num,
-			line->cid_name,
-			NULL);
-
-	ast_party_number_free(&ast_channel_connected(channel)->id.number);
-	ast_party_number_init(&ast_channel_connected(channel)->id.number);
-	ast_channel_connected(channel)->id.number.valid = 1;
-	ast_channel_connected(channel)->id.number.str = ast_strdup(ast_channel_exten(channel));
-	ast_party_name_free(&ast_channel_connected(channel)->id.name);
-	ast_party_name_init(&ast_channel_connected(channel)->id.name);
+	ast_set_callerid(channel, line->cid_num, line->cid_name, NULL);
 
 	ast_pbx_start(channel);
 
@@ -890,7 +882,7 @@ static int do_newcall(struct sccp_session *session)
 
 	line = device->default_line;
 
-	subchan = sccp_new_subchannel(line);
+	subchan = sccp_new_subchannel(line, SCCP_DIR_OUTGOING);
 	if (subchan == NULL) {
 		ast_log(LOG_ERROR, "subchan is NULL\n");
 		return -1;
@@ -1445,7 +1437,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
 
 		/* spawn a new subchannel instance and mark both as related */
-		subchan = sccp_new_subchannel(line);
+		subchan = sccp_new_subchannel(line, SCCP_DIR_OUTGOING);
 		xfer_subchan = line->active_subchan;
 
 		sccp_line_select_subchan(line, subchan);
@@ -1488,13 +1480,9 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 			return 0;
 		}
 
-		ast_queue_control(related_channel, AST_CONTROL_UNHOLD);
-
-		if (ast_bridged_channel(active_channel)) {
-			ast_channel_masquerade(related_channel, ast_bridged_channel(active_channel));
-			ast_queue_hangup(active_channel);
-		} else if (ast_bridged_channel(related_channel)) {
-			ast_channel_masquerade(active_channel, ast_bridged_channel(related_channel));
+		if (ast_bridged_channel(related_channel)) {
+			ast_channel_transfer_masquerade(active_channel, ast_channel_connected(active_channel), 0,
+					ast_bridged_channel(related_channel), ast_channel_connected(related_channel), 1);
 			ast_queue_hangup(related_channel);
 		} else {
 			ast_queue_hangup(active_channel);
@@ -2813,7 +2801,7 @@ static struct ast_channel *cb_ast_request(const char *type,
 		line->device->autoanswer = 1;
 	}
 
-	subchan = sccp_new_subchannel(line);
+	subchan = sccp_new_subchannel(line, SCCP_DIR_INCOMING);
 	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL, cap);
 	if (channel == NULL) {
 		do_clear_subchannel(subchan);
@@ -2861,6 +2849,8 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
 	struct sccp_session *session = NULL;
+	RAII_VAR(char *, name, NULL, ast_free);
+	RAII_VAR(char *, number, NULL, ast_free);
 	int ret = 0;
 
 	session = device->session;
@@ -2916,19 +2906,16 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	if (ret == -1)
 		return -1;
 
-	char *namestr = format_caller_id_name(channel, line->device);
-	char *numberstr = format_caller_id_number(channel, line->device);
+	name = format_party_name(channel, line->device);
+	number = format_party_number(channel, line->device);
 
 	ret = transmit_callinfo(session,
-							namestr,
-							numberstr,
+							name,
+							number,
 							line->cid_name,
 							line->cid_num,
 							line->instance,
-							subchan->id, 1);
-
-	free(namestr);
-	free(numberstr);
+							subchan->id, subchan->direction);
 
 	if (ret == -1)
 		return -1;
@@ -3138,11 +3125,43 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 		}
 		break;
 
-	default:
+	case AST_CONTROL_CONNECTED_LINE:
+		indicate_connected_line(channel, subchan);
 		break;
+
 	}
 
 	return 0;
+}
+
+static void indicate_connected_line(struct ast_channel *channel, struct sccp_subchannel *subchan) {
+	RAII_VAR(char *, name, NULL, ast_free);
+	RAII_VAR(char *, number, NULL, ast_free);
+
+	if (!channel) {
+		ast_log(LOG_ERROR, "channel is NULL\n");
+		return;
+	}
+
+	if (!subchan) {
+		ast_log(LOG_ERROR, "subchan is NULL\n");
+		return;
+	}
+
+	name = format_party_name(channel, subchan->line->device);
+	number = format_party_number(channel, subchan->line->device);
+
+	switch (subchan->direction) {
+	case SCCP_DIR_INCOMING:
+		transmit_callinfo(subchan->line->device->session, name, number, NULL, NULL, subchan->line->instance, subchan->id, subchan->direction);
+		break;
+	case SCCP_DIR_OUTGOING:
+		transmit_callinfo(subchan->line->device->session, NULL, NULL, name, number, subchan->line->instance, subchan->id, subchan->direction);
+		break;
+	default:
+		ast_log(LOG_ERROR, "invalid subchan direction\n");
+		break;
+	}
 }
 
 static int cb_ast_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)

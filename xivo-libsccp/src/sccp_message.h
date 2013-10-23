@@ -7,7 +7,7 @@
 const char *msg_id_str(uint32_t msg_id);
 
 int transmit_button_template_res(struct sccp_session *session);
-int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num, const char *to_name, const char *to_num, int lineInstance, int callInstance, int calltype);
+int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num, const char *to_name, const char *to_num, int lineInstance, int callInstance, enum sccp_direction direction);
 int transmit_callstate(struct sccp_session *session, int lineInstance, enum sccp_state, unsigned callInstance);
 int transmit_capabilities_req(struct sccp_session *session);
 int transmit_clearmessage(struct sccp_session *session);
