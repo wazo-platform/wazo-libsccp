@@ -1562,7 +1562,7 @@ static int handle_callforward(struct sccp_session *session, enum sccp_softkey_ty
 
 	case SCCP_CFWD_INPUTEXTEN:
 
-		if (softkey == SOFTKEY_CANCEL || line->device->exten[0] == '\0') {
+		if (softkey == SOFTKEY_BKSPC || line->device->exten[0] == '\0') {
 
 			ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
 			if (ret == -1)
@@ -1676,8 +1676,8 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 			return -1;
 		break;
 
-	case SOFTKEY_CANCEL:
-		ret = handle_callforward(session, SOFTKEY_CANCEL);
+	case SOFTKEY_BKSPC:
+		ret = handle_callforward(session, SOFTKEY_BKSPC);
 		if (ret == -1)
 			return -1;
 		break;

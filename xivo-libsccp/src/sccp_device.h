@@ -170,7 +170,6 @@ enum sccp_softkey_type {
 	SOFTKEY_MEETME = 0x10,
 	SOFTKEY_PICKUP = 0x11,
 	SOFTKEY_GPICKUP = 0x12,
-	SOFTKEY_CANCEL = 0x08,
 	SOFTKEY_DND = 0x14,
 };
 
@@ -230,7 +229,7 @@ static const uint8_t softkey_default_connintransfer[] = {
 };
 
 static const uint8_t softkey_default_callfwd[] = {
-	SOFTKEY_CANCEL,
+	SOFTKEY_BKSPC,
 	SOFTKEY_CFWDALL,
 };
 
