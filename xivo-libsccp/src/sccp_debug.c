@@ -1,4 +1,5 @@
 #include "sccp_debug.h"
+#include "sccp_device.h"
 #include "sccp_message.h"
 #include "sccp_utils.h"
 
@@ -17,6 +18,8 @@ static void dump_open_receive_channel_ack(char *str, size_t size, const struct o
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m);
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m);
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
+
+static const char *softkey_str(enum sccp_softkey_type v);
 
 void sccp_enable_debug(void)
 {
@@ -185,10 +188,10 @@ static void dump_open_receive_channel_ack(char *str, size_t size, const struct o
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m)
 {
 	snprintf(str, size,
-			"Event: 0x%X\n"
+			"Event: %s\n"
 			"Line instance: %u\n"
 			"Call ID: %u\n",
-			letohl(m->softKeyEvent), letohl(m->lineInstance), letohl(m->callInstance));
+			softkey_str(letohl(m->softKeyEvent)), letohl(m->lineInstance), letohl(m->callInstance));
 }
 
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m)
@@ -215,4 +218,52 @@ static void dump_stop_media_transmission(char *str, size_t size, const struct st
 	snprintf(str, size,
 			"Conference ID: %u\n",
 			letohl(m->conferenceId));
+}
+
+static const char *softkey_str(enum sccp_softkey_type v)
+{
+	switch (v) {
+	case SOFTKEY_NONE:
+		return "none";
+	case SOFTKEY_REDIAL:
+		return "redial";
+	case SOFTKEY_NEWCALL:
+		return "newcall";
+	case SOFTKEY_HOLD:
+		return "hold";
+	case SOFTKEY_TRNSFER:
+		return "transfer";
+	case SOFTKEY_CFWDALL:
+		return "cfwdall";
+	case SOFTKEY_CFWDBUSY:
+		return "cfwdbusy";
+	case SOFTKEY_CFWDNOANSWER:
+		return "cfwdnoanswer";
+	case SOFTKEY_BKSPC:
+		return "bkspc";
+	case SOFTKEY_ENDCALL:
+		return "endcall";
+	case SOFTKEY_RESUME:
+		return "resume";
+	case SOFTKEY_ANSWER:
+		return "answer";
+	case SOFTKEY_INFO:
+		return "info";
+	case SOFTKEY_CONFRN:
+		return "confrn";
+	case SOFTKEY_PARK:
+		return "park";
+	case SOFTKEY_JOIN:
+		return "join";
+	case SOFTKEY_MEETME:
+		return "meetme";
+	case SOFTKEY_PICKUP:
+		return "pickup";
+	case SOFTKEY_GPICKUP:
+		return "gpickup";
+	case SOFTKEY_DND:
+		return "dnd";
+	}
+
+	return "unknown";
 }
