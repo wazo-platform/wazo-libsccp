@@ -520,7 +520,7 @@ struct softkey_template_definition softkey_template_default[] = {
 	{"\x80\x05", 0x05}, // CFwdAll
 	{"\x80\x06", 0x06}, // CFwdBusy
 	{"\x80\x07", 0x07}, // CFwdNoAnswer
-	{"\x80\x08", 0x08}, // Cancel
+	{"\x80\x08", 0x08}, // <<
 	{"\x80\x09", 0x09}, // EndCall
 	{"\x80\x0A", 0x0A}, // Resume
 	{"\x80\x0B", 0x0B}, // Answer

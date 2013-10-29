@@ -1,4 +1,5 @@
 #include "sccp_debug.h"
+#include "sccp_device.h"
 #include "sccp_message.h"
 #include "sccp_utils.h"
 
@@ -9,10 +10,16 @@ static void dump_message(const struct sccp_session *session, const struct sccp_m
 
 static void dump_call_info(char *str, size_t size, const struct call_info_message *m);
 static void dump_call_state(char *str, size_t size, const struct call_state_message *m);
+static void dump_close_receive_channel(char *str, size_t size, const struct close_receive_channel_message *m);
+static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m);
 static void dump_offhook(char *str, size_t size, const struct offhook_message *m);
 static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
 static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m);
+static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m);
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m);
+static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
+
+static const char *softkey_str(enum sccp_softkey_type v);
 
 void sccp_enable_debug(void)
 {
@@ -66,6 +73,12 @@ static void dump_message(const struct sccp_session *session, const struct sccp_m
 	case CALL_STATE_MESSAGE:
 		dump_call_state(body, sizeof(body), &msg->data.callstate);
 		break;
+	case CLOSE_RECEIVE_CHANNEL_MESSAGE:
+		dump_close_receive_channel(body, sizeof(body), &msg->data.closereceivechannel);
+		break;
+	case KEYPAD_BUTTON_MESSAGE:
+		dump_keypad_button(body, sizeof(body), &msg->data.keypad);
+		break;
 	case OFFHOOK_MESSAGE:
 		dump_offhook(body, sizeof(body), &msg->data.offhook);
 		break;
@@ -75,8 +88,14 @@ static void dump_message(const struct sccp_session *session, const struct sccp_m
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
 		dump_open_receive_channel_ack(body, sizeof(body), &msg->data.openreceivechannelack);
 		break;
+	case SOFTKEY_EVENT_MESSAGE:
+		dump_softkey_event(body, sizeof(body), &msg->data.softkeyevent);
+		break;
 	case START_MEDIA_TRANSMISSION_MESSAGE:
 		dump_start_media_transmission(body, sizeof(body), &msg->data.startmedia);
+		break;
+	case STOP_MEDIA_TRANSMISSION_MESSAGE:
+		dump_stop_media_transmission(body, sizeof(body), &msg->data.stopmedia);
 		break;
 	default:
 		pad = 0;
@@ -116,6 +135,22 @@ static void dump_call_state(char *str, size_t size, const struct call_state_mess
 			line_state_str(letohl(m->callState)), letohl(m->lineInstance), letohl(m->callReference));
 }
 
+static void dump_close_receive_channel(char *str, size_t size, const struct close_receive_channel_message *m)
+{
+	snprintf(str, size,
+			"Conference ID: %u\n",
+			letohl(m->conferenceId));
+}
+
+static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m)
+{
+	snprintf(str, size,
+			"Button: %u\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			letohl(m->button), letohl(m->lineInstance), letohl(m->callInstance));
+}
+
 static void dump_offhook(char *str, size_t size, const struct offhook_message *m)
 {
 	snprintf(str, size,
@@ -150,6 +185,15 @@ static void dump_open_receive_channel_ack(char *str, size_t size, const struct o
 			letohl(m->status), buf, letohl(m->port));
 }
 
+static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m)
+{
+	snprintf(str, size,
+			"Event: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			softkey_str(letohl(m->softKeyEvent)), letohl(m->lineInstance), letohl(m->callInstance));
+}
+
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m)
 {
 	char buf[INET_ADDRSTRLEN];
@@ -167,4 +211,59 @@ static void dump_start_media_transmission(char *str, size_t size, const struct s
 			"Port: %u\n"
 			"Packet size: %u\n",
 			letohl(m->conferenceId), buf, letohl(m->remotePort), letohl(m->packetSize));
+}
+
+static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m)
+{
+	snprintf(str, size,
+			"Conference ID: %u\n",
+			letohl(m->conferenceId));
+}
+
+static const char *softkey_str(enum sccp_softkey_type v)
+{
+	switch (v) {
+	case SOFTKEY_NONE:
+		return "none";
+	case SOFTKEY_REDIAL:
+		return "redial";
+	case SOFTKEY_NEWCALL:
+		return "newcall";
+	case SOFTKEY_HOLD:
+		return "hold";
+	case SOFTKEY_TRNSFER:
+		return "transfer";
+	case SOFTKEY_CFWDALL:
+		return "cfwdall";
+	case SOFTKEY_CFWDBUSY:
+		return "cfwdbusy";
+	case SOFTKEY_CFWDNOANSWER:
+		return "cfwdnoanswer";
+	case SOFTKEY_BKSPC:
+		return "bkspc";
+	case SOFTKEY_ENDCALL:
+		return "endcall";
+	case SOFTKEY_RESUME:
+		return "resume";
+	case SOFTKEY_ANSWER:
+		return "answer";
+	case SOFTKEY_INFO:
+		return "info";
+	case SOFTKEY_CONFRN:
+		return "confrn";
+	case SOFTKEY_PARK:
+		return "park";
+	case SOFTKEY_JOIN:
+		return "join";
+	case SOFTKEY_MEETME:
+		return "meetme";
+	case SOFTKEY_PICKUP:
+		return "pickup";
+	case SOFTKEY_GPICKUP:
+		return "gpickup";
+	case SOFTKEY_DND:
+		return "dnd";
+	}
+
+	return "unknown";
 }
