@@ -15,10 +15,14 @@ static void dump_keypad_button(char *str, size_t size, const struct keypad_butto
 static void dump_offhook(char *str, size_t size, const struct offhook_message *m);
 static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
 static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m);
+static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m);
+static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m);
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m);
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m);
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
 
+static const char *ringer_mode_str(enum sccp_ringer_mode v);
+static const char *softkey_status_str(enum sccp_softkey_status v);
 static const char *softkey_str(enum sccp_softkey_type v);
 
 void sccp_enable_debug(void)
@@ -87,6 +91,12 @@ static void dump_message(const struct sccp_session *session, const struct sccp_m
 		break;
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
 		dump_open_receive_channel_ack(body, sizeof(body), &msg->data.openreceivechannelack);
+		break;
+	case SELECT_SOFT_KEYS_MESSAGE:
+		dump_select_soft_keys(body, sizeof(body), &msg->data.selectsoftkey);
+		break;
+	case SET_RINGER_MESSAGE:
+		dump_set_ringer(body, sizeof(body), &msg->data.setringer);
 		break;
 	case SOFTKEY_EVENT_MESSAGE:
 		dump_softkey_event(body, sizeof(body), &msg->data.softkeyevent);
@@ -185,6 +195,22 @@ static void dump_open_receive_channel_ack(char *str, size_t size, const struct o
 			letohl(m->status), buf, letohl(m->port));
 }
 
+static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m)
+{
+	snprintf(str, size,
+			"Softkey status: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			softkey_status_str(letohl(m->softKeySetIndex)), letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m)
+{
+	snprintf(str, size,
+			"Mode: %s\n",
+			ringer_mode_str(letohl(m->ringerMode)));
+}
+
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m)
 {
 	snprintf(str, size,
@@ -218,6 +244,46 @@ static void dump_stop_media_transmission(char *str, size_t size, const struct st
 	snprintf(str, size,
 			"Conference ID: %u\n",
 			letohl(m->conferenceId));
+}
+
+static const char *ringer_mode_str(enum sccp_ringer_mode v)
+{
+	switch (v) {
+	case SCCP_RING_OFF:
+		return "ring off";
+	case SCCP_RING_INSIDE:
+		return "ring inside";
+	case SCCP_RING_OUTSIDE:
+		return "ring outside";
+	case SCCP_RING_FEATURE:
+		return "ring feature";
+	}
+
+	return "unknown";
+}
+
+static const char *softkey_status_str(enum sccp_softkey_status v)
+{
+	switch (v) {
+	case KEYDEF_ONHOOK:
+		return "onhook";
+	case KEYDEF_CONNECTED:
+		return "connected";
+	case KEYDEF_ONHOLD:
+		return "onhold";
+	case KEYDEF_RINGIN:
+		return "ringin";
+	case KEYDEF_OFFHOOK:
+		return "offhook";
+	case KEYDEF_CONNINTRANSFER:
+		return "connintransfer";
+	case KEYDEF_CALLFWD:
+		return "callfwd";
+	case KEYDEF_AUTOANSWER:
+		return "autoanswer";
+	}
+
+	return "unknown";
 }
 
 static const char *softkey_str(enum sccp_softkey_type v)
