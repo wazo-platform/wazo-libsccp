@@ -209,9 +209,8 @@ static const uint8_t softkey_default_connected[] = {
 };
 
 static const uint8_t softkey_default_onhold[] = {
-	SOFTKEY_NEWCALL,
 	SOFTKEY_RESUME,
-	SOFTKEY_ENDCALL,
+	SOFTKEY_NEWCALL,
 };
 
 static const uint8_t softkey_default_ringin[] = {
@@ -224,8 +223,9 @@ static const uint8_t softkey_default_offhook[] = {
 };
 
 static const uint8_t softkey_default_connintransfer[] = {
+	SOFTKEY_NONE,
 	SOFTKEY_ENDCALL,
-	SOFTKEY_TRNSFER,
+	SOFTKEY_TRNSFER,  /* XXX the transfer key is here because we need another state */
 };
 
 static const uint8_t softkey_default_callfwd[] = {
