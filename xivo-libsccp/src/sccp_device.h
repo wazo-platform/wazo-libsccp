@@ -231,7 +231,7 @@ static const uint8_t softkey_default_dialintransfer[] = {
 static const uint8_t softkey_default_connintransfer[] = {
 	SOFTKEY_NONE,
 	SOFTKEY_ENDCALL,
-	SOFTKEY_TRNSFER,  /* XXX the transfer key is here because we need another state */
+	SOFTKEY_TRNSFER,
 };
 
 static const uint8_t softkey_default_callfwd[] = {
