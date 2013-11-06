@@ -144,7 +144,7 @@ enum sccp_softkey_status {
 	KEYDEF_OFFHOOK = 4,
 	KEYDEF_CONNINTRANSFER = 5,
 	KEYDEF_CALLFWD = 6,
-	// KEYDEF_CONNWITHCONF = 7,
+	KEYDEF_DIALINTRANSFER = 7,
 	// KEYDEF_RINGOUT = 8,
 	KEYDEF_AUTOANSWER = 9,
 	// KEYDEF_UNKNOWN = 10,
@@ -223,8 +223,13 @@ static const uint8_t softkey_default_offhook[] = {
 	SOFTKEY_ENDCALL,
 };
 
-static const uint8_t softkey_default_connintransfer[] = {
+static const uint8_t softkey_default_dialintransfer[] = {
 	SOFTKEY_REDIAL,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_connintransfer[] = {
+	SOFTKEY_NONE,
 	SOFTKEY_ENDCALL,
 	SOFTKEY_TRNSFER,  /* XXX the transfer key is here because we need another state */
 };
@@ -245,6 +250,7 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_RINGIN, softkey_default_ringin, ARRAY_LEN(softkey_default_ringin)},
 	{KEYDEF_OFFHOOK, softkey_default_offhook, ARRAY_LEN(softkey_default_offhook)},
 	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, ARRAY_LEN(softkey_default_connintransfer)},
+	{KEYDEF_DIALINTRANSFER, softkey_default_dialintransfer, ARRAY_LEN(softkey_default_dialintransfer)},
 	{KEYDEF_CALLFWD, softkey_default_callfwd, ARRAY_LEN(softkey_default_callfwd)},
 	{KEYDEF_AUTOANSWER, softkey_default_autoanswer, ARRAY_LEN(softkey_default_autoanswer)},
 };
@@ -299,6 +305,9 @@ struct sccp_device {
 
 	char exten[AST_MAX_EXTENSION];
 	char last_exten[AST_MAX_EXTENSION];
+	volatile int transfering;
+
+	uint8_t autoanswer;
 
 	enum sccp_device_registration_state regstate;
 	uint32_t line_count;

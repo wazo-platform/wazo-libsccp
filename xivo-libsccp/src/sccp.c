@@ -713,6 +713,10 @@ static int sccp_start_the_call(struct sccp_subchannel *subchan)
 	line->state = SCCP_RINGOUT;
 	subchan->state = SCCP_RINGOUT;
 	ast_setstate(channel, AST_STATE_RING);
+	if (line->device->transfering == 1) {
+		transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_CONNINTRANSFER);
+		line->device->transfering = 0;
+	}
 
 	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);
 	transmit_stop_tone(line->device->session, line->instance, subchan->id);
@@ -1029,6 +1033,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		ast_log(LOG_DEBUG, "session is NULL\n");
 		return -1;
 	}
+	session->device->transfering = 0;
 
 	if (session->device->proto_version == 11) {
 
@@ -1266,7 +1271,9 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		line->state = SCCP_OFFHOOK;
 
 		transmit_callstate(session, line_instance, SCCP_OFFHOOK, line->active_subchan->id);
-		transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_CONNINTRANSFER);
+		line->device->transfering = 1;
+		transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_DIALINTRANSFER);
+
 		/* start dial tone */
 		transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
 
