@@ -219,11 +219,12 @@ static const uint8_t softkey_default_ringin[] = {
 };
 
 static const uint8_t softkey_default_offhook[] = {
+	SOFTKEY_REDIAL,
 	SOFTKEY_ENDCALL,
 };
 
 static const uint8_t softkey_default_connintransfer[] = {
-	SOFTKEY_NONE,
+	SOFTKEY_REDIAL,
 	SOFTKEY_ENDCALL,
 	SOFTKEY_TRNSFER,  /* XXX the transfer key is here because we need another state */
 };
