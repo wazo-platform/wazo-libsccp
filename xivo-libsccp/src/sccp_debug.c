@@ -279,6 +279,8 @@ static const char *softkey_status_str(enum sccp_softkey_status v)
 		return "connintransfer";
 	case KEYDEF_CALLFWD:
 		return "callfwd";
+	case KEYDEF_DIALINTRANSFER:
+		return "dialintransfer";
 	case KEYDEF_AUTOANSWER:
 		return "autoanswer";
 	}
