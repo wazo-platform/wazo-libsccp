@@ -2773,13 +2773,7 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	name = format_party_name(channel, line->device);
 	number = format_party_number(channel, line->device);
 
-	transmit_callinfo(session,
-							name,
-							number,
-							line->cid_name,
-							line->cid_num,
-							line->instance,
-							subchan->id, subchan->direction);
+	ret = transmit_callinfo(session, name, number, "", "", line->instance, subchan->id, subchan->direction);
 
 	transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 
@@ -3011,10 +3005,10 @@ static void indicate_connected_line(struct ast_channel *channel, struct sccp_sub
 
 	switch (subchan->direction) {
 	case SCCP_DIR_INCOMING:
-		transmit_callinfo(subchan->line->device->session, name, number, NULL, NULL, subchan->line->instance, subchan->id, subchan->direction);
+		transmit_callinfo(subchan->line->device->session, name, number, "", "", subchan->line->instance, subchan->id, subchan->direction);
 		break;
 	case SCCP_DIR_OUTGOING:
-		transmit_callinfo(subchan->line->device->session, NULL, NULL, name, number, subchan->line->instance, subchan->id, subchan->direction);
+		transmit_callinfo(subchan->line->device->session, "", "", name, number, subchan->line->instance, subchan->id, subchan->direction);
 		break;
 	default:
 		ast_log(LOG_ERROR, "invalid subchan direction\n");
