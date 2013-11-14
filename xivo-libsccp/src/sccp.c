@@ -2785,6 +2785,10 @@ static int cb_ast_answer(struct ast_channel *channel)
 		usleep(500000);
 	}
 
+	if (subchan->on_hold) {
+		return 0;
+	}
+
 	transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
 	transmit_stop_tone(session, line->instance, subchan->id);
 	transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_CONNECTED);
