@@ -166,11 +166,6 @@ void sccp_line_set_field(struct sccp_line *line, const char *name, const char *v
 	}
 }
 
-void sccp_line_set_state(struct sccp_line *line, enum sccp_state state)
-{
-	line->state = state;
-}
-
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list)
 {
 	struct ast_variable *tmpvar = NULL;

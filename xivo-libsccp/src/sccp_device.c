@@ -124,7 +124,7 @@ void device_prepare(struct sccp_device *device)
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
-		sccp_line_set_state(line_itr, SCCP_ONHOOK);
+		line_itr->state = SCCP_ONHOOK;
 	}
 	AST_RWLIST_UNLOCK(&device->lines);
 }
