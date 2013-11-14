@@ -757,9 +757,6 @@ static void *sccp_lookup_exten(void *data)
 		return NULL;
 	}
 
-	if (sccp_config == NULL) {
-		return NULL;
-	}
 	timeout = sccp_config->dialtimeout * 2;
 
 	subchan = (struct sccp_subchannel *)data;
@@ -2374,11 +2371,6 @@ static int fetch_data(struct sccp_session *session)
 
 	if (session == NULL)
 		return -1;
-
-	if (sccp_config == NULL) {
-		ast_log(LOG_ERROR, "SCCP configuration is uninitialized\n");
-		return -1;
-	}
 
 	/* if no device or device is not registered and time has elapsed */
 	if (session->device == NULL || session->device->regstate == DEVICE_REGISTERED_FALSE) {
