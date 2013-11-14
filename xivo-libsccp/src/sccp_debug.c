@@ -283,8 +283,6 @@ static const char *softkey_status_str(enum sccp_softkey_status v)
 		return "dialintransfer";
 	case KEYDEF_RINGOUT:
 		return "ringout";
-	case KEYDEF_AUTOANSWER:
-		return "autoanswer";
 	}
 
 	return "unknown";

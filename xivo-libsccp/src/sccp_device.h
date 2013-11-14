@@ -146,7 +146,7 @@ enum sccp_softkey_status {
 	KEYDEF_CALLFWD = 6,
 	KEYDEF_DIALINTRANSFER = 7,
 	KEYDEF_RINGOUT = 8,
-	KEYDEF_AUTOANSWER = 9,
+	// KEYDEF_AUTOANSWER = 9,
 	// KEYDEF_UNKNOWN = 10,
 };
 
@@ -244,10 +244,6 @@ static const uint8_t softkey_default_callfwd[] = {
 	SOFTKEY_CFWDALL,
 };
 
-static const uint8_t softkey_default_autoanswer[] = {
-	SOFTKEY_NONE,
-};
-
 static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_ONHOOK, softkey_default_onhook, ARRAY_LEN(softkey_default_onhook)},
 	{KEYDEF_CONNECTED, softkey_default_connected, ARRAY_LEN(softkey_default_connected)},
@@ -258,7 +254,6 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, ARRAY_LEN(softkey_default_connintransfer)},
 	{KEYDEF_DIALINTRANSFER, softkey_default_dialintransfer, ARRAY_LEN(softkey_default_dialintransfer)},
 	{KEYDEF_CALLFWD, softkey_default_callfwd, ARRAY_LEN(softkey_default_callfwd)},
-	{KEYDEF_AUTOANSWER, softkey_default_autoanswer, ARRAY_LEN(softkey_default_autoanswer)},
 };
 
 struct sccp_subchannel {
@@ -312,8 +307,6 @@ struct sccp_device {
 
 	char exten[AST_MAX_EXTENSION];
 	char last_exten[AST_MAX_EXTENSION];
-
-	uint8_t autoanswer;
 
 	enum sccp_device_registration_state regstate;
 	uint32_t line_count;
