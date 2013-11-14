@@ -952,7 +952,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	transmit_open_receive_channel(session, subchan);
 
 	sccp_line_set_state(line, SCCP_CONNECTED);
-	subchan_set_state(subchan, SCCP_CONNECTED);
+	subchan->state = SCCP_CONNECTED;
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 
@@ -2721,7 +2721,7 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 		return 0;
 	}
 
-	subchan_set_state(subchan, SCCP_RINGIN);
+	subchan->state = SCCP_RINGIN;
 
 	/* If the line has an active subchannel, it means that
 	 * a call is already ongoing. */

@@ -508,8 +508,3 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 
 	return result;
 }
-
-void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state)
-{
-	subchan->state = state;
-}
