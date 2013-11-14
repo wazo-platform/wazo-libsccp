@@ -244,7 +244,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 	}
 
 	(void)AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
-	transmit_reset(device->session, 2);
+	transmit_reset(device->session, SCCP_RESET_HARD_RESTART);
 	device_unregister(device);
 	destroy_device_config(sccp_cfg, device);
 

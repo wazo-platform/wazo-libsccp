@@ -2633,7 +2633,7 @@ static void thread_session_cleanup(void *data)
 			destroy_device_config(sccp_config, session->device);
 			sccp_config_load(sccp_config, "sccp.conf");
 		}
-		transmit_reset(session, 2);
+		transmit_reset(session, SCCP_RESET_SOFT);
 	}
 
 	destroy_session(&session);
@@ -3308,9 +3308,9 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		restart = 1;
 
 	if (restart == 1)
-		transmit_reset(device->session, 1);
+		transmit_reset(device->session, SCCP_RESET_HARD_RESTART);
 	else
-		transmit_reset(device->session, 2);
+		transmit_reset(device->session, SCCP_RESET_SOFT);
 
 	return CLI_SUCCESS;
 }

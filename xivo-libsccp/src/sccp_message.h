@@ -4,6 +4,11 @@
 #include "sccp.h"
 #include "sccp_device.h"
 
+enum sccp_reset_type {
+	SCCP_RESET_HARD_RESTART = 1,
+	SCCP_RESET_SOFT = 2,
+};
+
 const char *msg_id_str(uint32_t msg_id);
 
 int transmit_button_template_res(struct sccp_session *session);
@@ -24,7 +29,7 @@ int transmit_lamp_state(struct sccp_session *session, enum sccp_stimulus_type st
 int transmit_line_status_res(struct sccp_session *session, int lineInstance, struct sccp_line *line);
 int transmit_register_ack(struct sccp_session *session, uint8_t protoVersion, int keepalive, char* dateFormat);
 int transmit_register_rej(struct sccp_session *session, const char *errorMessage);
-int transmit_reset(struct sccp_session *session, uint32_t type);
+int transmit_reset(struct sccp_session *session, enum sccp_reset_type type);
 int transmit_ringer_mode(struct sccp_session *session, enum sccp_ringer_mode mode);
 int transmit_selectsoftkeys(struct sccp_session *session, int lineInstance, int callInstance, enum sccp_softkey_status softkey);
 int transmit_speeddial_stat_res(struct sccp_session *session, int index, struct sccp_speeddial *speeddial);
