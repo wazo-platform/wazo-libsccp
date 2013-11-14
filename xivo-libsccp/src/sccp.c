@@ -1144,7 +1144,7 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 		line = session->device->default_line;
 
 		subchan = line->active_subchan;
-		if (subchan && !subchan->on_hold) {
+		if (subchan) {
 			line_instance = line->instance;
 			subchan_id = subchan->id;
 			do_hangup(line_instance, subchan_id, session);
@@ -1238,7 +1238,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 	transmit_close_receive_channel(session, subchan_id);
 	transmit_stop_media_transmission(session, subchan_id);
 
-	subchan_set_on_hold(subchan);
+	subchan->on_hold = 1;
 
 	ast_mutex_unlock(&line->device->lock);
 
@@ -1291,7 +1291,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		transmit_open_receive_channel(session, line->active_subchan);
 	}
 
-	subchan_unset_on_hold(line->active_subchan);
+	line->active_subchan->on_hold = 0;
 
 	ast_mutex_unlock(&line->device->lock);
 
@@ -1354,7 +1354,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		transmit_close_receive_channel(session, line->active_subchan->id);
 		transmit_stop_media_transmission(session, line->active_subchan->id);
 
-		subchan_set_on_hold(line->active_subchan);
+		subchan->on_hold = 1;
 
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
 
@@ -2787,10 +2787,6 @@ static int cb_ast_answer(struct ast_channel *channel)
 		/* Wait for the phone to provide his ip:port information
 		   before the bridging is being done. */
 		usleep(500000);
-	}
-
-	if (subchan->on_hold) {
-		return 0;
 	}
 
 	transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);

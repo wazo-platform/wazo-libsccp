@@ -344,8 +344,6 @@ const char *line_state_str(enum sccp_state line_state);
 int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
 
-void subchan_set_on_hold(struct sccp_subchannel *subchan);
-void subchan_unset_on_hold(struct sccp_subchannel *subchan);
 void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state);
 const char *device_regstate_str(enum sccp_device_registration_state state);
 int device_type_is_supported(enum sccp_device_type device_type);

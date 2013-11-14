@@ -509,26 +509,6 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 	return result;
 }
 
-void subchan_set_on_hold(struct sccp_subchannel *subchan)
-{
-	if (subchan == NULL) {
-		ast_log(LOG_WARNING, "subchan is NULL\n");
-		return;
-	}
-
-	subchan->on_hold = 1;
-}
-
-void subchan_unset_on_hold(struct sccp_subchannel *subchan)
-{
-	if (subchan == NULL) {
-		ast_log(LOG_WARNING, "subchan is NULL\n");
-		return;
-	}
-
-	subchan->on_hold = 0;
-}
-
 void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state)
 {
 	subchan->state = state;
