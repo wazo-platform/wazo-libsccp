@@ -347,75 +347,35 @@ static void post_register_check(struct sccp_session *session)
 
 static int handle_softkey_template_req_message(struct sccp_session *session)
 {
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_ERROR, "session is NULL\n");
-		return -1;
-	}
-
-	ret = transmit_softkey_template_res(session);
-	if (ret == -1)
-		return -1;
+	transmit_softkey_template_res(session);
 
 	return 0;
 }
 
 static int handle_config_status_req_message(struct sccp_session *session)
 {
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	ret = transmit_config_status_res(session);
-	if (ret == -1)
-		return -1;
+	transmit_config_status_res(session);
 
 	return 0;
 }
 
 static int handle_time_date_req_message(struct sccp_session *session)
 {
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	ret = transmit_time_date_res(session);
-	if (ret == -1)
-		return -1;
+	transmit_time_date_res(session);
 
 	return 0;
 }
 
 static int handle_button_template_req_message(struct sccp_session *session)
 {
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	ret = transmit_button_template_res(session);
-	if (ret == -1)
-		return -1;
+	transmit_button_template_res(session);
 
 	return 0;
 }
 
 static int handle_keep_alive_message(struct sccp_session *session)
 {
-	int ret = 0;
-
-	ret = transmit_keep_alive_ack(session);
-	if (ret == -1)
-		return -1;
+	transmit_keep_alive_ack(session);
 
 	return 0;
 }
@@ -933,21 +893,10 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 
 	sccp_line_set_state(line, SCCP_OFFHOOK);
 
-	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_ON);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, line->active_subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_OFFHOOK);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
-	if (ret == -1)
-		return -1;
+	transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_ON);
+	transmit_callstate(session, line->instance, SCCP_OFFHOOK, line->active_subchan->id);
+	transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_OFFHOOK);
+	transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
 
 	if (ast_pthread_create_detached(&lookup_thread, NULL, sccp_lookup_exten, subchan)) {
 		ast_log(LOG_WARNING, "Unable to create lookup thread\n");
@@ -961,7 +910,6 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 
 static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
-	int ret = 0;
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
@@ -997,29 +945,12 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 		return 0;
 	}
 
-	ret = transmit_ringer_mode(session, SCCP_RING_OFF);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_stop_tone(session, line->instance, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_CONNECTED);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_open_receive_channel(session, subchan);
-	if (ret == -1)
-		return -1;
+	transmit_ringer_mode(session, SCCP_RING_OFF);
+	transmit_callstate(session, line->instance, SCCP_OFFHOOK, subchan->id);
+	transmit_stop_tone(session, line->instance, subchan->id);
+	transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
+	transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_CONNECTED);
+	transmit_open_receive_channel(session, subchan);
 
 	sccp_line_set_state(line, SCCP_CONNECTED);
 	subchan_set_state(subchan, SCCP_CONNECTED);
@@ -1038,13 +969,11 @@ static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *ses
 	uint32_t line_instance = 0;
 	uint32_t subchan_id = 0;
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
+	if (!msg) {
 		return -1;
 	}
 
@@ -1381,7 +1310,6 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 
 static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *session)
 {
-	int ret = 0;
 	struct sccp_subchannel *subchan = NULL, *xfer_subchan = NULL;
 	struct sccp_line *line = NULL;
 	pthread_t lookup_thread;
@@ -1447,18 +1375,10 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 		sccp_line_set_state(line, SCCP_OFFHOOK);
 
-		ret = transmit_callstate(session, line_instance, SCCP_OFFHOOK, line->active_subchan->id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_CONNINTRANSFER);
-		if (ret == -1)
-			return -1;
-
+		transmit_callstate(session, line_instance, SCCP_OFFHOOK, line->active_subchan->id);
+		transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_CONNINTRANSFER);
 		/* start dial tone */
-		ret = transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
-		if (ret == -1)
-			return -1;
+		transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
 
 		if (ast_pthread_create_detached(&lookup_thread, NULL, sccp_lookup_exten, subchan)) {
 			ast_log(LOG_WARNING, "Unable to create lookup thread\n");
@@ -1494,32 +1414,21 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 static int sccp_set_callforward(struct sccp_line *line)
 {
-	int ret = 0;
-	struct sccp_session *session = NULL;
+	struct sccp_session *session = line->device->session;
 
-	session = line->device->session;
-
-	ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_ONHOOK);
-	if (ret == -1)
-		return -1;
+	transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
 
 	sccp_line_set_state(line, SCCP_ONHOOK);
 
 	ast_copy_string(line->callfwd_exten, line->device->exten, sizeof(line->callfwd_exten));
 
-	ret = transmit_forward_status_message(session, line->instance, line->callfwd_exten, 1);
-	if (ret == -1)
-		return -1;
+	transmit_forward_status_message(session, line->instance, line->callfwd_exten, 1);
 
 	line->callfwd = SCCP_CFWD_ACTIVE;
 	ast_db_put("sccp/cfwdall", line->name, line->callfwd_exten);
 	update_displaymessage(session, line);
 
-	ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+	transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 	line->device->exten[0] = '\0';
 
 	return 0;
@@ -1527,7 +1436,6 @@ static int sccp_set_callforward(struct sccp_line *line)
 
 static int handle_callforward(struct sccp_session *session, enum sccp_softkey_type softkey)
 {
-	int ret = 0;
 	struct sccp_line *line = NULL;
 	pthread_t callfwd_timeout_thread;
 
@@ -1541,15 +1449,9 @@ static int handle_callforward(struct sccp_session *session, enum sccp_softkey_ty
 
 		line->callfwd_id = line->serial_callid++;
 
-		ret = transmit_callstate(session, line->instance, SCCP_OFFHOOK, line->callfwd_id);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_CALLFWD);
-		if (ret == -1)
-			return -1;
-
-		ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
+		transmit_callstate(session, line->instance, SCCP_OFFHOOK, line->callfwd_id);
+		transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_CALLFWD);
+		transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 		sccp_line_set_state(line, SCCP_OFFHOOK);
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
@@ -1564,18 +1466,12 @@ static int handle_callforward(struct sccp_session *session, enum sccp_softkey_ty
 
 		if (softkey == SOFTKEY_BKSPC || line->device->exten[0] == '\0') {
 
-			ret = transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
-			if (ret == -1)
-				return -1;
-
-			ret = transmit_selectsoftkeys(session, line->instance, line->callfwd_id, KEYDEF_ONHOOK);
-			if (ret == -1)
-				return -1;
+			transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
 
 			sccp_line_set_state(line, SCCP_ONHOOK);
 			line->callfwd = SCCP_CFWD_INACTIVE;
 
-			ret = transmit_speaker_mode(session, SCCP_SPEAKEROFF);
+			transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 			line->device->exten[0] = '\0';
 
 		} else if (softkey == SOFTKEY_CFWDALL) {
@@ -1586,9 +1482,7 @@ static int handle_callforward(struct sccp_session *session, enum sccp_softkey_ty
 
 	case SCCP_CFWD_ACTIVE:
 
-		ret = transmit_forward_status_message(session, line->instance, "", 0);
-		if (ret == -1)
-			return -1;
+		transmit_forward_status_message(session, line->instance, "", 0);
 
 		line->callfwd = SCCP_CFWD_INACTIVE;
 		ast_db_del("sccp/cfwdall", line->name);
@@ -1639,9 +1533,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 	case SOFTKEY_REDIAL:
 		if (strlen(session->device->last_exten) > 0) {
-			ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
-			if (ret == -1)
-				return -1;
+			transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 			ret = do_newcall(session);
 			if (ret == -1)
@@ -1651,9 +1543,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_NEWCALL:
-		ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
-		if (ret == -1)
-			return -1;
+		transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 		ret = do_newcall(session);
 		if (ret == -1)
@@ -1701,9 +1591,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		break;
 
 	case SOFTKEY_ANSWER:
-		ret = transmit_speaker_mode(session, SCCP_SPEAKERON);
-		if (ret == -1)
-			return -1;
+		transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 		ret = do_answer(line_instance, call_instance, session);
 		if (ret == -1)
@@ -1741,20 +1629,12 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 static int handle_softkey_set_req_message(struct sccp_session *session)
 {
-	int ret = 0;
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
-	ret = transmit_softkey_set_res(session);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
-	if (ret == -1)
-		return -1;
+	transmit_softkey_set_res(session);
+	transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
 
 	return 0;
 }
@@ -1986,54 +1866,47 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int ret = 0;
-	int index = 0;
-	struct sccp_speeddial *speeddial = NULL;
+	int index;
+	struct sccp_speeddial *speeddial;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
+	if (!msg) {
 		return -1;
 	}
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
 	index = letohl(msg->data.speeddial.instance);
 
 	speeddial = device_get_speeddial_by_index(session->device, index);
-	if (speeddial == NULL) {
+	if (!speeddial) {
 		ast_debug(2, "No speeddial [%d] on device [%s]\n", index, session->device->name);
 		return 0;
 	}
 
-	ret = transmit_speeddial_stat_res(session, index, speeddial);
-	if (ret == -1)
-		return -1;
+	transmit_speeddial_stat_res(session, index, speeddial);
 
 	return 0;
 }
 
 static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int instance = 0;
-	struct sccp_speeddial *speeddial = NULL;
+	int instance;
+	struct sccp_speeddial *speeddial;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
+	if (!msg) {
 		return -1;
 	}
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
 	instance = letohl(msg->data.feature.instance);
 
 	speeddial = device_get_speeddial(session->device, instance);
-	if (speeddial == NULL) {
+	if (!speeddial) {
 		ast_log(LOG_DEBUG, "No speeddial [%d] on device [%s]\n", instance, session->device->name);
 		return -1;
 	}
@@ -2046,17 +1919,14 @@ static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_s
 
 static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int ret = 0;
-	int line_instance = 0;
-	struct sccp_line *line = NULL;
+	int line_instance;
+	struct sccp_line *line;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
+	if (!msg) {
 		return -1;
 	}
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
@@ -2068,13 +1938,8 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 		return -1;
 	}
 
-	ret = transmit_line_status_res(session, line_instance, line);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_forward_status_res(session, line_instance);
-	if (ret == -1)
-		return -1;
+	transmit_line_status_res(session, line_instance, line);
+	transmit_forward_status_res(session, line_instance);
 
 	post_line_register_check(session);
 
@@ -2086,13 +1951,11 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	int ret = 0;
 	enum sccp_device_type device_type;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
+	if (!msg) {
 		return -1;
 	}
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
@@ -2101,9 +1964,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	ret = device_type_is_supported(device_type);
 	if (ret == 0) {
 		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, device_type);
-		ret = transmit_register_rej(session, "Unsupported device type\n");
-		if (ret == -1)
-			return -1;
+		transmit_register_rej(session, "Unsupported device type\n");
 
 		return 0;
 	}
@@ -2111,22 +1972,15 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	ret = register_device(msg, session);
 	if (ret <= 0) {
 		ast_log(LOG_ERROR, "Rejecting device [%s]\n", msg->data.reg.name);
-		ret = transmit_register_rej(session, "Access denied\n");
-		if (ret == -1)
-			return -1;
+		transmit_register_rej(session, "Access denied\n");
 
 		return 0;
 	}
 
 	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", msg->data.reg.protoVersion, msg->data.reg.name, session->ipaddr, session->port);
 
-	ret = transmit_register_ack(session, msg->data.reg.protoVersion, sccp_config->keepalive, sccp_config->dateformat);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_capabilities_req(session);
-	if (ret == -1)
-		return -1;
+	transmit_register_ack(session, msg->data.reg.protoVersion, sccp_config->keepalive, sccp_config->dateformat);
+	transmit_capabilities_req(session);
 
 	post_register_check(session);
 
@@ -2135,23 +1989,17 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 static int handle_unregister_message(struct sccp_session *session)
 {
-	ast_log(LOG_NOTICE, "Unregistering device\n");
+	if (!session) {
+		return -1;
+	}
 
-	return -1;
+	session->destroy = 1;
+
+	return 0;
 }
 
 static int handle_ipport_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
 	session->device->station_port = msg->data.ipport.stationIpPort;
 
 	return 0;
@@ -2324,12 +2172,8 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 
 static int handle_version_req_message(struct sccp_session *session)
 {
-	int ret = 0;
-
 	// hardcoded firmware version value taken from chan_skinny
-	ret = transmit_version_res(session, "P002F202");
-	if (ret == -1)
-		return -1;
+	transmit_version_res(session, "P002F202");
 
 	return 0;
 }
@@ -2394,13 +2238,13 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	uint32_t msg_id;
 	int ret = 0;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
+	if (!msg) {
+		ast_log(LOG_ERROR, "msg is NULL\n");
 		return -1;
 	}
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	if (!session) {
+		ast_log(LOG_ERROR, "session is NULL\n");
 		return -1;
 	}
 
@@ -2411,8 +2255,6 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 			sccp_dump_message_received(session, msg);
 		}
 	}
-
-	ast_debug(2, "Message received from %s: 0x%04X %s\n", session->ipaddr, msg_id, msg_id_str(msg_id));
 
 	if (!is_message_handleable(msg_id, session)) {
 		ast_log(LOG_DEBUG, "Ignoring message 0x%04X %s\n", msg_id, msg_id_str(msg_id));
@@ -2655,7 +2497,7 @@ static void *thread_session(void *data)
 
 		msg = (struct sccp_msg *)session->inbuf;
 		ret = handle_message(msg, session);
-		if (ret < 0 || session->destroy) {
+		if (ret < 0 || session->destroy || session->transmit_error) {
 			break;
 		}
 	}
@@ -2851,7 +2693,6 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	struct sccp_session *session = NULL;
 	RAII_VAR(char *, name, NULL, ast_free);
 	RAII_VAR(char *, number, NULL, ast_free);
-	int ret = 0;
 
 	session = device->session;
 	if (session == NULL) {
@@ -2893,23 +2734,16 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	if (line->active_subchan == NULL) {
 		sccp_line_set_state(line, SCCP_RINGIN);
 
-		ret = transmit_ringer_mode(session, SCCP_RING_INSIDE);
-		if (ret == -1)
-			return -1;
+		transmit_ringer_mode(session, SCCP_RING_INSIDE);
 	}
 
-	ret = transmit_callstate(session, line->instance, SCCP_RINGIN, subchan->id);
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_RINGIN);
-	if (ret == -1)
-		return -1;
+	transmit_callstate(session, line->instance, SCCP_RINGIN, subchan->id);
+	transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_RINGIN);
 
 	name = format_party_name(channel, line->device);
 	number = format_party_number(channel, line->device);
 
-	ret = transmit_callinfo(session,
+	transmit_callinfo(session,
 							name,
 							number,
 							line->cid_name,
@@ -2917,12 +2751,7 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 							line->instance,
 							subchan->id, subchan->direction);
 
-	if (ret == -1)
-		return -1;
-
-	ret = transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
-	if (ret == -1)
-		return -1;
+	transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 
 	if (line->device->autoanswer == 1) {
 		line->device->autoanswer = 0;
