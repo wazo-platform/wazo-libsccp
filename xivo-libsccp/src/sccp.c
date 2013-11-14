@@ -716,6 +716,8 @@ static int sccp_start_the_call(struct sccp_subchannel *subchan)
 	ast_setstate(channel, AST_STATE_RING);
 	if (subchan->transferring) {
 		transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_CONNINTRANSFER);
+	} else {
+		transmit_selectsoftkeys(line->device->session, line->instance, subchan->id, KEYDEF_RINGOUT);
 	}
 
 	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);

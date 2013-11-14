@@ -145,7 +145,7 @@ enum sccp_softkey_status {
 	KEYDEF_CONNINTRANSFER = 5,
 	KEYDEF_CALLFWD = 6,
 	KEYDEF_DIALINTRANSFER = 7,
-	// KEYDEF_RINGOUT = 8,
+	KEYDEF_RINGOUT = 8,
 	KEYDEF_AUTOANSWER = 9,
 	// KEYDEF_UNKNOWN = 10,
 };
@@ -218,6 +218,11 @@ static const uint8_t softkey_default_ringin[] = {
 	SOFTKEY_ENDCALL,
 };
 
+static const uint8_t softkey_default_ringout[] = {
+	SOFTKEY_NONE,
+	SOFTKEY_ENDCALL,
+};
+
 static const uint8_t softkey_default_offhook[] = {
 	SOFTKEY_REDIAL,
 	SOFTKEY_ENDCALL,
@@ -248,6 +253,7 @@ static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_CONNECTED, softkey_default_connected, ARRAY_LEN(softkey_default_connected)},
 	{KEYDEF_ONHOLD, softkey_default_onhold, ARRAY_LEN(softkey_default_onhold)},
 	{KEYDEF_RINGIN, softkey_default_ringin, ARRAY_LEN(softkey_default_ringin)},
+	{KEYDEF_RINGOUT, softkey_default_ringout, ARRAY_LEN(softkey_default_ringout)},
 	{KEYDEF_OFFHOOK, softkey_default_offhook, ARRAY_LEN(softkey_default_offhook)},
 	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, ARRAY_LEN(softkey_default_connintransfer)},
 	{KEYDEF_DIALINTRANSFER, softkey_default_dialintransfer, ARRAY_LEN(softkey_default_dialintransfer)},
