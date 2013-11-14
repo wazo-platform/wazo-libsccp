@@ -263,6 +263,7 @@ struct sccp_subchannel {
 	uint8_t on_hold;
 	uint8_t resuming;
 	uint8_t autoanswer;
+	uint8_t transferring;
 	struct ast_sockaddr direct_media_addr;
 	struct ast_rtp_instance *rtp;
 	struct sccp_line *line;
@@ -305,7 +306,6 @@ struct sccp_device {
 
 	char exten[AST_MAX_EXTENSION];
 	char last_exten[AST_MAX_EXTENSION];
-	volatile int transfering;
 
 	uint8_t autoanswer;
 
