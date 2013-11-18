@@ -322,7 +322,7 @@ static void post_line_register_check(struct sccp_session *session)
 	if (result == 0) {
 		line->callfwd_id = line->serial_callid++;
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
-		ast_copy_string(line->device->exten, exten, sizeof(exten));
+		ast_copy_string(line->device->exten, exten, sizeof(line->device->exten));
 		handle_callforward(session, SOFTKEY_CFWDALL);
 	}
 
