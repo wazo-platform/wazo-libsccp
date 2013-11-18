@@ -1036,6 +1036,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 	transmit_ringer_mode(session, SCCP_RING_OFF);
 	transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
+	transmit_stop_tone(session, line->instance, subchan->id);
 
 	AST_RWLIST_REMOVE(&line->subchans, subchan, list);
 
@@ -1343,11 +1344,14 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 			ast_sockaddr_setnull(&line->active_subchan->direct_media_addr);
 		}
 
+		transmit_callstate(session, line_instance, SCCP_HOLD, line->active_subchan->id);
+		transmit_selectsoftkeys(session, line_instance, line->active_subchan->id, KEYDEF_ONHOLD);
+
 		/* stop audio stream */
 		transmit_close_receive_channel(session, line->active_subchan->id);
 		transmit_stop_media_transmission(session, line->active_subchan->id);
 
-		subchan->on_hold = 1;
+		line->active_subchan->on_hold = 1;
 
 		ast_queue_control(line->active_subchan->channel, AST_CONTROL_HOLD);
 
