@@ -491,6 +491,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line, enum 
 	subchan->direction = direction;
 	subchan->on_hold = 0;
 	subchan->resuming = 0;
+	subchan->autoanswer = 0;
 	subchan->line = line;
 	subchan->id = line->serial_callid++;
 	subchan->channel = NULL;
@@ -2668,15 +2669,15 @@ static struct ast_channel *cb_ast_request(const char *type,
 		return NULL;
 	}
 
-	if (option != NULL && !strncmp(option, "autoanswer", 10)) {
-		line->device->autoanswer = 1;
-	}
-
 	subchan = sccp_new_subchannel(line, SCCP_DIR_INCOMING);
 	channel = sccp_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL, cap);
 	if (channel == NULL) {
 		do_clear_subchannel(subchan);
 		return NULL;
+	}
+
+	if (option && !strncmp(option, "autoanswer", 10)) {
+		subchan->autoanswer = 1;
 	}
 
 	if (line->callfwd == SCCP_CFWD_ACTIVE) {
@@ -2782,8 +2783,7 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 
 	transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 
-	if (line->device->autoanswer == 1) {
-		line->device->autoanswer = 0;
+	if (subchan->autoanswer) {
 		sccp_autoanswer_call(subchan);
 		return 0;
 	}

@@ -255,6 +255,7 @@ struct sccp_subchannel {
 	enum sccp_direction direction;
 	uint8_t on_hold;
 	uint8_t resuming;
+	uint8_t autoanswer;
 	struct ast_sockaddr direct_media_addr;
 	struct ast_rtp_instance *rtp;
 	struct sccp_line *line;
@@ -297,8 +298,6 @@ struct sccp_device {
 
 	char exten[AST_MAX_EXTENSION];
 	char last_exten[AST_MAX_EXTENSION];
-
-	uint8_t autoanswer;
 
 	enum sccp_device_registration_state regstate;
 	uint32_t line_count;

@@ -22,7 +22,6 @@ struct sccp_device *sccp_new_device(const char *name)
 	device->voicemail[0] = '\0';
 	device->exten[0] = '\0';
 	device->mwi_event_sub = NULL;
-	device->autoanswer = 0;
 	device->regstate = DEVICE_REGISTERED_FALSE;
 	device->session = NULL;
 	device->line_count = 0;
