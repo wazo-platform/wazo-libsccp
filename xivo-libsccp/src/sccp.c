@@ -2124,7 +2124,6 @@ static struct sccp_session *session_create(int sockfd, const struct sockaddr_in 
 	if (!session->task_runner) {
 		goto fail;
 	}
-	time(&session->start_time);
 
 	return session;
 

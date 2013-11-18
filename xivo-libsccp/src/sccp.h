@@ -21,7 +21,6 @@ struct sccp_server {
 
 struct sccp_session {
 	pthread_t tid;
-	time_t start_time;
 	int sockfd;
 	int transmit_error;
 	int destroy;
