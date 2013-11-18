@@ -17,13 +17,11 @@ struct sccp_device *sccp_new_device(const char *name)
 	}
 
 	ast_mutex_init(&device->lock);
-	ast_cond_init(&device->lookup_cond, NULL);
 
 	ast_copy_string(device->name, name, sizeof(device->name));
 	device->voicemail[0] = '\0';
 	device->exten[0] = '\0';
 	device->mwi_event_sub = NULL;
-	device->lookup = 0;
 	device->autoanswer = 0;
 	device->regstate = DEVICE_REGISTERED_FALSE;
 	device->session = NULL;
@@ -44,7 +42,6 @@ void sccp_device_destroy(struct sccp_device *device)
 
 	ast_format_cap_destroy(device->caps);
 	ast_mutex_destroy(&device->lock);
-	ast_cond_destroy(&device->lookup_cond);
 	AST_RWLIST_HEAD_DESTROY(&device->lines);
 	AST_RWLIST_HEAD_DESTROY(&device->speeddials);
 

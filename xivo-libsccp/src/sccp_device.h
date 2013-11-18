@@ -287,7 +287,6 @@ struct sccp_device {
 
 	char name[80];
 	enum sccp_device_type type;
-	enum sccp_state state;
 	uint8_t proto_version;
 	uint32_t station_port;
 	struct sockaddr_in localip;
@@ -298,8 +297,6 @@ struct sccp_device {
 
 	char exten[AST_MAX_EXTENSION];
 	char last_exten[AST_MAX_EXTENSION];
-	ast_cond_t lookup_cond;
-	volatile int lookup;
 
 	uint8_t autoanswer;
 

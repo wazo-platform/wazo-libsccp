@@ -87,6 +87,21 @@ static void subchan_set_rtp_remote_address(struct sccp_subchannel *subchan);
 static void subchan_get_rtp_local_address(struct sccp_subchannel *subchan, struct sockaddr_in *local);
 static void indicate_connected_line(struct ast_channel *channel, struct sccp_subchannel *subchan);
 
+static void session_add_dialtimeout_task(struct sccp_session *session, struct sccp_subchannel *subchan);
+static void session_remove_dialtimeout_task(struct sccp_session *session, struct sccp_subchannel *subchan);
+static void on_session_dialtimeout(struct sccp_session *session, void *data);
+
+static void session_add_fwdtimeout_task(struct sccp_session *session, struct sccp_line *line);
+static void session_remove_fwdtimeout_task(struct sccp_session *session, struct sccp_line *line);
+static void on_session_fwdtimeout(struct sccp_session *session, void *data);
+
+static void session_add_auth_timeout_task(struct sccp_session *session);
+static void session_remove_auth_timeout_task(struct sccp_session *session);
+static void on_session_auth_timeout(struct sccp_session *session, void *data);
+
+static void session_add_keepalive_timeout_task(struct sccp_session *session);
+static void on_session_keepalive_timeout(struct sccp_session *session, void *data);
+
 static struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
 	.description = "Skinny Client Control Protocol",
@@ -111,6 +126,9 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.update_peer = cb_ast_set_rtp_peer,
 	.get_codec = cb_ast_get_codec,
 };
+
+static const struct sccp_task authtimeout_task = {on_session_auth_timeout, NULL};
+static const struct sccp_task keepalive_task = {on_session_keepalive_timeout, NULL};
 
 static char *format_party_name(struct ast_channel *channel, struct sccp_device *device)
 {
@@ -443,6 +461,8 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			mwi_subscribe(device_itr);
 			speeddial_hints_subscribe(device_itr, speeddial_hints_cb);
 
+			session_remove_auth_timeout_task(session);
+
 			ast_devstate_changed(AST_DEVICE_NOT_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", device_itr->default_line->name);
 			ret = 1;
 		}
@@ -667,20 +687,30 @@ static int start_rtp(struct sccp_subchannel *subchan)
 	return 0;
 }
 
-static int sccp_start_the_call(struct ast_channel *channel)
+static int sccp_start_the_call(struct sccp_subchannel *subchan)
 {
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
+	struct ast_channel *channel;
+	struct sccp_line *line;
+	struct sccp_session *session;
 
-	if (channel == NULL) {
-		ast_log(LOG_DEBUG, "channel is NULL\n");
+	if (!subchan) {
+		ast_log(LOG_ERROR, "subchan is NULL\n");
 		return -1;
 	}
 
-	subchan = ast_channel_tech_pvt(channel);
 	line = subchan->line;
+	session = line->device->session;
+
+	session_remove_dialtimeout_task(session, subchan);
+
+	channel = sccp_new_channel(subchan, NULL, NULL);
+	if (!channel) {
+		do_clear_subchannel(subchan);
+		return -1;
+	}
 
 	line->state = SCCP_RINGOUT;
+	subchan->state = SCCP_RINGOUT;
 	ast_setstate(channel, AST_STATE_RING);
 
 	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);
@@ -689,6 +719,9 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	transmit_callinfo(line->device->session, "", "", line->device->exten, line->device->exten, line->instance, subchan->id, subchan->direction);
 	transmit_dialed_number(line->device->session, line->device->exten, line->instance, subchan->id);
 
+	memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
+	line->device->exten[0] = '\0';
+
 	ast_set_callerid(channel, line->cid_num, line->cid_name, NULL);
 
 	ast_pbx_start(channel);
@@ -696,153 +729,37 @@ static int sccp_start_the_call(struct ast_channel *channel)
 	return 0;
 }
 
-static void *sccp_callfwd_timeout(void *data)
+/*
+ * \retval the newly created subchannel on success, or NULL
+ */
+static struct sccp_subchannel *do_newcall(struct sccp_session *session)
 {
-	struct sccp_line *line = NULL;
-	size_t len = 0, next_len = 0;
-	int timeout = 0;
-	int set_callfwd = 0;
-
-	if (data == NULL) {
-		ast_log(LOG_DEBUG, "data is NULL\n");
-		return NULL;
-	}
-
-	line = (struct sccp_line *)data;
-
-	timeout = 10; /* 10 times 500ms, timeout is 5sec */
-	len = strlen(line->device->exten);
-
-	while (line->callfwd == SCCP_CFWD_INPUTEXTEN) {
-
-		/* when pound key is pressed, set the call forward extension without further waiting */
-		if (len > 0 && line->device->exten[len-1] == '#') {
-			line->device->exten[len-1] = '\0';
-			set_callfwd = 1;
-		}
-
-		if (timeout == 0)
-			set_callfwd = 1;
-
-		if (set_callfwd) {
-			sccp_set_callforward(line);
-		}
-
-		usleep(500000);
-
-		next_len = strlen(line->device->exten);
-		if (len == next_len) {
-			if (len != 0)
-				timeout--;
-		} else {
-			timeout = 10;
-			len = next_len;
-		}
-	}
-
-	return NULL;
-}
-
-static void *sccp_lookup_exten(void *data)
-{
-	struct ast_channel *channel = NULL;
-	struct sccp_subchannel *subchan = NULL;
-	struct sccp_line *line = NULL;
-	size_t len = 0, next_len = 0;
-	int call_now = 0;
-	int timeout = 0;
-
-	if (data == NULL) {
-		ast_log(LOG_DEBUG, "data is NULL\n");
-		return NULL;
-	}
-
-	timeout = sccp_config->dialtimeout * 2;
-
-	subchan = (struct sccp_subchannel *)data;
-	line = subchan->line;
-
-	len = strlen(line->device->exten);
-	while (line->device->regstate == DEVICE_REGISTERED_TRUE && line->device->lookup == 1
-			&& line->state == SCCP_OFFHOOK && len < AST_MAX_EXTENSION-1) {
-
-		/* when pound key is pressed, call the extension without further waiting */
-		if (len > 0 && line->device->exten[len-1] == '#') {
-			line->device->exten[len-1] = '\0';
-			call_now = 1;
-		}
-
-		if (timeout == 0)
-			call_now = 1;
-
-		if (call_now) {
-			channel = sccp_new_channel(subchan, NULL, NULL);
-			if (channel == NULL) {
-				ast_log(LOG_ERROR, "channel is NULL\n");
-				do_clear_subchannel(subchan);
-				goto end;
-			}
-
-			sccp_start_the_call(channel);
-			memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
-
-			goto end;
-		}
-
-		usleep(500000);
-
-		next_len = strlen(line->device->exten);
-		if (len == next_len) {
-			if (len != 0)
-				timeout--;
-		} else {
-			timeout = sccp_config->dialtimeout * 2;
-			len = next_len;
-		}
-	}
-
-end:
-	line->device->exten[0] = '\0';
-
-	ast_mutex_lock(&line->device->lock);
-	line->device->lookup = 0;
-	ast_cond_signal(&line->device->lookup_cond);
-	ast_mutex_unlock(&line->device->lock);
-
-	return NULL;
-}
-
-static int do_newcall(struct sccp_session *session)
-{
-	int ret = 0;
 	struct sccp_device *device = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_subchannel *subchan = NULL;
 
-	if (session == NULL) {
-		ast_log(LOG_ERROR, "session is NULL\n");
-		return -1;
+	if (!session) {
+		return NULL;
 	}
 
 	device = session->device;
-	if (device == NULL) {
+	if (!device) {
 		ast_log(LOG_ERROR, "device is NULL\n");
-		return -1;
+		return NULL;
 	}
-
-	if (device->lookup == 1) {
-		ast_log(LOG_NOTICE, "another lookup thread is already running\n");
-		return 0;
-	}
-
-	device->lookup = 1;
 
 	line = device->default_line;
 
+	/* if there's already a subchan in the "offhook" state, use it instead of creating a new one */
+	subchan = sccp_line_get_next_offhook_subchan(line);
+	if (subchan) {
+		ast_log(LOG_DEBUG, "Found an already offhook subchan\n");
+		return subchan;
+	}
+
 	subchan = sccp_new_subchannel(line, SCCP_DIR_OUTGOING);
-	if (subchan == NULL) {
-		ast_log(LOG_ERROR, "subchan is NULL\n");
-		return -1;
+	if (!subchan) {
+		return NULL;
 	}
 
 	/* If a subchannel is already active, put it on hold */
@@ -852,18 +769,17 @@ static int do_newcall(struct sccp_session *session)
 
 	ast_mutex_lock(&device->lock);
 
-	ret = set_device_state_new_call(device, line, subchan, session);
+	set_device_state_new_call(device, line, subchan, session);
 
 	ast_mutex_unlock(&device->lock);
 
-	return ret;
+	return subchan;
 }
 
 static int set_device_state_new_call(struct sccp_device *device, struct sccp_line *line,
 							struct sccp_subchannel *subchan, struct sccp_session *session)
 {
 	int ret = 0;
-	pthread_t lookup_thread;
 
 	if (session == NULL) {
 		ast_log(LOG_ERROR, "session is NULL\n");
@@ -894,11 +810,6 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 	transmit_callstate(session, line->instance, SCCP_OFFHOOK, line->active_subchan->id);
 	transmit_selectsoftkeys(session, line->instance, line->active_subchan->id, KEYDEF_OFFHOOK);
 	transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
-
-	if (ast_pthread_create_detached(&lookup_thread, NULL, sccp_lookup_exten, subchan)) {
-		ast_log(LOG_WARNING, "Unable to create lookup thread\n");
-		line->device->lookup = 0;
-	}
 
 	ast_devstate_changed(AST_DEVICE_INUSE, AST_DEVSTATE_CACHABLE, "SCCP/%s", line->name);
 
@@ -1086,13 +997,8 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 		return 0;
 	}
 
-	/* wait for lookup thread to terminate */
-	ast_mutex_lock(&session->device->lock);
-	if (session->device->lookup == 1) {
-		session->device->lookup = 0;
-		ast_cond_wait(&session->device->lookup_cond, &session->device->lock);
-	}
-	ast_mutex_unlock(&session->device->lock);
+	line->device->exten[0] = '\0';
+	session_remove_dialtimeout_task(session, subchan);
 
 	if (subchan->channel) {
 		if (subchan->state == SCCP_RINGIN) {
@@ -1303,7 +1209,6 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 {
 	struct sccp_subchannel *subchan = NULL, *xfer_subchan = NULL;
 	struct sccp_line *line = NULL;
-	pthread_t lookup_thread;
 
 	ast_log(LOG_DEBUG, "handle_softkey_transfer: line_instance(%i)\n", line_instance);
 
@@ -1330,13 +1235,6 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 
 	/* first time we press transfer */
 	if (line->active_subchan->related == NULL) {
-
-		if (line->device->lookup == 1) {
-			ast_log(LOG_WARNING, "another lookup thread is already running\n");
-			return 0;
-		}
-
-		line->device->lookup = 1;
 
 		/* put on hold */
 		if (line->active_subchan->rtp) {
@@ -1371,11 +1269,6 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		/* start dial tone */
 		transmit_tone(session, SCCP_TONE_DIAL, line->instance, line->active_subchan->id);
 
-		if (ast_pthread_create_detached(&lookup_thread, NULL, sccp_lookup_exten, subchan)) {
-			ast_log(LOG_WARNING, "Unable to create lookup thread\n");
-			line->device->lookup = 0;
-		}
-
 	} else {
 		struct ast_channel *active_channel = line->active_subchan->channel;
 		struct ast_channel *related_channel = line->active_subchan->related->channel;
@@ -1407,6 +1300,8 @@ static int sccp_set_callforward(struct sccp_line *line)
 {
 	struct sccp_session *session = line->device->session;
 
+	session_remove_fwdtimeout_task(session, line);
+
 	transmit_callstate(session, line->instance, SCCP_ONHOOK, line->callfwd_id);
 
 	line->state = SCCP_ONHOOK;
@@ -1428,10 +1323,10 @@ static int sccp_set_callforward(struct sccp_line *line)
 static int handle_callforward(struct sccp_session *session, enum sccp_softkey_type softkey)
 {
 	struct sccp_line *line = NULL;
-	pthread_t callfwd_timeout_thread;
 
-	if (session == NULL)
+	if (!session) {
 		return -1;
+	}
 
 	line = session->device->default_line;
 
@@ -1446,10 +1341,6 @@ static int handle_callforward(struct sccp_session *session, enum sccp_softkey_ty
 
 		line->state = SCCP_OFFHOOK;
 		line->callfwd = SCCP_CFWD_INPUTEXTEN;
-
-		if (ast_pthread_create_detached(&callfwd_timeout_thread, NULL, sccp_callfwd_timeout, line)) {
-			ast_log(LOG_WARNING, "Unable to create callfwd timeout thread: %s\n", strerror(errno));
-		}
 
 		break;
 
@@ -1491,6 +1382,7 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 	uint32_t line_instance;
 	uint32_t call_instance;
 	int ret = 0;
+	struct sccp_subchannel *subchan;
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -1526,19 +1418,23 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 		if (strlen(session->device->last_exten) > 0) {
 			transmit_speaker_mode(session, SCCP_SPEAKERON);
 
-			ret = do_newcall(session);
-			if (ret == -1)
+			/* XXX this 3 steps stuff should be simplified into one function */
+			subchan = do_newcall(session);
+			if (!subchan) {
 				return -1;
-			snprintf(session->device->exten, AST_MAX_EXTENSION, "%s#", session->device->last_exten);
+			}
+			ast_copy_string(session->device->exten, session->device->last_exten, sizeof(session->device->exten));
+			sccp_start_the_call(subchan);
 		}
 		break;
 
 	case SOFTKEY_NEWCALL:
 		transmit_speaker_mode(session, SCCP_SPEAKERON);
 
-		ret = do_newcall(session);
-		if (ret == -1)
+		subchan = do_newcall(session);
+		if (!subchan) {
 			return -1;
+		}
 		break;
 
 	case SOFTKEY_HOLD:
@@ -1998,16 +1894,20 @@ static int handle_ipport_message(struct sccp_msg *msg, struct sccp_session *sess
 
 static int handle_voicemail_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_line *line = NULL;
+	struct sccp_line *line = session->device->default_line;
+	struct sccp_subchannel *subchan;
 
-	line = session->device->default_line;
-	do_newcall(session);
+	/* XXX 3 stuff steps should be replaced with something simpler */
+	subchan = do_newcall(session);
+	if (!subchan) {
+		return -1;
+	}
 
 	/* open our speaker */
 	transmit_speaker_mode(session, SCCP_SPEAKERON);
 
 	ast_copy_string(line->device->exten, sccp_config->vmexten, sizeof(line->device->exten));
-	strcat(line->device->exten, "#");
+	sccp_start_the_call(subchan);
 
 	return 0;
 }
@@ -2016,6 +1916,7 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 {
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
+	struct sccp_subchannel *subchan;
 
 	if (msg == NULL) {
 		ast_log(LOG_DEBUG, "msg is NULL\n");
@@ -2039,13 +1940,22 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 
 	line = session->device->default_line;
 
-	if (line->callfwd != SCCP_CFWD_INPUTEXTEN) {
-		do_newcall(session);
-		transmit_speaker_mode(session, SCCP_SPEAKERON);
-	}
+	if (line->callfwd == SCCP_CFWD_INPUTEXTEN) {
+		ast_copy_string(line->device->exten, speeddial->extension, sizeof(line->device->exten));
+		sccp_set_callforward(line);
+	} else {
+		/* XXX this 3 steps stuff should be simplified into one function */
+		subchan = do_newcall(session);
+		if (!subchan) {
+			return -1;
+		}
 
-	ast_copy_string(line->device->exten, speeddial->extension, sizeof(line->device->exten));
-	strcat(line->device->exten, "#");
+		/* open our speaker */
+		transmit_speaker_mode(session, SCCP_SPEAKERON);
+
+		ast_copy_string(line->device->exten, speeddial->extension, sizeof(line->device->exten));
+		sccp_start_the_call(subchan);
+	}
 
 	return 0;
 }
@@ -2053,44 +1963,8 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 
 static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_device *device = NULL;
-	struct sccp_line *line = NULL;
-	size_t len = 0;
-
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	device = session->device;
-	line = device->default_line;
-
-	/* contains all the digits entered before pressing 'Dial' */
-	if (line->state == SCCP_OFFHOOK) {
-		len = strlen(msg->data.enbloc.extension);
-		ast_copy_string(line->device->exten, msg->data.enbloc.extension,
-					sizeof(line->device->exten));
-		line->device->exten[len+1] = '#';
-		line->device->exten[len+2] = '\0';
-	}
-
-	return 0;
-}
-
-static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_session *session)
-{
-	struct sccp_line *line = NULL;
-	struct ast_frame frame = { .frametype = AST_FRAME_DTMF, };
-
-	char digit;
-	int button;
-	int instance;
-	int callid;
+	struct sccp_device *device;
+	struct sccp_subchannel *subchan;
 	size_t len;
 
 	if (msg == NULL) {
@@ -2103,19 +1977,60 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 		return -1;
 	}
 
+	device = session->device;
+
+	/* XXX this 2 steps stuff should be simplified */
+	subchan = sccp_line_get_next_offhook_subchan(device->default_line);
+	if (subchan) {
+		ast_copy_string(device->exten, msg->data.enbloc.extension, sizeof(device->exten));
+
+		/* allow a terminating '#' character */
+		len = strlen(device->exten);
+		if (len > 0 && device->exten[len - 1] == '#') {
+			device->exten[len - 1] = '\0';
+		}
+		sccp_start_the_call(subchan);
+	}
+
+	return 0;
+}
+
+static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_session *session)
+{
+	struct sccp_line *line;
+	struct sccp_subchannel *subchan;
+	struct ast_frame frame = { .frametype = AST_FRAME_DTMF, };
+
+	char digit;
+	int button;
+	int instance;
+	int callid;
+	size_t len;
+
+	if (!msg) {
+		return -1;
+	}
+
+	if (!session) {
+		return -1;
+	}
+
 	button = letohl(msg->data.keypad.button);
 	instance = letohl(msg->data.keypad.lineInstance);
 	callid = letohl(msg->data.keypad.callInstance);
 
-	if (session->device->type == SCCP_DEVICE_7912
-		|| session->device->type == SCCP_DEVICE_7905
-		|| session->device->type == SCCP_DEVICE_7920) {
-
-		instance = 1;
+	switch (session->device->type) {
+	case SCCP_DEVICE_7905:
+	case SCCP_DEVICE_7912:
+	case SCCP_DEVICE_7920:
+		line = device_get_line(session->device, 1);
+		break;
+	default:
+		line = device_get_line(session->device, instance);
+		break;
 	}
 
-	line = device_get_line(session->device, instance);
-	if (line == NULL) {
+	if (!line) {
 		ast_log(LOG_DEBUG, "Device [%s] has no line instance [%d]\n", session->device->name, instance);
 		return 0;
 	}
@@ -2145,16 +2060,35 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 		}
 
 	} else if (line->state == SCCP_OFFHOOK) {
-
-		len = strlen(line->device->exten);
-		if (len < sizeof(line->device->exten) - 1) {
-			line->device->exten[len] = digit;
-			line->device->exten[len+1] = '\0';
+		len = strlen(session->device->exten);
+		if (len < sizeof(session->device->exten) - 1 && digit != '#') {
+			session->device->exten[len] = digit;
+			session->device->exten[len+1] = '\0';
 		}
 
-		if (len == 0) {
-			transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
-			transmit_stop_tone(session, line->instance, 0);
+		if (line->callfwd == SCCP_CFWD_INPUTEXTEN) {
+			if (digit == '#') {
+				sccp_set_callforward(line);
+			} else {
+				session_add_fwdtimeout_task(session, line);
+			}
+		} else {
+			subchan = line->active_subchan;
+			if (!subchan) {
+				ast_log(LOG_WARNING, "active subchan is NULL, ignoring keypad button\n");
+				return 0;
+			}
+
+			if (len == 0) {
+				transmit_tone(session, SCCP_TONE_NONE, line->instance, 0);
+				transmit_stop_tone(session, line->instance, 0);
+			}
+
+			if (digit == '#') {
+				sccp_start_the_call(subchan);
+			} else {
+				session_add_dialtimeout_task(session, subchan);
+			}
 		}
 	}
 
@@ -2169,28 +2103,62 @@ static int handle_version_req_message(struct sccp_session *session)
 	return 0;
 }
 
-static void destroy_session(struct sccp_session **session)
+static struct sccp_session *session_create(int sockfd, const struct sockaddr_in *addr)
 {
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	struct sccp_session *session;
+
+	session = ast_calloc(1, sizeof(*session));
+	if (!session) {
+		goto fail;
+	}
+
+	session->tid = AST_PTHREADT_NULL;
+	session->sockfd = sockfd;
+	session->ipaddr = ast_strdup(ast_inet_ntoa(addr->sin_addr));
+	if (!session->ipaddr) {
+		goto fail;
+	}
+	session->port = ntohs(addr->sin_port);
+	session->task_runner = sccp_task_runner_create(session);
+	if (!session->task_runner) {
+		goto fail;
+	}
+	time(&session->start_time);
+
+	return session;
+
+	/* XXX this is ugly */
+fail:
+	close(sockfd);
+	if (session) {
+		if (session->ipaddr) {
+			ast_free(session->ipaddr);
+		}
+		if (session->task_runner) {
+			sccp_task_runner_destroy(session->task_runner);
+		}
+		ast_free(session);
+	}
+
+	return NULL;
+}
+
+static void session_destroy(struct sccp_session *session)
+{
+	if (!session) {
 		return;
 	}
 
-	if (*session == NULL) {
-		ast_log(LOG_DEBUG, "*session is NULL\n");
-		return;
+	close(session->sockfd);
+	ast_verb(4, "SCCP connection from %s:%d closed\n", session->ipaddr, session->port);
+
+	if (session->device) {
+		session->device->session = NULL;
 	}
 
-	close((*session)->sockfd);
-	ast_verb(4, "SCCP connection from %s:%d closed\n", (*session)->ipaddr, (*session)->port);
-
-	ast_free((*session)->ipaddr);
-
-	if ((*session)->device)
-		(*session)->device->session = NULL;
-
-	ast_free(*session);
-	*session = NULL;
+	sccp_task_runner_destroy(session->task_runner);
+	ast_free(session->ipaddr);
+	ast_free(session);
 }
 
 /*
@@ -2366,45 +2334,44 @@ static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 	return ret;
 }
 
-static int fetch_data(struct sccp_session *session)
+/*
+ * \retval -1 error occured
+ * \retval 0 timeout expired
+ * \retval 1 message has been read
+ */
+static int fetch_data(struct sccp_session *session, int timeout)
 {
 	struct pollfd fds[1];
 	int nfds = 0;
 	ssize_t nbyte = 0;
 	int msg_len = 0;
 
-	if (session == NULL)
+	if (!session) {
 		return -1;
-
-	/* if no device or device is not registered and time has elapsed */
-	if (session->device == NULL || session->device->regstate == DEVICE_REGISTERED_FALSE) {
-		time_t now = time(NULL);
-
-		if (now > session->start_time + sccp_config->authtimeout) {
-			ast_log(LOG_WARNING, "Device authentication timed out [%dsec]\n", sccp_config->authtimeout);
-			return -1;
-		}
 	}
 
 	fds[0].fd = session->sockfd;
 	fds[0].events = POLLIN | POLLPRI;
 	fds[0].revents = 0;
 
-	/* wait N times the keepalive frequence */
-	nfds = ast_poll(fds, 1, sccp_config->keepalive * 1000 * 2);
-	if (nfds == -1) { /* something wrong happend */
+	nfds = ast_poll(fds, 1, timeout);
+	if (nfds == -1) {
+		/* something wrong happend */
 		ast_log(LOG_WARNING, "Failed to poll socket: %s\n", strerror(errno));
 		return -1;
 
-	} else if (nfds == 0) { /* the file descriptor is not ready */
-		ast_log(LOG_WARNING, "Device has timed out\n");
-		return -1;
+	} else if (nfds == 0) {
+		/* the file descriptor is not ready */
+		return 0;
 
 	} else if (fds[0].revents & POLLERR || fds[0].revents & POLLHUP) {
 		ast_log(LOG_WARNING, "Device has closed the connection\n");
 		return -1;
 
 	} else if (fds[0].revents & POLLIN || fds[0].revents & POLLPRI) {
+
+		/* reschedule keepalive task */
+		session_add_keepalive_timeout_task(session);
 
 		/* fetch the field that contain the packet length */
 		nbyte = read(session->sockfd, session->inbuf, 4);
@@ -2421,7 +2388,7 @@ static int fetch_data(struct sccp_session *session)
 			return -1;
 		}
 
-		msg_len = letohl(*((int *)session->inbuf));
+		msg_len = letohl(*((uint32_t *)session->inbuf));
 		if (msg_len > SCCP_MAX_PACKET_SZ || msg_len < 0) {
 			ast_log(LOG_WARNING, "Packet length is out of bounds: 0 > %d > %d\n", msg_len, SCCP_MAX_PACKET_SZ);
 			return -1;
@@ -2438,7 +2405,7 @@ static int fetch_data(struct sccp_session *session)
 			return -1;
 		}
 
-		return nbyte;
+		return 1;
 	}
 
 	return -1;
@@ -2464,27 +2431,40 @@ static void thread_session_cleanup(void *data)
 		transmit_reset(session, SCCP_RESET_SOFT);
 	}
 
-	destroy_session(&session);
+	session_destroy(session);
 }
 
 static void *thread_session(void *data)
 {
-	int ret = 0;
 	struct sccp_session *session = data;
 	struct sccp_msg *msg = NULL;
+	int ret;
+	int timeout;
 
 	pthread_cleanup_push(thread_session_cleanup, data);
 
+	session_add_auth_timeout_task(session);
+	session_add_keepalive_timeout_task(session);
+
 	while (1) {
-		ret = fetch_data(session);
-		if (ret <= 0) {
+		timeout = sccp_task_runner_next_ms(session->task_runner);
+
+		ret = fetch_data(session, timeout);
+		if (ret == -1) {
 			break;
 		}
 
-		msg = (struct sccp_msg *)session->inbuf;
-		ret = handle_message(msg, session);
-		if (ret < 0 || session->destroy || session->transmit_error) {
+		sccp_task_runner_run(session->task_runner);
+		if (session->destroy || session->transmit_error) {
 			break;
+		}
+
+		if (ret == 1) {
+			msg = (struct sccp_msg *)session->inbuf;
+			ret = handle_message(msg, session);
+			if (ret < 0 || session->destroy || session->transmit_error) {
+				break;
+			}
 		}
 	}
 
@@ -2516,20 +2496,12 @@ static void *thread_accept(void *data)
 		/* send multiple buffers as individual packets */
 		setsockopt(new_sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay));
 
-		/* session constructor */
-		session = ast_calloc(1, sizeof(*session));
-		if (session == NULL) {
+		session = session_create(new_sockfd, &addr);
+		if (!session) {
 			ast_log(LOG_ERROR, "Failed to allocate new session, "
 						"the main thread is going down now\n");
-			close(new_sockfd);
 			return NULL;
 		}
-
-		session->tid = AST_PTHREADT_NULL;
-		session->sockfd = new_sockfd;
-		session->ipaddr = ast_strdup(ast_inet_ntoa(addr.sin_addr));
-		session->port = ntohs(addr.sin_port);
-		time(&session->start_time);
 
 		AST_LIST_LOCK(&list_session);
 		AST_LIST_INSERT_HEAD(&list_session, session, list);
@@ -2539,11 +2511,82 @@ static void *thread_accept(void *data)
 		err = ast_pthread_create_background(&session->tid, NULL, thread_session, session);
 		if (err) {
 			ast_log(LOG_WARNING, "Unable to create session thread: %s\n", strerror(err));
-			destroy_session(&session);
+			session_destroy(session);
 		}
 	}
 
 	return NULL;
+}
+
+static void session_add_dialtimeout_task(struct sccp_session *session, struct sccp_subchannel *subchan)
+{
+	struct sccp_task task = {on_session_dialtimeout, subchan};
+
+	sccp_task_runner_add(session->task_runner, task, sccp_config->dialtimeout);
+}
+
+static void session_remove_dialtimeout_task(struct sccp_session *session, struct sccp_subchannel *subchan)
+{
+	struct sccp_task task = {on_session_dialtimeout, subchan};
+
+	sccp_task_runner_remove(session->task_runner, task);
+}
+
+static void on_session_dialtimeout(struct sccp_session *session, void *data)
+{
+	struct sccp_subchannel *subchan = data;
+
+	sccp_start_the_call(subchan);
+}
+
+static void session_add_fwdtimeout_task(struct sccp_session *session, struct sccp_line *line)
+{
+	struct sccp_task task = {on_session_fwdtimeout, line};
+
+	sccp_task_runner_add(session->task_runner, task, 10);
+}
+
+static void session_remove_fwdtimeout_task(struct sccp_session *session, struct sccp_line *line)
+{
+	struct sccp_task task = {on_session_fwdtimeout, line};
+
+	sccp_task_runner_remove(session->task_runner, task);
+}
+
+static void on_session_fwdtimeout(struct sccp_session *session, void *data)
+{
+	struct sccp_line *line = data;
+
+	sccp_set_callforward(line);
+}
+
+static void session_add_auth_timeout_task(struct sccp_session *session)
+{
+	sccp_task_runner_add(session->task_runner, authtimeout_task, sccp_config->authtimeout);
+}
+
+static void session_remove_auth_timeout_task(struct sccp_session *session)
+{
+	sccp_task_runner_remove(session->task_runner, authtimeout_task);
+}
+
+static void on_session_auth_timeout(struct sccp_session *session, void *data)
+{
+	ast_log(LOG_WARNING, "Device authentication timed out [%dsec]\n", sccp_config->authtimeout);
+
+	session->destroy = 1;
+}
+
+static void session_add_keepalive_timeout_task(struct sccp_session *session)
+{
+	sccp_task_runner_add(session->task_runner, keepalive_task, sccp_config->keepalive * 2);
+}
+
+static void on_session_keepalive_timeout(struct sccp_session *session, void *data)
+{
+	ast_log(LOG_WARNING, "Device has timed out\n");
+
+	session->destroy = 1;
 }
 
 static int cb_ast_devicestate(const char *data)
