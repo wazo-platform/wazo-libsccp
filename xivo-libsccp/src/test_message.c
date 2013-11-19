@@ -92,7 +92,6 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	assert_null_handled(sccp_new_channel(NULL, (void*)0xFF, NULL));
 	assert_null_handled(start_rtp(NULL));
 	assert_null_handled(sccp_start_the_call(NULL));
-	assert_null_handled(sccp_lookup_exten(NULL));
 	assert_null_handled(handle_offhook_message(NULL, NULL));
 	assert_null_handled(handle_onhook_message(NULL, NULL));
 	assert_null_handled(handle_softkey_hold(0, 0, NULL));
@@ -116,7 +115,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 	assert_null_handled(handle_keypad_button_message((void*)0xFF, NULL));
 	assert_null_handled(handle_message(NULL, (void*)0xFF));
 	assert_null_handled(handle_message((void*)0xFF, NULL));
-	assert_null_handled(fetch_data(NULL));
+	//assert_null_handled(fetch_data(NULL));
 
 	return AST_TEST_PASS;
 }

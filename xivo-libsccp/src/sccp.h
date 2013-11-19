@@ -7,6 +7,7 @@
 
 #include "sccp_device.h"
 #include "sccp_config.h"
+#include "sccp_task.h"
 
 #define SCCP_MAX_PACKET_SZ 2000
 
@@ -19,15 +20,14 @@ struct sccp_server {
 };
 
 struct sccp_session {
-
 	pthread_t tid;
-	time_t start_time;
 	int sockfd;
 	int transmit_error;
 	int destroy;
 
 	char *ipaddr;
 	int port;
+	struct sccp_task_runner *task_runner;
 
 	struct sccp_device *device;
 

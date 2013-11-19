@@ -41,11 +41,11 @@ struct sccp_line *sccp_new_line(const char *name, struct sccp_configs *sccp_cfg)
 void sccp_line_destroy(struct sccp_line *line);
 
 struct sccp_line *sccp_line_find_by_name(const char *name, struct list_line *list_line);
+struct sccp_subchannel *sccp_line_get_next_offhook_subchan(struct sccp_line *line);
 struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line);
 struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t subchan_id);
 void sccp_line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan);
 void sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 void sccp_line_set_field(struct sccp_line *line, const char *name, const char *value);
-void sccp_line_set_state(struct sccp_line *line, enum sccp_state state);
 
 #endif /* SCCP_LINE_H */

@@ -57,7 +57,7 @@ static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli
 	device->destroy = 1;
 
 	/* Ask the phone to reboot, as soon as possible */
-	transmit_reset(device->session, 1);
+	transmit_reset(device->session, SCCP_RESET_SOFT);
 
 	return CLI_SUCCESS;
 }

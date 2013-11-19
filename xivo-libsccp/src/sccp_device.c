@@ -17,14 +17,11 @@ struct sccp_device *sccp_new_device(const char *name)
 	}
 
 	ast_mutex_init(&device->lock);
-	ast_cond_init(&device->lookup_cond, NULL);
 
 	ast_copy_string(device->name, name, sizeof(device->name));
 	device->voicemail[0] = '\0';
 	device->exten[0] = '\0';
 	device->mwi_event_sub = NULL;
-	device->lookup = 0;
-	device->autoanswer = 0;
 	device->regstate = DEVICE_REGISTERED_FALSE;
 	device->session = NULL;
 	device->line_count = 0;
@@ -44,7 +41,6 @@ void sccp_device_destroy(struct sccp_device *device)
 
 	ast_format_cap_destroy(device->caps);
 	ast_mutex_destroy(&device->lock);
-	ast_cond_destroy(&device->lookup_cond);
 	AST_RWLIST_HEAD_DESTROY(&device->lines);
 	AST_RWLIST_HEAD_DESTROY(&device->speeddials);
 
@@ -124,7 +120,7 @@ void device_prepare(struct sccp_device *device)
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
-		sccp_line_set_state(line_itr, SCCP_ONHOOK);
+		line_itr->state = SCCP_ONHOOK;
 	}
 	AST_RWLIST_UNLOCK(&device->lines);
 }
@@ -507,29 +503,4 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 	AST_RWLIST_UNLOCK(list_device);
 
 	return result;
-}
-
-void subchan_set_on_hold(struct sccp_subchannel *subchan)
-{
-	if (subchan == NULL) {
-		ast_log(LOG_WARNING, "subchan is NULL\n");
-		return;
-	}
-
-	subchan->on_hold = 1;
-}
-
-void subchan_unset_on_hold(struct sccp_subchannel *subchan)
-{
-	if (subchan == NULL) {
-		ast_log(LOG_WARNING, "subchan is NULL\n");
-		return;
-	}
-
-	subchan->on_hold = 0;
-}
-
-void subchan_set_state(struct sccp_subchannel *subchan, enum sccp_state state)
-{
-	subchan->state = state;
 }

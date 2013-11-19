@@ -2,8 +2,10 @@
 #include <string.h>
 
 #include <asterisk.h>
-#include <asterisk/utils.h>
+#include <asterisk/localtime.h>
 #include <asterisk/rtp_engine.h>
+#include <asterisk/time.h>
+#include <asterisk/utils.h>
 
 #include "sccp.h"
 #include "sccp_debug.h"
@@ -14,8 +16,9 @@
 
 #include "../config.h"
 
-static struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id);
+static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id);
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
+static int transmit_empty_message(uint32_t msg_id, struct sccp_session *session);
 
 const char *msg_id_str(uint32_t msg_id) {
 	switch (msg_id) {
@@ -138,30 +141,29 @@ const char *msg_id_str(uint32_t msg_id) {
 	}
 }
 
-static struct sccp_msg *msg_alloc(size_t data_length, uint32_t message_id)
+static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = ast_calloc(1, 12 + 4 + data_length);
-	if (msg == NULL) {
+	if (!msg) {
 		ast_log(LOG_ERROR, "msg allocation failed\n");
 		return NULL;
 	}
 
 	msg->length = htolel(4 + data_length);
-	msg->reserved = 0;
-	msg->id = htolel(message_id);
+	msg->reserved = htolel(0);
+	msg->id = htolel(msg_id);
 
 	return msg;
 }
 
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	uint32_t msg_id;
 	ssize_t nbyte;
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "could not transmit message: session is NULL\n");
+	if (!session) {
+		ast_log(LOG_WARNING, "could not transmit message: session is NULL\n");
 		goto end;
 	}
 
@@ -170,8 +172,8 @@ static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 		goto end;
 	}
 
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "msg is NULL\n");
+	if (!msg) {
+		ast_log(LOG_WARNING, "could not transmit message: msg is NULL\n");
 		session->transmit_error = -1;
 		goto end;
 	}
@@ -181,10 +183,6 @@ static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 			sccp_dump_message_transmitting(session, msg);
 		}
 	}
-
-	msg_id = letohl(msg->id);
-
-	ast_debug(2, "Sending message to %s: 0x%04X %s\n", session->ipaddr, msg_id, msg_id_str(msg_id));
 
 	memcpy(session->outbuf, msg, 12);
 	memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
@@ -201,30 +199,35 @@ end:
 	return session ? session->transmit_error : -1;
 }
 
+static int transmit_empty_message(uint32_t msg_id, struct sccp_session *session)
+{
+	return transmit_message(msg_alloc(0, msg_id), session);
+}
+
 int transmit_button_template_res(struct sccp_session *session)
 {
-	int i = 0;
-	int button_set = 0;
+	int i;
+	int button_set;
 	int active_button_count = 0;
-	int device_button_count = 0;
+	int device_button_count;
 	uint32_t line_instance = 1;
-	struct sccp_msg *msg = NULL;
-	struct sccp_line *line_itr = NULL;
-	struct sccp_speeddial *speeddial_itr = NULL;
+	struct sccp_msg *msg;
+	struct sccp_line *line_itr;
+	struct sccp_speeddial *speeddial_itr;
 
-	if (session == NULL) {
-		ast_log(LOG_ERROR, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
 	msg = msg_alloc(sizeof(struct button_template_res_message), BUTTON_TEMPLATE_RES_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
 	device_button_count = device_get_button_count(session->device);
-	if (device_button_count == -1)
+	if (device_button_count == -1) {
 		return -1;
+	}
 
 	for (i = 0; i < device_button_count; i++) {
 		button_set = 0;
@@ -275,10 +278,10 @@ int transmit_button_template_res(struct sccp_session *session)
 int transmit_callinfo(struct sccp_session *session, const char *from_name, const char *from_num,
 			const char *to_name, const char *to_num, int line_instance, int callid, enum sccp_direction direction)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct call_info_message), CALL_INFO_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -296,10 +299,10 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 
 int transmit_callstate(struct sccp_session *session, int line_instance, enum sccp_state state, uint32_t callid)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct call_state_message), CALL_STATE_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -314,26 +317,12 @@ int transmit_callstate(struct sccp_session *session, int line_instance, enum scc
 
 int transmit_capabilities_req(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
-
-	msg = msg_alloc(0, CAPABILITIES_REQ_MESSAGE);
-	if (msg == NULL) {
-		return -1;
-	}
-
-	return transmit_message(msg, session);
+	return transmit_empty_message(CAPABILITIES_REQ_MESSAGE, session);
 }
 
 int transmit_clearmessage(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
-
-	msg = msg_alloc(0, CLEAR_NOTIFY_MESSAGE);
-	if (msg == NULL) {
-		return -1;
-	}
-
-	return transmit_message(msg, session);
+	return transmit_empty_message(CLEAR_NOTIFY_MESSAGE, session);
 }
 
 int transmit_close_receive_channel(struct sccp_session *session, uint32_t callid)
@@ -353,15 +342,14 @@ int transmit_close_receive_channel(struct sccp_session *session, uint32_t callid
 
 int transmit_config_status_res(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
 	msg = msg_alloc(sizeof(struct config_status_res_message), CONFIG_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -377,16 +365,16 @@ int transmit_config_status_res(struct sccp_session *session)
 int transmit_open_receive_channel(struct sccp_session *session, struct sccp_subchannel *subchan)
 {
 	struct ast_format_list fmt;
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 	struct sccp_device *device;
 
-	if (subchan == NULL) {
+	if (!subchan) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return -1;
 	}
 
 	device = subchan->line->device;
-	if (device == NULL) {
+	if (!device) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
 	}
@@ -399,7 +387,7 @@ int transmit_open_receive_channel(struct sccp_session *session, struct sccp_subc
 	fmt = ast_codec_pref_getsize(&subchan->line->codec_pref, &subchan->fmt);
 
 	msg = msg_alloc(sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -417,20 +405,19 @@ int transmit_open_receive_channel(struct sccp_session *session, struct sccp_subc
 
 int transmit_dialed_number(struct sccp_session *session, const char *extension, int line_instance, int callid)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
-	if (extension == NULL) {
+	if (!extension) {
 		ast_log(LOG_DEBUG, "extension is NULL\n");
 		return -1;
 	}
 
 	msg = msg_alloc(sizeof(struct dialed_number_message), DIALED_NUMBER_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
 	ast_copy_string(msg->data.dialednumber.calledParty, extension, sizeof(msg->data.dialednumber.calledParty));
-
 	msg->data.dialednumber.lineInstance = htolel(line_instance);
 	msg->data.dialednumber.callInstance = htolel(callid);
 
@@ -439,10 +426,10 @@ int transmit_dialed_number(struct sccp_session *session, const char *extension, 
 
 int transmit_displaymessage(struct sccp_session *session, const char *text)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct display_notify_message), DISPLAY_NOTIFY_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -454,15 +441,15 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 
 int transmit_feature_status(struct sccp_session *session, int instance, enum sccp_button_type type, int status, const char *label)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
-	if (label == NULL) {
+	if (!label) {
 		ast_log(LOG_DEBUG, "label is NULL\n");
 		return -1;
 	}
 
 	msg = msg_alloc(sizeof(struct feature_stat_message), FEATURE_STAT_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -476,17 +463,16 @@ int transmit_feature_status(struct sccp_session *session, int instance, enum scc
 
 int transmit_forward_status_message(struct sccp_session *session, int line_instance, const char *extension, int status)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
 	msg->data.forwardstatus.status = htolel(status);
 	msg->data.forwardstatus.lineInstance = htolel(line_instance);
 	msg->data.forwardstatus.cfwdAllStatus = htolel(status);
-
 	ast_copy_string(msg->data.forwardstatus.cfwdAllNumber, extension,
 				sizeof(msg->data.forwardstatus.cfwdAllNumber));
 
@@ -495,14 +481,14 @@ int transmit_forward_status_message(struct sccp_session *session, int line_insta
 
 int transmit_forward_status_res(struct sccp_session *session, int lineInstance)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct forward_status_res_message), FORWARD_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
-	msg->data.forwardstatus.status = 0;
+	msg->data.forwardstatus.status = htolel(0);
 	msg->data.forwardstatus.lineInstance = htolel(lineInstance);
 
 	return transmit_message(msg, session);
@@ -510,22 +496,15 @@ int transmit_forward_status_res(struct sccp_session *session, int lineInstance)
 
 int transmit_keep_alive_ack(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
-
-	msg = msg_alloc(0, KEEP_ALIVE_ACK_MESSAGE);
-	if (msg == NULL) {
-		return -1;
-	}
-
-	return transmit_message(msg, session);
+	return transmit_empty_message(KEEP_ALIVE_ACK_MESSAGE, session);
 }
 
 int transmit_lamp_state(struct sccp_session *session, enum sccp_stimulus_type stimulus, int line_instance, enum sccp_lamp_state indication)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct set_lamp_message), SET_LAMP_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -538,25 +517,24 @@ int transmit_lamp_state(struct sccp_session *session, enum sccp_stimulus_type st
 
 int transmit_line_status_res(struct sccp_session *session, int lineInstance, struct sccp_line *line)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 	char *displayname = NULL;
 
-	if (session == NULL) {
-		ast_log(LOG_ERROR, "session is NULL\n");
+	if (!session) {
 		return -1;
 	}
 
-	if (line == NULL) {
+	if (!line) {
 		ast_log(LOG_ERROR, "Line instance [%d] is not attached to device [%s]\n", lineInstance, session->device->name);
 		return -1;
 	}
 
 	msg = msg_alloc(sizeof(struct line_status_res_message), LINE_STATUS_RES_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
-	msg->data.linestatus.lineNumber = letohl(lineInstance);
+	msg->data.linestatus.lineNumber = htolel(lineInstance);
 
 	if (line->device->proto_version <= 11) {
 		displayname = utf8_to_iso88591(line->cid_name);
@@ -569,17 +547,17 @@ int transmit_line_status_res(struct sccp_session *session, int lineInstance, str
 		ast_copy_string(msg->data.linestatus.lineDisplayName, line->cid_name, sizeof(msg->data.linestatus.lineDisplayName));
 	ast_copy_string(msg->data.linestatus.lineDisplayAlias, line->cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
 
-	free(displayname);
+	ast_free(displayname);
 
 	return transmit_message(msg, session);
 }
 
 int transmit_register_ack(struct sccp_session *session, uint8_t protoVersion, int keepalive, char *dateFormat)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -588,28 +566,20 @@ int transmit_register_ack(struct sccp_session *session, uint8_t protoVersion, in
 	ast_copy_string(msg->data.regack.dateTemplate, dateFormat, sizeof(msg->data.regack.dateTemplate));
 
 	if (protoVersion <= 3) {
-
-		msg->data.regack.protoVersion = 3;
-
-		msg->data.regack.unknown1 = 0x00;
-		msg->data.regack.unknown2 = 0x00;
-		msg->data.regack.unknown3 = 0x00;
-
+		msg->data.regack.protoVersion = htolel(3);
+		msg->data.regack.unknown1 = htolel(0x00);
+		msg->data.regack.unknown2 = htolel(0x00);
+		msg->data.regack.unknown3 = htolel(0x00);
 	} else if (protoVersion <= 10) {
-
-		msg->data.regack.protoVersion = protoVersion;
-
-		msg->data.regack.unknown1 = 0x20;
-		msg->data.regack.unknown2 = 0x00;
-		msg->data.regack.unknown3 = 0xFE;
-
+		msg->data.regack.protoVersion = htolel(protoVersion);
+		msg->data.regack.unknown1 = htolel(0x20);
+		msg->data.regack.unknown2 = htolel(0x00);
+		msg->data.regack.unknown3 = htolel(0xFE);
 	} else {
-
-		msg->data.regack.protoVersion = 11;
-
-		msg->data.regack.unknown1 = 0x20;
-		msg->data.regack.unknown2 = 0xF1;
-		msg->data.regack.unknown3 = 0xFF;
+		msg->data.regack.protoVersion = htolel(11);
+		msg->data.regack.unknown1 = htolel(0x20);
+		msg->data.regack.unknown2 = htolel(0xF1);
+		msg->data.regack.unknown3 = htolel(0xFF);
 	}
 
 	return transmit_message(msg, session);
@@ -617,10 +587,10 @@ int transmit_register_ack(struct sccp_session *session, uint8_t protoVersion, in
 
 int transmit_register_rej(struct sccp_session *session, const char *errorMessage)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -629,19 +599,12 @@ int transmit_register_rej(struct sccp_session *session, const char *errorMessage
 	return transmit_message(msg, session);
 }
 
-int transmit_reset(struct sccp_session *session, uint32_t type)
+int transmit_reset(struct sccp_session *session, enum sccp_reset_type type)
 {
-	struct sccp_msg *msg = NULL;
-
-	/* 2 => hard restart
-	 * 1 => soft reset */
-	if (type != 1 && type != 2) {
-		ast_log(LOG_DEBUG, "reset type is unknown (%d)\n", type);
-		type = 1;
-	}
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct reset_message), RESET_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -652,10 +615,10 @@ int transmit_reset(struct sccp_session *session, uint32_t type)
 
 int transmit_ringer_mode(struct sccp_session *session, enum sccp_ringer_mode mode)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct set_ringer_message), SET_RINGER_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -668,10 +631,10 @@ int transmit_ringer_mode(struct sccp_session *session, enum sccp_ringer_mode mod
 
 int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int callid, enum sccp_softkey_status softkey)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct select_soft_keys_message), SELECT_SOFT_KEYS_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -685,19 +648,18 @@ int transmit_selectsoftkeys(struct sccp_session *session, int line_instance, int
 
 int transmit_speeddial_stat_res(struct sccp_session *session, int index, struct sccp_speeddial *speeddial)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
-	if (speeddial == NULL) {
+	if (!speeddial) {
 		return 0;
 	}
 
 	msg = msg_alloc(sizeof(struct speeddial_stat_res_message), SPEEDDIAL_STAT_RES_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
-	msg->data.speeddialstatus.instance = letohl(index);
-
+	msg->data.speeddialstatus.instance = htolel(index);
 	memcpy(msg->data.speeddialstatus.extension, speeddial->extension, sizeof(msg->data.speeddialstatus.extension));
 	memcpy(msg->data.speeddialstatus.label, speeddial->label, sizeof(msg->data.speeddialstatus.label));
 
@@ -706,25 +668,23 @@ int transmit_speeddial_stat_res(struct sccp_session *session, int index, struct 
 
 int transmit_softkey_set_res(struct sccp_session *session)
 {
-	int keyset_count = 0;
-	int i = 0;
-	int j = 0;
-	struct sccp_msg *msg = NULL;
-	const struct softkey_definitions *softkeymode = softkey_default_definitions;
+	int keyset_count = ARRAY_LEN(softkey_default_definitions);
+	int i;
+	int j;
+	struct sccp_msg *msg;
+	const struct softkey_definitions *softkeymode;
 
 	msg = msg_alloc(sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
-
-	keyset_count = sizeof(softkey_default_definitions) / sizeof(struct softkey_definitions);
 
 	msg->data.softkeysets.softKeySetOffset = htolel(0);
 	msg->data.softkeysets.softKeySetCount = htolel(keyset_count);
 	msg->data.softkeysets.totalSoftKeySetCount = htolel(keyset_count);
 
 	for (i = 0; i < keyset_count; i++) {
-
+		softkeymode = &softkey_default_definitions[i];
 		for (j = 0; j < softkeymode->count; j++) {
 			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyTemplateIndex[j]
 				= htolel(softkeymode->defaults[j]);
@@ -732,7 +692,6 @@ int transmit_softkey_set_res(struct sccp_session *session)
 			msg->data.softkeysets.softKeySetDefinition[softkeymode->mode].softKeyInfoIndex[j]
 				= htolel(softkeymode->defaults[j]);
 		}
-		softkeymode++;
 	}
 
 	return transmit_message(msg, session);
@@ -740,17 +699,16 @@ int transmit_softkey_set_res(struct sccp_session *session)
 
 int transmit_softkey_template_res(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct softkey_template_res_message), SOFTKEY_TEMPLATE_RES_MESSAGE);
-	if (msg == NULL) {
-		ast_log(LOG_ERROR, "message allocation failed\n");
+	if (!msg) {
 		return -1;
 	}
 
 	msg->data.softkeytemplate.softKeyOffset = htolel(0);
-	msg->data.softkeytemplate.softKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
-	msg->data.softkeytemplate.totalSoftKeyCount = htolel(sizeof(softkey_template_default) / sizeof(struct softkey_template_definition));
+	msg->data.softkeytemplate.softKeyCount = htolel(ARRAY_LEN(softkey_template_default));
+	msg->data.softkeytemplate.totalSoftKeyCount = htolel(ARRAY_LEN(softkey_template_default));
 	memcpy(msg->data.softkeytemplate.softKeyTemplateDefinition, softkey_template_default, sizeof(softkey_template_default));
 
 	return transmit_message(msg, session);
@@ -758,10 +716,10 @@ int transmit_softkey_template_res(struct sccp_session *session)
 
 int transmit_speaker_mode(struct sccp_session *session, enum sccp_speaker_mode mode)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct set_speaker_message), SET_SPEAKER_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -772,20 +730,20 @@ int transmit_speaker_mode(struct sccp_session *session, enum sccp_speaker_mode m
 
 int transmit_start_media_transmission(struct sccp_session *session, struct sccp_subchannel *subchan, struct sockaddr_in endpoint)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 	struct ast_format_list fmt;
 	uint32_t callid;
 
-	if (subchan == NULL) {
+	if (!subchan) {
 		return -1;
 	}
 
-	if (session == NULL) {
+	if (!session) {
 		return -1;
 	}
 
 	msg = msg_alloc(sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -813,8 +771,10 @@ int transmit_start_media_transmission(struct sccp_session *session, struct sccp_
 
 int transmit_stop_media_transmission(struct sccp_session *session, uint32_t callid)
 {
-	struct sccp_msg *msg = msg_alloc(sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
-	if (msg == NULL) {
+	struct sccp_msg *msg;
+
+	msg = msg_alloc(sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
+	if (!msg) {
 		return -1;
 	}
 
@@ -827,10 +787,10 @@ int transmit_stop_media_transmission(struct sccp_session *session, uint32_t call
 
 int transmit_stop_tone(struct sccp_session *session, int line_instance, int callid)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct stop_tone_message), STOP_TONE_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -842,41 +802,37 @@ int transmit_stop_tone(struct sccp_session *session, int line_instance, int call
 
 int transmit_time_date_res(struct sccp_session *session)
 {
-	struct sccp_msg *msg = NULL;
-	time_t now = 0;
-	struct tm *cmtime = NULL;
-
-	now = time(NULL);
-	cmtime = localtime(&now);
-	if (cmtime == NULL) {
-		ast_log(LOG_ERROR, "local time initialisation failed\n");
-		return -1;
-	}
+	struct sccp_msg *msg;
+	struct timeval now;
+	struct ast_tm cmtime;
 
 	msg = msg_alloc(sizeof(struct time_date_res_message), DATE_TIME_RES_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
-	msg->data.timedate.year = htolel(cmtime->tm_year + 1900);
-	msg->data.timedate.month = htolel(cmtime->tm_mon + 1);
-	msg->data.timedate.dayOfWeek = htolel(cmtime->tm_wday);
-	msg->data.timedate.day = htolel(cmtime->tm_mday);
-	msg->data.timedate.hour = htolel(cmtime->tm_hour);
-	msg->data.timedate.minute = htolel(cmtime->tm_min);
-	msg->data.timedate.seconds = htolel(cmtime->tm_sec);
+	now = ast_tvnow();
+	ast_localtime(&now, &cmtime, NULL);
+
+	msg->data.timedate.year = htolel(cmtime.tm_year + 1900);
+	msg->data.timedate.month = htolel(cmtime.tm_mon + 1);
+	msg->data.timedate.dayOfWeek = htolel(cmtime.tm_wday);
+	msg->data.timedate.day = htolel(cmtime.tm_mday);
+	msg->data.timedate.hour = htolel(cmtime.tm_hour);
+	msg->data.timedate.minute = htolel(cmtime.tm_min);
+	msg->data.timedate.seconds = htolel(cmtime.tm_sec);
 	msg->data.timedate.milliseconds = htolel(0);
-	msg->data.timedate.systemTime = htolel(now);
+	msg->data.timedate.systemTime = htolel(now.tv_sec);
 
 	return transmit_message(msg, session);
 }
 
 int transmit_tone(struct sccp_session *session, enum sccp_tone tone, int line_instance, int callid)
 {
-	struct sccp_msg *msg = NULL;
+	struct sccp_msg *msg;
 
 	msg = msg_alloc(sizeof(struct start_tone_message), START_TONE_MESSAGE);
-	if (msg == NULL) {
+	if (!msg) {
 		return -1;
 	}
 
@@ -889,9 +845,10 @@ int transmit_tone(struct sccp_session *session, enum sccp_tone tone, int line_in
 
 int transmit_version_res(struct sccp_session *session, const char *version)
 {
-	struct sccp_msg *msg = msg_alloc(sizeof(struct version_res_message), VERSION_RES_MESSAGE);
+	struct sccp_msg *msg;
 
-	if (msg == NULL) {
+	msg = msg_alloc(sizeof(struct version_res_message), VERSION_RES_MESSAGE);
+	if (!msg) {
 		return -1;
 	}
 
