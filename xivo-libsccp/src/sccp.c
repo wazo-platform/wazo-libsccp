@@ -1356,6 +1356,7 @@ static int handle_callforward(struct sccp_session *session, enum sccp_softkey_ty
 
 			transmit_speaker_mode(session, SCCP_SPEAKEROFF);
 			line->device->exten[0] = '\0';
+			session_remove_fwdtimeout_task(session, line);
 
 		} else if (softkey == SOFTKEY_CFWDALL) {
 			sccp_set_callforward(line);
@@ -2543,7 +2544,7 @@ static void session_add_fwdtimeout_task(struct sccp_session *session, struct scc
 {
 	struct sccp_task task = {on_session_fwdtimeout, line};
 
-	sccp_task_runner_add(session->task_runner, task, 10);
+	sccp_task_runner_add(session->task_runner, task, 5);
 }
 
 static void session_remove_fwdtimeout_task(struct sccp_session *session, struct sccp_line *line)
