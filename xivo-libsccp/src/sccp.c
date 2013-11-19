@@ -718,7 +718,7 @@ static int sccp_start_the_call(struct sccp_subchannel *subchan)
 	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);
 	transmit_stop_tone(line->device->session, line->instance, subchan->id);
 	transmit_tone(line->device->session, SCCP_TONE_ALERT, line->instance, subchan->id);
-	transmit_callinfo(line->device->session, "", "", "", line->device->exten, line->instance, subchan->id, subchan->direction);
+	transmit_callinfo(line->device->session, "", line->cid_num, "", line->device->exten, line->instance, subchan->id, subchan->direction);
 
 	memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
 	line->device->exten[0] = '\0';
@@ -2773,7 +2773,7 @@ static int cb_ast_call(struct ast_channel *channel, const char *dest, int timeou
 	name = format_party_name(channel, line->device);
 	number = format_party_number(channel, line->device);
 
-	ret = transmit_callinfo(session, name, number, "", "", line->instance, subchan->id, subchan->direction);
+	transmit_callinfo(session, name, number, "", line->cid_num, line->instance, subchan->id, subchan->direction);
 
 	transmit_lamp_state(session, STIMULUS_LINE, line->instance, SCCP_LAMP_BLINK);
 
