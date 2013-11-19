@@ -144,9 +144,9 @@ enum sccp_softkey_status {
 	KEYDEF_OFFHOOK = 4,
 	KEYDEF_CONNINTRANSFER = 5,
 	KEYDEF_CALLFWD = 6,
-	// KEYDEF_CONNWITHCONF = 7,
-	// KEYDEF_RINGOUT = 8,
-	KEYDEF_AUTOANSWER = 9,
+	KEYDEF_DIALINTRANSFER = 7,
+	KEYDEF_RINGOUT = 8,
+	// KEYDEF_AUTOANSWER = 9,
 	// KEYDEF_UNKNOWN = 10,
 };
 
@@ -209,9 +209,8 @@ static const uint8_t softkey_default_connected[] = {
 };
 
 static const uint8_t softkey_default_onhold[] = {
-	SOFTKEY_NEWCALL,
 	SOFTKEY_RESUME,
-	SOFTKEY_ENDCALL,
+	SOFTKEY_NEWCALL,
 };
 
 static const uint8_t softkey_default_ringin[] = {
@@ -219,11 +218,23 @@ static const uint8_t softkey_default_ringin[] = {
 	SOFTKEY_ENDCALL,
 };
 
+static const uint8_t softkey_default_ringout[] = {
+	SOFTKEY_NONE,
+	SOFTKEY_ENDCALL,
+};
+
 static const uint8_t softkey_default_offhook[] = {
+	SOFTKEY_REDIAL,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_dialintransfer[] = {
+	SOFTKEY_REDIAL,
 	SOFTKEY_ENDCALL,
 };
 
 static const uint8_t softkey_default_connintransfer[] = {
+	SOFTKEY_NONE,
 	SOFTKEY_ENDCALL,
 	SOFTKEY_TRNSFER,
 };
@@ -233,19 +244,16 @@ static const uint8_t softkey_default_callfwd[] = {
 	SOFTKEY_CFWDALL,
 };
 
-static const uint8_t softkey_default_autoanswer[] = {
-	SOFTKEY_NONE,
-};
-
 static const struct softkey_definitions softkey_default_definitions[] = {
 	{KEYDEF_ONHOOK, softkey_default_onhook, ARRAY_LEN(softkey_default_onhook)},
 	{KEYDEF_CONNECTED, softkey_default_connected, ARRAY_LEN(softkey_default_connected)},
 	{KEYDEF_ONHOLD, softkey_default_onhold, ARRAY_LEN(softkey_default_onhold)},
 	{KEYDEF_RINGIN, softkey_default_ringin, ARRAY_LEN(softkey_default_ringin)},
+	{KEYDEF_RINGOUT, softkey_default_ringout, ARRAY_LEN(softkey_default_ringout)},
 	{KEYDEF_OFFHOOK, softkey_default_offhook, ARRAY_LEN(softkey_default_offhook)},
 	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, ARRAY_LEN(softkey_default_connintransfer)},
+	{KEYDEF_DIALINTRANSFER, softkey_default_dialintransfer, ARRAY_LEN(softkey_default_dialintransfer)},
 	{KEYDEF_CALLFWD, softkey_default_callfwd, ARRAY_LEN(softkey_default_callfwd)},
-	{KEYDEF_AUTOANSWER, softkey_default_autoanswer, ARRAY_LEN(softkey_default_autoanswer)},
 };
 
 struct sccp_subchannel {
@@ -256,6 +264,7 @@ struct sccp_subchannel {
 	uint8_t on_hold;
 	uint8_t resuming;
 	uint8_t autoanswer;
+	uint8_t transferring;
 	struct ast_sockaddr direct_media_addr;
 	struct ast_rtp_instance *rtp;
 	struct sccp_line *line;
