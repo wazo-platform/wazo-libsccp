@@ -861,6 +861,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 	}
 
 	transmit_ringer_mode(session, SCCP_RING_OFF);
+	transmit_callstate(session, line->instance, SCCP_OFFHOOK, subchan->id);
 	transmit_callstate(session, line->instance, SCCP_CONNECTED, subchan->id);
 	transmit_stop_tone(session, line->instance, subchan->id);
 	transmit_selectsoftkeys(session, line->instance, subchan->id, KEYDEF_CONNECTED);
