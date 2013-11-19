@@ -2920,6 +2920,7 @@ static int cb_ast_indicate(struct ast_channel *channel, int indicate, const void
 	case AST_CONTROL_RINGING:
 		ast_log(LOG_DEBUG, "ringing\n");
 		if (ast_channel_state(channel) == AST_STATE_RING) {
+			transmit_callstate(line->device->session, line->instance, SCCP_RINGOUT, subchan->id);
 			break;
 		}
 		return _AST_PROVIDE_INBAND_SIGNALLING;
