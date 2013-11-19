@@ -714,11 +714,11 @@ static int sccp_start_the_call(struct sccp_subchannel *subchan)
 	subchan->state = SCCP_RINGOUT;
 	ast_setstate(channel, AST_STATE_RING);
 
+	transmit_dialed_number(line->device->session, line->device->exten, line->instance, subchan->id);
 	transmit_callstate(line->device->session, line->instance, SCCP_PROGRESS, subchan->id);
 	transmit_stop_tone(line->device->session, line->instance, subchan->id);
 	transmit_tone(line->device->session, SCCP_TONE_ALERT, line->instance, subchan->id);
 	transmit_callinfo(line->device->session, "", "", "", line->device->exten, line->instance, subchan->id, subchan->direction);
-	transmit_dialed_number(line->device->session, line->device->exten, line->instance, subchan->id);
 
 	memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
 	line->device->exten[0] = '\0';

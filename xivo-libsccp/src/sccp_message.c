@@ -285,10 +285,23 @@ int transmit_callinfo(struct sccp_session *session, const char *from_name, const
 		return -1;
 	}
 
-	ast_copy_string(msg->data.callinfo.callingPartyName, from_name ? from_name: "", sizeof(msg->data.callinfo.callingPartyName));
-	ast_copy_string(msg->data.callinfo.callingParty, from_num ? from_num: "", sizeof(msg->data.callinfo.callingParty));
-	ast_copy_string(msg->data.callinfo.calledPartyName, to_name ? to_name: "", sizeof(msg->data.callinfo.calledPartyName));
-	ast_copy_string(msg->data.callinfo.calledParty, to_num ? to_num: "", sizeof(msg->data.callinfo.calledParty));
+	if (from_name) {
+		ast_copy_string(msg->data.callinfo.callingPartyName, from_name, sizeof(msg->data.callinfo.callingPartyName));
+	}
+
+	if (from_num) {
+		ast_copy_string(msg->data.callinfo.callingParty, from_num, sizeof(msg->data.callinfo.callingParty));
+	}
+
+	if (to_name) {
+		ast_copy_string(msg->data.callinfo.calledPartyName, to_name, sizeof(msg->data.callinfo.calledPartyName));
+		ast_copy_string(msg->data.callinfo.originalCalledPartyName, to_name, sizeof(msg->data.callinfo.originalCalledPartyName));
+	}
+
+	if (to_num) {
+		ast_copy_string(msg->data.callinfo.calledParty, to_num, sizeof(msg->data.callinfo.calledParty));
+		ast_copy_string(msg->data.callinfo.originalCalledParty, to_num, sizeof(msg->data.callinfo.originalCalledParty));
+	}
 
 	msg->data.callinfo.lineInstance = htolel(line_instance);
 	msg->data.callinfo.callInstance = htolel(callid);
