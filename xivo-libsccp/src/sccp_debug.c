@@ -1,3 +1,4 @@
+#include "sccp.h"
 #include "sccp_debug.h"
 #include "sccp_device.h"
 #include "sccp_message.h"

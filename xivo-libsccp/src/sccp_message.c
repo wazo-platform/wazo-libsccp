@@ -3,7 +3,6 @@
 
 #include <asterisk.h>
 #include <asterisk/localtime.h>
-#include <asterisk/rtp_engine.h>
 #include <asterisk/time.h>
 #include <asterisk/utils.h>
 
@@ -452,7 +451,7 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	return transmit_message(msg, session);
 }
 
-int transmit_feature_status(struct sccp_session *session, int instance, enum sccp_button_type type, int status, const char *label)
+int transmit_feature_status(struct sccp_session *session, int instance, enum sccp_button_type type, enum sccp_blf_status status, const char *label)
 {
 	struct sccp_msg *msg;
 
