@@ -9,7 +9,8 @@ static int config_from_string(struct sccp_configs *config, const char *content)
 	const char *fname = "/tmp/sccp.conf";
 	FILE *conf_file = fopen(fname, "w");
 
-	if (conf_file == NULL) {
+	if (!conf_file) {
+		ast_log(LOG_ERROR, "could not open file %s: %s\n", fname, strerror(errno));
 		return -1;
 	}
 
@@ -123,7 +124,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		break;
 	}
 
-	if (sccp_cfg == NULL) {
+	if (!sccp_cfg) {
 		return AST_TEST_FAIL;
 	}
 
@@ -162,7 +163,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		"speeddial=sd1001\n"
 		"voicemail=555\n";
 	if (config_from_string(sccp_cfg, conf) != 0) {
-	     return AST_TEST_FAIL;
+		return AST_TEST_FAIL;
 	}
 
 	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);

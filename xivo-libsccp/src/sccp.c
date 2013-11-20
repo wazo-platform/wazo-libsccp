@@ -37,6 +37,9 @@
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
 
+AST_TEST_DEFINE(sccp_test_config_set_field);
+AST_TEST_DEFINE(sccp_test_config);
+AST_TEST_DEFINE(sccp_test_resync);
 AST_TEST_DEFINE(sccp_test_extstate_ast2sccp);
 AST_TEST_DEFINE(sccp_test_null_arguments);
 AST_TEST_DEFINE(sccp_test_utf8_to_iso88591);
@@ -875,21 +878,12 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
-	struct sccp_device *device = NULL;
+	struct sccp_device *device = session->device;
 	struct sccp_subchannel *subchan = NULL;
 
 	uint32_t line_instance = 0;
 	uint32_t subchan_id = 0;
 
-	if (!session) {
-		return -1;
-	}
-
-	if (!msg) {
-		return -1;
-	}
-
-	device = session->device;
 	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
@@ -1023,16 +1017,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	struct sccp_subchannel *subchan = NULL;
 	uint32_t line_instance = 0;
 	uint32_t subchan_id = 0;
-
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
 
 	if (session->device->proto_version == 11) {
 
@@ -1392,16 +1376,6 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 	int ret = 0;
 	struct sccp_subchannel *subchan;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
 	if (session->device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
@@ -1524,10 +1498,6 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 static int handle_softkey_set_req_message(struct sccp_session *session)
 {
-	if (!session) {
-		return -1;
-	}
-
 	transmit_softkey_set_res(session);
 	transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
 
@@ -1662,19 +1632,8 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	struct ast_format format;
 	struct ast_format_cap *caps;
 	int i = 0;
-	struct sccp_device *device = NULL;
+	struct sccp_device *device = session->device;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	device = session->device;
 	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
@@ -1707,22 +1666,11 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 
 static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_line *line = NULL;
+	struct sccp_line *line = session->device->default_line;
 	struct ast_channel *channel = NULL;
 	uint32_t addr = 0;
 	uint32_t port = 0;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	line = session->device->default_line;
 	session->device->open_receive_channel_pending = 0;
 
 	addr = msg->data.openreceivechannelack.ipAddr;
@@ -1761,18 +1709,8 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int index;
+	int index = letohl(msg->data.speeddial.instance);
 	struct sccp_speeddial *speeddial;
-
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
-	index = letohl(msg->data.speeddial.instance);
 
 	speeddial = device_get_speeddial_by_index(session->device, index);
 	if (!speeddial) {
@@ -1787,18 +1725,8 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 
 static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int instance;
+	int instance = letohl(msg->data.feature.instance);
 	struct sccp_speeddial *speeddial;
-
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
-	instance = letohl(msg->data.feature.instance);
 
 	speeddial = device_get_speeddial(session->device, instance);
 	if (!speeddial) {
@@ -1814,18 +1742,8 @@ static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_s
 
 static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int line_instance;
+	int line_instance = letohl(msg->data.line.lineInstance);
 	struct sccp_line *line;
-
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
-	line_instance = letohl(msg->data.line.lineInstance);
 
 	line = device_get_line(session->device, line_instance);
 	if (line == NULL) {
@@ -1844,17 +1762,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
-	enum sccp_device_type device_type;
-
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
-	device_type = letohl(msg->data.reg.type);
+	enum sccp_device_type device_type = letohl(msg->data.reg.type);
 
 	ret = device_type_is_supported(device_type);
 	if (ret == 0) {
@@ -1884,10 +1792,6 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 static int handle_unregister_message(struct sccp_session *session)
 {
-	if (!session) {
-		return -1;
-	}
-
 	session->destroy = 1;
 
 	return 0;
@@ -1926,16 +1830,6 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	struct sccp_speeddial *speeddial = NULL;
 	struct sccp_subchannel *subchan;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
 	if (msg->data.stimulus.stimulus == STIMULUS_SPEEDDIAL)
 		speeddial = device_get_speeddial_by_index(session->device, msg->data.stimulus.lineInstance);
 	else if (msg->data.stimulus.stimulus == STIMULUS_FEATUREBUTTON)
@@ -1971,21 +1865,9 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 
 static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_device *device;
+	struct sccp_device *device = session->device;
 	struct sccp_subchannel *subchan;
 	size_t len;
-
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	device = session->device;
 
 	/* XXX this 2 steps stuff should be simplified */
 	subchan = sccp_line_get_next_offhook_subchan(device->default_line);
@@ -2014,14 +1896,6 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	int instance;
 	int callid;
 	size_t len;
-
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
 
 	button = letohl(msg->data.keypad.button);
 	instance = letohl(msg->data.keypad.lineInstance);
@@ -2201,20 +2075,8 @@ static int is_message_handleable(uint32_t msg_id, struct sccp_session *session) 
 
 static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	uint32_t msg_id;
+	uint32_t msg_id = letohl(msg->id);
 	int ret = 0;
-
-	if (!msg) {
-		ast_log(LOG_ERROR, "msg is NULL\n");
-		return -1;
-	}
-
-	if (!session) {
-		ast_log(LOG_ERROR, "session is NULL\n");
-		return -1;
-	}
-
-	msg_id = letohl(msg->id);
 
 	if (sccp_debug) {
 		if (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, session->ipaddr)) {
