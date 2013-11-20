@@ -15,6 +15,97 @@
 
 #include "../config.h"
 
+static const uint8_t softkey_default_onhook[] = {
+	SOFTKEY_REDIAL,
+	SOFTKEY_NEWCALL,
+	SOFTKEY_CFWDALL,
+	SOFTKEY_DND,
+};
+
+static const uint8_t softkey_default_connected[] = {
+	SOFTKEY_HOLD,
+	SOFTKEY_ENDCALL,
+	SOFTKEY_TRNSFER,
+	SOFTKEY_NEWCALL,
+};
+
+static const uint8_t softkey_default_onhold[] = {
+	SOFTKEY_RESUME,
+	SOFTKEY_NEWCALL,
+};
+
+static const uint8_t softkey_default_ringin[] = {
+	SOFTKEY_ANSWER,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_ringout[] = {
+	SOFTKEY_NONE,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_offhook[] = {
+	SOFTKEY_REDIAL,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_dialintransfer[] = {
+	SOFTKEY_REDIAL,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_connintransfer[] = {
+	SOFTKEY_NONE,
+	SOFTKEY_ENDCALL,
+	SOFTKEY_TRNSFER,
+};
+
+static const uint8_t softkey_default_callfwd[] = {
+	SOFTKEY_BKSPC,
+	SOFTKEY_CFWDALL,
+};
+
+struct softkey_definitions {
+	const uint8_t mode;
+	const uint8_t *defaults;
+	const int count;
+};
+
+static const struct softkey_definitions softkey_default_definitions[] = {
+	{KEYDEF_ONHOOK, softkey_default_onhook, ARRAY_LEN(softkey_default_onhook)},
+	{KEYDEF_CONNECTED, softkey_default_connected, ARRAY_LEN(softkey_default_connected)},
+	{KEYDEF_ONHOLD, softkey_default_onhold, ARRAY_LEN(softkey_default_onhold)},
+	{KEYDEF_RINGIN, softkey_default_ringin, ARRAY_LEN(softkey_default_ringin)},
+	{KEYDEF_RINGOUT, softkey_default_ringout, ARRAY_LEN(softkey_default_ringout)},
+	{KEYDEF_OFFHOOK, softkey_default_offhook, ARRAY_LEN(softkey_default_offhook)},
+	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, ARRAY_LEN(softkey_default_connintransfer)},
+	{KEYDEF_DIALINTRANSFER, softkey_default_dialintransfer, ARRAY_LEN(softkey_default_dialintransfer)},
+	{KEYDEF_CALLFWD, softkey_default_callfwd, ARRAY_LEN(softkey_default_callfwd)},
+};
+
+static struct softkey_template_definition softkey_template_default[] = {
+	{"\x80\x01", SOFTKEY_REDIAL},
+	{"\x80\x02", SOFTKEY_NEWCALL},
+	{"\x80\x03", SOFTKEY_HOLD},
+	{"\x80\x04", SOFTKEY_TRNSFER},
+	{"\x80\x05", SOFTKEY_CFWDALL},
+	{"\x80\x06", SOFTKEY_CFWDBUSY},
+	{"\x80\x07", SOFTKEY_CFWDNOANSWER},
+	{"\x80\x08", SOFTKEY_BKSPC},
+	{"\x80\x09", SOFTKEY_ENDCALL},
+	{"\x80\x0A", SOFTKEY_RESUME},
+	{"\x80\x0B", SOFTKEY_ANSWER},
+	{"\x80\x0C", SOFTKEY_INFO},
+	{"\x80\x0D", SOFTKEY_CONFRN},
+	{"\x80\x0E", SOFTKEY_PARK},
+	{"\x80\x0F", SOFTKEY_JOIN},
+	{"\x80\x10", SOFTKEY_MEETME},
+	{"\x80\x11", SOFTKEY_PICKUP},
+	{"\x80\x12", SOFTKEY_GPICKUP},
+	{"Dial", 0x13}, // Dial
+	{"\200\77", SOFTKEY_DND},
+};
+
 static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id);
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 static int transmit_empty_message(uint32_t msg_id, struct sccp_session *session);
