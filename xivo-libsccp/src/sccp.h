@@ -38,10 +38,6 @@ struct sccp_session {
 };
 
 enum sccp_codecs codec_ast2sccp(struct ast_format *format);
-int sccp_server_init(void);
-void sccp_server_fini(void);
-void sccp_rtp_fini(void);
-void sccp_rtp_init(const struct ast_module_info *module_info);
 int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session);
 char *utf8_to_iso88591(char *to_convert);
 
