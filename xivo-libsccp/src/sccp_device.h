@@ -121,7 +121,6 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 
 const char *line_state_str(enum sccp_state line_state);
 const char *device_regstate_str(enum sccp_device_registration_state state);
-const char *device_type_str(enum sccp_device_type device_type);
 int device_type_is_supported(enum sccp_device_type device_type);
 
 #endif /* SCCP_DEVICE_H */

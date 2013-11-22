@@ -109,6 +109,48 @@ static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id);
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 static int transmit_empty_message(uint32_t msg_id, struct sccp_session *session);
 
+const char *device_type_str(enum sccp_device_type device_type)
+{
+	switch (device_type) {
+	case SCCP_DEVICE_7905:
+		return "7905";
+	case SCCP_DEVICE_7906:
+		return "7906";
+	case SCCP_DEVICE_7911:
+		return "7911";
+	case SCCP_DEVICE_7912:
+		return "7912";
+	case SCCP_DEVICE_7920:
+		return "7920";
+	case SCCP_DEVICE_7921:
+		return "7921";
+	case SCCP_DEVICE_7931:
+		return "7931";
+	case SCCP_DEVICE_7937:
+		return "7937";
+	case SCCP_DEVICE_7940:
+		return "7940";
+	case SCCP_DEVICE_7941:
+		return "7941";
+	case SCCP_DEVICE_7941GE:
+		return "7941GE";
+	case SCCP_DEVICE_7942:
+		return "7942";
+	case SCCP_DEVICE_7960:
+		return "7960";
+	case SCCP_DEVICE_7961:
+		return "7961";
+	case SCCP_DEVICE_7962:
+		return "7962";
+	case SCCP_DEVICE_7970:
+		return "7970";
+	case SCCP_DEVICE_CIPC:
+		return "CIPC";
+	}
+
+	return "unknown";
+}
+
 const char *msg_id_str(uint32_t msg_id) {
 	switch (msg_id) {
 	case KEEP_ALIVE_MESSAGE:
