@@ -28,13 +28,13 @@ struct sccp_configs {
 	struct list_device list_device;
 };
 
-struct sccp_configs *sccp_new_config(void);
+struct sccp_configs *sccp_config_create(void);
 void sccp_config_destroy(struct sccp_configs *config);
 
 int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file);
 void sccp_config_unload(struct sccp_configs *sccp_cfg);
 
-void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *device);
+void sccp_config_destroy_device(struct sccp_configs *sccp_cfg, struct sccp_device *device);
 void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, const char *value);
 
 #endif /* SCCP_CONFIG_H */

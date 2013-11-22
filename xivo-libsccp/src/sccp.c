@@ -2294,7 +2294,7 @@ static void thread_session_cleanup(void *data)
 		ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 
 		if (session->device->destroy == 1) {
-			destroy_device_config(sccp_config, session->device);
+			sccp_config_destroy_device(sccp_config, session->device);
 			sccp_config_load(sccp_config, "sccp.conf");
 		}
 		transmit_reset(session, SCCP_RESET_SOFT);
@@ -3498,7 +3498,7 @@ static int load_module(void)
 {
 	int ret = 0;
 
-	sccp_config = sccp_new_config();
+	sccp_config = sccp_config_create();
 	if (!sccp_config) {
 		return AST_MODULE_LOAD_DECLINE;
 	}

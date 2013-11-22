@@ -22,7 +22,7 @@ static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *
 static void config_set_defaults(struct sccp_configs *sccp_cfg);
 static int is_line_section_complete(const char *category);
 
-struct sccp_configs *sccp_new_config(void)
+struct sccp_configs *sccp_config_create(void)
 {
 	struct sccp_configs *sccp_cfg = ast_calloc(1, sizeof(*sccp_cfg));
 
@@ -129,7 +129,7 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg)
 	AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
 }
 
-void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *device)
+void sccp_config_destroy_device(struct sccp_configs *sccp_cfg, struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
 	struct sccp_subchannel *subchan_itr = NULL;

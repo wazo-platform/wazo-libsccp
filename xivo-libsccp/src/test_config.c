@@ -26,7 +26,7 @@ static int config_from_string(struct sccp_configs *config, const char *content)
 
 AST_TEST_DEFINE(sccp_test_config_set_field)
 {
-	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_config_create(), sccp_config_destroy);
 	char *name;
 	char *value;
 
@@ -105,7 +105,7 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 AST_TEST_DEFINE(sccp_test_resync)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_config_create(), sccp_config_destroy);
 	const char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
@@ -247,7 +247,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 	(void)AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
 	transmit_reset(device->session, SCCP_RESET_HARD_RESTART);
 	sccp_device_unregister(device);
-	destroy_device_config(sccp_cfg, device);
+	sccp_config_destroy_device(sccp_cfg, device);
 
 	if (config_from_string(sccp_cfg, conf) != 0) {
 	     return AST_TEST_FAIL;
@@ -300,7 +300,7 @@ cleanup:
 AST_TEST_DEFINE(sccp_test_config)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_config_create(), sccp_config_destroy);
 	char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
