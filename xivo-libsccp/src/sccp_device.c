@@ -250,7 +250,7 @@ struct sccp_line *sccp_device_get_line(struct sccp_device *device, uint32_t inst
 	return line_itr;
 }
 
-const char *device_regstate_str(enum sccp_device_registration_state state)
+const char *sccp_device_regstate_str(enum sccp_device_registration_state state)
 {
 	switch (state) {
 	case DEVICE_REGISTERED_TRUE:
@@ -262,7 +262,7 @@ const char *device_regstate_str(enum sccp_device_registration_state state)
 	}
 }
 
-int device_type_is_supported(enum sccp_device_type device_type)
+int sccp_device_type_is_supported(enum sccp_device_type device_type)
 {
 	int supported = 0;
 

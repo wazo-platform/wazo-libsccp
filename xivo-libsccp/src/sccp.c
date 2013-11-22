@@ -1764,7 +1764,7 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 	int ret = 0;
 	enum sccp_device_type device_type = letohl(msg->data.reg.type);
 
-	ret = device_type_is_supported(device_type);
+	ret = sccp_device_type_is_supported(device_type);
 	if (ret == 0) {
 		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, device_type);
 		transmit_register_rej(session, "Unsupported device type\n");
@@ -2984,7 +2984,7 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		ast_cli(a->fd, "%-16s %-16s %-8s %-13s %-6d %s\n", device_itr->name,
 							session && session->ipaddr ? session->ipaddr: "-",
 							sccp_device_type_str(device_itr->type),
-							device_regstate_str(device_itr->regstate),
+							sccp_device_regstate_str(device_itr->regstate),
 							device_itr->proto_version,
 							ast_getformatname_multiple(buf, sizeof(buf), device_itr->caps));
 
