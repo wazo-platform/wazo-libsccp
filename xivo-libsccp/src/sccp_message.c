@@ -109,7 +109,7 @@ static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id);
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 static int transmit_empty_message(uint32_t msg_id, struct sccp_session *session);
 
-const char *device_type_str(enum sccp_device_type device_type)
+const char *sccp_device_type_str(enum sccp_device_type device_type)
 {
 	switch (device_type) {
 	case SCCP_DEVICE_7905:
@@ -151,9 +151,9 @@ const char *device_type_str(enum sccp_device_type device_type)
 	return "unknown";
 }
 
-const char *line_state_str(enum sccp_state line_state)
+const char *sccp_state_str(enum sccp_state state)
 {
-	switch (line_state) {
+	switch (state) {
 	case SCCP_OFFHOOK:
 		return "Offhook";
 	case SCCP_ONHOOK:

@@ -2926,7 +2926,7 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 	AST_RWLIST_RDLOCK(&sccp_config->list_line);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_line, line_itr, list) {
 		ast_codec_pref_string(&line_itr->codec_pref, buf, sizeof(buf));
-		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, line_state_str(line_itr->state), buf);
+		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, sccp_state_str(line_itr->state), buf);
 		line_cnt++;
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_line);
@@ -2983,7 +2983,7 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		session = device_itr->session;
 		ast_cli(a->fd, "%-16s %-16s %-8s %-13s %-6d %s\n", device_itr->name,
 							session && session->ipaddr ? session->ipaddr: "-",
-							device_type_str(device_itr->type),
+							sccp_device_type_str(device_itr->type),
 							device_regstate_str(device_itr->regstate),
 							device_itr->proto_version,
 							ast_getformatname_multiple(buf, sizeof(buf), device_itr->caps));
@@ -3087,7 +3087,7 @@ static void sccp_dump_session_state(int cli_fd, struct sccp_session *session)
 			ast_cli(cli_fd, "    line\n");
 			ast_cli(cli_fd, "        addr: %p\n", line);
 			ast_cli(cli_fd, "        instance: %u\n", line->instance);
-			ast_cli(cli_fd, "        state: %s\n", line_state_str(line->state));
+			ast_cli(cli_fd, "        state: %s\n", sccp_state_str(line->state));
 			ast_cli(cli_fd, "        serial_callid: %u\n", line->serial_callid);
 			ast_cli(cli_fd, "        active_subchan: %p\n", line->active_subchan);
 			AST_RWLIST_RDLOCK(&line->subchans);
@@ -3095,7 +3095,7 @@ static void sccp_dump_session_state(int cli_fd, struct sccp_session *session)
 				ast_cli(cli_fd, "    subchan\n");
 				ast_cli(cli_fd, "        addr: %p\n", subchan);
 				ast_cli(cli_fd, "        id: %u\n", subchan->id);
-				ast_cli(cli_fd, "        state: %s\n", line_state_str(subchan->state));
+				ast_cli(cli_fd, "        state: %s\n", sccp_state_str(subchan->state));
 				ast_cli(cli_fd, "        channel: %p\n", subchan->channel);
 				ast_cli(cli_fd, "        rtp: %p\n", subchan->rtp);
 			}
