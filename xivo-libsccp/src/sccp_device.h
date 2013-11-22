@@ -119,7 +119,6 @@ void sccp_device_unsubscribe_speeddial_hints(struct sccp_device *device);
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
 
-const char *line_state_str(enum sccp_state line_state);
 const char *device_regstate_str(enum sccp_device_registration_state state);
 int device_type_is_supported(enum sccp_device_type device_type);
 

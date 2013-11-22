@@ -655,6 +655,7 @@ struct sccp_msg {
 };
 
 const char *device_type_str(enum sccp_device_type device_type);
+const char *line_state_str(enum sccp_state line_state);
 const char *msg_id_str(uint32_t msg_id);
 
 int transmit_button_template_res(struct sccp_session *session);

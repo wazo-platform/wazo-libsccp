@@ -151,6 +151,40 @@ const char *device_type_str(enum sccp_device_type device_type)
 	return "unknown";
 }
 
+const char *line_state_str(enum sccp_state line_state)
+{
+	switch (line_state) {
+	case SCCP_OFFHOOK:
+		return "Offhook";
+	case SCCP_ONHOOK:
+		return "Onhook";
+	case SCCP_RINGOUT:
+		return "Ringout";
+	case SCCP_RINGIN:
+		return "Ringin";
+	case SCCP_CONNECTED:
+		return "Connected";
+	case SCCP_BUSY:
+		return "Busy";
+	case SCCP_CONGESTION:
+		return "Congestion";
+	case SCCP_HOLD:
+		return "Hold";
+	case SCCP_CALLWAIT:
+		return "Callwait";
+	case SCCP_TRANSFER:
+		return "Transfer";
+	case SCCP_PARK:
+		return "Park";
+	case SCCP_PROGRESS:
+		return "Progress";
+	case SCCP_INVALID:
+		return "Invalid";
+	}
+
+	return "Unknown";
+}
+
 const char *msg_id_str(uint32_t msg_id) {
 	switch (msg_id) {
 	case KEEP_ALIVE_MESSAGE:
