@@ -70,9 +70,7 @@ AST_TEST_DEFINE(sccp_test_null_arguments)
 		break;
 	}
 
-	assert_null_handled(sccp_device_subscribe_speeddial_hints(NULL, NULL));
-	assert_null_handled(sccp_device_get_speeddial(NULL, 0));
-	assert_null_handled(sccp_device_get_speeddial_by_index(NULL, 0));
+	assert_null_handled(sccp_device_subscribe_speeddial_hints((void*)0xFF, NULL));
 	assert_null_handled(transmit_feature_status(NULL, 0, 0, 0, ""));
 	assert_null_handled(transmit_feature_status((struct sccp_session *)0x1, 0, 0, 0, NULL));
 	assert_null_handled(speeddial_hints_cb("", "", 0, NULL));
