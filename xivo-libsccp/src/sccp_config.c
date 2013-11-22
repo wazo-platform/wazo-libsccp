@@ -369,7 +369,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 			continue;
 		}
 
-		line = sccp_new_line(category, sccp_cfg);
+		line = sccp_line_create(category, sccp_cfg);
 		if (line == NULL) {
 			return -1;
 		}

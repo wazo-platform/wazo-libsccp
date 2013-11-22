@@ -5,7 +5,7 @@
 
 static struct ast_variable *add_var(const char *buf, struct ast_variable *list);
 
-struct sccp_line *sccp_new_line(const char *name, struct sccp_configs *sccp_cfg)
+struct sccp_line *sccp_line_create(const char *name, struct sccp_configs *sccp_cfg)
 {
 	struct sccp_line* line = ast_calloc(1, sizeof(*line));
 
