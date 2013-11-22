@@ -6,12 +6,12 @@ struct sccp_device *sccp_device_create(const char *name)
 {
 	struct sccp_device *device = ast_calloc(1, sizeof(*device));
 
-	if (device == NULL) {
+	if (!device) {
 		return NULL;
 	}
 
 	device->caps = ast_format_cap_alloc_nolock();
-	if (device->caps == NULL) {
+	if (!device->caps) {
 		ast_free(device);
 		return NULL;
 	}
@@ -35,10 +35,6 @@ struct sccp_device *sccp_device_create(const char *name)
 
 void sccp_device_destroy(struct sccp_device *device)
 {
-	if (device == NULL) {
-		return;
-	}
-
 	ast_format_cap_destroy(device->caps);
 	ast_mutex_destroy(&device->lock);
 	AST_RWLIST_HEAD_DESTROY(&device->lines);
@@ -49,13 +45,8 @@ void sccp_device_destroy(struct sccp_device *device)
 
 void sccp_device_unregister(struct sccp_device *device)
 {
-	struct sccp_line *line_itr = NULL;
-	struct sccp_subchannel *subchan = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
+	struct sccp_line *line_itr;
+	struct sccp_subchannel *subchan;
 
 	device->regstate = DEVICE_REGISTERED_FALSE;
 
@@ -94,11 +85,6 @@ void sccp_device_register(struct sccp_device *device,
 			void *session,
 			struct sockaddr_in localip)
 {
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
-
 	device->regstate = DEVICE_REGISTERED_TRUE;
 	device->proto_version = proto_version;
 	device->type = type;
@@ -108,12 +94,7 @@ void sccp_device_register(struct sccp_device *device,
 
 void sccp_device_prepare(struct sccp_device *device)
 {
-	struct sccp_line *line_itr = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
+	struct sccp_line *line_itr;
 
 	device->exten[0] = '\0';
 	device->open_receive_channel_pending = 0;
@@ -127,11 +108,6 @@ void sccp_device_prepare(struct sccp_device *device)
 
 int sccp_device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
 {
-	if (device == NULL) {
-		ast_log(LOG_ERROR, "Device is NULL\n");
-		return -1;
-	}
-
 	device->remote.sin_family = AF_INET;
 	device->remote.sin_addr.s_addr = addr;
 	device->remote.sin_port = htons(port);
@@ -141,24 +117,19 @@ int sccp_device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t p
 
 int sccp_device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance)
 {
-	if (device == NULL) {
-		ast_log(LOG_ERROR, "device is NULL\n");
-		return -1;
-	}
-
-	if (line == NULL) {
+	if (!line) {
 		ast_log(LOG_ERROR, "line is NULL\n");
 		return -1;
 	}
 
-	if (line->device != NULL) {
+	if (line->device) {
 		ast_log(LOG_ERROR, "Line [%s] is already attached to device [%s]\n",
 				line->name, line->device->name);
 		return -1;
 	}
 
 	++device->line_count;
-	if (device->default_line == NULL) {
+	if (!device->default_line) {
 		device->default_line = line;
 	}
 
@@ -174,15 +145,15 @@ int sccp_device_add_line(struct sccp_device *device, struct sccp_line *line, uin
 
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device)
 {
-	struct sccp_device *device_itr = NULL;
+	struct sccp_device *device_itr;
 
-	if (name == NULL) {
-		ast_log(LOG_DEBUG, "name is NULL\n");
+	if (!name) {
+		ast_log(LOG_ERROR, "name is NULL\n");
 		return NULL;
 	}
 
-	if (list_device == NULL) {
-		ast_log(LOG_DEBUG, "list_device is NULL\n");
+	if (!list_device) {
+		ast_log(LOG_ERROR, "list_device is NULL\n");
 		return NULL;
 	}
 
@@ -198,7 +169,7 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 
 void sccp_device_unsubscribe_speeddial_hints(struct sccp_device *device)
 {
-	struct sccp_speeddial *speeddial_itr = NULL;
+	struct sccp_speeddial *speeddial_itr;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
@@ -211,16 +182,11 @@ void sccp_device_unsubscribe_speeddial_hints(struct sccp_device *device)
 
 void sccp_device_subscribe_speeddial_hints(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb)
 {
-	struct sccp_speeddial *speeddial_itr = NULL;
+	struct sccp_speeddial *speeddial_itr;
 	int dev_state;
 	char *context;
 
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
-
-	if (speeddial_hints_cb == NULL) {
+	if (!speeddial_hints_cb) {
 		ast_log(LOG_DEBUG, "speeddial_hints_cb is NULL\n");
 		return;
 	}
@@ -244,12 +210,7 @@ void sccp_device_subscribe_speeddial_hints(struct sccp_device *device, ast_state
 
 struct sccp_speeddial *sccp_device_get_speeddial_by_index(struct sccp_device *device, uint32_t index)
 {
-	struct sccp_speeddial *speeddial_itr = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return NULL;
-	}
+	struct sccp_speeddial *speeddial_itr;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
@@ -263,12 +224,7 @@ struct sccp_speeddial *sccp_device_get_speeddial_by_index(struct sccp_device *de
 
 struct sccp_speeddial *sccp_device_get_speeddial(struct sccp_device *device, uint32_t instance)
 {
-	struct sccp_speeddial *speeddial_itr = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return NULL;
-	}
+	struct sccp_speeddial *speeddial_itr;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
@@ -282,12 +238,7 @@ struct sccp_speeddial *sccp_device_get_speeddial(struct sccp_device *device, uin
 
 struct sccp_line *sccp_device_get_line(struct sccp_device *device, uint32_t instance)
 {
-	struct sccp_line *line_itr = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return NULL;
-	}
+	struct sccp_line *line_itr;
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
@@ -424,11 +375,6 @@ int sccp_device_get_button_count(struct sccp_device *device)
 {
 	int button_count = 0;
 
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return -1;
-	}
-
 	switch (device->type) {
 	case SCCP_DEVICE_7905:
 	case SCCP_DEVICE_7906:
@@ -481,13 +427,13 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 	int which = 0;
 	int len;
 
-	if (word == NULL) {
-		ast_log(LOG_DEBUG, "word is NULL\n");
+	if (!word) {
+		ast_log(LOG_ERROR, "word is NULL\n");
 		return NULL;
 	}
 
-	if (list_device == NULL) {
-		ast_log(LOG_DEBUG, "list_device is NULL\n");
+	if (!list_device) {
+		ast_log(LOG_ERROR, "list_device is NULL\n");
 		return NULL;
 	}
 
