@@ -26,12 +26,12 @@ struct sccp_configs *sccp_config_create(void)
 {
 	struct sccp_configs *sccp_cfg = ast_calloc(1, sizeof(*sccp_cfg));
 
-	if (sccp_cfg == NULL) {
+	if (!sccp_cfg) {
 		return NULL;
 	}
 
 	sccp_cfg->caps = ast_format_cap_alloc();
-	if (sccp_cfg->caps == NULL) {
+	if (!sccp_cfg->caps) {
 		 ast_free(sccp_cfg);
 		 return NULL;
 	}
@@ -46,10 +46,6 @@ struct sccp_configs *sccp_config_create(void)
 
 void sccp_config_destroy(struct sccp_configs *sccp_cfg)
 {
-	if (sccp_cfg == NULL) {
-		return;
-	}
-
 	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
 	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
 	ast_format_cap_destroy(sccp_cfg->caps);
