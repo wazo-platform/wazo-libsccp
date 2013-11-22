@@ -301,9 +301,9 @@ const char *msg_id_str(uint32_t msg_id) {
 		return "feature stat";
 	case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
 		return "start media transmission ack";
-	default:
-		return "unknown";
 	}
+
+	return "unknown";
 }
 
 static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id)

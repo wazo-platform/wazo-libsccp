@@ -257,9 +257,9 @@ const char *sccp_device_regstate_str(enum sccp_device_registration_state state)
 		return "Registered";
 	case DEVICE_REGISTERED_FALSE:
 		return "Unregistered";
-	default:
-		return "unknown";
 	}
+
+	return "unknown";
 }
 
 int sccp_device_type_is_supported(enum sccp_device_type device_type)
