@@ -98,32 +98,30 @@ AST_RWLIST_HEAD(list_speeddial, sccp_speeddial);
 AST_RWLIST_HEAD(list_line, sccp_line);
 AST_RWLIST_HEAD(list_device, sccp_device);
 
-struct sccp_device *sccp_new_device(const char *name);
+struct sccp_device *sccp_device_create(const char *name);
 void sccp_device_destroy(struct sccp_device *device);
-
-void device_unregister(struct sccp_device *device);
-void device_register(struct sccp_device *device,
+void sccp_device_register(struct sccp_device *device,
 			int8_t protoVersion,
 			enum sccp_device_type type,
 			void *session,
 			struct sockaddr_in localip);
-void device_prepare(struct sccp_device *device);
-int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port);
+void sccp_device_unregister(struct sccp_device *device);
+void sccp_device_prepare(struct sccp_device *device);
+int sccp_device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port);
+struct sccp_speeddial *sccp_device_get_speeddial(struct sccp_device *device, uint32_t instance);
+struct sccp_speeddial *sccp_device_get_speeddial_by_index(struct sccp_device *device, uint32_t index);
+struct sccp_line *sccp_device_get_line(struct sccp_device *device, uint32_t instance);
+int sccp_device_get_button_count(struct sccp_device *device);
+int sccp_device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance);
+void sccp_device_subscribe_speeddial_hints(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb);
+void sccp_device_unsubscribe_speeddial_hints(struct sccp_device *device);
+
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device);
-struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance);
-struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index);
-struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance);
-const char *line_state_str(enum sccp_state line_state);
-int device_get_button_count(struct sccp_device *device);
 char *complete_sccp_devices(const char *word, int state, struct list_device *list_device);
 
+const char *line_state_str(enum sccp_state line_state);
 const char *device_regstate_str(enum sccp_device_registration_state state);
-int device_type_is_supported(enum sccp_device_type device_type);
 const char *device_type_str(enum sccp_device_type device_type);
-int device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance);
-
-typedef int (*state_cb_type)(char *context, char* id, struct ast_state_cb_info *info, void *data);
-void speeddial_hints_unsubscribe(struct sccp_device *device);
-void speeddial_hints_subscribe(struct sccp_device *device, state_cb_type speeddial_hints_cb);
+int device_type_is_supported(enum sccp_device_type device_type);
 
 #endif /* SCCP_DEVICE_H */

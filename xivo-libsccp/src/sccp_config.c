@@ -215,7 +215,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 		if (!duplicate) {
 
 			/* create the new device */
-			device = sccp_new_device(category);
+			device = sccp_device_create(category);
 
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
@@ -232,7 +232,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 						if (!strcasecmp(var->value, line_itr->name)) {
 							/* We found a line */
 							found_line = 1;
-							if (!device_add_line(device, line_itr, line_instance)) {
+							if (!sccp_device_add_line(device, line_itr, line_instance)) {
 								++line_instance;
 							}
 						}

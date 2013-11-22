@@ -2,7 +2,7 @@
 #include "sccp_line.h"
 #include "sccp.h"
 
-struct sccp_device *sccp_new_device(const char *name)
+struct sccp_device *sccp_device_create(const char *name)
 {
 	struct sccp_device *device = ast_calloc(1, sizeof(*device));
 
@@ -47,7 +47,7 @@ void sccp_device_destroy(struct sccp_device *device)
 	ast_free(device);
 }
 
-void device_unregister(struct sccp_device *device)
+void sccp_device_unregister(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
 	struct sccp_subchannel *subchan = NULL;
@@ -59,7 +59,7 @@ void device_unregister(struct sccp_device *device)
 
 	device->regstate = DEVICE_REGISTERED_FALSE;
 
-	speeddial_hints_unsubscribe(device);
+	sccp_device_unsubscribe_speeddial_hints(device);
 
 	if (device->mwi_event_sub) {
 		ast_event_unsubscribe(device->mwi_event_sub);
@@ -88,7 +88,7 @@ void device_unregister(struct sccp_device *device)
 	AST_RWLIST_UNLOCK(&device->lines);
 }
 
-void device_register(struct sccp_device *device,
+void sccp_device_register(struct sccp_device *device,
 			int8_t proto_version,
 			enum sccp_device_type type,
 			void *session,
@@ -106,7 +106,7 @@ void device_register(struct sccp_device *device,
 	device->localip = localip;
 }
 
-void device_prepare(struct sccp_device *device)
+void sccp_device_prepare(struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
 
@@ -125,7 +125,7 @@ void device_prepare(struct sccp_device *device)
 	AST_RWLIST_UNLOCK(&device->lines);
 }
 
-int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
+int sccp_device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
 {
 	if (device == NULL) {
 		ast_log(LOG_ERROR, "Device is NULL\n");
@@ -139,7 +139,7 @@ int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
 	return 0;
 }
 
-int device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance)
+int sccp_device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance)
 {
 	if (device == NULL) {
 		ast_log(LOG_ERROR, "device is NULL\n");
@@ -196,7 +196,7 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 	return device_itr;
 }
 
-void speeddial_hints_unsubscribe(struct sccp_device *device)
+void sccp_device_unsubscribe_speeddial_hints(struct sccp_device *device)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
 
@@ -209,7 +209,7 @@ void speeddial_hints_unsubscribe(struct sccp_device *device)
 	AST_RWLIST_UNLOCK(&device->speeddials);
 }
 
-void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb)
+void sccp_device_subscribe_speeddial_hints(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
 	int dev_state;
@@ -242,7 +242,7 @@ void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type spe
 	AST_RWLIST_UNLOCK(&device->speeddials);
 }
 
-struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index)
+struct sccp_speeddial *sccp_device_get_speeddial_by_index(struct sccp_device *device, uint32_t index)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
 
@@ -261,7 +261,7 @@ struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device,
 	return speeddial_itr;
 }
 
-struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance)
+struct sccp_speeddial *sccp_device_get_speeddial(struct sccp_device *device, uint32_t instance)
 {
 	struct sccp_speeddial *speeddial_itr = NULL;
 
@@ -280,7 +280,7 @@ struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t
 	return speeddial_itr;
 }
 
-struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
+struct sccp_line *sccp_device_get_line(struct sccp_device *device, uint32_t instance)
 {
 	struct sccp_line *line_itr = NULL;
 
@@ -420,7 +420,7 @@ int device_type_is_supported(enum sccp_device_type device_type)
 	return supported;
 }
 
-int device_get_button_count(struct sccp_device *device)
+int sccp_device_get_button_count(struct sccp_device *device)
 {
 	int button_count = 0;
 

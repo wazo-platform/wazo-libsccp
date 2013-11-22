@@ -192,7 +192,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 1);
+	speeddial = sccp_device_get_speeddial(device, 1);
 	if (speeddial == NULL) {
 		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
 		ret = AST_TEST_FAIL;
@@ -246,7 +246,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 	(void)AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
 	transmit_reset(device->session, SCCP_RESET_HARD_RESTART);
-	device_unregister(device);
+	sccp_device_unregister(device);
 	destroy_device_config(sccp_cfg, device);
 
 	if (config_from_string(sccp_cfg, conf) != 0) {
@@ -280,7 +280,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 1);
+	speeddial = sccp_device_get_speeddial(device, 1);
 	if (speeddial == NULL) {
 		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
 		ret = AST_TEST_FAIL;
@@ -458,14 +458,14 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 0);
+	speeddial = sccp_device_get_speeddial(device, 0);
 	if (speeddial != NULL) {
 		ast_test_status_update(test, "speeddial instance 0 shouldn't exist...\n");
 		ret = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 1);
+	speeddial = sccp_device_get_speeddial(device, 1);
 	if (speeddial == NULL) {
 		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
 		ret = AST_TEST_FAIL;
@@ -502,7 +502,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 3);
+	speeddial = sccp_device_get_speeddial(device, 3);
 	if (speeddial == NULL) {
 		ast_test_status_update(test, "speeddial instance 3 should exist...\n");
 		ret = AST_TEST_FAIL;

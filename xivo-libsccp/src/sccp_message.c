@@ -313,7 +313,7 @@ int transmit_button_template_res(struct sccp_session *session)
 		return -1;
 	}
 
-	device_button_count = device_get_button_count(session->device);
+	device_button_count = sccp_device_get_button_count(session->device);
 	if (device_button_count == -1) {
 		return -1;
 	}

@@ -450,8 +450,8 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			ast_log(LOG_ERROR, "error calling getsockname: %s\n", strerror(errno));
 			ret = -1;
 		} else {
-			device_prepare(device_itr);
-			device_register(device_itr,
+			sccp_device_prepare(device_itr);
+			sccp_device_register(device_itr,
 					letohl(msg->data.reg.protoVersion),
 					letohl(msg->data.reg.type),
 					session,
@@ -459,7 +459,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 			session->device = device_itr;
 			mwi_subscribe(device_itr);
-			speeddial_hints_subscribe(device_itr, speeddial_hints_cb);
+			sccp_device_subscribe_speeddial_hints(device_itr, speeddial_hints_cb);
 
 			session_remove_auth_timeout_task(session);
 
@@ -835,7 +835,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_ERROR, "line is NULL\n");
 		return 0;
@@ -984,7 +984,7 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_WARNING, "do_hangup called with unknown line %u\n", line_instance);
 		return 0;
@@ -1088,7 +1088,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return -1;
@@ -1149,7 +1149,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return -1;
@@ -1206,7 +1206,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line instance [%i] doesn't exist\n", line_instance);
 		return 0;
@@ -1676,7 +1676,7 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 	addr = msg->data.openreceivechannelack.ipAddr;
 	port = letohl(msg->data.openreceivechannelack.port);
 
-	device_set_remote(line->device, addr, port);
+	sccp_device_set_remote(line->device, addr, port);
 
 	ast_mutex_lock(&line->device->lock);
 
@@ -1712,7 +1712,7 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 	int index = letohl(msg->data.speeddial.instance);
 	struct sccp_speeddial *speeddial;
 
-	speeddial = device_get_speeddial_by_index(session->device, index);
+	speeddial = sccp_device_get_speeddial_by_index(session->device, index);
 	if (!speeddial) {
 		ast_debug(2, "No speeddial [%d] on device [%s]\n", index, session->device->name);
 		return 0;
@@ -1728,7 +1728,7 @@ static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_s
 	int instance = letohl(msg->data.feature.instance);
 	struct sccp_speeddial *speeddial;
 
-	speeddial = device_get_speeddial(session->device, instance);
+	speeddial = sccp_device_get_speeddial(session->device, instance);
 	if (!speeddial) {
 		ast_log(LOG_DEBUG, "No speeddial [%d] on device [%s]\n", instance, session->device->name);
 		return -1;
@@ -1745,7 +1745,7 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 	int line_instance = letohl(msg->data.line.lineInstance);
 	struct sccp_line *line;
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "Line instance [%d] is not attached to device [%s]\n", line_instance, session->device->name);
 		return -1;
@@ -1831,9 +1831,9 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	struct sccp_subchannel *subchan;
 
 	if (msg->data.stimulus.stimulus == STIMULUS_SPEEDDIAL)
-		speeddial = device_get_speeddial_by_index(session->device, msg->data.stimulus.lineInstance);
+		speeddial = sccp_device_get_speeddial_by_index(session->device, msg->data.stimulus.lineInstance);
 	else if (msg->data.stimulus.stimulus == STIMULUS_FEATUREBUTTON)
-		speeddial = device_get_speeddial(session->device, msg->data.stimulus.lineInstance);
+		speeddial = sccp_device_get_speeddial(session->device, msg->data.stimulus.lineInstance);
 
 	if (speeddial == NULL) {
 		ast_log(LOG_WARNING, "speeddial has no instance (%d)\n",  msg->data.stimulus.lineInstance);
@@ -1905,10 +1905,10 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	case SCCP_DEVICE_7905:
 	case SCCP_DEVICE_7912:
 	case SCCP_DEVICE_7920:
-		line = device_get_line(session->device, 1);
+		line = sccp_device_get_line(session->device, 1);
 		break;
 	default:
-		line = device_get_line(session->device, instance);
+		line = sccp_device_get_line(session->device, instance);
 		break;
 	}
 
@@ -2290,7 +2290,7 @@ static void thread_session_cleanup(void *data)
 
 	if (session->device) {
 		ast_verb(3, "Disconnecting device [%s]\n", session->device->name);
-		device_unregister(session->device);
+		sccp_device_unregister(session->device);
 		ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 
 		if (session->device->destroy == 1) {
