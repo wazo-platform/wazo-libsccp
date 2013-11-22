@@ -9,8 +9,7 @@ struct sccp_line *sccp_line_create(const char *name, struct sccp_configs *sccp_c
 {
 	struct sccp_line* line = ast_calloc(1, sizeof(*line));
 
-	if (line == NULL) {
-		ast_log(LOG_ERROR, "Failed to allocate space for SCCP line %s\n", name);
+	if (!line) {
 		return NULL;
 	}
 
@@ -37,10 +36,6 @@ struct sccp_line *sccp_line_create(const char *name, struct sccp_configs *sccp_c
 
 void sccp_line_destroy(struct sccp_line *line)
 {
-	if (line == NULL) {
-		return;
-	}
-
 	ast_format_cap_destroy(line->caps);
 	ast_variables_destroy(line->chanvars);
 	AST_RWLIST_HEAD_DESTROY(&line->subchans);
@@ -50,15 +45,15 @@ void sccp_line_destroy(struct sccp_line *line)
 
 struct sccp_line *sccp_line_find_by_name(const char *name, struct list_line *list_line)
 {
-	struct sccp_line *line_itr = NULL;
+	struct sccp_line *line_itr;
 
-	if (name == NULL) {
-		ast_log(LOG_DEBUG, "name is NULL\n");
+	if (!name) {
+		ast_log(LOG_ERROR, "name is NULL\n");
 		return NULL;
 	}
 
-	if (list_line == NULL) {
-		ast_log(LOG_DEBUG, "list_line is NULL\n");
+	if (!list_line) {
+		ast_log(LOG_ERROR, "list_line is NULL\n");
 		return NULL;
 	}
 
@@ -114,18 +109,14 @@ struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t s
 
 void sccp_line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
 {
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return;
-	}
-
-	if (subchan == NULL) {
+	if (!subchan) {
 		ast_log(LOG_DEBUG, "subchan is NULL\n");
 		return;
 	}
 
-	if (line->active_subchan)
+	if (line->active_subchan) {
 		line->active_subchan->state = line->state;
+	}
 
 	line->active_subchan = subchan;
 }
@@ -133,11 +124,6 @@ void sccp_line_select_subchan(struct sccp_line *line, struct sccp_subchannel *su
 void sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 {
 	struct sccp_subchannel *subchan_itr;
-
-	if (line == NULL) {
-		ast_log(LOG_DEBUG, "line is NULL\n");
-		return;
-	}
 
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr->id == subchan_id) {
@@ -149,8 +135,6 @@ void sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 
 void sccp_line_set_field(struct sccp_line *line, const char *name, const char *value)
 {
-	if (line == NULL) return;
-
 	if (!strcasecmp(name, "cid_num")) {
 		ast_copy_string(line->cid_num, value, sizeof(line->cid_num));
 	} else if (!strcasecmp(name, "cid_name")) {
