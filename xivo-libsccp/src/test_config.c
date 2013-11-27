@@ -9,7 +9,8 @@ static int config_from_string(struct sccp_configs *config, const char *content)
 	const char *fname = "/tmp/sccp.conf";
 	FILE *conf_file = fopen(fname, "w");
 
-	if (conf_file == NULL) {
+	if (!conf_file) {
+		ast_log(LOG_ERROR, "could not open file %s: %s\n", fname, strerror(errno));
 		return -1;
 	}
 
@@ -25,7 +26,7 @@ static int config_from_string(struct sccp_configs *config, const char *content)
 
 AST_TEST_DEFINE(sccp_test_config_set_field)
 {
-	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_config_create(), sccp_config_destroy);
 	char *name;
 	char *value;
 
@@ -104,7 +105,7 @@ AST_TEST_DEFINE(sccp_test_config_set_field)
 AST_TEST_DEFINE(sccp_test_resync)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_config_create(), sccp_config_destroy);
 	const char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
@@ -123,7 +124,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		break;
 	}
 
-	if (sccp_cfg == NULL) {
+	if (!sccp_cfg) {
 		return AST_TEST_FAIL;
 	}
 
@@ -162,7 +163,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		"speeddial=sd1001\n"
 		"voicemail=555\n";
 	if (config_from_string(sccp_cfg, conf) != 0) {
-	     return AST_TEST_FAIL;
+		return AST_TEST_FAIL;
 	}
 
 	line = sccp_line_find_by_name("200", &sccp_cfg->list_line);
@@ -191,7 +192,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 1);
+	speeddial = sccp_device_get_speeddial(device, 1);
 	if (speeddial == NULL) {
 		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
 		ret = AST_TEST_FAIL;
@@ -245,8 +246,8 @@ AST_TEST_DEFINE(sccp_test_resync)
 
 	(void)AST_LIST_REMOVE(&sccp_cfg->list_device, device, list);
 	transmit_reset(device->session, SCCP_RESET_HARD_RESTART);
-	device_unregister(device);
-	destroy_device_config(sccp_cfg, device);
+	sccp_device_unregister(device);
+	sccp_config_destroy_device(sccp_cfg, device);
 
 	if (config_from_string(sccp_cfg, conf) != 0) {
 	     return AST_TEST_FAIL;
@@ -279,7 +280,7 @@ AST_TEST_DEFINE(sccp_test_resync)
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 1);
+	speeddial = sccp_device_get_speeddial(device, 1);
 	if (speeddial == NULL) {
 		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
 		ret = AST_TEST_FAIL;
@@ -299,7 +300,7 @@ cleanup:
 AST_TEST_DEFINE(sccp_test_config)
 {
 	enum ast_test_result_state ret = AST_TEST_PASS;
-	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_new_config(), sccp_config_destroy);
+	RAII_VAR(struct sccp_configs *, sccp_cfg, sccp_config_create(), sccp_config_destroy);
 	char *conf = NULL;
 	struct sccp_line *line = NULL;
 	struct sccp_speeddial *speeddial = NULL;
@@ -457,14 +458,14 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 0);
+	speeddial = sccp_device_get_speeddial(device, 0);
 	if (speeddial != NULL) {
 		ast_test_status_update(test, "speeddial instance 0 shouldn't exist...\n");
 		ret = AST_TEST_FAIL;
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 1);
+	speeddial = sccp_device_get_speeddial(device, 1);
 	if (speeddial == NULL) {
 		ast_test_status_update(test, "speeddial instance 1 should exist...\n");
 		ret = AST_TEST_FAIL;
@@ -501,7 +502,7 @@ AST_TEST_DEFINE(sccp_test_config)
 		goto cleanup;
 	}
 
-	speeddial = device_get_speeddial(device, 3);
+	speeddial = sccp_device_get_speeddial(device, 3);
 	if (speeddial == NULL) {
 		ast_test_status_update(test, "speeddial instance 3 should exist...\n");
 		ret = AST_TEST_FAIL;

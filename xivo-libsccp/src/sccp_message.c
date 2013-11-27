@@ -3,7 +3,6 @@
 
 #include <asterisk.h>
 #include <asterisk/localtime.h>
-#include <asterisk/rtp_engine.h>
 #include <asterisk/time.h>
 #include <asterisk/utils.h>
 
@@ -16,9 +15,175 @@
 
 #include "../config.h"
 
+static const uint8_t softkey_default_onhook[] = {
+	SOFTKEY_REDIAL,
+	SOFTKEY_NEWCALL,
+	SOFTKEY_CFWDALL,
+	SOFTKEY_DND,
+};
+
+static const uint8_t softkey_default_connected[] = {
+	SOFTKEY_HOLD,
+	SOFTKEY_ENDCALL,
+	SOFTKEY_TRNSFER,
+};
+
+static const uint8_t softkey_default_onhold[] = {
+	SOFTKEY_RESUME,
+	SOFTKEY_NEWCALL,
+};
+
+static const uint8_t softkey_default_ringin[] = {
+	SOFTKEY_ANSWER,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_ringout[] = {
+	SOFTKEY_NONE,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_offhook[] = {
+	SOFTKEY_REDIAL,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_dialintransfer[] = {
+	SOFTKEY_REDIAL,
+	SOFTKEY_ENDCALL,
+};
+
+static const uint8_t softkey_default_connintransfer[] = {
+	SOFTKEY_NONE,
+	SOFTKEY_ENDCALL,
+	SOFTKEY_TRNSFER,
+};
+
+static const uint8_t softkey_default_callfwd[] = {
+	SOFTKEY_BKSPC,
+	SOFTKEY_CFWDALL,
+};
+
+struct softkey_definitions {
+	const uint8_t mode;
+	const uint8_t *defaults;
+	const int count;
+};
+
+static const struct softkey_definitions softkey_default_definitions[] = {
+	{KEYDEF_ONHOOK, softkey_default_onhook, ARRAY_LEN(softkey_default_onhook)},
+	{KEYDEF_CONNECTED, softkey_default_connected, ARRAY_LEN(softkey_default_connected)},
+	{KEYDEF_ONHOLD, softkey_default_onhold, ARRAY_LEN(softkey_default_onhold)},
+	{KEYDEF_RINGIN, softkey_default_ringin, ARRAY_LEN(softkey_default_ringin)},
+	{KEYDEF_RINGOUT, softkey_default_ringout, ARRAY_LEN(softkey_default_ringout)},
+	{KEYDEF_OFFHOOK, softkey_default_offhook, ARRAY_LEN(softkey_default_offhook)},
+	{KEYDEF_CONNINTRANSFER, softkey_default_connintransfer, ARRAY_LEN(softkey_default_connintransfer)},
+	{KEYDEF_DIALINTRANSFER, softkey_default_dialintransfer, ARRAY_LEN(softkey_default_dialintransfer)},
+	{KEYDEF_CALLFWD, softkey_default_callfwd, ARRAY_LEN(softkey_default_callfwd)},
+};
+
+static struct softkey_template_definition softkey_template_default[] = {
+	{"\x80\x01", SOFTKEY_REDIAL},
+	{"\x80\x02", SOFTKEY_NEWCALL},
+	{"\x80\x03", SOFTKEY_HOLD},
+	{"\x80\x04", SOFTKEY_TRNSFER},
+	{"\x80\x05", SOFTKEY_CFWDALL},
+	{"\x80\x06", SOFTKEY_CFWDBUSY},
+	{"\x80\x07", SOFTKEY_CFWDNOANSWER},
+	{"\x80\x08", SOFTKEY_BKSPC},
+	{"\x80\x09", SOFTKEY_ENDCALL},
+	{"\x80\x0A", SOFTKEY_RESUME},
+	{"\x80\x0B", SOFTKEY_ANSWER},
+	{"\x80\x0C", SOFTKEY_INFO},
+	{"\x80\x0D", SOFTKEY_CONFRN},
+	{"\x80\x0E", SOFTKEY_PARK},
+	{"\x80\x0F", SOFTKEY_JOIN},
+	{"\x80\x10", SOFTKEY_MEETME},
+	{"\x80\x11", SOFTKEY_PICKUP},
+	{"\x80\x12", SOFTKEY_GPICKUP},
+	{"Dial", 0x13}, // Dial
+	{"\200\77", SOFTKEY_DND},
+};
+
 static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id);
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session);
 static int transmit_empty_message(uint32_t msg_id, struct sccp_session *session);
+
+const char *sccp_device_type_str(enum sccp_device_type device_type)
+{
+	switch (device_type) {
+	case SCCP_DEVICE_7905:
+		return "7905";
+	case SCCP_DEVICE_7906:
+		return "7906";
+	case SCCP_DEVICE_7911:
+		return "7911";
+	case SCCP_DEVICE_7912:
+		return "7912";
+	case SCCP_DEVICE_7920:
+		return "7920";
+	case SCCP_DEVICE_7921:
+		return "7921";
+	case SCCP_DEVICE_7931:
+		return "7931";
+	case SCCP_DEVICE_7937:
+		return "7937";
+	case SCCP_DEVICE_7940:
+		return "7940";
+	case SCCP_DEVICE_7941:
+		return "7941";
+	case SCCP_DEVICE_7941GE:
+		return "7941GE";
+	case SCCP_DEVICE_7942:
+		return "7942";
+	case SCCP_DEVICE_7960:
+		return "7960";
+	case SCCP_DEVICE_7961:
+		return "7961";
+	case SCCP_DEVICE_7962:
+		return "7962";
+	case SCCP_DEVICE_7970:
+		return "7970";
+	case SCCP_DEVICE_CIPC:
+		return "CIPC";
+	}
+
+	return "unknown";
+}
+
+const char *sccp_state_str(enum sccp_state state)
+{
+	switch (state) {
+	case SCCP_OFFHOOK:
+		return "Offhook";
+	case SCCP_ONHOOK:
+		return "Onhook";
+	case SCCP_RINGOUT:
+		return "Ringout";
+	case SCCP_RINGIN:
+		return "Ringin";
+	case SCCP_CONNECTED:
+		return "Connected";
+	case SCCP_BUSY:
+		return "Busy";
+	case SCCP_CONGESTION:
+		return "Congestion";
+	case SCCP_HOLD:
+		return "Hold";
+	case SCCP_CALLWAIT:
+		return "Callwait";
+	case SCCP_TRANSFER:
+		return "Transfer";
+	case SCCP_PARK:
+		return "Park";
+	case SCCP_PROGRESS:
+		return "Progress";
+	case SCCP_INVALID:
+		return "Invalid";
+	}
+
+	return "Unknown";
+}
 
 const char *msg_id_str(uint32_t msg_id) {
 	switch (msg_id) {
@@ -136,9 +301,9 @@ const char *msg_id_str(uint32_t msg_id) {
 		return "feature stat";
 	case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
 		return "start media transmission ack";
-	default:
-		return "unknown";
 	}
+
+	return "unknown";
 }
 
 static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id)
@@ -224,7 +389,7 @@ int transmit_button_template_res(struct sccp_session *session)
 		return -1;
 	}
 
-	device_button_count = device_get_button_count(session->device);
+	device_button_count = sccp_device_get_button_count(session->device);
 	if (device_button_count == -1) {
 		return -1;
 	}
@@ -452,7 +617,7 @@ int transmit_displaymessage(struct sccp_session *session, const char *text)
 	return transmit_message(msg, session);
 }
 
-int transmit_feature_status(struct sccp_session *session, int instance, enum sccp_button_type type, int status, const char *label)
+int transmit_feature_status(struct sccp_session *session, int instance, enum sccp_button_type type, enum sccp_blf_status status, const char *label)
 {
 	struct sccp_msg *msg;
 

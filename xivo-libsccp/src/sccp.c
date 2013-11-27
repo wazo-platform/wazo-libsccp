@@ -11,16 +11,13 @@
 #include <asterisk/linkedlists.h>
 #include <asterisk/module.h>
 #include <asterisk/musiconhold.h>
-#include <asterisk/netsock.h>
+#include <asterisk/network.h>
 #include <asterisk/pbx.h>
-#include <asterisk/poll-compat.h>
 #include <asterisk/rtp_engine.h>
 #include <asterisk/test.h>
 #include <asterisk/utils.h>
 
-#include <netinet/tcp.h>
-#include <sys/types.h>
-#include <sys/socket.h>
+#include <errno.h>
 #include <iconv.h>
 #include <netdb.h>
 #include <signal.h>
@@ -40,6 +37,9 @@
 #define SCCP_PORT "2000"
 #define SCCP_BACKLOG 50
 
+AST_TEST_DEFINE(sccp_test_config_set_field);
+AST_TEST_DEFINE(sccp_test_config);
+AST_TEST_DEFINE(sccp_test_resync);
 AST_TEST_DEFINE(sccp_test_extstate_ast2sccp);
 AST_TEST_DEFINE(sccp_test_null_arguments);
 AST_TEST_DEFINE(sccp_test_utf8_to_iso88591);
@@ -450,8 +450,8 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 			ast_log(LOG_ERROR, "error calling getsockname: %s\n", strerror(errno));
 			ret = -1;
 		} else {
-			device_prepare(device_itr);
-			device_register(device_itr,
+			sccp_device_prepare(device_itr);
+			sccp_device_register(device_itr,
 					letohl(msg->data.reg.protoVersion),
 					letohl(msg->data.reg.type),
 					session,
@@ -459,7 +459,7 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 			session->device = device_itr;
 			mwi_subscribe(device_itr);
-			speeddial_hints_subscribe(device_itr, speeddial_hints_cb);
+			sccp_device_subscribe_speeddial_hints(device_itr, speeddial_hints_cb);
 
 			session_remove_auth_timeout_task(session);
 
@@ -835,7 +835,7 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_ERROR, "line is NULL\n");
 		return 0;
@@ -878,21 +878,12 @@ static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_se
 static int handle_offhook_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
-	struct sccp_device *device = NULL;
+	struct sccp_device *device = session->device;
 	struct sccp_subchannel *subchan = NULL;
 
 	uint32_t line_instance = 0;
 	uint32_t subchan_id = 0;
 
-	if (!session) {
-		return -1;
-	}
-
-	if (!msg) {
-		return -1;
-	}
-
-	device = session->device;
 	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
@@ -993,7 +984,7 @@ int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_WARNING, "do_hangup called with unknown line %u\n", line_instance);
 		return 0;
@@ -1026,16 +1017,6 @@ static int handle_onhook_message(struct sccp_msg *msg, struct sccp_session *sess
 	struct sccp_subchannel *subchan = NULL;
 	uint32_t line_instance = 0;
 	uint32_t subchan_id = 0;
-
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
 
 	if (session->device->proto_version == 11) {
 
@@ -1107,7 +1088,7 @@ static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, stru
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return -1;
@@ -1168,7 +1149,7 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return -1;
@@ -1225,7 +1206,7 @@ static int handle_softkey_transfer(uint32_t line_instance, struct sccp_session *
 		return -1;
 	}
 
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "line instance [%i] doesn't exist\n", line_instance);
 		return 0;
@@ -1395,16 +1376,6 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 	int ret = 0;
 	struct sccp_subchannel *subchan;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
 	if (session->device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
@@ -1527,10 +1498,6 @@ static int handle_softkey_event_message(struct sccp_msg *msg, struct sccp_sessio
 
 static int handle_softkey_set_req_message(struct sccp_session *session)
 {
-	if (!session) {
-		return -1;
-	}
-
 	transmit_softkey_set_res(session);
 	transmit_selectsoftkeys(session, 0, 0, KEYDEF_ONHOOK);
 
@@ -1665,19 +1632,8 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 	struct ast_format format;
 	struct ast_format_cap *caps;
 	int i = 0;
-	struct sccp_device *device = NULL;
+	struct sccp_device *device = session->device;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	device = session->device;
 	if (device == NULL) {
 		ast_log(LOG_DEBUG, "device is NULL\n");
 		return -1;
@@ -1710,28 +1666,17 @@ static int handle_capabilities_res_message(struct sccp_msg *msg, struct sccp_ses
 
 static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_line *line = NULL;
+	struct sccp_line *line = session->device->default_line;
 	struct ast_channel *channel = NULL;
 	uint32_t addr = 0;
 	uint32_t port = 0;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	line = session->device->default_line;
 	session->device->open_receive_channel_pending = 0;
 
 	addr = msg->data.openreceivechannelack.ipAddr;
 	port = letohl(msg->data.openreceivechannelack.port);
 
-	device_set_remote(line->device, addr, port);
+	sccp_device_set_remote(line->device, addr, port);
 
 	ast_mutex_lock(&line->device->lock);
 
@@ -1764,20 +1709,10 @@ static int handle_open_receive_channel_ack_message(struct sccp_msg *msg, struct 
 
 static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int index;
+	int index = letohl(msg->data.speeddial.instance);
 	struct sccp_speeddial *speeddial;
 
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
-	index = letohl(msg->data.speeddial.instance);
-
-	speeddial = device_get_speeddial_by_index(session->device, index);
+	speeddial = sccp_device_get_speeddial_by_index(session->device, index);
 	if (!speeddial) {
 		ast_debug(2, "No speeddial [%d] on device [%s]\n", index, session->device->name);
 		return 0;
@@ -1790,20 +1725,10 @@ static int handle_speeddial_status_req_message(struct sccp_msg *msg, struct sccp
 
 static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int instance;
+	int instance = letohl(msg->data.feature.instance);
 	struct sccp_speeddial *speeddial;
 
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
-	instance = letohl(msg->data.feature.instance);
-
-	speeddial = device_get_speeddial(session->device, instance);
+	speeddial = sccp_device_get_speeddial(session->device, instance);
 	if (!speeddial) {
 		ast_log(LOG_DEBUG, "No speeddial [%d] on device [%s]\n", instance, session->device->name);
 		return -1;
@@ -1817,20 +1742,10 @@ static int handle_feature_status_req_message(struct sccp_msg *msg, struct sccp_s
 
 static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	int line_instance;
+	int line_instance = letohl(msg->data.line.lineInstance);
 	struct sccp_line *line;
 
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
-	line_instance = letohl(msg->data.line.lineInstance);
-
-	line = device_get_line(session->device, line_instance);
+	line = sccp_device_get_line(session->device, line_instance);
 	if (line == NULL) {
 		ast_log(LOG_DEBUG, "Line instance [%d] is not attached to device [%s]\n", line_instance, session->device->name);
 		return -1;
@@ -1847,19 +1762,9 @@ static int handle_line_status_req_message(struct sccp_msg *msg, struct sccp_sess
 static int handle_register_message(struct sccp_msg *msg, struct sccp_session *session)
 {
 	int ret = 0;
-	enum sccp_device_type device_type;
+	enum sccp_device_type device_type = letohl(msg->data.reg.type);
 
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
-	device_type = letohl(msg->data.reg.type);
-
-	ret = device_type_is_supported(device_type);
+	ret = sccp_device_type_is_supported(device_type);
 	if (ret == 0) {
 		ast_log(LOG_ERROR, "Rejecting [%s], unsupported device type [%d]\n", msg->data.reg.name, device_type);
 		transmit_register_rej(session, "Unsupported device type\n");
@@ -1887,10 +1792,6 @@ static int handle_register_message(struct sccp_msg *msg, struct sccp_session *se
 
 static int handle_unregister_message(struct sccp_session *session)
 {
-	if (!session) {
-		return -1;
-	}
-
 	session->destroy = 1;
 
 	return 0;
@@ -1929,20 +1830,10 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 	struct sccp_speeddial *speeddial = NULL;
 	struct sccp_subchannel *subchan;
 
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
 	if (msg->data.stimulus.stimulus == STIMULUS_SPEEDDIAL)
-		speeddial = device_get_speeddial_by_index(session->device, msg->data.stimulus.lineInstance);
+		speeddial = sccp_device_get_speeddial_by_index(session->device, msg->data.stimulus.lineInstance);
 	else if (msg->data.stimulus.stimulus == STIMULUS_FEATUREBUTTON)
-		speeddial = device_get_speeddial(session->device, msg->data.stimulus.lineInstance);
+		speeddial = sccp_device_get_speeddial(session->device, msg->data.stimulus.lineInstance);
 
 	if (speeddial == NULL) {
 		ast_log(LOG_WARNING, "speeddial has no instance (%d)\n",  msg->data.stimulus.lineInstance);
@@ -1974,21 +1865,9 @@ static int handle_speeddial_message(struct sccp_msg *msg, struct sccp_session *s
 
 static int handle_enbloc_call_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	struct sccp_device *device;
+	struct sccp_device *device = session->device;
 	struct sccp_subchannel *subchan;
 	size_t len;
-
-	if (msg == NULL) {
-		ast_log(LOG_DEBUG, "msg is NULL\n");
-		return -1;
-	}
-
-	if (session == NULL) {
-		ast_log(LOG_DEBUG, "session is NULL\n");
-		return -1;
-	}
-
-	device = session->device;
 
 	/* XXX this 2 steps stuff should be simplified */
 	subchan = sccp_line_get_next_offhook_subchan(device->default_line);
@@ -2018,14 +1897,6 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	int callid;
 	size_t len;
 
-	if (!msg) {
-		return -1;
-	}
-
-	if (!session) {
-		return -1;
-	}
-
 	button = letohl(msg->data.keypad.button);
 	instance = letohl(msg->data.keypad.lineInstance);
 	callid = letohl(msg->data.keypad.callInstance);
@@ -2034,10 +1905,10 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	case SCCP_DEVICE_7905:
 	case SCCP_DEVICE_7912:
 	case SCCP_DEVICE_7920:
-		line = device_get_line(session->device, 1);
+		line = sccp_device_get_line(session->device, 1);
 		break;
 	default:
-		line = device_get_line(session->device, instance);
+		line = sccp_device_get_line(session->device, instance);
 		break;
 	}
 
@@ -2204,20 +2075,8 @@ static int is_message_handleable(uint32_t msg_id, struct sccp_session *session) 
 
 static int handle_message(struct sccp_msg *msg, struct sccp_session *session)
 {
-	uint32_t msg_id;
+	uint32_t msg_id = letohl(msg->id);
 	int ret = 0;
-
-	if (!msg) {
-		ast_log(LOG_ERROR, "msg is NULL\n");
-		return -1;
-	}
-
-	if (!session) {
-		ast_log(LOG_ERROR, "session is NULL\n");
-		return -1;
-	}
-
-	msg_id = letohl(msg->id);
 
 	if (sccp_debug) {
 		if (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, session->ipaddr)) {
@@ -2431,11 +2290,11 @@ static void thread_session_cleanup(void *data)
 
 	if (session->device) {
 		ast_verb(3, "Disconnecting device [%s]\n", session->device->name);
-		device_unregister(session->device);
+		sccp_device_unregister(session->device);
 		ast_devstate_changed(AST_DEVICE_UNAVAILABLE, AST_DEVSTATE_CACHABLE, "SCCP/%s", session->device->default_line->name);
 
 		if (session->device->destroy == 1) {
-			destroy_device_config(sccp_config, session->device);
+			sccp_config_destroy_device(sccp_config, session->device);
 			sccp_config_load(sccp_config, "sccp.conf");
 		}
 		transmit_reset(session, SCCP_RESET_SOFT);
@@ -3067,7 +2926,7 @@ static char *sccp_show_lines(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 	AST_RWLIST_RDLOCK(&sccp_config->list_line);
 	AST_RWLIST_TRAVERSE(&sccp_config->list_line, line_itr, list) {
 		ast_codec_pref_string(&line_itr->codec_pref, buf, sizeof(buf));
-		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, line_state_str(line_itr->state), buf);
+		ast_cli(a->fd, "%-9s %-8s %s\n", line_itr->name, sccp_state_str(line_itr->state), buf);
 		line_cnt++;
 	}
 	AST_RWLIST_UNLOCK(&sccp_config->list_line);
@@ -3124,8 +2983,8 @@ static char *sccp_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_
 		session = device_itr->session;
 		ast_cli(a->fd, "%-16s %-16s %-8s %-13s %-6d %s\n", device_itr->name,
 							session && session->ipaddr ? session->ipaddr: "-",
-							device_type_str(device_itr->type),
-							device_regstate_str(device_itr->regstate),
+							sccp_device_type_str(device_itr->type),
+							sccp_device_regstate_str(device_itr->regstate),
 							device_itr->proto_version,
 							ast_getformatname_multiple(buf, sizeof(buf), device_itr->caps));
 
@@ -3228,7 +3087,7 @@ static void sccp_dump_session_state(int cli_fd, struct sccp_session *session)
 			ast_cli(cli_fd, "    line\n");
 			ast_cli(cli_fd, "        addr: %p\n", line);
 			ast_cli(cli_fd, "        instance: %u\n", line->instance);
-			ast_cli(cli_fd, "        state: %s\n", line_state_str(line->state));
+			ast_cli(cli_fd, "        state: %s\n", sccp_state_str(line->state));
 			ast_cli(cli_fd, "        serial_callid: %u\n", line->serial_callid);
 			ast_cli(cli_fd, "        active_subchan: %p\n", line->active_subchan);
 			AST_RWLIST_RDLOCK(&line->subchans);
@@ -3236,7 +3095,7 @@ static void sccp_dump_session_state(int cli_fd, struct sccp_session *session)
 				ast_cli(cli_fd, "    subchan\n");
 				ast_cli(cli_fd, "        addr: %p\n", subchan);
 				ast_cli(cli_fd, "        id: %u\n", subchan->id);
-				ast_cli(cli_fd, "        state: %s\n", line_state_str(subchan->state));
+				ast_cli(cli_fd, "        state: %s\n", sccp_state_str(subchan->state));
 				ast_cli(cli_fd, "        channel: %p\n", subchan->channel);
 				ast_cli(cli_fd, "        rtp: %p\n", subchan->rtp);
 			}
@@ -3284,12 +3143,144 @@ static char *sccp_dump_state(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 	return CLI_SUCCESS;
 }
 
+static char *sccp_resync_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_device *device = NULL;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp resync";
+		e->usage =
+			"Usage: sccp resync <device>\n"
+			"       Resynchronize an SCCP device with its updated configuration.\n";
+		return NULL;
+
+	case CLI_GENERATE:
+		if (a->pos == 2) {
+			return complete_sccp_devices(a->word, a->n, &sccp_config->list_device);
+		}
+		return NULL;
+	}
+
+	device = find_device_by_name(a->argv[2], &sccp_config->list_device);
+	if (device == NULL)
+		return CLI_FAILURE;
+
+	if (device->regstate != DEVICE_REGISTERED_TRUE) {
+		return CLI_FAILURE;
+	}
+
+	/* Prevent the device from reconnecting while it is
+	   getting destroyed */
+	(void)AST_LIST_REMOVE(&sccp_config->list_device, device, list);
+
+	/* Tell the thread_session to destroy the device */
+	device->destroy = 1;
+
+	/* Ask the phone to reboot, as soon as possible */
+	transmit_reset(device->session, SCCP_RESET_SOFT);
+
+	return CLI_SUCCESS;
+}
+
+static char *sccp_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show version";
+		e->usage = "Usage: sccp show version\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ast_cli(a->fd, "%s\n", PACKAGE_STRING);
+
+	return CLI_SUCCESS;
+}
+
+static char *sccp_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_line *line_itr = NULL;
+	struct sccp_device *device_itr = NULL;
+	struct sccp_speeddial *speeddial_itr = NULL;
+	char buf[128];
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show config";
+		e->usage = "Usage: sccp show config\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ast_cli(a->fd, "bindaddr = %s\n", sccp_config->bindaddr);
+	ast_cli(a->fd, "dateformat = %s\n", sccp_config->dateformat);
+	ast_cli(a->fd, "keepalive = %d\n", sccp_config->keepalive);
+	ast_cli(a->fd, "authtimeout = %d\n", sccp_config->authtimeout);
+	ast_cli(a->fd, "dialtimeout = %d\n", sccp_config->dialtimeout);
+	ast_cli(a->fd, "context = %s\n", sccp_config->context);
+	ast_cli(a->fd, "language = %s\n", sccp_config->language);
+	ast_cli(a->fd, "directmedia = %d\n", sccp_config->directmedia);
+	ast_codec_pref_string(&sccp_config->codec_pref, buf, sizeof(buf));
+	ast_cli(a->fd, "preferred codecs = %s\n", buf);
+	ast_cli(a->fd, "\n");
+
+	AST_RWLIST_RDLOCK(&sccp_config->list_device);
+	AST_RWLIST_TRAVERSE(&sccp_config->list_device, device_itr, list) {
+		ast_cli(a->fd, "Device: [%s]\n", device_itr->name);
+		AST_RWLIST_RDLOCK(&device_itr->lines);
+		AST_RWLIST_TRAVERSE(&device_itr->lines, line_itr, list_per_device) {
+			ast_cli(a->fd, "Line extension: (%d) <%s> <%s> <%s> <%s>\n",
+					line_itr->instance, line_itr->name, line_itr->cid_name, line_itr->context, line_itr->language);
+		}
+		AST_RWLIST_UNLOCK(&device_itr->lines);
+
+		AST_RWLIST_RDLOCK(&device_itr->speeddials);
+		AST_RWLIST_TRAVERSE(&device_itr->speeddials, speeddial_itr, list_per_device) {
+			ast_cli(a->fd, "Speeddial: (%d) <%s>\n", speeddial_itr->index, speeddial_itr->extension);
+		}
+		AST_RWLIST_UNLOCK(&device_itr->speeddials);
+
+		ast_cli(a->fd, "\n");
+	}
+	AST_RWLIST_UNLOCK(&sccp_config->list_device);
+
+	return CLI_SUCCESS;
+}
+
+static char *sccp_update_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	int ret = 0;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp update config";
+		e->usage = "Usage: sccp update config\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ret = sccp_config_load(sccp_config, "sccp.conf");
+	if (ret == -1) {
+		return CLI_FAILURE;
+	}
+
+	return CLI_SUCCESS;
+}
+
 static struct ast_cli_entry cli_sccp[] = {
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
 	AST_CLI_DEFINE(sccp_set_debug, "Enable/Disable SCCP debugging"),
 	AST_CLI_DEFINE(sccp_set_directmedia, "Enable/Disable direct media"),
 	AST_CLI_DEFINE(sccp_show_devices, "Show the state of the devices"),
 	AST_CLI_DEFINE(sccp_show_lines, "Show the state of the lines"),
+	AST_CLI_DEFINE(sccp_show_version, "Show the version of the sccp channel"),
+	AST_CLI_DEFINE(sccp_show_config, "Show the configured devices"),
+	AST_CLI_DEFINE(sccp_resync_device, "Resynchronize SCCP device"),
+	AST_CLI_DEFINE(sccp_update_config, "Update the configuration"),
 #ifdef DEBUG_STATE
 	AST_CLI_DEFINE(sccp_dump_state, "Dump session state"),
 #endif
@@ -3396,16 +3387,11 @@ void subchan_start_media_transmission(struct sccp_subchannel *subchan)
 	transmit_start_media_transmission(subchan->line->device->session, subchan, local);
 }
 
-void sccp_server_fini()
+static void sccp_server_fini(void)
 {
 	size_t size = 0;
 	size_t i = 0;
 	pthread_t* thread_sessions = NULL;
-
-	AST_TEST_UNREGISTER(sccp_test_null_arguments);
-	AST_TEST_UNREGISTER(sccp_test_extstate_ast2sccp);
-	AST_TEST_UNREGISTER(sccp_test_utf8_to_iso88591);
-	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	ast_channel_unregister(&sccp_tech);
 
@@ -3425,14 +3411,13 @@ void sccp_server_fini()
 	ast_sched_context_destroy(sched);
 }
 
-void sccp_rtp_fini()
+static void sccp_rtp_fini(void)
 {
 	ast_rtp_glue_unregister(&sccp_rtp_glue);
 }
 
-void sccp_rtp_init(const struct ast_module_info *module_info)
+static void sccp_rtp_init(void)
 {
-	ast_module_info = module_info;
 	ast_rtp_glue_register(&sccp_rtp_glue);
 
 	sccp_tech.capabilities = ast_format_cap_alloc();
@@ -3440,7 +3425,7 @@ void sccp_rtp_init(const struct ast_module_info *module_info)
 	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
 }
 
-int sccp_server_init(void)
+static int sccp_server_init(void)
 {
 	int ret = 0;
 	struct addrinfo hints = {
@@ -3449,11 +3434,6 @@ int sccp_server_init(void)
 		.ai_flags = AI_NUMERICHOST,
 	};
 	const int flag_reuse = 1;
-
-	AST_TEST_REGISTER(sccp_test_null_arguments);
-	AST_TEST_REGISTER(sccp_test_extstate_ast2sccp);
-	AST_TEST_REGISTER(sccp_test_utf8_to_iso88591);
-	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
 
 	ret = getaddrinfo(sccp_config->bindaddr, SCCP_PORT, &hints, &sccp_srv.res);
 	if (ret != 0) {
@@ -3494,4 +3474,102 @@ int sccp_server_init(void)
 	return 0;
 }
 
+static void garbage_ast_database(void)
+{
+	struct ast_db_entry *db_tree = NULL;
+	struct ast_db_entry *entry = NULL;
+	char *line_name = NULL;
+
+	db_tree = ast_db_gettree("sccp/cfwdall", NULL);
+
+	/* Remove orphan entries */
+	for (entry = db_tree; entry; entry = entry->next) {
+
+		line_name = entry->key + strlen("/sccp/cfwdall/");
+
+		if (sccp_line_find_by_name(line_name, &sccp_config->list_line) == NULL) {
+			ast_db_del("sccp/cfwdall", line_name);
+			ast_log(LOG_DEBUG, "/sccp/cfwdall/%s... removed\n", line_name);
+		}
+	}
+}
+
+static int load_module(void)
+{
+	int ret = 0;
+
+	sccp_config = sccp_config_create();
+	if (!sccp_config) {
+		return AST_MODULE_LOAD_DECLINE;
+	}
+
+	ret = sccp_config_load(sccp_config, "sccp.conf");
+	if (ret == -1) {
+		sccp_config_destroy(sccp_config);
+		sccp_config = NULL;
+		return AST_MODULE_LOAD_DECLINE;
+	}
+
+	garbage_ast_database();
+
+	ret = sccp_server_init();
+	if (ret == -1) {
+		sccp_config_unload(sccp_config);
+		sccp_config_destroy(sccp_config);
+		sccp_config = NULL;
+
+		return AST_MODULE_LOAD_DECLINE;
+	}
+	sccp_rtp_init();
+
+	ast_cli_register_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+
+	AST_TEST_REGISTER(sccp_test_config_set_field);
+	AST_TEST_REGISTER(sccp_test_config);
+	AST_TEST_REGISTER(sccp_test_resync);
+	AST_TEST_REGISTER(sccp_test_null_arguments);
+	AST_TEST_REGISTER(sccp_test_extstate_ast2sccp);
+	AST_TEST_REGISTER(sccp_test_utf8_to_iso88591);
+
+	return AST_MODULE_LOAD_SUCCESS;
+}
+
+static int unload_module(void)
+{
+	ast_cli_unregister_multiple(cli_sccp, ARRAY_LEN(cli_sccp));
+
+	sccp_server_fini();
+	sccp_rtp_fini();
+
+	sccp_config_unload(sccp_config);
+	sccp_config_destroy(sccp_config);
+	sccp_config = NULL;
+
+	AST_TEST_UNREGISTER(sccp_test_config_set_field);
+	AST_TEST_UNREGISTER(sccp_test_config);
+	AST_TEST_UNREGISTER(sccp_test_resync);
+	AST_TEST_UNREGISTER(sccp_test_null_arguments);
+	AST_TEST_UNREGISTER(sccp_test_extstate_ast2sccp);
+	AST_TEST_UNREGISTER(sccp_test_utf8_to_iso88591);
+
+	return 0;
+}
+
+static int reload_module(void)
+{
+	unload_module();
+	return load_module();
+}
+
+AST_MODULE_INFO(
+	ASTERISK_GPL_KEY,
+	AST_MODFLAG_LOAD_ORDER,
+	"Skinny Client Control Protocol",
+	.load = load_module,
+	.reload = reload_module,
+	.unload = unload_module,
+	.load_pri = AST_MODPRI_CHANNEL_DRIVER,
+);
+
+#include "test_config.c"
 #include "test_message.c"

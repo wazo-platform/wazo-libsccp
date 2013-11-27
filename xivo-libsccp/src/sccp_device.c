@@ -2,16 +2,16 @@
 #include "sccp_line.h"
 #include "sccp.h"
 
-struct sccp_device *sccp_new_device(const char *name)
+struct sccp_device *sccp_device_create(const char *name)
 {
 	struct sccp_device *device = ast_calloc(1, sizeof(*device));
 
-	if (device == NULL) {
+	if (!device) {
 		return NULL;
 	}
 
 	device->caps = ast_format_cap_alloc_nolock();
-	if (device->caps == NULL) {
+	if (!device->caps) {
 		ast_free(device);
 		return NULL;
 	}
@@ -35,10 +35,6 @@ struct sccp_device *sccp_new_device(const char *name)
 
 void sccp_device_destroy(struct sccp_device *device)
 {
-	if (device == NULL) {
-		return;
-	}
-
 	ast_format_cap_destroy(device->caps);
 	ast_mutex_destroy(&device->lock);
 	AST_RWLIST_HEAD_DESTROY(&device->lines);
@@ -47,19 +43,14 @@ void sccp_device_destroy(struct sccp_device *device)
 	ast_free(device);
 }
 
-void device_unregister(struct sccp_device *device)
+void sccp_device_unregister(struct sccp_device *device)
 {
-	struct sccp_line *line_itr = NULL;
-	struct sccp_subchannel *subchan = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
+	struct sccp_line *line_itr;
+	struct sccp_subchannel *subchan;
 
 	device->regstate = DEVICE_REGISTERED_FALSE;
 
-	speeddial_hints_unsubscribe(device);
+	sccp_device_unsubscribe_speeddial_hints(device);
 
 	if (device->mwi_event_sub) {
 		ast_event_unsubscribe(device->mwi_event_sub);
@@ -88,17 +79,12 @@ void device_unregister(struct sccp_device *device)
 	AST_RWLIST_UNLOCK(&device->lines);
 }
 
-void device_register(struct sccp_device *device,
+void sccp_device_register(struct sccp_device *device,
 			int8_t proto_version,
 			enum sccp_device_type type,
 			void *session,
 			struct sockaddr_in localip)
 {
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
-
 	device->regstate = DEVICE_REGISTERED_TRUE;
 	device->proto_version = proto_version;
 	device->type = type;
@@ -106,14 +92,9 @@ void device_register(struct sccp_device *device,
 	device->localip = localip;
 }
 
-void device_prepare(struct sccp_device *device)
+void sccp_device_prepare(struct sccp_device *device)
 {
-	struct sccp_line *line_itr = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
+	struct sccp_line *line_itr;
 
 	device->exten[0] = '\0';
 	device->open_receive_channel_pending = 0;
@@ -125,13 +106,8 @@ void device_prepare(struct sccp_device *device)
 	AST_RWLIST_UNLOCK(&device->lines);
 }
 
-int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
+int sccp_device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
 {
-	if (device == NULL) {
-		ast_log(LOG_ERROR, "Device is NULL\n");
-		return -1;
-	}
-
 	device->remote.sin_family = AF_INET;
 	device->remote.sin_addr.s_addr = addr;
 	device->remote.sin_port = htons(port);
@@ -139,26 +115,21 @@ int device_set_remote(struct sccp_device *device, uint32_t addr, uint32_t port)
 	return 0;
 }
 
-int device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance)
+int sccp_device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t instance)
 {
-	if (device == NULL) {
-		ast_log(LOG_ERROR, "device is NULL\n");
-		return -1;
-	}
-
-	if (line == NULL) {
+	if (!line) {
 		ast_log(LOG_ERROR, "line is NULL\n");
 		return -1;
 	}
 
-	if (line->device != NULL) {
+	if (line->device) {
 		ast_log(LOG_ERROR, "Line [%s] is already attached to device [%s]\n",
 				line->name, line->device->name);
 		return -1;
 	}
 
 	++device->line_count;
-	if (device->default_line == NULL) {
+	if (!device->default_line) {
 		device->default_line = line;
 	}
 
@@ -174,15 +145,15 @@ int device_add_line(struct sccp_device *device, struct sccp_line *line, uint32_t
 
 struct sccp_device *find_device_by_name(const char *name, struct list_device *list_device)
 {
-	struct sccp_device *device_itr = NULL;
+	struct sccp_device *device_itr;
 
-	if (name == NULL) {
-		ast_log(LOG_DEBUG, "name is NULL\n");
+	if (!name) {
+		ast_log(LOG_ERROR, "name is NULL\n");
 		return NULL;
 	}
 
-	if (list_device == NULL) {
-		ast_log(LOG_DEBUG, "list_device is NULL\n");
+	if (!list_device) {
+		ast_log(LOG_ERROR, "list_device is NULL\n");
 		return NULL;
 	}
 
@@ -196,9 +167,9 @@ struct sccp_device *find_device_by_name(const char *name, struct list_device *li
 	return device_itr;
 }
 
-void speeddial_hints_unsubscribe(struct sccp_device *device)
+void sccp_device_unsubscribe_speeddial_hints(struct sccp_device *device)
 {
-	struct sccp_speeddial *speeddial_itr = NULL;
+	struct sccp_speeddial *speeddial_itr;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
@@ -209,18 +180,13 @@ void speeddial_hints_unsubscribe(struct sccp_device *device)
 	AST_RWLIST_UNLOCK(&device->speeddials);
 }
 
-void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb)
+void sccp_device_subscribe_speeddial_hints(struct sccp_device *device, ast_state_cb_type speeddial_hints_cb)
 {
-	struct sccp_speeddial *speeddial_itr = NULL;
+	struct sccp_speeddial *speeddial_itr;
 	int dev_state;
 	char *context;
 
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return;
-	}
-
-	if (speeddial_hints_cb == NULL) {
+	if (!speeddial_hints_cb) {
 		ast_log(LOG_DEBUG, "speeddial_hints_cb is NULL\n");
 		return;
 	}
@@ -242,14 +208,9 @@ void speeddial_hints_subscribe(struct sccp_device *device, ast_state_cb_type spe
 	AST_RWLIST_UNLOCK(&device->speeddials);
 }
 
-struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device, uint32_t index)
+struct sccp_speeddial *sccp_device_get_speeddial_by_index(struct sccp_device *device, uint32_t index)
 {
-	struct sccp_speeddial *speeddial_itr = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return NULL;
-	}
+	struct sccp_speeddial *speeddial_itr;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
@@ -261,14 +222,9 @@ struct sccp_speeddial *device_get_speeddial_by_index(struct sccp_device *device,
 	return speeddial_itr;
 }
 
-struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t instance)
+struct sccp_speeddial *sccp_device_get_speeddial(struct sccp_device *device, uint32_t instance)
 {
-	struct sccp_speeddial *speeddial_itr = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return NULL;
-	}
+	struct sccp_speeddial *speeddial_itr;
 
 	AST_RWLIST_RDLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE(&device->speeddials, speeddial_itr, list_per_device) {
@@ -280,14 +236,9 @@ struct sccp_speeddial *device_get_speeddial(struct sccp_device *device, uint32_t
 	return speeddial_itr;
 }
 
-struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
+struct sccp_line *sccp_device_get_line(struct sccp_device *device, uint32_t instance)
 {
-	struct sccp_line *line_itr = NULL;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return NULL;
-	}
+	struct sccp_line *line_itr;
 
 	AST_RWLIST_RDLOCK(&device->lines);
 	AST_RWLIST_TRAVERSE(&device->lines, line_itr, list_per_device) {
@@ -299,95 +250,19 @@ struct sccp_line *device_get_line(struct sccp_device *device, uint32_t instance)
 	return line_itr;
 }
 
-const char *line_state_str(enum sccp_state line_state)
-{
-	switch (line_state) {
-	case SCCP_OFFHOOK:
-		return "Offhook";
-	case SCCP_ONHOOK:
-		return "Onhook";
-	case SCCP_RINGOUT:
-		return "Ringout";
-	case SCCP_RINGIN:
-		return "Ringin";
-	case SCCP_CONNECTED:
-		return "Connected";
-	case SCCP_BUSY:
-		return "Busy";
-	case SCCP_CONGESTION:
-		return "Congestion";
-	case SCCP_HOLD:
-		return "Hold";
-	case SCCP_CALLWAIT:
-		return "Callwait";
-	case SCCP_TRANSFER:
-		return "Transfer";
-	case SCCP_PARK:
-		return "Park";
-	case SCCP_PROGRESS:
-		return "Progress";
-	case SCCP_INVALID:
-		return "Invalid";
-	default:
-		return "Unknown";
-	}
-}
-
-const char *device_type_str(enum sccp_device_type device_type)
-{
-	switch (device_type) {
-	case SCCP_DEVICE_7905:
-		return "7905";
-	case SCCP_DEVICE_7906:
-		return "7906";
-	case SCCP_DEVICE_7911:
-		return "7911";
-	case SCCP_DEVICE_7912:
-		return "7912";
-	case SCCP_DEVICE_7920:
-		return "7920";
-	case SCCP_DEVICE_7921:
-		return "7921";
-	case SCCP_DEVICE_7931:
-		return "7931";
-	case SCCP_DEVICE_7937:
-		return "7937";
-	case SCCP_DEVICE_7940:
-		return "7940";
-	case SCCP_DEVICE_7941:
-		return "7941";
-	case SCCP_DEVICE_7941GE:
-		return "7941GE";
-	case SCCP_DEVICE_7942:
-		return "7942";
-	case SCCP_DEVICE_7960:
-		return "7960";
-	case SCCP_DEVICE_7961:
-		return "7961";
-	case SCCP_DEVICE_7962:
-		return "7962";
-	case SCCP_DEVICE_7970:
-		return "7970";
-	case SCCP_DEVICE_CIPC:
-		return "CIPC";
-	default:
-		return "unknown";
-	}
-}
-
-const char *device_regstate_str(enum sccp_device_registration_state state)
+const char *sccp_device_regstate_str(enum sccp_device_registration_state state)
 {
 	switch (state) {
 	case DEVICE_REGISTERED_TRUE:
 		return "Registered";
 	case DEVICE_REGISTERED_FALSE:
 		return "Unregistered";
-	default:
-		return "unknown";
 	}
+
+	return "unknown";
 }
 
-int device_type_is_supported(enum sccp_device_type device_type)
+int sccp_device_type_is_supported(enum sccp_device_type device_type)
 {
 	int supported = 0;
 
@@ -420,14 +295,9 @@ int device_type_is_supported(enum sccp_device_type device_type)
 	return supported;
 }
 
-int device_get_button_count(struct sccp_device *device)
+int sccp_device_get_button_count(struct sccp_device *device)
 {
 	int button_count = 0;
-
-	if (device == NULL) {
-		ast_log(LOG_DEBUG, "device is NULL\n");
-		return -1;
-	}
 
 	switch (device->type) {
 	case SCCP_DEVICE_7905:
@@ -481,13 +351,13 @@ char *complete_sccp_devices(const char *word, int state, struct list_device *lis
 	int which = 0;
 	int len;
 
-	if (word == NULL) {
-		ast_log(LOG_DEBUG, "word is NULL\n");
+	if (!word) {
+		ast_log(LOG_ERROR, "word is NULL\n");
 		return NULL;
 	}
 
-	if (list_device == NULL) {
-		ast_log(LOG_DEBUG, "list_device is NULL\n");
+	if (!list_device) {
+		ast_log(LOG_ERROR, "list_device is NULL\n");
 		return NULL;
 	}
 

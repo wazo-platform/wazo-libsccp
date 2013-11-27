@@ -1,3 +1,4 @@
+#include "sccp.h"
 #include "sccp_debug.h"
 #include "sccp_device.h"
 #include "sccp_message.h"
@@ -142,7 +143,7 @@ static void dump_call_state(char *str, size_t size, const struct call_state_mess
 			"State: %s\n"
 			"Line instance: %u\n"
 			"Call ID: %u\n",
-			line_state_str(letohl(m->callState)), letohl(m->lineInstance), letohl(m->callReference));
+			sccp_state_str(letohl(m->callState)), letohl(m->lineInstance), letohl(m->callReference));
 }
 
 static void dump_close_receive_channel(char *str, size_t size, const struct close_receive_channel_message *m)

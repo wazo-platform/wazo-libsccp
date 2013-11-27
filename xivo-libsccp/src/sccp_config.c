@@ -22,16 +22,16 @@ static int config_has_line_with_name(struct sccp_configs *sccp_cfg, const char *
 static void config_set_defaults(struct sccp_configs *sccp_cfg);
 static int is_line_section_complete(const char *category);
 
-struct sccp_configs *sccp_new_config(void)
+struct sccp_configs *sccp_config_create(void)
 {
 	struct sccp_configs *sccp_cfg = ast_calloc(1, sizeof(*sccp_cfg));
 
-	if (sccp_cfg == NULL) {
+	if (!sccp_cfg) {
 		return NULL;
 	}
 
 	sccp_cfg->caps = ast_format_cap_alloc();
-	if (sccp_cfg->caps == NULL) {
+	if (!sccp_cfg->caps) {
 		 ast_free(sccp_cfg);
 		 return NULL;
 	}
@@ -46,10 +46,6 @@ struct sccp_configs *sccp_new_config(void)
 
 void sccp_config_destroy(struct sccp_configs *sccp_cfg)
 {
-	if (sccp_cfg == NULL) {
-		return;
-	}
-
 	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_device);
 	AST_RWLIST_HEAD_DESTROY(&sccp_cfg->list_line);
 	ast_format_cap_destroy(sccp_cfg->caps);
@@ -129,7 +125,7 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg)
 	AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
 }
 
-void destroy_device_config(struct sccp_configs *sccp_cfg, struct sccp_device *device)
+void sccp_config_destroy_device(struct sccp_configs *sccp_cfg, struct sccp_device *device)
 {
 	struct sccp_line *line_itr = NULL;
 	struct sccp_subchannel *subchan_itr = NULL;
@@ -215,7 +211,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 		if (!duplicate) {
 
 			/* create the new device */
-			device = sccp_new_device(category);
+			device = sccp_device_create(category);
 
 			/* get every settings for a particular device */
 			for (var = ast_variable_browse(cfg, category); var != NULL; var = var->next) {
@@ -232,7 +228,7 @@ static int parse_config_devices(struct ast_config *cfg, struct sccp_configs *scc
 						if (!strcasecmp(var->value, line_itr->name)) {
 							/* We found a line */
 							found_line = 1;
-							if (!device_add_line(device, line_itr, line_instance)) {
+							if (!sccp_device_add_line(device, line_itr, line_instance)) {
 								++line_instance;
 							}
 						}
@@ -369,7 +365,7 @@ static int parse_config_lines(struct ast_config *cfg, struct sccp_configs *sccp_
 			continue;
 		}
 
-		line = sccp_new_line(category, sccp_cfg);
+		line = sccp_line_create(category, sccp_cfg);
 		if (line == NULL) {
 			return -1;
 		}
