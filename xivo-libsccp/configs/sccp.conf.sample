@@ -43,10 +43,8 @@ blf = 1
 
 [devices]
 [SEP0015C66BFD16]
-device = SEP0015C66BFD16
 line = 1001
 
 [SEP001F6C7E71A0]
-device = SEP001F6C7E71A0
 line = 1002
 speeddial = 2-1
