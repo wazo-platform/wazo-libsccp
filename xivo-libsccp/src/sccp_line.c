@@ -14,7 +14,7 @@ struct sccp_line *sccp_line_create(const char *name, struct sccp_configs *sccp_c
 	}
 
 	ast_copy_string(line->name, name, sizeof(line->name));
-	ast_copy_string(line->context, "default", sizeof(line->context));
+	ast_copy_string(line->context, sccp_cfg->context, sizeof(line->context));
 	ast_copy_string(line->language, sccp_cfg->language, sizeof(line->language));
 	line->state = SCCP_ONHOOK;
 	line->device = NULL;
