@@ -2292,6 +2292,7 @@ static void thread_session_cleanup(void *data)
 
 		if (session->device->destroy == 1) {
 			sccp_config_destroy_device(sccp_config, session->device);
+			session->device = NULL;
 			sccp_config_load(sccp_config, "sccp.conf");
 		}
 		transmit_reset(session, SCCP_RESET_SOFT);
