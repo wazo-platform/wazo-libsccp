@@ -2480,7 +2480,8 @@ static int cb_ast_devicestate(const char *data)
 		state = AST_DEVICE_INUSE;
 	}
 
-	free(name);
+	ast_free(name);
+
 	return state;
 }
 

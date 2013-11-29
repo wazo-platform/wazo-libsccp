@@ -322,7 +322,7 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 		}
 		AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
 		if (!duplicate) {
-			speeddial = calloc(1, sizeof(struct sccp_speeddial));
+			speeddial = ast_calloc(1, sizeof(*speeddial));
 			ast_copy_string(speeddial->name, category, sizeof(speeddial->name));
 
 			AST_RWLIST_WRLOCK(&sccp_cfg->list_speeddial);
