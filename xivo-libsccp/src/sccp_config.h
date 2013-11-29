@@ -18,7 +18,7 @@ struct sccp_configs {
 	int dialtimeout;
 	int directmedia;
 	char language[MAX_LANGUAGE];
-	char context[AST_MAX_EXTENSION];
+	char context[AST_MAX_CONTEXT];
 	char vmexten[AST_MAX_EXTENSION];
 	struct ast_codec_pref codec_pref;
 	struct ast_format_cap *caps;	/* Allowed capabilities */
