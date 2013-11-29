@@ -471,16 +471,15 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line, enum sccp_direction direction)
 {
-	struct sccp_subchannel *subchan = NULL;
+	struct sccp_subchannel *subchan;
 
-	if (line == NULL) {
+	if (!line) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return NULL;
 	}
 
-	subchan = ast_calloc(1, sizeof(struct sccp_subchannel));
-	if (subchan == NULL) {
-		ast_log(LOG_ERROR, "subchannel allocation failed\n");
+	subchan = ast_calloc(1, sizeof(*subchan));
+	if (!subchan) {
 		return NULL;
 	}
 
