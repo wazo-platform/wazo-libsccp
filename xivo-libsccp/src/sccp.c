@@ -338,10 +338,8 @@ static void post_line_register_check(struct sccp_session *session)
 	result = ast_db_get("sccp/cfwdall", line->name, exten, sizeof(exten));
 
 	if (result == 0) {
-		line->callfwd_id = line->serial_callid++;
-		line->callfwd = SCCP_CFWD_INPUTEXTEN;
 		ast_copy_string(line->device->exten, exten, sizeof(line->device->exten));
-		handle_callforward(session, SOFTKEY_CFWDALL);
+		sccp_set_callforward(line);
 	}
 
 	result = ast_db_get("sccp/dnd", line->name, dnd_status, sizeof(dnd_status));
@@ -473,16 +471,15 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 
 static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line, enum sccp_direction direction)
 {
-	struct sccp_subchannel *subchan = NULL;
+	struct sccp_subchannel *subchan;
 
-	if (line == NULL) {
+	if (!line) {
 		ast_log(LOG_DEBUG, "line is NULL\n");
 		return NULL;
 	}
 
-	subchan = ast_calloc(1, sizeof(struct sccp_subchannel));
-	if (subchan == NULL) {
-		ast_log(LOG_ERROR, "subchannel allocation failed\n");
+	subchan = ast_calloc(1, sizeof(*subchan));
+	if (!subchan) {
 		return NULL;
 	}
 
@@ -2295,6 +2292,7 @@ static void thread_session_cleanup(void *data)
 
 		if (session->device->destroy == 1) {
 			sccp_config_destroy_device(sccp_config, session->device);
+			session->device = NULL;
 			sccp_config_load(sccp_config, "sccp.conf");
 		}
 		transmit_reset(session, SCCP_RESET_SOFT);
@@ -2482,7 +2480,8 @@ static int cb_ast_devicestate(const char *data)
 		state = AST_DEVICE_INUSE;
 	}
 
-	free(name);
+	ast_free(name);
+
 	return state;
 }
 

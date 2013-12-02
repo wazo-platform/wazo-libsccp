@@ -73,7 +73,7 @@ void config_set_defaults(struct sccp_configs *sccp_cfg)
 
 int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
 {
-	struct ast_config *cfg = NULL;
+	struct ast_config *cfg;
 	struct ast_flags config_flags = { 0 };
 	int res = 0;
 
@@ -95,9 +95,9 @@ int sccp_config_load(struct sccp_configs *sccp_cfg, const char *config_file)
 
 void sccp_config_unload(struct sccp_configs *sccp_cfg)
 {
-	struct sccp_device *device_itr = NULL;
-	struct sccp_line *line_itr = NULL;
-	struct sccp_speeddial *speeddial_itr = NULL;
+	struct sccp_device *device_itr;
+	struct sccp_line *line_itr;
+	struct sccp_speeddial *speeddial_itr;
 
 	AST_RWLIST_WRLOCK(&sccp_cfg->list_device);
 	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&sccp_cfg->list_device, device_itr, list) {
@@ -127,9 +127,9 @@ void sccp_config_unload(struct sccp_configs *sccp_cfg)
 
 void sccp_config_destroy_device(struct sccp_configs *sccp_cfg, struct sccp_device *device)
 {
-	struct sccp_line *line_itr = NULL;
-	struct sccp_subchannel *subchan_itr = NULL;
-	struct sccp_speeddial *speeddial_itr = NULL;
+	struct sccp_line *line_itr;
+	struct sccp_subchannel *subchan_itr;
+	struct sccp_speeddial *speeddial_itr;
 
 	AST_RWLIST_WRLOCK(&device->speeddials);
 	AST_RWLIST_TRAVERSE_SAFE_BEGIN(&device->speeddials, speeddial_itr, list_per_device) {
@@ -322,7 +322,7 @@ static int parse_config_speeddials(struct ast_config *cfg, struct sccp_configs *
 		}
 		AST_RWLIST_UNLOCK(&sccp_cfg->list_speeddial);
 		if (!duplicate) {
-			speeddial = calloc(1, sizeof(struct sccp_speeddial));
+			speeddial = ast_calloc(1, sizeof(*speeddial));
 			ast_copy_string(speeddial->name, category, sizeof(speeddial->name));
 
 			AST_RWLIST_WRLOCK(&sccp_cfg->list_speeddial);
