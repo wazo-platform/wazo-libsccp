@@ -937,7 +937,7 @@ int transmit_start_media_transmission(struct sccp_session *session, struct sccp_
 	msg->data.startmedia.remotePort = htolel(ntohs(endpoint.sin_port));
 	msg->data.startmedia.packetSize = htolel(fmt.cur_ms);
 	msg->data.startmedia.payloadType = htolel(codec_ast2sccp(&fmt.format));
-	msg->data.startmedia.qualifier.precedence = htolel(127);
+	msg->data.startmedia.qualifier.precedence = htolel(sccp_config->tos_audio);
 	msg->data.startmedia.qualifier.vad = htolel(0);
 	msg->data.startmedia.qualifier.packets = htolel(0);
 	msg->data.startmedia.qualifier.bitRate = htolel(0);
