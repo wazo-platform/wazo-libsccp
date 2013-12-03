@@ -13,6 +13,8 @@ directmedia = 1
 disallow = all
 allow = alaw,ulaw
 
+tos_audio = EF
+
 
 [lines]
 [1001]
