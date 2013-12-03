@@ -1,4 +1,5 @@
 #include <asterisk.h>
+#include <asterisk/acl.h>
 
 #include "sccp_config.h"
 #include "sccp_device.h"
@@ -9,6 +10,7 @@
 #define SCCP_DEFAULT_KEEPALIVE 10
 #define SCCP_DEFAULT_AUTH_TIMEOUT 5
 #define SCCP_DEFAULT_DIAL_TIMEOUT 2
+#define SCCP_DEFAULT_TOS_AUDIO 184
 
 struct sccp_configs *sccp_config;
 
@@ -65,6 +67,7 @@ void config_set_defaults(struct sccp_configs *sccp_cfg)
 	sccp_cfg->keepalive = SCCP_DEFAULT_KEEPALIVE;
 	sccp_cfg->authtimeout = SCCP_DEFAULT_AUTH_TIMEOUT;
 	sccp_cfg->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
+	sccp_cfg->tos_audio = SCCP_DEFAULT_TOS_AUDIO;
 	sccp_cfg->directmedia = 0;
 
 	ast_format_cap_add(sccp_cfg->caps, ast_format_set(&tmpfmt, AST_FORMAT_ULAW, 0));
@@ -417,6 +420,10 @@ void sccp_config_set_field(struct sccp_configs *sccp_cfg, const char *name, cons
 		sccp_cfg->dialtimeout = atoi(value);
 		if (sccp_cfg->dialtimeout <= 0)
 			sccp_cfg->dialtimeout = SCCP_DEFAULT_DIAL_TIMEOUT;
+	} else if (!strcasecmp(name, "tos_audio")) {
+		if (ast_str2tos(value, &sccp_cfg->tos_audio)) {
+			ast_log(LOG_WARNING, "Invalid tos_audio value\n");
+		}
 	} else if (!strcasecmp(name, "context")) {
 		ast_copy_string(sccp_cfg->context, value, sizeof(sccp_cfg->context));
 	} else if (!strcasecmp(name, "language")) {

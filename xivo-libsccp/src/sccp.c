@@ -3326,7 +3326,7 @@ void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 		ast_channel_set_fd(subchan->channel, 1, ast_rtp_instance_fd(subchan->rtp, 1));
 	}
 
-	ast_rtp_instance_set_qos(subchan->rtp, 0, 0, "sccp rtp");
+	ast_rtp_instance_set_qos(subchan->rtp, sccp_config->tos_audio, 0, "sccp rtp");
 	ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_NAT, 0);
 
 	/*
