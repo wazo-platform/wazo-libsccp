@@ -22,3 +22,5 @@ xivo-libsccp/src/.deps/
 
 *.o
 *.lo
+xivo-libsccp/src/html/
+xivo-libsccp/src/latex/
