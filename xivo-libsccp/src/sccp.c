@@ -469,9 +469,9 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	return ret;
 }
 
-static void sccp_delete_subchannel(void *data)
+static void sccp_subchannel_destructor(void *data)
 {
-	struct sccp_subchannel *subchan = (struct sccp_subchannel *)data;
+	struct sccp_subchannel *subchan = data;
 
 	ast_debug(1, "deleting subchannel %p\n", subchan);
 }
@@ -485,7 +485,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line, enum 
 		return NULL;
 	}
 
-	subchan = ao2_alloc(sizeof(*subchan), sccp_delete_subchannel);
+	subchan = ao2_alloc(sizeof(*subchan), sccp_subchannel_destructor);
 	if (!subchan) {
 		return NULL;
 	}
@@ -939,6 +939,10 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 	ast_mutex_lock(&line->device->lock);
 
+	if (sccp_line_remove_subchan(line, subchan) == -1) {
+		goto end;
+	}
+
 	if (subchan->rtp) {
 
 		transmit_close_receive_channel(session, subchan->id);
@@ -952,12 +956,6 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	transmit_ringer_mode(session, SCCP_RING_OFF);
 	transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
 	transmit_stop_tone(session, line->instance, subchan->id);
-
-	subchan = AST_RWLIST_REMOVE(&line->subchans, subchan, list);
-	if (!subchan) {
-		goto end;
-	}
-	ao2_ref(subchan, -1); ast_debug(1, "%p -1\n", subchan);
 
 	subchan->channel = NULL;
 
