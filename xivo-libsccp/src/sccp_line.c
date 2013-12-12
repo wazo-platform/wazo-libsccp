@@ -73,8 +73,9 @@ struct sccp_subchannel *sccp_line_get_next_offhook_subchan(struct sccp_line *lin
 
 	AST_RWLIST_RDLOCK(&line->subchans);
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->state == SCCP_OFFHOOK)
+		if (subchan_itr->state == SCCP_OFFHOOK) {
 			break;
+		}
 	}
 	AST_RWLIST_UNLOCK(&line->subchans);
 
@@ -87,8 +88,9 @@ struct sccp_subchannel *sccp_line_get_next_ringin_subchan(struct sccp_line *line
 
 	AST_RWLIST_RDLOCK(&line->subchans);
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->state == SCCP_RINGIN)
+		if (subchan_itr->state == SCCP_RINGIN) {
 			break;
+		}
 	}
 	AST_RWLIST_UNLOCK(&line->subchans);
 
@@ -99,12 +101,39 @@ struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t s
 {
 	struct sccp_subchannel *subchan_itr;
 
+	AST_RWLIST_RDLOCK(&line->subchans);
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->id == subchan_id)
+		if (subchan_itr->id == subchan_id) {
+			ao2_ref(subchan_itr, +1);
 			break;
+		}
 	}
+	AST_RWLIST_UNLOCK(&line->subchans);
 
 	return subchan_itr;
+}
+
+int sccp_line_remove_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
+{
+	struct sccp_subchannel *removed_subchan;
+
+	if (!subchan) {
+		ast_log(LOG_ERROR, "subchannel is NULL\n");
+		return -1;
+	}
+
+	AST_RWLIST_WRLOCK(&line->subchans);
+	removed_subchan = AST_RWLIST_REMOVE(&line->subchans, subchan, list);
+	AST_RWLIST_UNLOCK(&line->subchans);
+
+	if (!removed_subchan) {
+		ast_log(LOG_WARNING, "subchan was already removed from line\n");
+		return -1;
+	}
+
+	ao2_ref(subchan, -1);
+
+	return 0;
 }
 
 void sccp_line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan)
