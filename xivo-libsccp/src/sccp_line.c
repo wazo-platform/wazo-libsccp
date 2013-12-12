@@ -99,10 +99,14 @@ struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t s
 {
 	struct sccp_subchannel *subchan_itr;
 
+	AST_RWLIST_RDLOCK(&line->subchans);
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
-		if (subchan_itr->id == subchan_id)
+		if (subchan_itr->id == subchan_id) {
+			ao2_ref(subchan_itr, +1);
 			break;
+		}
 	}
+	AST_RWLIST_UNLOCK(&line->subchans);
 
 	return subchan_itr;
 }

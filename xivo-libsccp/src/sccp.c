@@ -469,6 +469,13 @@ static int register_device(struct sccp_msg *msg, struct sccp_session *session)
 	return ret;
 }
 
+static void sccp_delete_subchannel(void *data)
+{
+	struct sccp_subchannel *subchan = (struct sccp_subchannel *)data;
+
+	ast_debug(1, "deleting subchannel %p\n", subchan);
+}
+
 static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line, enum sccp_direction direction)
 {
 	struct sccp_subchannel *subchan;
@@ -478,7 +485,7 @@ static struct sccp_subchannel *sccp_new_subchannel(struct sccp_line *line, enum 
 		return NULL;
 	}
 
-	subchan = ast_calloc(1, sizeof(*subchan));
+	subchan = ao2_alloc(sizeof(*subchan), sccp_delete_subchannel);
 	if (!subchan) {
 		return NULL;
 	}
@@ -547,6 +554,7 @@ static struct ast_channel *sccp_new_channel(struct sccp_subchannel *subchan, con
 
 	ast_channel_tech_set(channel, &sccp_tech);
 	ast_channel_tech_pvt_set(channel, subchan);
+	ao2_ref(subchan, +1);
 	subchan->channel = channel;
 
 	for (var_itr = subchan->line->chanvars; var_itr != NULL; var_itr = var_itr->next) {
@@ -823,7 +831,7 @@ static int set_device_state_new_call(struct sccp_device *device, struct sccp_lin
 static int do_answer(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
-	struct sccp_subchannel *subchan = NULL;
+	RAII_VAR(struct sccp_subchannel *, subchan, NULL, ao2_cleanup);
 
 	ast_log(LOG_DEBUG, "line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
@@ -945,7 +953,11 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	transmit_callstate(session, line->instance, SCCP_ONHOOK, subchan->id);
 	transmit_stop_tone(session, line->instance, subchan->id);
 
-	AST_RWLIST_REMOVE(&line->subchans, subchan, list);
+	subchan = AST_RWLIST_REMOVE(&line->subchans, subchan, list);
+	if (!subchan) {
+		goto end;
+	}
+	ao2_ref(subchan, -1); ast_debug(1, "%p -1\n", subchan);
 
 	subchan->channel = NULL;
 
@@ -962,8 +974,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 	if (subchan == line->active_subchan)
 		subchan->line->active_subchan = NULL;
 
-	ast_free(subchan);
-
+end:
 	ast_mutex_unlock(&line->device->lock);
 
 	return 0;
@@ -972,7 +983,7 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 int do_hangup(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
-	struct sccp_subchannel *subchan = NULL;
+	RAII_VAR(struct sccp_subchannel *, subchan, NULL, ao2_cleanup);
 
 	ast_log(LOG_DEBUG, "do_hangup line_instance(%d) subchan_id(%d)\n", line_instance, subchan_id);
 
@@ -1075,7 +1086,7 @@ static int handle_softkey_dnd(struct sccp_session *session)
 static int handle_softkey_hold(uint32_t line_instance, uint32_t subchan_id, struct sccp_session *session)
 {
 	struct sccp_line *line = NULL;
-	struct sccp_subchannel *subchan = NULL;
+	RAII_VAR(struct sccp_subchannel *, subchan, NULL, ao2_cleanup);
 	struct ast_channel *channel = NULL;
 
 	ast_log(LOG_DEBUG, "handle_softkey_hold: line_instance(%i) subchan_id(%i)\n", line_instance, subchan_id);
@@ -2666,6 +2677,7 @@ static int cb_ast_hangup(struct ast_channel *channel)
 	ast_setstate(channel, AST_STATE_DOWN);
 	ast_channel_tech_pvt_set(channel, NULL);
 	ast_module_unref(ast_module_info->self);
+	ao2_ref(subchan, -1);
 
 	return 0;
 }
