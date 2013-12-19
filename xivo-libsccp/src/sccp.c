@@ -934,6 +934,11 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 		return -1;
 	}
 
+	/* increase the ref count since sccp_line_remove_subchan decrease it,
+	 * yet we still want the ref to be valid after that
+	 */
+	ao2_ref(subchan, +1);
+
 	line = subchan->line;
 	session = line->device->session;
 
@@ -974,6 +979,8 @@ static int do_clear_subchannel(struct sccp_subchannel *subchan)
 
 end:
 	ast_mutex_unlock(&line->device->lock);
+
+	ao2_ref(subchan, -1);
 
 	return 0;
 }
