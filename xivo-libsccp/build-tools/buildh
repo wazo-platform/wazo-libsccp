@@ -97,7 +97,7 @@ def _build_make_script():
 def _build_rsync_script(host, directory):
     return '''
 git describe --long | cut -d "-" -f 4-6 | tr -d '\n' > .version
-rsync -vrtlp \
+rsync -vrlp \
     --include /.version \
     --include /build-tools \
     --include /build-tools/print-version \
