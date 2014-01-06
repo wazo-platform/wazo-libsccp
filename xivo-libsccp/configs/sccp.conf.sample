@@ -23,17 +23,9 @@ cid_num = 1001
 setvar = XIVO_USERID=1
 setvar = PICKUPMARK=1001%pcmdev
 context = pcmdev
+language = fr_FR
 disallow = all
 allow = g729,ulaw
-
-[1002]
-cid_name = Bõb
-cid_num = 1002
-setvar = XIVO_USERID=2
-setvar = PICKUPMARK=1002%pcmdev
-context = pcmdev
-;disallow = all
-;allow = ulaw,alaw
 
 
 [speeddials]
@@ -46,7 +38,5 @@ blf = 1
 [devices]
 [SEP0015C66BFD16]
 line = 1001
-
-[SEP001F6C7E71A0]
-line = 1002
 speeddial = 2-1
+voicemail = 1002
