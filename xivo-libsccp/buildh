@@ -56,12 +56,6 @@ def command_init(profile):
     local_script = _build_rsync_script(profile['host'], profile['directory'])
     _exec_local_script(local_script)
 
-    remote_script = []
-    remote_script.append(_build_cd_script(profile['directory']))
-    remote_script.append('autoreconf -fvi')
-    remote_script.append('./configure')
-    _exec_remote_script('\n'.join(remote_script), profile['host'])
-
 
 def command_make(profile):
     local_script = _build_rsync_script(profile['host'], profile['directory'])
@@ -81,7 +75,7 @@ def command_makei(profile):
     remote_script.append(_build_cd_script(profile['directory']))
     remote_script.append(_build_make_script())
     remote_script.append('/etc/init.d/asterisk stop')
-    remote_script.append('cp ./src/.libs/libsccp.so /usr/lib/asterisk/modules/chan_sccp.so')
+    remote_script.append('make install')
     remote_script.append('/etc/init.d/asterisk start')
     _exec_remote_script('\n'.join(remote_script), profile['host'])
 
@@ -91,22 +85,16 @@ def _build_cd_script(directory):
 
 
 def _build_make_script():
-    return 'make CFLAGS+=-DDEBUG_STATE'
+    version = subprocess.check_output(['git', 'describe']).rstrip()
+    return 'make VERSION={}'.format(version)
 
 
 def _build_rsync_script(host, directory):
     return '''
-git describe --long | cut -d "-" -f 4-6 | tr -d '\n' > .version
-rsync -vrlp \
-    --include /.version \
-    --include /build-tools \
-    --include /build-tools/print-version \
-    --include /config_undef.h \
-    --include /configure.ac \
-    --include /src \
-    --include '/src/*.c' \
-    --include '/src/*.h' \
-    --include Makefile.am \
+rsync -v -rlp \
+    --include '*.c' \
+    --include '*.h' \
+    --include Makefile \
     --exclude '*' \
     . {host}:{directory}
 '''.format(host=host, directory=directory)
