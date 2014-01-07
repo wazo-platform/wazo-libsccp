@@ -1,5 +1,5 @@
 TARGET = chan_sccp.so
-OBJECTS = sccp.o
+OBJECTS = sccp.o sccp_config.o
 HEADERS = sccp_config.h
 CFLAGS = -Wall -Wextra -Wno-unused-parameter -g -fPIC -D'_GNU_SOURCE' -D'AST_MODULE="xivo-libsccp"' 
 LDFLAGS = -Wall -shared
