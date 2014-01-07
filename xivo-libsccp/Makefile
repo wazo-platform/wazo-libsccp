@@ -18,7 +18,7 @@ $(TARGET): $(OBJECTS)
 
 install: $(TARGET)
 	mkdir -p $(DESTDIR)/usr/lib/asterisk/modules
-	install $(TARGET) $(DESTDIR)/usr/lib/asterisk/modules/
+	install -m 644 $(TARGET) $(DESTDIR)/usr/lib/asterisk/modules/
 
 clean:
 	rm -f $(OBJECTS)
