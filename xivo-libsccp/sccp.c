@@ -23,7 +23,7 @@ static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 }
 
 static struct ast_cli_entry cli_entries[] = {
-	AST_CLI_DEFINE(cli_show_version, "Show module version"),
+	AST_CLI_DEFINE(cli_show_version, "Show the module version"),
 };
 
 static int load_module(void)
