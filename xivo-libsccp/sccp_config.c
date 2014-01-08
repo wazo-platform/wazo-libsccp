@@ -255,18 +255,18 @@ static int sccp_device_cfg_build_line(struct sccp_device_cfg *device_cfg, struct
 	struct sccp_line_cfg *line_cfg;
 
 	if (ast_strlen_zero(device_cfg->internal->line_name)) {
-		ast_log(LOG_WARNING, "device %s has no line\n", device_cfg->name);
+		ast_log(LOG_ERROR, "invalid device %s: no line associated\n", device_cfg->name);
 		return -1;
 	}
 
 	line_cfg = sccp_cfg_find_line(cfg, device_cfg->internal->line_name);
 	if (!line_cfg) {
-		ast_log(LOG_WARNING, "device %s reference unknown line %s\n", device_cfg->name, device_cfg->internal->line_name);
+		ast_log(LOG_ERROR, "invalid device %s: unknown line %s\n", device_cfg->name, device_cfg->internal->line_name);
 		return -1;
 	}
 
 	if (line_cfg->internal->associated) {
-		ast_log(LOG_WARNING, "device %s reference already associated line\n", device_cfg->name);
+		ast_log(LOG_ERROR, "invalid device %s: line %s is already associated\n", device_cfg->name, line_cfg->name);
 		ao2_ref(line_cfg, -1);
 		return -1;
 	}
@@ -290,7 +290,7 @@ static int sccp_device_cfg_build_speeddials(struct sccp_device_cfg *device_cfg, 
 	AST_LIST_TRAVERSE(&device_cfg->internal->speeddials, device_sd, list) {
 		device_sd->speeddial_cfg = sccp_cfg_find_speeddial(cfg, device_sd->name);
 		if (!device_sd->speeddial_cfg) {
-			ast_log(LOG_WARNING, "device %s reference unknown speeddial %s\n", device_cfg->name, device_sd->name);
+			ast_log(LOG_WARNING, "invalid device %s: unknown speeddial %s\n", device_cfg->name, device_sd->name);
 			continue;
 		}
 
@@ -560,7 +560,7 @@ static int cb_pre_apply_line_cfg(void *obj, void *arg, int flags)
 	struct sccp_line_cfg *line_cfg = obj;
 
 	if (!line_cfg->internal->associated) {
-		ast_log(LOG_WARNING, "line %s not associated to any device\n", line_cfg->name);
+		ast_log(LOG_ERROR, "invalid line %s: not associated to any device\n", line_cfg->name);
 		return CMP_MATCH;
 	}
 
@@ -592,7 +592,7 @@ static void pre_apply_general_cfg(struct sccp_cfg *cfg)
 		}
 	} else {
 		if (general_cfg->internal->guest) {
-			ast_log(LOG_WARNING, "guest is enabled but no device \"%s\" is defined\n", DEVICE_CFG_NAME_GUEST);
+			ast_log(LOG_WARNING, "invalid config: guest is enabled but no device \"%s\" is defined\n", DEVICE_CFG_NAME_GUEST);
 		}
 	}
 
