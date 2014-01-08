@@ -65,50 +65,44 @@ struct sccp_speeddial_cfg {
 	int blf;
 };
 
-/*
- * Init the config submodule.
+/*!
+ * \brief Initialize the config submodule.
  *
- * Must be called once before using anything else in the submodule.
+ * \note Must be called once before using anything else in the submodule.
  *
- * Should be called from the module loading function.
+ * \retval 0 on success
+ * \retval non-zero on failure
  */
 int sccp_config_init(void);
 
-/*
- * Destroy/uninitialize the config module.
- *
- * Must be called to free the stuff.
- *
- * Should be called from the module unloading function.
- *
- * References held to the various config objects are still valid,
- * but calling any function except sccp_config_init is undefined.
+/*!
+ * \brief Free the resources associated to the config submodule.
  */
 void sccp_config_destroy(void);
 
-/*
- * Load the config from the configuration file.
+/*!
+ * \brief Load the config from the configuration file.
  *
- * Should be called only once, after sccp_config_init. If you want to reload the
- * config, call sccp_config_reload.
+ * \note Should be called only once, after sccp_config_init. If you want to reload the
+ *       config, call sccp_config_reload instead.
  *
  * \retval 0 on success
  * \retval non-zero on faiure
  */
 int sccp_config_load(void);
 
-/*
- * Reload the config from the configuration file.
+/*!
+ * \brief Reload the config from the configuration file.
  *
  * \retval 0 on success
  * \retval non-zero on faiure
  */
 int sccp_config_reload(void);
 
-/*
- * Get the current config.
+/*!
+ * \brief Get the current config.
  *
- * The returned object has its reference count incremented by one.
+ * \note The returned object has its reference count incremented by one.
  */
 struct sccp_cfg *sccp_config_get(void);
 
