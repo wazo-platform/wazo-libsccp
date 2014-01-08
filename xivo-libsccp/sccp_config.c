@@ -37,20 +37,11 @@ struct sccp_line_cfg_internal {
 	int associated;
 };
 
-static void sccp_speeddial_cfg_destructor(void *obj)
-{
-	struct sccp_speeddial_cfg *speeddial_cfg = obj;
-
-	ast_log(LOG_DEBUG, "in destructor for speeddial config %s\n", speeddial_cfg->name);
-}
-
 static void *sccp_speeddial_cfg_alloc(const char *category)
 {
 	struct sccp_speeddial_cfg *speeddial_cfg;
 
-	ast_log(LOG_DEBUG, "in alloc for speeddial config %s\n", category);
-
-	speeddial_cfg = ao2_alloc(sizeof(*speeddial_cfg), sccp_speeddial_cfg_destructor);
+	speeddial_cfg = ao2_alloc(sizeof(*speeddial_cfg), NULL);
 	if (!speeddial_cfg) {
 		return NULL;
 	}
@@ -96,8 +87,6 @@ static void sccp_line_cfg_destructor(void *obj)
 {
 	struct sccp_line_cfg *line_cfg = obj;
 
-	ast_log(LOG_DEBUG, "in destructor for line config %s\n", line_cfg->name);
-
 	sccp_line_cfg_free_internal(line_cfg);
 }
 
@@ -105,8 +94,6 @@ static void *sccp_line_cfg_alloc(const char *category)
 {
 	struct sccp_line_cfg *line_cfg;
 	struct sccp_line_cfg_internal *internal;
-
-	ast_log(LOG_DEBUG, "in alloc for line config %s\n", category);
 
 	internal = ast_calloc(1, sizeof(*internal));
 	if (!internal) {
@@ -173,8 +160,6 @@ static void sccp_device_cfg_destructor(void *obj)
 {
 	struct sccp_device_cfg *device_cfg = obj;
 
-	ast_log(LOG_DEBUG, "in destructor for device config %s\n", device_cfg->name);
-
 	sccp_device_cfg_free_internal(device_cfg);
 	sccp_device_cfg_free_speeddials(device_cfg);
 	ao2_cleanup(device_cfg->line_cfg);
@@ -184,8 +169,6 @@ static void *sccp_device_cfg_alloc(const char *category)
 {
 	struct sccp_device_cfg *device_cfg;
 	struct sccp_device_cfg_internal *internal;
-
-	ast_log(LOG_DEBUG, "in alloc for device config %s\n", category);
 
 	internal = ast_calloc(1, sizeof(*internal));
 	if (!internal) {
