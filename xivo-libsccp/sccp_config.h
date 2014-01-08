@@ -105,4 +105,11 @@ int sccp_config_load(void);
  */
 int sccp_config_reload(void);
 
+/*
+ * Get the current config.
+ *
+ * The returned object has its reference count incremented by one.
+ */
+struct sccp_cfg *sccp_config_get(void);
+
 #endif /* SCCP_CONFIG_H_ */

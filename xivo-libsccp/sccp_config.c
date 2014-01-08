@@ -748,3 +748,8 @@ void sccp_config_destroy(void)
 	aco_info_destroy(&cfg_info);
 	ao2_global_obj_release(global_cfg);
 }
+
+struct sccp_cfg *sccp_config_get(void)
+{
+	return ao2_global_obj_ref(global_cfg);
+}
