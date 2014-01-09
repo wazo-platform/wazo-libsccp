@@ -3,6 +3,7 @@
 #include <asterisk/module.h>
 
 #include "sccp_config.h"
+#include "sccp_server.h"
 
 #ifndef VERSION
 #define VERSION "unknown"
@@ -87,6 +88,17 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
+	if (sccp_server_init()) {
+		sccp_config_destroy();
+		return AST_MODULE_LOAD_DECLINE;
+	}
+
+	if (sccp_server_start()) {
+		sccp_server_destroy();
+		sccp_config_destroy();
+		return AST_MODULE_LOAD_DECLINE;
+	}
+
 	ast_cli_register_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
 	return AST_MODULE_LOAD_SUCCESS;
@@ -96,6 +108,8 @@ static int unload_module(void)
 {
 	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
+	sccp_server_destroy();
+
 	sccp_config_destroy();
 
 	return 0;
@@ -104,6 +118,10 @@ static int unload_module(void)
 static int reload(void)
 {
 	if (sccp_config_reload()) {
+		return -1;
+	}
+
+	if (sccp_server_reload_config()) {
 		return -1;
 	}
 
