@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include <asterisk.h>
+#include <asterisk/cli.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/lock.h>
 #include <asterisk/network.h>
@@ -481,13 +482,41 @@ end:
 	return NULL;
 }
 
+static char *cli_show_sessions(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show sessions";
+		e->usage = "Usage: sccp show sessions\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ast_cli(a->fd, "%d active sessions\n", global_server.session_count);
+
+	return CLI_SUCCESS;
+}
+
+static struct ast_cli_entry cli_entries[] = {
+	AST_CLI_DEFINE(cli_show_sessions, "Show the active sessions"),
+};
+
 int sccp_server_init(void)
 {
-	return server_init(&global_server);
+	if (server_init(&global_server)) {
+		return -1;
+	}
+
+	ast_cli_register_multiple(cli_entries, ARRAY_LEN(cli_entries));
+
+	return 0;
 }
 
 void sccp_server_destroy(void)
 {
+	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
+
 	if (!server_stop(&global_server)) {
 		server_join(&global_server);
 	}
