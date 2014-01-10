@@ -15,7 +15,7 @@
 #define SERVER_PORT 2000
 #define SERVER_BACKLOG 50
 
-static void *server_loop(void *data);
+static void *server_run(void *data);
 
 struct server {
 	int sockfd;
@@ -110,7 +110,6 @@ static void server_destroy(struct server *server)
 	ast_cond_destroy(&server->no_session_cond);
 	close(server->pipefd[0]);
 	close(server->pipefd[1]);
-
 	ao2_ref(server->sessions, -1);
 }
 
@@ -187,7 +186,7 @@ static int server_start(struct server *server)
 
 	server->running = 1;
 	server->request_stop = 0;
-	ret = ast_pthread_create_background(&server->thread, NULL, server_loop, server);
+	ret = ast_pthread_create_background(&server->thread, NULL, server_run, server);
 	if (ret) {
 		ast_log(LOG_ERROR, "server start failed: pthread create: %s\n", strerror(ret));
 		goto error;
@@ -375,7 +374,7 @@ static void server_wait_sessions(struct server *server)
 	ast_mutex_unlock(&server->lock);
 }
 
-static void *server_loop(void *data)
+static void *server_run(void *data)
 {
 	struct server *server = data;
 	struct server_msg *msg;
@@ -389,7 +388,7 @@ static void *server_loop(void *data)
 	socklen_t addrlen;
 
 	if (listen(server->sockfd, SERVER_BACKLOG) == -1) {
-		ast_log(LOG_ERROR, "server loop failed: listen: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "server run failed: listen: %s\n", strerror(errno));
 		goto end;
 	}
 
@@ -401,7 +400,7 @@ static void *server_loop(void *data)
 	for (;;) {
 		nfds = poll(fds, ARRAY_LEN(fds), -1);
 		if (nfds == -1) {
-			ast_log(LOG_ERROR, "server loop failed: poll: %s\n", strerror(errno));
+			ast_log(LOG_ERROR, "server run failed: poll: %s\n", strerror(errno));
 			goto end;
 		}
 
@@ -440,7 +439,7 @@ static void *server_loop(void *data)
 			addrlen = sizeof(addr);
 			sockfd = accept(server->sockfd, (struct sockaddr *)&addr, &addrlen);
 			if (sockfd == -1) {
-				ast_log(LOG_ERROR, "server loop failed: accept: %s\n", strerror(errno));
+				ast_log(LOG_ERROR, "server run failed: accept: %s\n", strerror(errno));
 				goto end;
 			}
 
