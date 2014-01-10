@@ -90,6 +90,10 @@ static int server_init(struct server *server)
 	return 0;
 }
 
+/*
+ * The server thread must not be running, i.e. if the server has been started
+ * successfully, it must have been stopped and joined successfully too.
+ */
 static void server_destroy(struct server *server)
 {
 	struct server_msg *msg;
@@ -152,6 +156,11 @@ static int server_start(struct server *server)
 	struct sockaddr_in addr;
 	int flag_reuse = 1;
 	int ret;
+
+	if (server->running) {
+		ast_log(LOG_ERROR, "server start failed: server already running\n");
+		return -1;
+	}
 
 	/* FIXME take into account bindaddr from the general config */
 
@@ -250,8 +259,8 @@ static int server_stop(struct server *server)
 }
 
 /*
- * Can be called a maximum once and only if server_stop has been called before
- * and returned success.
+ * Can be called a maximum once and only if server_stop has been called
+ * successfully before.
  */
 static int server_join(struct server *server)
 {
@@ -354,13 +363,14 @@ static int server_start_session(struct server *server, struct sccp_session *sess
 	return 0;
 }
 
-static void server_wait_no_sessions(struct server *server)
+static void server_wait_sessions(struct server *server)
 {
+	ast_log(LOG_DEBUG, "waiting for all sessions to exit\n");
+
 	ast_mutex_lock(&server->lock);
 	while (server->session_count) {
 		ast_cond_wait(&server->no_session_cond, &server->lock);
 	}
-	server->session_count++;
 	ast_mutex_unlock(&server->lock);
 }
 
@@ -478,15 +488,12 @@ int sccp_server_init(void)
 
 void sccp_server_destroy(void)
 {
-	/* XXX this is a bit misleading between this function and server_destroy,
-	 * which both have the suffix "destroy" but which are doing different things
-	 */
 	if (!server_stop(&global_server)) {
 		server_join(&global_server);
 	}
 
 	server_stop_sessions(&global_server);
-	server_wait_no_sessions(&global_server);
+	server_wait_sessions(&global_server);
 	server_destroy(&global_server);
 }
 
