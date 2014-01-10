@@ -35,9 +35,9 @@ static struct msg *msg_create(size_t data_size, void *data)
 	return msg;
 }
 
-static void msg_extract_data(struct msg *msg, size_t data_size, void **data)
+static void msg_extract_data(struct msg *msg, size_t data_size, void *data)
 {
-	memcpy(*data, msg->data, data_size);
+	memcpy(data, msg->data, data_size);
 }
 
 static void msg_free(struct msg *msg) {
@@ -155,7 +155,7 @@ int sccp_queue_put(struct sccp_queue *queue, void *msg_data)
 	return 0;
 }
 
-int sccp_queue_get(struct sccp_queue *queue, void **msg_data)
+int sccp_queue_get(struct sccp_queue *queue, void *msg_data)
 {
 	struct msg *msg;
 

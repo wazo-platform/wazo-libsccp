@@ -9,6 +9,7 @@
 #include <asterisk/network.h>
 
 #include "sccp_config.h"
+#include "sccp_queue.h"
 #include "sccp_server.h"
 #include "sccp_session.h"
 
@@ -19,17 +20,16 @@ static void *server_run(void *data);
 
 struct server {
 	int sockfd;
-	int pipefd[2];
 	int running;
 	int request_stop;
 	int session_count;
-
-	AST_LIST_HEAD_NOLOCK(, server_msg) msgs;
+	int quit;
 
 	pthread_t thread;
 	ast_mutex_t lock;
 	ast_cond_t no_session_cond;
 
+	struct sccp_queue *queue;
 	struct ao2_container *sessions;
 };
 
@@ -38,55 +38,31 @@ enum server_msg_id {
 	MSG_STOP,
 };
 
-struct server_msg {
-	enum server_msg_id id;
-
-	AST_LIST_ENTRY(server_msg) list;
-};
-
 static struct server global_server;
-
-static struct server_msg *server_msg_create(enum server_msg_id id)
-{
-	struct server_msg *msg;
-
-	msg = ast_calloc(1, sizeof(*msg));
-	if (!msg) {
-		return NULL;
-	}
-
-	msg->id = id;
-
-	return msg;
-}
-
-static void server_msg_free(struct server_msg *msg)
-{
-	ast_free(msg);
-}
 
 static int server_init(struct server *server)
 {
-	struct ao2_container *sessions;
-
-	/* XXX hum, what's the best container parameter for sessions ? */
-	sessions = ao2_container_alloc(1, NULL, NULL);
-	if (!sessions) {
+	server->queue = sccp_queue_create(sizeof(enum server_msg_id));
+	if (!server->queue) {
 		return -1;
 	}
 
-	if (pipe2(server->pipefd, O_NONBLOCK) == -1) {
-		ast_log(LOG_ERROR, "server init: pipe: %s\n", strerror(errno));
-		ao2_ref(sessions, -1);
+	/* XXX hum, what's the best container parameter for sessions ?
+	 *     in fact, we should probably use a linked list of
+	 *     session if we only need to link / unlink and apply callback to
+	 *     each
+	 */
+	server->sessions = ao2_container_alloc(1, NULL, NULL);
+	if (!server->sessions) {
+		sccp_queue_destroy(server->queue);
 		return -1;
 	}
 
 	server->running = 0;
 	server->request_stop = 0;
-	AST_LIST_HEAD_INIT_NOLOCK(&server->msgs);
+	server->quit = 0;
 	ast_mutex_init(&server->lock);
 	ast_cond_init(&server->no_session_cond, NULL);
-	server->sessions = sessions;
 
 	return 0;
 }
@@ -97,58 +73,10 @@ static int server_init(struct server *server)
  */
 static void server_destroy(struct server *server)
 {
-	struct server_msg *msg;
-
-	/* XXX normally, the list should already be empty... */
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&server->msgs, msg, list) {
-		AST_LIST_REMOVE_CURRENT(list);
-		server_msg_free(msg);
-	}
-	AST_LIST_TRAVERSE_SAFE_END;
-
 	ast_mutex_destroy(&server->lock);
 	ast_cond_destroy(&server->no_session_cond);
-	close(server->pipefd[0]);
-	close(server->pipefd[1]);
+	sccp_queue_destroy(server->queue);
 	ao2_ref(server->sessions, -1);
-}
-
-static int server_write_to_pipe(struct server *server)
-{
-	static const int pipeval = 0xF00BA7;
-	ssize_t n;
-
-	n = write(server->pipefd[1], &pipeval, sizeof(pipeval));
-
-	switch (n) {
-	case -1:
-		ast_log(LOG_ERROR, "server write to pipe failed: write: %s\n", strerror(errno));
-		return -1;
-	case 0:
-		ast_log(LOG_ERROR, "server write to pipe failed: write wrote nothing\n");
-		return -1;
-	}
-
-	return 0;
-}
-
-static int server_read_from_pipe(struct server *server)
-{
-	char buf[32];
-	ssize_t n;
-
-	n = read(server->pipefd[0], buf, sizeof(buf));
-
-	switch (n) {
-	case -1:
-		ast_log(LOG_ERROR, "server read pipe failed: read: %s\n", strerror(errno));
-		return -1;
-	case 0:
-		ast_log(LOG_ERROR, "server read to pipe failed: end of file reached\n");
-		return -1;
-	}
-
-	return 0;
 }
 
 static int server_start(struct server *server)
@@ -208,8 +136,6 @@ error:
  */
 static int server_queue_msg(struct server *server, enum server_msg_id msg_id)
 {
-	struct server_msg *msg;
-
 	if (!server->running) {
 		ast_log(LOG_NOTICE, "server queue msg failed: server not running\n");
 		return -1;
@@ -221,17 +147,13 @@ static int server_queue_msg(struct server *server, enum server_msg_id msg_id)
 		return -1;
 	}
 
-	msg = server_msg_create(msg_id);
-	if (!msg) {
+	if (sccp_queue_put(server->queue, &msg_id)) {
 		return -1;
 	}
 
 	if (msg_id == MSG_STOP) {
 		server->request_stop = 1;
 	}
-
-	AST_LIST_INSERT_TAIL(&server->msgs, msg, list);
-	server_write_to_pipe(server);
 
 	return 0;
 }
@@ -293,6 +215,8 @@ static int cb_stop_session(void *obj, void *arg, int flags)
 
 static void server_stop_sessions(struct server *server)
 {
+	ast_log(LOG_DEBUG, "processing server stop request\n");
+
 	ao2_callback(server->sessions, OBJ_NODATA, cb_stop_session, NULL);
 }
 
@@ -307,6 +231,8 @@ static int cb_reload_session(void *obj, void *arg, int flags)
 
 static void server_reload_sessions(struct server *server)
 {
+	ast_log(LOG_DEBUG, "processing server reload request\n");
+
 	ao2_callback(server->sessions, OBJ_NODATA, cb_reload_session, NULL);
 }
 
@@ -374,18 +300,48 @@ static void server_wait_sessions(struct server *server)
 	ast_mutex_unlock(&server->lock);
 }
 
+static void server_process_queue(struct server *server)
+{
+	enum server_msg_id msg_id;
+
+	for (;;) {
+		/* XXX this is not terribly efficient, but since we currently have
+		 * a very low volume of msg in the queue, guess that's just fine
+		 *
+		 * else, we could read X message at a time between a lock/unlock
+		 * store them on a linked list, ...
+		 */
+		ast_mutex_lock(&server->lock);
+		if (sccp_queue_empty(server->queue)) {
+			ast_mutex_unlock(&server->lock);
+			return;
+		}
+
+		sccp_queue_get(server->queue, &msg_id);
+		ast_mutex_unlock(&server->lock);
+
+		switch (msg_id) {
+		case MSG_RELOAD:
+			server_reload_sessions(server);
+			break;
+		case MSG_STOP:
+			server->quit = 1;
+			break;
+		default:
+			ast_log(LOG_ERROR, "unknown msg id read: %d\n", msg_id);
+		}
+	}
+}
+
 static void *server_run(void *data)
 {
 	struct server *server = data;
-	struct server_msg *msg;
-	struct server_msg *nextmsg;
 	struct sccp_session *session;
 	struct pollfd fds[2];
-	int nfds;
-	int sockfd;
-	int stop = 0;
 	struct sockaddr_in addr;
 	socklen_t addrlen;
+	int nfds;
+	int sockfd;
 
 	if (listen(server->sockfd, SERVER_BACKLOG) == -1) {
 		ast_log(LOG_ERROR, "server run failed: listen: %s\n", strerror(errno));
@@ -394,10 +350,10 @@ static void *server_run(void *data)
 
 	fds[0].fd = server->sockfd;
 	fds[0].events = POLLIN;
-	fds[1].fd = server->pipefd[0];
+	fds[1].fd = sccp_queue_fd(server->queue);
 	fds[1].events = POLLIN;
 
-	for (;;) {
+	while (!server->quit) {
 		nfds = poll(fds, ARRAY_LEN(fds), -1);
 		if (nfds == -1) {
 			ast_log(LOG_ERROR, "server run failed: poll: %s\n", strerror(errno));
@@ -405,29 +361,9 @@ static void *server_run(void *data)
 		}
 
 		if (fds[1].revents & POLLIN) {
-			ast_mutex_lock(&server->lock);
-			nextmsg = AST_LIST_FIRST(&server->msgs);
-			AST_LIST_HEAD_INIT_NOLOCK(&server->msgs);
-			server_read_from_pipe(server);
-			ast_mutex_unlock(&server->lock);
+			server_process_queue(server);
 
-			while ((msg = nextmsg)) {
-				nextmsg = AST_LIST_NEXT(msg, list);
-
-				switch (msg->id) {
-				case MSG_RELOAD:
-					server_reload_sessions(server);
-					break;
-				case MSG_STOP:
-					/* don't goto end now, first process all message so we don't leak */
-					stop = 1;
-					break;
-				}
-
-				server_msg_free(msg);
-			}
-
-			if (stop) {
+			if (server->quit) {
 				goto end;
 			}
 		} else if (fds[1].revents) {
@@ -475,8 +411,6 @@ end:
 	ast_mutex_lock(&server->lock);
 	server->running = 0;
 	ast_mutex_unlock(&server->lock);
-
-	/* XXX we probably want to process the msgs here too */
 
 	return NULL;
 }

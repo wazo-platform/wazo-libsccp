@@ -55,7 +55,7 @@ int sccp_queue_put(struct sccp_queue *queue, void *msg_data);
 /*
  * get the next msg in the queue
  */
-int sccp_queue_get(struct sccp_queue *queue, void **msg_data);
+int sccp_queue_get(struct sccp_queue *queue, void *msg_data);
 
 int sccp_queue_empty(struct sccp_queue *queue);
 
