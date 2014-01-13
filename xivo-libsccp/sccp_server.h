@@ -1,12 +1,12 @@
 #ifndef SCCP_SERVER_H_
 #define SCCP_SERVER_H_
 
+struct sccp_cfg;
+
 /*!
  * \brief Initialize the server submodule.
  *
  * \note Must be called once before using anything else in the submodule.
- * \note This submodule use the config submodule, so you should init the
- *       config submodule first.
  *
  * \retval 0 on success
  * \retval non-zero on failure
@@ -27,7 +27,7 @@ void sccp_server_destroy(void);
  * \retval 0 on success
  * \retval non-zero on failure
  */
-int sccp_server_start(void);
+int sccp_server_start(struct sccp_cfg *cfg);
 
 /*!
  * \brief Stop the server and all the sessions.
@@ -46,6 +46,6 @@ int sccp_server_stop(void);
  * \retval 0 on success
  * \retval non-zero on failure
  */
-int sccp_server_reload_config(void);
+int sccp_server_reload_config(struct sccp_cfg *cfg);
 
 #endif /* SCCP_SERVER_H_ */

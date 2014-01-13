@@ -1,6 +1,7 @@
 #ifndef SCCP_SESSION_H_
 #define SCCP_SESSION_H_
 
+struct sccp_cfg;
 struct sccp_session;
 
 /*!
@@ -21,6 +22,6 @@ void sccp_session_run(struct sccp_session *session);
 
 int sccp_session_stop(struct sccp_session *session);
 
-int sccp_session_reload_config(struct sccp_session *session);
+int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg);
 
 #endif /* SCCP_SESSION_H_ */

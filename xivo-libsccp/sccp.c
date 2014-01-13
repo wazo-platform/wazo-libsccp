@@ -79,6 +79,8 @@ static struct ast_cli_entry cli_entries[] = {
 
 static int load_module(void)
 {
+	RAII_VAR(struct sccp_cfg *, cfg, NULL, ao2_cleanup);
+
 	if (sccp_config_init()) {
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -93,7 +95,8 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
-	if (sccp_server_start()) {
+	cfg = sccp_config_get();
+	if (sccp_server_start(cfg)) {
 		sccp_server_destroy();
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
@@ -117,11 +120,14 @@ static int unload_module(void)
 
 static int reload(void)
 {
+	RAII_VAR(struct sccp_cfg *, cfg, NULL, ao2_cleanup);
+
 	if (sccp_config_reload()) {
 		return -1;
 	}
 
-	if (sccp_server_reload_config()) {
+	cfg = sccp_config_get();
+	if (sccp_server_reload_config(cfg)) {
 		return -1;
 	}
 

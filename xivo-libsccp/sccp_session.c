@@ -341,9 +341,11 @@ int sccp_session_stop(struct sccp_session *session)
 	return ret;
 }
 
-int sccp_session_reload_config(struct sccp_session *session)
+int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg)
 {
 	int ret;
+
+	/* TODO do something with the cfg */
 
 	ao2_lock(session);
 	ret = sccp_session_queue_msg(session, MSG_RELOAD);
