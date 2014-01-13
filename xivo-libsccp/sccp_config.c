@@ -41,7 +41,7 @@ static void *sccp_speeddial_cfg_alloc(const char *category)
 {
 	struct sccp_speeddial_cfg *speeddial_cfg;
 
-	speeddial_cfg = ao2_alloc(sizeof(*speeddial_cfg), NULL);
+	speeddial_cfg = ao2_alloc_options(sizeof(*speeddial_cfg), NULL, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!speeddial_cfg) {
 		return NULL;
 	}
@@ -100,7 +100,7 @@ static void *sccp_line_cfg_alloc(const char *category)
 		return NULL;
 	}
 
-	line_cfg = ao2_alloc(sizeof(*line_cfg), sccp_line_cfg_destructor);
+	line_cfg = ao2_alloc_options(sizeof(*line_cfg), sccp_line_cfg_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!line_cfg) {
 		ast_free(internal);
 		return NULL;
@@ -175,7 +175,7 @@ static void *sccp_device_cfg_alloc(const char *category)
 		return NULL;
 	}
 
-	device_cfg = ao2_alloc(sizeof(*device_cfg), sccp_device_cfg_destructor);
+	device_cfg = ao2_alloc_options(sizeof(*device_cfg), sccp_device_cfg_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!device_cfg) {
 		ast_free(internal);
 		return NULL;
@@ -375,7 +375,7 @@ static struct sccp_general_cfg *sccp_general_cfg_alloc(void)
 		return NULL;
 	}
 
-	general_cfg = ao2_alloc(sizeof(*general_cfg), sccp_general_cfg_destructor);
+	general_cfg = ao2_alloc_options(sizeof(*general_cfg), sccp_general_cfg_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!general_cfg) {
 		ast_free(internal);
 		return NULL;
@@ -436,7 +436,7 @@ static void *sccp_cfg_alloc(void)
 		goto error;
 	}
 
-	cfg = ao2_alloc(sizeof(*cfg), sccp_cfg_destructor);
+	cfg = ao2_alloc_options(sizeof(*cfg), sccp_cfg_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!cfg) {
 		goto error;
 	}
