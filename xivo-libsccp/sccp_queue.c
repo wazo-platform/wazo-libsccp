@@ -13,7 +13,6 @@ struct sccp_queue {
 	AST_LIST_HEAD_NOLOCK(, msg) msgs;
 	size_t msg_size;
 	int pipefd[2];
-	int closed;
 };
 
 struct msg {
@@ -60,7 +59,6 @@ struct sccp_queue *sccp_queue_create(size_t msg_size)
 	}
 
 	queue->msg_size = msg_size;
-	queue->closed = 0;
 
 	return queue;
 }
@@ -78,11 +76,6 @@ void sccp_queue_destroy(struct sccp_queue *queue)
 	close(queue->pipefd[0]);
 	close(queue->pipefd[1]);
 	ast_free(queue);
-}
-
-void sccp_queue_close(struct sccp_queue *queue)
-{
-	queue->closed = 1;
 }
 
 int sccp_queue_fd(struct sccp_queue *queue)
@@ -132,17 +125,11 @@ int sccp_queue_put(struct sccp_queue *queue, void *msg_data)
 {
 	struct msg *msg;
 
-	if (queue->closed) {
-		ast_log(LOG_WARNING, "sccp queue put failed: queue is closed\n");
-		return -1;
-	}
-
 	msg = msg_create(queue->msg_size, msg_data);
 	if (!msg) {
 		return -1;
 	}
 
-	/* write to pipe only if the queue was empty */
 	if (AST_LIST_EMPTY(&queue->msgs)) {
 		if (sccp_queue_write_pipe(queue)) {
 			msg_free(msg);
@@ -169,7 +156,6 @@ int sccp_queue_get(struct sccp_queue *queue, void *msg_data)
 	msg_extract_data(msg, queue->msg_size, msg_data);
 	msg_free(msg);
 
-	/* read from pipe only if the queue is not empty */
 	if (AST_LIST_EMPTY(&queue->msgs)) {
 		sccp_queue_read_pipe(queue);
 	}
@@ -177,7 +163,7 @@ int sccp_queue_get(struct sccp_queue *queue, void *msg_data)
 	return 0;
 }
 
-int sccp_queue_empty(struct sccp_queue *queue)
+int sccp_queue_is_empty(struct sccp_queue *queue)
 {
 	return AST_LIST_EMPTY(&queue->msgs);
 }

@@ -19,19 +19,8 @@ struct sccp_queue *sccp_queue_create(size_t msg_size);
  *
  * Note that if there's message remaining that hold resources,
  * this will cause a leak.
- *
- * If you need not to leak, you should close the queue first, then
- * get and free all the queued message.
  */
 void sccp_queue_destroy(struct sccp_queue *queue);
-
-/*
- * close the queue
- *
- * Once closed, it's not possible to put other messages, but it's
- * still possible to get the remaining messages.
- */
-void sccp_queue_close(struct sccp_queue *queue);
 
 /*
  * Return the read file descriptor of the queue.
@@ -57,6 +46,6 @@ int sccp_queue_put(struct sccp_queue *queue, void *msg_data);
  */
 int sccp_queue_get(struct sccp_queue *queue, void *msg_data);
 
-int sccp_queue_empty(struct sccp_queue *queue);
+int sccp_queue_is_empty(struct sccp_queue *queue);
 
 #endif /* SCCP_QUEUE_H_ */

@@ -299,7 +299,7 @@ static void server_process_queue(struct server *server)
 		 * store them on a linked list, ...
 		 */
 		ast_mutex_lock(&server->lock);
-		if (sccp_queue_empty(server->queue)) {
+		if (sccp_queue_is_empty(server->queue)) {
 			ast_mutex_unlock(&server->lock);
 			return;
 		}
