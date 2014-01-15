@@ -113,22 +113,24 @@ static void server_destroy(struct server *server)
 
 /*
  * The server lock must be acquired before calling this function.
+ *
+ * If the msg is not succesfully queued, then it is freed.
  */
 static int server_queue_msg(struct server *server, struct server_msg *msg)
 {
 	if (!server->running) {
 		ast_log(LOG_NOTICE, "server queue msg failed: server not running\n");
-		return -1;
+		goto error;
 	}
 
 	if (server->request_stop) {
 		/* don't queue more msg if a stop has already been requested */
 		ast_log(LOG_NOTICE, "server queue msg failed: server is stopping\n");
-		return -1;
+		goto error;
 	}
 
 	if (sccp_queue_put(server->queue, msg)) {
-		return -1;
+		goto error;
 	}
 
 	if (msg->id == MSG_STOP) {
@@ -136,9 +138,14 @@ static int server_queue_msg(struct server *server, struct server_msg *msg)
 	}
 
 	return 0;
+
+error:
+	server_msg_free(msg);
+
+	return -1;
 }
 
-static int server_reload_config(struct server *server, struct sccp_cfg *cfg)
+static int server_queue_msg_reload(struct server *server, struct sccp_cfg *cfg)
 {
 	struct server_msg msg;
 	int ret;
@@ -152,7 +159,7 @@ static int server_reload_config(struct server *server, struct sccp_cfg *cfg)
 	return ret;
 }
 
-static int server_stop(struct server *server)
+static int server_queue_msg_stop(struct server *server)
 {
 	struct server_msg msg;
 	int ret;
@@ -164,6 +171,16 @@ static int server_stop(struct server *server)
 	ast_mutex_unlock(&server->lock);
 
 	return ret;
+}
+
+static void server_empty_queue(struct server *server)
+{
+	struct server_msg msg;
+
+	while (!sccp_queue_is_empty(server->queue)) {
+		sccp_queue_get(server->queue, &msg);
+		server_msg_free(&msg);
+	}
 }
 
 /*
@@ -459,6 +476,8 @@ end:
 	server->running = 0;
 	ast_mutex_unlock(&server->lock);
 
+	server_empty_queue(server);
+
 	return NULL;
 }
 
@@ -497,7 +516,7 @@ void sccp_server_destroy(void)
 {
 	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
-	if (!server_stop(&global_server)) {
+	if (!server_queue_msg_stop(&global_server)) {
 		server_join(&global_server);
 	}
 
@@ -523,5 +542,5 @@ int sccp_server_reload_config(struct sccp_cfg *cfg)
 		return -1;
 	}
 
-	return server_reload_config(&global_server, cfg);
+	return server_queue_msg_reload(&global_server, cfg);
 }
