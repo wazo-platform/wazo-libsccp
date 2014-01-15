@@ -58,6 +58,7 @@ struct sccp_queue *sccp_queue_create(size_t msg_size)
 		return NULL;
 	}
 
+	AST_LIST_HEAD_INIT_NOLOCK(&queue->msgs);
 	queue->msg_size = msg_size;
 
 	return queue;
