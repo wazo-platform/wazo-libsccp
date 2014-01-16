@@ -3,7 +3,6 @@
 #include <asterisk.h>
 #include <asterisk/cli.h>
 #include <asterisk/linkedlists.h>
-#include <asterisk/lock.h>
 #include <asterisk/network.h>
 
 #include "sccp_config.h"
@@ -17,6 +16,7 @@
 static void *server_run(void *data);
 
 enum server_state {
+	/* XXX state is partially useless now */
 	STATE_UNINITIALIZED,
 	STATE_INITIALIZED,
 	STATE_RUNNING,
@@ -29,7 +29,6 @@ struct server {
 	int quit;
 
 	pthread_t thread;
-	ast_mutex_t lock;
 
 	struct sccp_queue *queue;
 	/*
@@ -138,7 +137,6 @@ static int server_init(struct server *server)
 	}
 
 	server->state = STATE_INITIALIZED;
-	ast_mutex_init(&server->lock);
 	AST_LIST_HEAD_INIT(&server->srv_sessions);
 
 	return 0;
@@ -147,43 +145,30 @@ static int server_init(struct server *server)
 static void server_destroy(struct server *server)
 {
 	sccp_queue_destroy(server->queue);
-	ast_mutex_destroy(&server->lock);
 	AST_LIST_HEAD_DESTROY(&server->srv_sessions);
 	server->state = STATE_UNINITIALIZED;
 }
 
+static void server_close_queue(struct server *server)
+{
+	sccp_queue_close(server->queue);
+}
+
+static void empty_queue_cb(void *msg_data, void __attribute__((unused)) *arg)
+{
+	server_msg_destroy((struct server_msg *) msg_data);
+}
 
 static void server_empty_queue(struct server *server)
 {
-	struct server_msg msg;
-
-	while (!sccp_queue_is_empty(server->queue)) {
-		sccp_queue_get(server->queue, &msg);
-		server_msg_destroy(&msg);
-	}
-}
-
-static int server_queue_msg_no_lock(struct server *server, struct server_msg *msg)
-{
-	if (server->state != STATE_RUNNING) {
-		return -1;
-	}
-
-	if (sccp_queue_put(server->queue, msg)) {
-		return -1;
-	}
-
-	return 0;
+	sccp_queue_process(server->queue, empty_queue_cb, NULL);
 }
 
 static int server_queue_msg(struct server *server, struct server_msg *msg)
 {
 	int ret;
 
-	ast_mutex_lock(&server->lock);
-	ret = server_queue_msg_no_lock(server, msg);
-	ast_mutex_unlock(&server->lock);
-
+	ret = sccp_queue_put(server->queue, msg);
 	if (ret) {
 		server_msg_destroy(msg);
 	}
@@ -325,37 +310,32 @@ static void server_on_session_end(struct server *server, struct server_session *
 	server_session_destroy(srv_session);
 }
 
+static void process_queue_cb(void *msg_data, void *arg)
+{
+	struct server_msg *msg = msg_data;
+	struct server *server = arg;
+
+	switch (msg->id) {
+	case MSG_RELOAD:
+		server_reload_sessions(server, msg->data.reload.cfg);
+		break;
+	case MSG_SESSION_END:
+		server_on_session_end(server, msg->data.session_end.srv_session);
+		break;
+	case MSG_STOP:
+		server->quit = 1;
+		break;
+	default:
+		ast_log(LOG_ERROR, "server process queue: got unknown msg id %d\n", msg->id);
+		break;
+	}
+
+	server_msg_destroy(msg);
+}
+
 static void server_process_queue(struct server *server)
 {
-	struct server_msg msg;
-
-	for (;;) {
-		ast_mutex_lock(&server->lock);
-		if (sccp_queue_is_empty(server->queue)) {
-			ast_mutex_unlock(&server->lock);
-			return;
-		}
-
-		sccp_queue_get(server->queue, &msg);
-		ast_mutex_unlock(&server->lock);
-
-		switch (msg.id) {
-		case MSG_RELOAD:
-			server_reload_sessions(server, msg.data.reload.cfg);
-			break;
-		case MSG_SESSION_END:
-			server_on_session_end(server, msg.data.session_end.srv_session);
-			break;
-		case MSG_STOP:
-			server->quit = 1;
-			break;
-		default:
-			ast_log(LOG_ERROR, "server process queue: got unknown msg id %d\n", msg.id);
-			break;
-		}
-
-		server_msg_destroy(&msg);
-	}
+	sccp_queue_process(server->queue, process_queue_cb, server);
 }
 
 static int new_server_socket(struct sccp_cfg *cfg)
@@ -487,15 +467,10 @@ static void *server_run(void *data)
 end:
 	ast_debug(1, "server thread is leaving\n");
 
-	close(server->sockfd);
-
-	ast_mutex_lock(&server->lock);
 	server->state = STATE_ENDED;
-	ast_mutex_unlock(&server->lock);
 
-	/* no need to lock the server since msg are only queued when the server state is
-	 * STATE_RUNNING
-	 */
+	close(server->sockfd);
+	server_close_queue(server);
 	server_empty_queue(server);
 
 	return NULL;
@@ -591,6 +566,11 @@ int sccp_server_reload_config(struct sccp_cfg *cfg)
 {
 	if (!cfg) {
 		ast_log(LOG_ERROR, "sccp server reload config failed: cfg is null\n");
+		return -1;
+	}
+
+	if (global_server.state == STATE_UNINITIALIZED || global_server.state == STATE_INITIALIZED) {
+		ast_log(LOG_ERROR, "sccp server reload config failed: not initialized or not started\n");
 		return -1;
 	}
 

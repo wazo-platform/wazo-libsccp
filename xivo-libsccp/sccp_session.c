@@ -19,6 +19,7 @@ enum session_state {
 };
 
 struct sccp_session {
+	/* XXX hum, state is now useless now */
 	enum session_state state;
 	int sockfd;
 	int quit;
@@ -156,47 +157,26 @@ struct sccp_session *sccp_session_create(int sockfd)
 	return session;
 }
 
+static void empty_queue_cb(void *msg_data, void __attribute__((unused)) *arg)
+{
+	session_msg_destroy((struct session_msg *) msg_data);
+}
+
+static void sccp_session_close_queue(struct sccp_session *session)
+{
+	sccp_queue_close(session->queue);
+}
 
 static void sccp_session_empty_queue(struct sccp_session *session)
 {
-	struct session_msg msg;
-
-	while (!sccp_queue_is_empty(session->queue)) {
-		sccp_queue_get(session->queue, &msg);
-		session_msg_destroy(&msg);
-	}
-}
-
-static int sccp_session_queue_msg_no_lock(struct sccp_session *session, struct session_msg *msg)
-{
-	/* we queue msg in both STATE_CREATED and STATE_RUNNING since
-	 * otherwise it could lead to race condition.
-	 *
-	 * For example, a new session could be created and sccp_session_run about
-	 * to be called in a new thread; at the same time, the server is told to
-	 * stop all sessions, which result in queueing a MSG_STOP message for each
-	 * session; so even the session that are not running must queue the MSG_STOP
-	 * to behave correctly
-	 */
-	if (session->state == STATE_ENDED) {
-		return -1;
-	}
-
-	if (sccp_queue_put(session->queue, msg)) {
-		return -1;
-	}
-
-	return 0;
+	sccp_queue_process(session->queue, empty_queue_cb, NULL);
 }
 
 static int sccp_session_queue_msg(struct sccp_session *session, struct session_msg *msg)
 {
 	int ret;
 
-	ao2_lock(session);
-	ret = sccp_session_queue_msg_no_lock(session, msg);
-	ao2_unlock(session);
-
+	ret = sccp_queue_put(session->queue, msg);
 	if (ret) {
 		session_msg_destroy(msg);
 	}
@@ -222,37 +202,32 @@ static int sccp_session_queue_msg_stop(struct sccp_session *session)
 	return sccp_session_queue_msg(session, &msg);
 }
 
+static void process_queue_cb(void *msg_data, void *arg)
+{
+	struct session_msg *msg = msg_data;
+	struct sccp_session *session = arg;
+
+	switch (msg->id) {
+	case MSG_RELOAD:
+		ast_debug(1, "received session reload request\n");
+		if (session->device) {
+			sccp_device_reload_config(session->device, msg->data.reload.cfg);
+		}
+		break;
+	case MSG_STOP:
+		session->quit = 1;
+		break;
+	default:
+		ast_log(LOG_ERROR, "session process queue: got unknown msg id %d\n", msg->id);
+		break;
+	}
+
+	session_msg_destroy(msg);
+}
+
 static void sccp_session_process_queue(struct sccp_session *session)
 {
-	struct session_msg msg;
-
-	for (;;) {
-		ao2_lock(session);
-		if (sccp_queue_is_empty(session->queue)) {
-			ao2_unlock(session);
-			return;
-		}
-
-		sccp_queue_get(session->queue, &msg);
-		ao2_unlock(session);
-
-		switch (msg.id) {
-		case MSG_RELOAD:
-			ast_debug(1, "received session reload request\n");
-			if (session->device) {
-				sccp_device_reload_config(session->device, msg.data.reload.cfg);
-			}
-			break;
-		case MSG_STOP:
-			session->quit = 1;
-			break;
-		default:
-			ast_log(LOG_ERROR, "session process queue: got unknown msg id %d\n", msg.id);
-			break;
-		}
-
-		session_msg_destroy(&msg);
-	}
+	sccp_queue_process(session->queue, process_queue_cb, session);
 }
 
 void sccp_session_run(struct sccp_session *session)
@@ -261,9 +236,7 @@ void sccp_session_run(struct sccp_session *session)
 	ssize_t n;
 	int nfds;
 
-	ao2_lock(session);
 	session->state = STATE_RUNNING;
-	ao2_unlock(session);
 
 	fds[0].fd = session->sockfd;
 	fds[0].events = POLLIN;
@@ -323,10 +296,9 @@ void sccp_session_run(struct sccp_session *session)
 end:
 	ast_log(LOG_DEBUG, "leaving session %d thread\n", session->sockfd);
 
-	ao2_lock(session);
 	session->state = STATE_ENDED;
-	ao2_unlock(session);
 
+	sccp_session_close_queue(session);
 	sccp_session_empty_queue(session);
 
 	if (session->device) {

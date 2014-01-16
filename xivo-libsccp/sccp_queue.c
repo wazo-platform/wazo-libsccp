@@ -4,15 +4,18 @@
 #include <unistd.h>
 
 #include <asterisk.h>
+#include <asterisk/lock.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/utils.h>
 
 #include "sccp_queue.h"
 
 struct sccp_queue {
+	ast_mutex_t lock;
 	AST_LIST_HEAD_NOLOCK(, msg) msgs;
 	size_t msg_size;
 	int pipefd[2];
+	int closed;
 };
 
 struct msg {
@@ -39,7 +42,8 @@ static void msg_extract_data(struct msg *msg, size_t data_size, void *data)
 	memcpy(data, msg->data, data_size);
 }
 
-static void msg_free(struct msg *msg) {
+static void msg_destroy(struct msg *msg)
+{
 	ast_free(msg);
 }
 
@@ -58,8 +62,10 @@ struct sccp_queue *sccp_queue_create(size_t msg_size)
 		return NULL;
 	}
 
+	ast_mutex_init(&queue->lock);
 	AST_LIST_HEAD_INIT_NOLOCK(&queue->msgs);
 	queue->msg_size = msg_size;
+	queue->closed = 0;
 
 	return queue;
 }
@@ -70,10 +76,11 @@ void sccp_queue_destroy(struct sccp_queue *queue)
 
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&queue->msgs, msg, list) {
 		AST_LIST_REMOVE_CURRENT(list);
-		msg_free(msg);
+		msg_destroy(msg);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
 
+	ast_mutex_destroy(&queue->lock);
 	close(queue->pipefd[0]);
 	close(queue->pipefd[1]);
 	ast_free(queue);
@@ -82,6 +89,13 @@ void sccp_queue_destroy(struct sccp_queue *queue)
 int sccp_queue_fd(struct sccp_queue *queue)
 {
 	return queue->pipefd[0];
+}
+
+void sccp_queue_close(struct sccp_queue *queue)
+{
+	ast_mutex_lock(&queue->lock);
+	queue->closed = 1;
+	ast_mutex_unlock(&queue->lock);
 }
 
 static int sccp_queue_write_pipe(struct sccp_queue *queue)
@@ -105,8 +119,8 @@ static int sccp_queue_write_pipe(struct sccp_queue *queue)
 
 static int sccp_queue_read_pipe(struct sccp_queue *queue)
 {
-	char buf[8];
 	ssize_t n;
+	char buf[8];
 
 	n = read(queue->pipefd[0], buf, sizeof(buf));
 
@@ -122,20 +136,25 @@ static int sccp_queue_read_pipe(struct sccp_queue *queue)
 	return 0;
 }
 
-int sccp_queue_put(struct sccp_queue *queue, void *msg_data)
+static int sccp_queue_put_no_lock(struct sccp_queue *queue, void *msg_data)
 {
-	struct msg *msg;
+	struct msg *msg = NULL;
+
+	if (queue->closed) {
+		return SCCP_QUEUE_CLOSED;
+	}
 
 	msg = msg_create(queue->msg_size, msg_data);
 	if (!msg) {
 		ast_log(LOG_ERROR, "sccp queue put failed\n");
-		return -1;
+		return SCCP_QUEUE_ERROR;
 	}
 
 	if (AST_LIST_EMPTY(&queue->msgs)) {
 		if (sccp_queue_write_pipe(queue)) {
-			msg_free(msg);
-			return -1;
+			ast_log(LOG_ERROR, "sccp queue put failed\n");
+			msg_destroy(msg);
+			return SCCP_QUEUE_ERROR;
 		}
 	}
 
@@ -144,19 +163,29 @@ int sccp_queue_put(struct sccp_queue *queue, void *msg_data)
 	return 0;
 }
 
-int sccp_queue_get(struct sccp_queue *queue, void *msg_data)
+int sccp_queue_put(struct sccp_queue *queue, void *msg_data)
+{
+	int ret;
+
+	ast_mutex_lock(&queue->lock);
+	ret = sccp_queue_put_no_lock(queue, msg_data);
+	ast_mutex_unlock(&queue->lock);
+
+	return ret;
+}
+
+static int sccp_queue_get_no_lock(struct sccp_queue *queue, void *msg_data)
 {
 	struct msg *msg;
 
 	msg = AST_LIST_FIRST(&queue->msgs);
 	if (!msg) {
-		ast_log(LOG_WARNING, "sccp queue get failed: queue is empty\n");
-		return -1;
+		return SCCP_QUEUE_EMPTY;
 	}
 
 	AST_LIST_REMOVE_HEAD(&queue->msgs, list);
 	msg_extract_data(msg, queue->msg_size, msg_data);
-	msg_free(msg);
+	msg_destroy(msg);
 
 	if (AST_LIST_EMPTY(&queue->msgs)) {
 		sccp_queue_read_pipe(queue);
@@ -165,7 +194,35 @@ int sccp_queue_get(struct sccp_queue *queue, void *msg_data)
 	return 0;
 }
 
-int sccp_queue_is_empty(struct sccp_queue *queue)
+int sccp_queue_get(struct sccp_queue *queue, void *msg_data)
 {
-	return AST_LIST_EMPTY(&queue->msgs);
+	int ret;
+
+	ast_mutex_lock(&queue->lock);
+	ret = sccp_queue_get_no_lock(queue, msg_data);
+	ast_mutex_unlock(&queue->lock);
+
+	return ret;
+}
+
+void sccp_queue_process(struct sccp_queue *queue, sccp_queue_process_cb callback, void *arg)
+{
+	struct msg *msg;
+	struct msg *nextmsg;
+
+	ast_mutex_lock(&queue->lock);
+	nextmsg = AST_LIST_FIRST(&queue->msgs);
+	AST_LIST_HEAD_INIT_NOLOCK(&queue->msgs);
+	if (nextmsg) {
+		sccp_queue_read_pipe(queue);
+	}
+	ast_mutex_unlock(&queue->lock);
+
+	while ((msg = nextmsg)) {
+		nextmsg = AST_LIST_NEXT(msg, list);
+
+		callback(msg->data, arg);
+
+		msg_destroy(msg);
+	}
 }

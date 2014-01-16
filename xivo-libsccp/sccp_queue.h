@@ -1,15 +1,19 @@
 #ifndef SCCP_QUEUE_H_
 #define SCCP_QUEUE_H_
 
-/*
- * Not that the sccp_queue is NOT thread safe, the lock must be
- * handled by the client using the sccp_queue.
- */
-
 struct sccp_queue;
 
+/*!
+ * \brief Function type for process callback.
+ */
+typedef void (*sccp_queue_process_cb)(void *msg_data, void *arg);
+
+#define SCCP_QUEUE_CLOSED 1
+#define SCCP_QUEUE_EMPTY 2
+#define SCCP_QUEUE_ERROR 3
+
 /*
- * create a new queue, with msg that can be sent with a maximum msg size
+ * Create a new (FIFO) queue, with msg that can be sent with a maximum msg size
  * of msg_size.
  */
 struct sccp_queue *sccp_queue_create(size_t msg_size);
@@ -34,18 +38,44 @@ void sccp_queue_destroy(struct sccp_queue *queue);
  */
 int sccp_queue_fd(struct sccp_queue *queue);
 
-/*
- * msg_size byte (queue property) of msg_data will be copied.
+/*!
+ * \brief Close the queue so that sccp_queue_put will return an error.
  *
- * Note that data must be at least sizeof(msg_size of queue) bytes
+ * \note This does not destroy the queue.
+ *
+ * XXX maybe rename to sccp_queue_shutdown ?
+ */
+void sccp_queue_close(struct sccp_queue *queue);
+
+/*!
+ * \brief Put a message to the queue
+ *
+ * \note The message is copied from *msg_data.
+ *
+ * \retval 0 on success
+ * \retval SCCP_QUEUE_CLOSED if the queue is closed
+ * \retval SCCP_QUEUE_ERROR on other failure
  */
 int sccp_queue_put(struct sccp_queue *queue, void *msg_data);
 
-/*
- * get the next msg in the queue
+/*!
+ * \brief Get the next message from the queue.
+ *
+ * \note The message is copied to *msg_data.
+ *
+ * \retval 0 on success
+ * \retval SCCP_QUEUE_EMPTY if the queue is empty
  */
 int sccp_queue_get(struct sccp_queue *queue, void *msg_data);
 
-int sccp_queue_is_empty(struct sccp_queue *queue);
+/*
+ * \brief Process all the messages from the queue.
+ *
+ * \note In theory, should be more efficient than getting one message at
+ *       a time.
+ * \note The callback is called while the queue's lock is not held, so don't
+ *       be afraid of deadlock in the callback
+ */
+void sccp_queue_process(struct sccp_queue *queue, sccp_queue_process_cb callback, void *arg);
 
 #endif /* SCCP_QUEUE_H_ */
