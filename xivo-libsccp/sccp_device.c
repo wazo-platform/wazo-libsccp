@@ -1,8 +1,9 @@
 #include <asterisk.h>
 
+#include "sccp_config.h"
 #include "sccp_device.h"
 
-void sccp_device_reload_config(struct sccp_device *device)
+void sccp_device_reload_config(struct sccp_device *device, struct sccp_cfg *cfg)
 {
 }
 
