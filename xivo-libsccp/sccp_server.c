@@ -152,6 +152,17 @@ static void server_destroy(struct server *server)
 	server->state = STATE_UNINITIALIZED;
 }
 
+
+static void server_empty_queue(struct server *server)
+{
+	struct server_msg msg;
+
+	while (!sccp_queue_is_empty(server->queue)) {
+		sccp_queue_get(server->queue, &msg);
+		server_msg_destroy(&msg);
+	}
+}
+
 static int server_queue_msg_no_lock(struct server *server, struct server_msg *msg)
 {
 	if (server->state != STATE_RUNNING) {
@@ -165,9 +176,6 @@ static int server_queue_msg_no_lock(struct server *server, struct server_msg *ms
 	return 0;
 }
 
-/*
- * If the msg is not successfully queued, then it is destroyed.
- */
 static int server_queue_msg(struct server *server, struct server_msg *msg)
 {
 	int ret;
@@ -208,16 +216,6 @@ static int server_queue_msg_stop(struct server *server)
 	server_msg_init_stop(&msg);
 
 	return server_queue_msg(server, &msg);
-}
-
-static void server_empty_queue(struct server *server)
-{
-	struct server_msg msg;
-
-	while (!sccp_queue_is_empty(server->queue)) {
-		sccp_queue_get(server->queue, &msg);
-		server_msg_destroy(&msg);
-	}
 }
 
 static int server_join(struct server *server)

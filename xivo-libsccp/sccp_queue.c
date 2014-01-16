@@ -128,6 +128,7 @@ int sccp_queue_put(struct sccp_queue *queue, void *msg_data)
 
 	msg = msg_create(queue->msg_size, msg_data);
 	if (!msg) {
+		ast_log(LOG_ERROR, "sccp queue put failed\n");
 		return -1;
 	}
 

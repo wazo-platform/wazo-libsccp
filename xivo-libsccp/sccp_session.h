@@ -12,16 +12,28 @@ struct sccp_session;
  */
 struct sccp_session *sccp_session_create(int sockfd);
 
-/*
- * This function exit only when the session stops, either naturally or by
- * calling sccp_session_stop from another thread.
+/*!
+ * \brief Run the session.
  *
- * Note that this function is guaranteed to eventually return.
+ * \note This function exit only when the session stops, either "naturally"
+ *       or after a call to sccp_session_stop.
  */
 void sccp_session_run(struct sccp_session *session);
 
+/*!
+ * \brief Stop the session.
+ *
+ * \retval 0 on sucess
+ * \retval non-zero on failure
+ */
 int sccp_session_stop(struct sccp_session *session);
 
+/*!
+ * \brief Reload the session and the associated device.
+ *
+ * \retval 0 on success
+ * \retval non-zero on failure
+ */
 int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg);
 
 #endif /* SCCP_SESSION_H_ */

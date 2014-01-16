@@ -12,10 +12,15 @@
 
 #define SCCP_MAX_PACKET_SZ 2000
 
+enum session_state {
+	STATE_CREATED,
+	STATE_RUNNING,
+	STATE_ENDED,
+};
+
 struct sccp_session {
+	enum session_state state;
 	int sockfd;
-	int running;
-	int request_stop;
 	int quit;
 
 	char inbuf[SCCP_MAX_PACKET_SZ];
@@ -141,10 +146,9 @@ struct sccp_session *sccp_session_create(int sockfd)
 
 	ast_log(LOG_DEBUG, "session %p created\n", session);
 
+	session->state = STATE_CREATED;
 	session->sockfd = sockfd;
 	session->queue = queue;
-	session->running = 0;
-	session->request_stop = 0;
 	session->quit = 0;
 	session->inbuf[0] = '\0';
 	session->device = NULL;
@@ -152,19 +156,29 @@ struct sccp_session *sccp_session_create(int sockfd)
 	return session;
 }
 
-/*
- * The session lock must be acquired before calling this function.
- */
-static int sccp_session_queue_msg(struct sccp_session *session, struct session_msg *msg)
-{
-	if (!session->running) {
-		ast_log(LOG_NOTICE, "session queue msg failed: session not running\n");
-		return -1;
-	}
 
-	if (session->request_stop) {
-		/* don't queue more msg if a stop has already been requested */
-		ast_log(LOG_NOTICE, "session queue msg failed: session is stopping\n");
+static void sccp_session_empty_queue(struct sccp_session *session)
+{
+	struct session_msg msg;
+
+	while (!sccp_queue_is_empty(session->queue)) {
+		sccp_queue_get(session->queue, &msg);
+		session_msg_destroy(&msg);
+	}
+}
+
+static int sccp_session_queue_msg_no_lock(struct sccp_session *session, struct session_msg *msg)
+{
+	/* we queue msg in both STATE_CREATED and STATE_RUNNING since
+	 * otherwise it could lead to race condition.
+	 *
+	 * For example, a new session could be created and sccp_session_run about
+	 * to be called in a new thread; at the same time, the server is told to
+	 * stop all sessions, which result in queueing a MSG_STOP message for each
+	 * session; so even the session that are not running must queue the MSG_STOP
+	 * to behave correctly
+	 */
+	if (session->state == STATE_ENDED) {
 		return -1;
 	}
 
@@ -172,11 +186,40 @@ static int sccp_session_queue_msg(struct sccp_session *session, struct session_m
 		return -1;
 	}
 
-	if (msg->id == MSG_STOP) {
-		session->request_stop = 1;
+	return 0;
+}
+
+static int sccp_session_queue_msg(struct sccp_session *session, struct session_msg *msg)
+{
+	int ret;
+
+	ao2_lock(session);
+	ret = sccp_session_queue_msg_no_lock(session, msg);
+	ao2_unlock(session);
+
+	if (ret) {
+		session_msg_destroy(msg);
 	}
 
-	return 0;
+	return ret;
+}
+
+static int sccp_session_queue_msg_reload(struct sccp_session *session, struct sccp_cfg *cfg)
+{
+	struct session_msg msg;
+
+	session_msg_init_reload(&msg, cfg);
+
+	return sccp_session_queue_msg(session, &msg);
+}
+
+static int sccp_session_queue_msg_stop(struct sccp_session *session)
+{
+	struct session_msg msg;
+
+	session_msg_init_stop(&msg);
+
+	return sccp_session_queue_msg(session, &msg);
 }
 
 static void sccp_session_process_queue(struct sccp_session *session)
@@ -218,27 +261,14 @@ void sccp_session_run(struct sccp_session *session)
 	ssize_t n;
 	int nfds;
 
-	/* XXX hum, session->running was previously set just before calling
-	 *     ast_pthread_create. now, setting it in the running thread
-	 *     means that a session might be running even if the session->
-	 *     running is set to 0, which is probably bad
-	 *     --> in fact, we probably don't need to check if running before
-	 *         asking to stop, it will stop eventually
-	 */
-	session->running = 1;
-	session->request_stop = 0;
+	ao2_lock(session);
+	session->state = STATE_RUNNING;
+	ao2_unlock(session);
 
 	fds[0].fd = session->sockfd;
 	fds[0].events = POLLIN;
 	fds[1].fd = sccp_queue_fd(session->queue);
 	fds[1].events = POLLIN;
-
-	snprintf(session->outbuf, sizeof(session->outbuf), "sockfd: %d\n\n", session->sockfd);
-	n = write(session->sockfd, session->outbuf, strlen(session->outbuf));
-	if (n <= 0) {
-		ast_log(LOG_WARNING, "sccp session run failed: write: %s\n", strerror(errno));
-		goto end;
-	}
 
 	/* XXX maybe we should have 2 "run" function, one for the "session->device" state and one
 	 * for the the "session->device is nul" state
@@ -294,10 +324,10 @@ end:
 	ast_log(LOG_DEBUG, "leaving session %d thread\n", session->sockfd);
 
 	ao2_lock(session);
-	session->running = 0;
+	session->state = STATE_ENDED;
 	ao2_unlock(session);
 
-	/* XXX we probably want to process the msgs here too */
+	sccp_session_empty_queue(session);
 
 	if (session->device) {
 		/* XXX */
@@ -307,28 +337,15 @@ end:
 
 int sccp_session_stop(struct sccp_session *session)
 {
-	struct session_msg msg;
-	int ret;
-
-	session_msg_init_stop(&msg);
-
-	ao2_lock(session);
-	ret = sccp_session_queue_msg(session, &msg);
-	ao2_unlock(session);
-
-	return ret;
+	return sccp_session_queue_msg_stop(session);
 }
 
 int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg)
 {
-	struct session_msg msg;
-	int ret;
+	if (!cfg) {
+		ast_log(LOG_ERROR, "sccp session reload config failed: cfg is null\n");
+		return -1;
+	}
 
-	session_msg_init_reload(&msg, cfg);
-
-	ao2_lock(session);
-	ret = sccp_session_queue_msg(session, &msg);
-	ao2_unlock(session);
-
-	return ret;
+	return sccp_session_queue_msg_reload(session, cfg);
 }
