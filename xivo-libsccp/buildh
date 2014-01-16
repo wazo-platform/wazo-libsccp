@@ -40,7 +40,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--profile', default='default',
                         help='profile to use')
-    parser.add_argument('command', choices=['init', 'make', 'makei'],
+    parser.add_argument('command', choices=['make', 'makei'],
                         help='command to execute')
     return parser.parse_args()
 
@@ -50,11 +50,6 @@ def read_config(config_filename):
     with open(config_filename) as fobj:
         config.readfp(fobj)
     return config
-
-
-def command_init(profile):
-    local_script = _build_rsync_script(profile['host'], profile['directory'])
-    _exec_local_script(local_script)
 
 
 def command_make(profile):
