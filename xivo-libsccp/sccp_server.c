@@ -347,7 +347,6 @@ static void server_process_queue(struct server *server)
 			break;
 		case MSG_SESSION_END:
 			server_on_session_end(server, msg.data.session_end.srv_session);
-			server->quit = 1;
 			break;
 		case MSG_STOP:
 			server->quit = 1;
