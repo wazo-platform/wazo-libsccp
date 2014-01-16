@@ -1,5 +1,6 @@
 #include <asterisk.h>
 #include <asterisk/acl.h>
+#include <asterisk/cli.h>
 #include <asterisk/config_options.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/strings.h>
@@ -665,11 +666,64 @@ static int line_cfg_tos_audio_handler(const struct aco_option *opt, struct ast_v
 	return ast_str2tos(var->value, &line_cfg->tos_audio);
 }
 
+static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+#define FORMAT_STRING  "%-18.18s %-12.12s %-12.12s %-4d\n"
+#define FORMAT_STRING2 "%-18.18s %-12.12s %-12.12s %-4s\n"
+	struct sccp_cfg *cfg;
+	struct sccp_device_cfg *device_cfg;
+	struct ao2_iterator iter;
+	int count = 0;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show config";
+		e->usage = "Usage: sccp show config\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	cfg = sccp_config_get();
+
+	ast_cli(a->fd, "bindaddr = %s\n", cfg->general_cfg->bindaddr);
+	ast_cli(a->fd, "authtimeout = %d\n", cfg->general_cfg->authtimeout);
+	ast_cli(a->fd, "guest = %s\n\n", AST_CLI_YESNO(cfg->general_cfg->guest_device_cfg));
+
+	ast_cli(a->fd, FORMAT_STRING2, "Device", "Line", "Voicemail", "Speeddials");
+	iter = ao2_iterator_init(cfg->devices_cfg, 0);
+	while ((device_cfg = ao2_iterator_next(&iter))) {
+		ast_cli(a->fd, FORMAT_STRING,
+				device_cfg->name,
+				device_cfg->line_cfg->name,
+				S_OR(device_cfg->line_cfg->voicemail, "(None)"),
+				(int) device_cfg->speeddial_count);
+		ao2_ref(device_cfg, -1);
+		count++;
+	}
+
+	ao2_iterator_destroy(&iter);
+	ast_cli(a->fd, "%d devices\n", count);
+
+	ao2_ref(cfg, -1);
+
+	return CLI_SUCCESS;
+
+#undef FORMAT_STRING
+#undef FORMAT_STRING2
+}
+
+static struct ast_cli_entry cli_entries[] = {
+	AST_CLI_DEFINE(cli_show_config, "Show the module configuration"),
+};
+
 int sccp_config_init(void)
 {
 	if (aco_info_init(&cfg_info)) {
 		return -1;
 	}
+
+	ast_cli_register_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
 	/* general options */
 	aco_option_register(&cfg_info, "bindaddr", ACO_EXACT, general_types, "0.0.0.0", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_general_cfg, bindaddr), 0);
@@ -728,6 +782,7 @@ int sccp_config_reload(void)
 
 void sccp_config_destroy(void)
 {
+	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
 	aco_info_destroy(&cfg_info);
 	ao2_global_obj_release(global_cfg);
 }
