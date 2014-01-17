@@ -86,7 +86,8 @@ static void sccp_session_destructor(void *data)
 		ast_log(LOG_ERROR, "session->device is not null in destructor, something is really wrong\n");
 	}
 
-	/* XXX should we empty the list of msg in the queue ? */
+	/* empty the queue here too to handle the case the session was never run */
+	sccp_session_empty_queue(session);
 	sccp_queue_destroy(session->queue);
 	close(session->sockfd);
 }
