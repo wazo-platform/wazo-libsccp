@@ -12,15 +12,9 @@
 
 #define SCCP_MAX_PACKET_SZ 2000
 
-enum session_state {
-	STATE_CREATED,
-	STATE_RUNNING,
-	STATE_ENDED,
-};
+static void sccp_session_empty_queue(struct sccp_session *session);
 
 struct sccp_session {
-	/* XXX hum, state is now useless now */
-	enum session_state state;
 	int sockfd;
 	int quit;
 
@@ -147,7 +141,6 @@ struct sccp_session *sccp_session_create(int sockfd)
 
 	ast_log(LOG_DEBUG, "session %p created\n", session);
 
-	session->state = STATE_CREATED;
 	session->sockfd = sockfd;
 	session->queue = queue;
 	session->quit = 0;
@@ -236,8 +229,6 @@ void sccp_session_run(struct sccp_session *session)
 	ssize_t n;
 	int nfds;
 
-	session->state = STATE_RUNNING;
-
 	fds[0].fd = session->sockfd;
 	fds[0].events = POLLIN;
 	fds[1].fd = sccp_queue_fd(session->queue);
@@ -295,8 +286,6 @@ void sccp_session_run(struct sccp_session *session)
 
 end:
 	ast_log(LOG_DEBUG, "leaving session %d thread\n", session->sockfd);
-
-	session->state = STATE_ENDED;
 
 	sccp_session_close_queue(session);
 	sccp_session_empty_queue(session);

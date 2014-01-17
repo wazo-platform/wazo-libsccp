@@ -16,11 +16,9 @@
 static void *server_run(void *data);
 
 enum server_state {
-	/* XXX state is partially useless now */
 	STATE_UNINITIALIZED,
 	STATE_INITIALIZED,
-	STATE_RUNNING,
-	STATE_ENDED,
+	STATE_STARTED,
 };
 
 struct server {
@@ -379,7 +377,7 @@ static int server_start(struct server *server, struct sccp_cfg *cfg)
 		return -1;
 	}
 
-	server->state = STATE_RUNNING;
+	server->state = STATE_STARTED;
 	ret = ast_pthread_create_background(&server->thread, NULL, server_run, server);
 	if (ret) {
 		ast_log(LOG_ERROR, "server start failed: pthread create: %s\n", strerror(ret));
@@ -467,8 +465,6 @@ static void *server_run(void *data)
 end:
 	ast_debug(1, "server thread is leaving\n");
 
-	server->state = STATE_ENDED;
-
 	close(server->sockfd);
 	server_close_queue(server);
 	server_empty_queue(server);
@@ -534,7 +530,7 @@ void sccp_server_destroy(void)
 
 	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
-	if (global_server.state != STATE_INITIALIZED) {
+	if (global_server.state == STATE_STARTED) {
 		if (server_queue_msg_stop(&global_server)) {
 			ast_log(LOG_WARNING, "sccp server destroy error: could not ask server to stop\n");
 		}
@@ -555,7 +551,7 @@ int sccp_server_start(struct sccp_cfg *cfg)
 	}
 
 	if (global_server.state != STATE_INITIALIZED) {
-		ast_log(LOG_ERROR, "sccp server start failed: not initialized or already started\n");
+		ast_log(LOG_ERROR, "sccp server start failed: server not in initialized state\n");
 		return -1;
 	}
 
@@ -569,8 +565,8 @@ int sccp_server_reload_config(struct sccp_cfg *cfg)
 		return -1;
 	}
 
-	if (global_server.state == STATE_UNINITIALIZED || global_server.state == STATE_INITIALIZED) {
-		ast_log(LOG_ERROR, "sccp server reload config failed: not initialized or not started\n");
+	if (global_server.state != STATE_STARTED) {
+		ast_log(LOG_ERROR, "sccp server reload config failed: server not in started state\n");
 		return -1;
 	}
 
