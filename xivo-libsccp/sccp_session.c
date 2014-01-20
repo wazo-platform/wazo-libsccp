@@ -7,6 +7,7 @@
 
 #include "sccp_config.h"
 #include "sccp_device.h"
+#include "sccp_msg.h"
 #include "sccp_queue.h"
 #include "sccp_session.h"
 
@@ -15,10 +16,13 @@
 static void sccp_session_empty_queue(struct sccp_session *session);
 
 struct sccp_session {
+	struct sccp_deserializer deserializer;
 	int sockfd;
+	/* XXX don't know if we should really use this or if using return values
+	 *     would be better...
+	 */
 	int quit;
 
-	char inbuf[SCCP_MAX_PACKET_SZ];
 	char outbuf[SCCP_MAX_PACKET_SZ];
 
 	struct sccp_queue *queue;
@@ -92,13 +96,13 @@ static void sccp_session_destructor(void *data)
 	close(session->sockfd);
 }
 
-static int set_session_socket_option(int sockfd)
+static int set_session_sock_option(int sockfd)
 {
 	int flag_nodelay;
 	struct timeval flag_timeout;
 
 	if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay)) == -1) {
-		ast_log(LOG_ERROR, "set session socket option failed: setsockopt: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "set session sock option failed: setsockopt: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -113,7 +117,7 @@ static int set_session_socket_option(int sockfd)
 	flag_timeout.tv_sec = 10;
 	flag_timeout.tv_usec = 0;
 	if (setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &flag_timeout, sizeof(flag_timeout)) == -1) {
-		ast_log(LOG_ERROR, "set session socket option failed: setsockopt: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "set session sock option failed: setsockopt: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -125,7 +129,7 @@ struct sccp_session *sccp_session_create(int sockfd)
 	struct sccp_queue *queue;
 	struct sccp_session *session;
 
-	if (set_session_socket_option(sockfd)) {
+	if (set_session_sock_option(sockfd)) {
 		return NULL;
 	}
 
@@ -142,10 +146,10 @@ struct sccp_session *sccp_session_create(int sockfd)
 
 	ast_log(LOG_DEBUG, "session %p created\n", session);
 
+	sccp_deserializer_init(&session->deserializer);
 	session->sockfd = sockfd;
 	session->queue = queue;
 	session->quit = 0;
-	session->inbuf[0] = '\0';
 	session->device = NULL;
 
 	return session;
@@ -219,15 +223,83 @@ static void process_queue_cb(void *msg_data, void *arg)
 	session_msg_destroy(msg);
 }
 
-static void sccp_session_process_queue(struct sccp_session *session)
+void sccp_session_on_queue_events(struct sccp_session *session, int events)
 {
-	sccp_queue_process(session->queue, process_queue_cb, session);
+	if (events & POLLIN) {
+		sccp_queue_process(session->queue, process_queue_cb, session);
+	}
+
+	if (events & ~POLLIN) {
+		/* unexpected events */
+		session->quit = 1;
+	}
+}
+
+static int sccp_session_read_sock(struct sccp_session *session)
+{
+	int ret;
+
+	ret = sccp_deserializer_read(&session->deserializer, session->sockfd);
+	if (!ret) {
+		return 0;
+	}
+
+	switch (ret) {
+	case SCCP_DESERIALIZER_FULL:
+		ast_log(LOG_WARNING, "Deserializer buffer is full -- probably invalid or too big message\n");
+		break;
+	case SCCP_DESERIALIZER_EOF:
+		ast_log(LOG_NOTICE, "Device has closed the connection\n");
+		break;
+	}
+
+	return -1;
+}
+
+void sccp_session_handle_msg(struct sccp_session *session, struct sccp_msg *msg)
+{
+	/* TODO */
+}
+
+void sccp_session_on_sock_events(struct sccp_session *session, int events)
+{
+	struct sccp_msg *msg;
+	int ret;
+
+	if (events & POLLIN) {
+		if (sccp_session_read_sock(session)) {
+			session->quit = 1;
+			return;
+		}
+
+		while (!(ret = sccp_deserializer_get(&session->deserializer, &msg))) {
+			/* XXX check that session->quit is not none... at some place... */
+			sccp_session_handle_msg(session, msg);
+		}
+
+		switch (ret) {
+		case SCCP_DESERIALIZER_NOMSG:
+			break;
+		case SCCP_DESERIALIZER_MALFORMED:
+			ast_log(LOG_WARNING, "sccp session on sock events failed: malformed message\n");
+			session->quit = 1;
+			break;
+		default:
+			ast_log(LOG_WARNING, "sccp session on sock events failed: unknown %d\n", ret);
+			session->quit = 1;
+			break;
+		}
+	}
+
+	if (events & ~POLLIN) {
+		ast_log(LOG_WARNING, "sccp session on sock events failed: unexpected event\n");
+		session->quit = 1;
+	}
 }
 
 void sccp_session_run(struct sccp_session *session)
 {
 	struct pollfd fds[2];
-	ssize_t n;
 	int nfds;
 
 	fds[0].fd = session->sockfd;
@@ -235,38 +307,25 @@ void sccp_session_run(struct sccp_session *session)
 	fds[1].fd = sccp_queue_fd(session->queue);
 	fds[1].events = POLLIN;
 
-	/* XXX maybe we should have 2 "run" function, one for the "session->device" state and one
-	 * for the the "session->device is nul" state
-	 */
-	while (!session->quit) {
+	for (;;) {
 		nfds = poll(fds, ARRAY_LEN(fds), -1);
 		if (nfds == -1) {
 			ast_log(LOG_ERROR, "sccp session run failed: poll: %s\n", strerror(errno));
 			goto end;
 		}
 
-		if (fds[1].revents & POLLIN) {
-			sccp_session_process_queue(session);
+		if (fds[1].revents) {
+			sccp_session_on_queue_events(session, fds[1].revents);
 			if (session->quit) {
 				goto end;
 			}
-		} else if (fds[1].revents) {
-			/* unexpected events */
-			goto end;
 		}
 
-		if (fds[0].revents & POLLIN) {
-			n = read(session->sockfd, session->inbuf, sizeof(session->inbuf) - 1);
-			if (n <= 0) {
+		if (fds[0].revents) {
+			sccp_session_on_sock_events(session, fds[0].revents);
+			if (session->quit) {
 				goto end;
 			}
-
-			session->inbuf[n-1] = '\0';
-			/* FIXME handle the input */
-			//sccp_session_handle_input(session);
-		} else if (fds[0].revents) {
-			/* unexpected events */
-			goto end;
 		}
 
 		/* XXX check device and al. */
