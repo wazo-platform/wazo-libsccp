@@ -25,6 +25,7 @@ struct sccp_session {
 
 	char outbuf[SCCP_MAX_PACKET_SZ];
 
+	struct sccp_cfg *cfg;
 	struct sccp_queue *queue;
 	struct sccp_device *device;
 };
@@ -77,8 +78,6 @@ static void sccp_session_destructor(void *data)
 {
 	struct sccp_session *session = data;
 
-	ast_log(LOG_DEBUG, "in destructor for session %p\n", session);
-
 	if (session->device) {
 		/*
 		 * This is theoretically impossible, because that would mean:
@@ -124,10 +123,15 @@ static int set_session_sock_option(int sockfd)
 	return 0;
 }
 
-struct sccp_session *sccp_session_create(int sockfd)
+struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, int sockfd)
 {
 	struct sccp_queue *queue;
 	struct sccp_session *session;
+
+	if (!cfg) {
+		ast_log(LOG_ERROR, "sccp session create failed: cfg is null\n");
+		return NULL;
+	}
 
 	if (set_session_sock_option(sockfd)) {
 		return NULL;
@@ -144,13 +148,12 @@ struct sccp_session *sccp_session_create(int sockfd)
 		return NULL;
 	}
 
-	ast_log(LOG_DEBUG, "session %p created\n", session);
-
 	sccp_deserializer_init(&session->deserializer);
 	session->sockfd = sockfd;
 	session->queue = queue;
 	session->quit = 0;
 	session->device = NULL;
+	session->cfg = cfg;
 
 	return session;
 }
@@ -208,6 +211,10 @@ static void process_queue_cb(void *msg_data, void *arg)
 	switch (msg->id) {
 	case MSG_RELOAD:
 		ast_debug(1, "received session reload request\n");
+		ao2_ref(session->cfg, -1);
+		session->cfg = msg->data.reload.cfg;
+		ao2_ref(session->cfg, +1);
+
 		if (session->device) {
 			sccp_device_reload_config(session->device, msg->data.reload.cfg);
 		}

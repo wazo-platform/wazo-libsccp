@@ -10,7 +10,7 @@ struct sccp_server;
  * \retval non-NULL on success
  * \retval NULL on failure
  */
-struct sccp_server *sccp_server_create(void);
+struct sccp_server *sccp_server_create(struct sccp_cfg *cfg);
 
 /*!
  * \brief Destroy the server..
@@ -25,7 +25,7 @@ void sccp_server_destroy(struct sccp_server *server);
  * \retval 0 on success
  * \retval non-zero on failure
  */
-int sccp_server_start(struct sccp_server *server, struct sccp_cfg *cfg);
+int sccp_server_start(struct sccp_server *server);
 
 /*!
  * \note This both reload the server configuration and the sessions configuration.

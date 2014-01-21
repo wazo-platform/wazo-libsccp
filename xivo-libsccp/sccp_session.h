@@ -10,7 +10,7 @@ struct sccp_session;
  * \retval non-NULL on success
  * \retval NULL on failure
  */
-struct sccp_session *sccp_session_create(int sockfd);
+struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, int sockfd);
 
 /*!
  * \brief Run the session.

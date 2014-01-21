@@ -27,6 +27,7 @@ struct sccp_server {
 
 	pthread_t thread;
 
+	struct sccp_cfg *cfg;
 	struct sccp_queue *queue;
 	/*
 	 * When the server is in running state, only the server thread modify the
@@ -292,6 +293,10 @@ static void process_queue_cb(void *msg_data, void *arg)
 
 	switch (msg->id) {
 	case MSG_RELOAD:
+		ao2_ref(server->cfg, -1);
+		server->cfg = msg->data.reload.cfg;
+		ao2_ref(server->cfg, +1);
+
 		server_reload_sessions(server, msg->data.reload.cfg);
 		break;
 	case MSG_SESSION_END:
@@ -345,11 +350,11 @@ static int new_server_socket(struct sccp_cfg *cfg)
 	return sockfd;
 }
 
-static int server_start(struct sccp_server *server, struct sccp_cfg *cfg)
+static int server_start(struct sccp_server *server)
 {
 	int ret;
 
-	server->sockfd = new_server_socket(cfg);
+	server->sockfd = new_server_socket(server->cfg);
 	if (server->sockfd == -1) {
 		return -1;
 	}
@@ -414,7 +419,7 @@ static void *server_run(void *data)
 
 			ast_verb(4, "New connection from %s:%d accepted\n", ast_inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
-			session = sccp_session_create(sockfd);
+			session = sccp_session_create(server->cfg, sockfd);
 			if (!session) {
 				close(sockfd);
 				goto end;
@@ -449,9 +454,14 @@ end:
 	return NULL;
 }
 
-struct sccp_server *sccp_server_create(void)
+struct sccp_server *sccp_server_create(struct sccp_cfg *cfg)
 {
 	struct sccp_server *server;
+
+	if (!cfg) {
+		ast_log(LOG_ERROR, "sccp server create failed: cfg is null\n");
+		return NULL;
+	}
 
 	server = ast_calloc(1, sizeof(*server));
 	if (!server) {
@@ -465,6 +475,7 @@ struct sccp_server *sccp_server_create(void)
 	}
 
 	server->state = STATE_CREATED;
+	server->cfg = cfg;
 	AST_LIST_HEAD_INIT(&server->srv_sessions);
 
 	return server;
@@ -486,19 +497,14 @@ void sccp_server_destroy(struct sccp_server *server)
 	AST_LIST_HEAD_DESTROY(&server->srv_sessions);
 }
 
-int sccp_server_start(struct sccp_server *server, struct sccp_cfg *cfg)
+int sccp_server_start(struct sccp_server *server)
 {
-	if (!cfg) {
-		ast_log(LOG_ERROR, "sccp server start failed: cfg is null\n");
-		return -1;
-	}
-
 	if (server->state != STATE_CREATED) {
 		ast_log(LOG_ERROR, "sccp server start failed: server not in initialized state\n");
 		return -1;
 	}
 
-	return server_start(server, cfg);
+	return server_start(server);
 }
 
 int sccp_server_reload_config(struct sccp_server *server, struct sccp_cfg *cfg)

@@ -61,14 +61,14 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
-	global_server = sccp_server_create();
+	cfg = sccp_config_get();
+	global_server = sccp_server_create(cfg);
 	if (!global_server) {
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
-	cfg = sccp_config_get();
-	if (sccp_server_start(global_server, cfg)) {
+	if (sccp_server_start(global_server)) {
 		sccp_server_destroy(global_server);
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
