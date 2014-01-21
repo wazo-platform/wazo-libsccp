@@ -2,24 +2,22 @@
 #define SCCP_SERVER_H_
 
 struct sccp_cfg;
+struct sccp_server;
 
 /*!
- * \brief Initialize the server submodule.
+ * \brief Create a new server.
  *
- * \note Must be called once before using anything else in the submodule.
- *
- * \retval 0 on success
- * \retval non-zero on failure
+ * \retval non-NULL on success
+ * \retval NULL on failure
  */
-int sccp_server_init(void);
+struct sccp_server *sccp_server_create(void);
 
 /*!
- * \brief Free the resources associated to the server submodule.
+ * \brief Destroy the server..
  *
- * \note If the server is running, it will be stopped, like if sccp_server_stop
- *       had been called first.
+ * \note If the server is running, it will be stopped.
  */
-void sccp_server_destroy(void);
+void sccp_server_destroy(struct sccp_server *server);
 
 /*!
  * \brief Start the server.
@@ -27,7 +25,7 @@ void sccp_server_destroy(void);
  * \retval 0 on success
  * \retval non-zero on failure
  */
-int sccp_server_start(struct sccp_cfg *cfg);
+int sccp_server_start(struct sccp_server *server, struct sccp_cfg *cfg);
 
 /*!
  * \note This both reload the server configuration and the sessions configuration.
@@ -35,6 +33,11 @@ int sccp_server_start(struct sccp_cfg *cfg);
  * \retval 0 on success
  * \retval non-zero on failure
  */
-int sccp_server_reload_config(struct sccp_cfg *cfg);
+int sccp_server_reload_config(struct sccp_server *server, struct sccp_cfg *cfg);
+
+/*!
+ * \brief Return the number of active sessions.
+ */
+int sccp_server_session_count(struct sccp_server *server);
 
 #endif /* SCCP_SERVER_H_ */

@@ -9,6 +9,24 @@
 #define VERSION "unknown"
 #endif
 
+static struct sccp_server *global_server;
+
+static char *cli_show_sessions(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show sessions";
+		e->usage = "Usage: sccp show sessions\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	ast_cli(a->fd, "%d active sessions\n", sccp_server_session_count(global_server));
+
+	return CLI_SUCCESS;
+}
+
 static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	switch (cmd) {
@@ -26,6 +44,7 @@ static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 }
 
 static struct ast_cli_entry cli_entries[] = {
+	AST_CLI_DEFINE(cli_show_sessions, "Show the active sessions"),
 	AST_CLI_DEFINE(cli_show_version, "Show the module version"),
 };
 
@@ -42,14 +61,15 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
-	if (sccp_server_init()) {
+	global_server = sccp_server_create();
+	if (!global_server) {
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
 	cfg = sccp_config_get();
-	if (sccp_server_start(cfg)) {
-		sccp_server_destroy();
+	if (sccp_server_start(global_server, cfg)) {
+		sccp_server_destroy(global_server);
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -63,7 +83,8 @@ static int unload_module(void)
 {
 	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
-	sccp_server_destroy();
+	sccp_server_destroy(global_server);
+	global_server = NULL;
 
 	sccp_config_destroy();
 
@@ -79,7 +100,7 @@ static int reload(void)
 	}
 
 	cfg = sccp_config_get();
-	if (sccp_server_reload_config(cfg)) {
+	if (sccp_server_reload_config(global_server, cfg)) {
 		return -1;
 	}
 

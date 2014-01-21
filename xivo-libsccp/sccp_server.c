@@ -16,12 +16,11 @@
 static void *server_run(void *data);
 
 enum server_state {
-	STATE_UNINITIALIZED,
-	STATE_INITIALIZED,
+	STATE_CREATED,
 	STATE_STARTED,
 };
 
-struct server {
+struct sccp_server {
 	enum server_state state;
 	int sockfd;
 	int quit;
@@ -39,6 +38,7 @@ struct server {
 
 struct server_session {
 	AST_LIST_ENTRY(server_session) list;
+	struct sccp_server *server;
 	struct sccp_session *session;
 	pthread_t thread;
 };
@@ -67,14 +67,10 @@ struct server_msg {
 	enum server_msg_id id;
 };
 
-static struct server global_server = {
-	.state = STATE_UNINITIALIZED,
-};
-
 /*
  * On success, the function take ownership of the session (i.e. steal the reference)
  */
-static struct server_session *server_session_create(struct sccp_session *session)
+static struct server_session *server_session_create(struct sccp_session *session, struct sccp_server *server)
 {
 	struct server_session *srv_session;
 
@@ -84,6 +80,7 @@ static struct server_session *server_session_create(struct sccp_session *session
 	}
 
 	srv_session->session = session;
+	srv_session->server = server;
 
 	return srv_session;
 }
@@ -127,27 +124,7 @@ static void server_msg_destroy(struct server_msg *msg)
 	}
 }
 
-static int server_init(struct server *server)
-{
-	server->queue = sccp_queue_create(sizeof(struct server_msg));
-	if (!server->queue) {
-		return -1;
-	}
-
-	server->state = STATE_INITIALIZED;
-	AST_LIST_HEAD_INIT(&server->srv_sessions);
-
-	return 0;
-}
-
-static void server_destroy(struct server *server)
-{
-	sccp_queue_destroy(server->queue);
-	AST_LIST_HEAD_DESTROY(&server->srv_sessions);
-	server->state = STATE_UNINITIALIZED;
-}
-
-static void server_close_queue(struct server *server)
+static void server_close_queue(struct sccp_server *server)
 {
 	sccp_queue_close(server->queue);
 }
@@ -157,12 +134,12 @@ static void empty_queue_cb(void *msg_data, void __attribute__((unused)) *arg)
 	server_msg_destroy((struct server_msg *) msg_data);
 }
 
-static void server_empty_queue(struct server *server)
+static void server_empty_queue(struct sccp_server *server)
 {
 	sccp_queue_process(server->queue, empty_queue_cb, NULL);
 }
 
-static int server_queue_msg(struct server *server, struct server_msg *msg)
+static int server_queue_msg(struct sccp_server *server, struct server_msg *msg)
 {
 	int ret;
 
@@ -174,7 +151,7 @@ static int server_queue_msg(struct server *server, struct server_msg *msg)
 	return ret;
 }
 
-static int server_queue_msg_reload(struct server *server, struct sccp_cfg *cfg)
+static int server_queue_msg_reload(struct sccp_server *server, struct sccp_cfg *cfg)
 {
 	struct server_msg msg;
 
@@ -183,7 +160,7 @@ static int server_queue_msg_reload(struct server *server, struct sccp_cfg *cfg)
 	return server_queue_msg(server, &msg);
 }
 
-static int server_queue_msg_session_end(struct server *server, struct server_session *srv_session)
+static int server_queue_msg_session_end(struct sccp_server *server, struct server_session *srv_session)
 {
 	struct server_msg msg;
 
@@ -192,7 +169,7 @@ static int server_queue_msg_session_end(struct server *server, struct server_ses
 	return server_queue_msg(server, &msg);
 }
 
-static int server_queue_msg_stop(struct server *server)
+static int server_queue_msg_stop(struct sccp_server *server)
 {
 	struct server_msg msg;
 
@@ -201,7 +178,7 @@ static int server_queue_msg_stop(struct server *server)
 	return server_queue_msg(server, &msg);
 }
 
-static int server_join(struct server *server)
+static int server_join(struct sccp_server *server)
 {
 	int ret;
 
@@ -215,7 +192,7 @@ static int server_join(struct server *server)
 	return 0;
 }
 
-static void server_stop_sessions(struct server *server)
+static void server_stop_sessions(struct sccp_server *server)
 {
 	struct server_session *srv_session;
 
@@ -224,7 +201,7 @@ static void server_stop_sessions(struct server *server)
 	}
 }
 
-static void server_reload_sessions(struct server *server, struct sccp_cfg *cfg)
+static void server_reload_sessions(struct sccp_server *server, struct sccp_cfg *cfg)
 {
 	struct server_session *srv_session;
 
@@ -233,14 +210,14 @@ static void server_reload_sessions(struct server *server, struct sccp_cfg *cfg)
 	}
 }
 
-static void server_add_srv_session(struct server *server, struct server_session *srv_session)
+static void server_add_srv_session(struct sccp_server *server, struct server_session *srv_session)
 {
 	AST_LIST_LOCK(&server->srv_sessions);
 	AST_LIST_INSERT_TAIL(&server->srv_sessions, srv_session, list);
 	AST_LIST_UNLOCK(&server->srv_sessions);
 }
 
-static void server_remove_srv_session(struct server *server, struct server_session *srv_session)
+static void server_remove_srv_session(struct sccp_server *server, struct server_session *srv_session)
 {
 	AST_LIST_LOCK(&server->srv_sessions);
 	AST_LIST_REMOVE(&server->srv_sessions, srv_session, list);
@@ -256,12 +233,12 @@ static void *session_run(void *data)
 	/* don't check the result; not being able to queue the message is normal,
 	 * and it will happen on server destroy
 	 */
-	server_queue_msg_session_end(&global_server, srv_session);
+	server_queue_msg_session_end(srv_session->server, srv_session);
 
 	return NULL;
 }
 
-static int server_start_session(struct server *server, struct server_session *srv_session)
+static int server_start_session(struct sccp_server *server, struct server_session *srv_session)
 {
 	int ret;
 
@@ -274,7 +251,7 @@ static int server_start_session(struct server *server, struct server_session *sr
 	return 0;
 }
 
-static void server_join_sessions(struct server *server)
+static void server_join_sessions(struct sccp_server *server)
 {
 	struct server_session *srv_session;
 	int ret;
@@ -294,7 +271,7 @@ static void server_join_sessions(struct server *server)
 	AST_LIST_UNLOCK(&server->srv_sessions);
 }
 
-static void server_on_session_end(struct server *server, struct server_session *srv_session)
+static void server_on_session_end(struct sccp_server *server, struct server_session *srv_session)
 {
 	int ret;
 
@@ -311,7 +288,7 @@ static void server_on_session_end(struct server *server, struct server_session *
 static void process_queue_cb(void *msg_data, void *arg)
 {
 	struct server_msg *msg = msg_data;
-	struct server *server = arg;
+	struct sccp_server *server = arg;
 
 	switch (msg->id) {
 	case MSG_RELOAD:
@@ -331,7 +308,7 @@ static void process_queue_cb(void *msg_data, void *arg)
 	server_msg_destroy(msg);
 }
 
-static void server_process_queue(struct server *server)
+static void server_process_queue(struct sccp_server *server)
 {
 	sccp_queue_process(server->queue, process_queue_cb, server);
 }
@@ -368,7 +345,7 @@ static int new_server_socket(struct sccp_cfg *cfg)
 	return sockfd;
 }
 
-static int server_start(struct server *server, struct sccp_cfg *cfg)
+static int server_start(struct sccp_server *server, struct sccp_cfg *cfg)
 {
 	int ret;
 
@@ -382,7 +359,7 @@ static int server_start(struct server *server, struct sccp_cfg *cfg)
 	if (ret) {
 		ast_log(LOG_ERROR, "server start failed: pthread create: %s\n", strerror(ret));
 		close(server->sockfd);
-		server->state = STATE_INITIALIZED;
+		server->state = STATE_CREATED;
 	}
 
 	return 0;
@@ -390,7 +367,7 @@ static int server_start(struct server *server, struct sccp_cfg *cfg)
 
 static void *server_run(void *data)
 {
-	struct server *server = data;
+	struct sccp_server *server = data;
 	struct sccp_session *session;
 	struct server_session *srv_session;
 	struct pollfd fds[2];
@@ -444,7 +421,7 @@ static void *server_run(void *data)
 			}
 
 			/* on success, the srv_session will own the session reference */
-			srv_session = server_session_create(session);
+			srv_session = server_session_create(session, server);
 			if (!srv_session) {
 				ao2_ref(session, -1);
 				goto end;
@@ -472,108 +449,88 @@ end:
 	return NULL;
 }
 
-static char *cli_show_sessions(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+struct sccp_server *sccp_server_create(void)
 {
-	struct server_session *srv_session;
-	int total = 0;
+	struct sccp_server *server;
 
-	switch (cmd) {
-	case CLI_INIT:
-		e->command = "sccp show sessions";
-		e->usage = "Usage: sccp show sessions\n";
-		return NULL;
-	case CLI_GENERATE:
+	server = ast_calloc(1, sizeof(*server));
+	if (!server) {
 		return NULL;
 	}
 
-	AST_LIST_LOCK(&global_server.srv_sessions);
-	AST_LIST_TRAVERSE(&global_server.srv_sessions, srv_session, list) {
-		/* note that, at the time of writing this, we can't access the content
-		 * of srv_session since locking the list of srv_sessions does not guarantee
-		 * that the srv_session won't change
-		 */
-		total++;
+	server->queue = sccp_queue_create(sizeof(struct server_msg));
+	if (!server->queue) {
+		ast_free(server);
+		return NULL;
 	}
-	AST_LIST_UNLOCK(&global_server.srv_sessions);
 
-	ast_cli(a->fd, "%d active sessions\n", total);
+	server->state = STATE_CREATED;
+	AST_LIST_HEAD_INIT(&server->srv_sessions);
 
-	return CLI_SUCCESS;
+	return server;
 }
 
-static struct ast_cli_entry cli_entries[] = {
-	AST_CLI_DEFINE(cli_show_sessions, "Show the active sessions"),
-};
-
-int sccp_server_init(void)
+void sccp_server_destroy(struct sccp_server *server)
 {
-	if (global_server.state != STATE_UNINITIALIZED) {
-		ast_log(LOG_ERROR, "sccp server init failed: server already initialized\n");
-		return -1;
-	}
-
-	if (server_init(&global_server)) {
-		return -1;
-	}
-
-	ast_cli_register_multiple(cli_entries, ARRAY_LEN(cli_entries));
-
-	return 0;
-}
-
-void sccp_server_destroy(void)
-{
-	if (global_server.state == STATE_UNINITIALIZED) {
-		ast_log(LOG_ERROR, "sccp server destroy failed: server not initialzed\n");
-		return;
-	}
-
-	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
-
-	if (global_server.state == STATE_STARTED) {
-		if (server_queue_msg_stop(&global_server)) {
+	if (server->state == STATE_STARTED) {
+		if (server_queue_msg_stop(server)) {
 			ast_log(LOG_WARNING, "sccp server destroy error: could not ask server to stop\n");
 		}
 
-		server_join(&global_server);
-		server_stop_sessions(&global_server);
-		server_join_sessions(&global_server);
+		server_join(server);
+		server_stop_sessions(server);
+		server_join_sessions(server);
 	}
 
-	server_destroy(&global_server);
+	sccp_queue_destroy(server->queue);
+	AST_LIST_HEAD_DESTROY(&server->srv_sessions);
 }
 
-int sccp_server_start(struct sccp_cfg *cfg)
+int sccp_server_start(struct sccp_server *server, struct sccp_cfg *cfg)
 {
 	if (!cfg) {
 		ast_log(LOG_ERROR, "sccp server start failed: cfg is null\n");
 		return -1;
 	}
 
-	if (global_server.state != STATE_INITIALIZED) {
+	if (server->state != STATE_CREATED) {
 		ast_log(LOG_ERROR, "sccp server start failed: server not in initialized state\n");
 		return -1;
 	}
 
-	return server_start(&global_server, cfg);
+	return server_start(server, cfg);
 }
 
-int sccp_server_reload_config(struct sccp_cfg *cfg)
+int sccp_server_reload_config(struct sccp_server *server, struct sccp_cfg *cfg)
 {
 	if (!cfg) {
 		ast_log(LOG_ERROR, "sccp server reload config failed: cfg is null\n");
 		return -1;
 	}
 
-	if (global_server.state != STATE_STARTED) {
+	if (server->state != STATE_STARTED) {
 		ast_log(LOG_ERROR, "sccp server reload config failed: server not in started state\n");
 		return -1;
 	}
 
-	if (server_queue_msg_reload(&global_server, cfg)) {
+	if (server_queue_msg_reload(server, cfg)) {
 		ast_log(LOG_WARNING, "sccp server reload config failed: could not ask server to reload config\n");
 		return -1;
 	}
 
 	return 0;
+}
+
+int sccp_server_session_count(struct sccp_server *server)
+{
+	struct server_session *srv_session;
+	int total = 0;
+
+	AST_LIST_LOCK(&server->srv_sessions);
+	AST_LIST_TRAVERSE(&server->srv_sessions, srv_session, list) {
+		total++;
+	}
+	AST_LIST_UNLOCK(&server->srv_sessions);
+
+	return total;
 }
