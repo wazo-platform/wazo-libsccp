@@ -1,0 +1,36 @@
+xivo-libsccp (13.24~20131203.160736.0d232f0-2) squeeze-xivo-skaro-dev; urgency=low
+
+  * update asterisk dependency from 1.8 to 11.6.0
+
+ -- Pascal Cadotte Michaud <pcadottemichaud@avencall.com>  Wed, 04 Dec 2013 08:08:23 -0500
+
+xivo-libsccp (13.24~20131203.135049.ec34791-2) squeeze-xivo-skaro-dev; urgency=low
+
+  * update asterisk-dev dependency from 1.8 to 11.6
+
+ -- Pascal Cadotte Michaud <pcadottemichaud@avencall.com>  Tue, 03 Dec 2013 11:02:12 -0500
+
+xivo-libsccp (13.09~20130507.193207.0a4553b-2) squeeze-xivo-skaro-dev; urgency=low
+
+  * remove references to asterisk11
+
+ -- Etienne Lessard <elessard@avencall.com>  Wed, 08 May 2013 13:49:06 -0400
+
+xivo-libsccp (13.04~20130222.130010.7dd2e4f-2) squeeze-xivo-skaro-dev; urgency=low
+
+  * Non-maintainer upload.
+  * add depends on asterisk11 
+
+ -- Nicolas HICHER <nhicher@avencall.com>  Fri, 22 Feb 2013 12:59:05 -0500
+
+xivo-libsccp (1.2.8~20120510.202303.14a4446-2) squeeze-xivo-skaro-dev; urgency=low
+
+  * add xivo-libsccp-dbg 
+
+ -- Nicolas HICHER (atarakt) <nhicher@proformatique.com>  Fri, 11 May 2012 11:15:23 -0400
+
+xivo-libsccp (0.9-1) squeeze-xivo-skaro-dev; urgency=low
+
+  * Initial release
+
+ -- Nicolas Bouliane <nbouliane@avencall.com>  Tue, 20 Dec 2011 09:12:24 -0500
