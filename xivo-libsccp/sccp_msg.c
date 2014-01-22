@@ -8,7 +8,6 @@
 
 #define MIN_TOTAL_LENGTH 12
 #define MAX_TOTAL_LENGTH sizeof(struct sccp_msg)
-#define LENGTH_OFFSET 8
 
 void sccp_deserializer_init(struct sccp_deserializer *deserializer)
 {
@@ -56,7 +55,7 @@ int sccp_deserializer_get(struct sccp_deserializer *deserializer, struct sccp_ms
 	}
 
 	memcpy(&msg_length, &deserializer->buf[deserializer->start], sizeof(msg_length));
-	total_length = letohl(msg_length) + LENGTH_OFFSET;
+	total_length = letohl(msg_length) + SCCP_MSG_LENGTH_OFFSET;
 	if (total_length < MIN_TOTAL_LENGTH || total_length > MAX_TOTAL_LENGTH) {
 		return SCCP_DESERIALIZER_MALFORMED;
 	} else if (avail_bytes < total_length) {

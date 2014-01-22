@@ -3,6 +3,7 @@
 
 struct sccp_cfg;
 struct sccp_device_registry;
+struct sccp_msg;
 struct sccp_session;
 
 /*!
@@ -36,5 +37,10 @@ int sccp_session_stop(struct sccp_session *session);
  * \retval non-zero on failure
  */
 int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg);
+
+/*
+ * XXX To be called only from session thread.
+ */
+int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg);
 
 #endif /* SCCP_SESSION_H_ */

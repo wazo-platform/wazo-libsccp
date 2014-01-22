@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define SCCP_MSG_LENGTH_OFFSET 8
+
 enum sccp_device_type {
 	SCCP_DEVICE_7960 = 7,
 	SCCP_DEVICE_7940 = 8,

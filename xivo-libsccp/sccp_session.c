@@ -316,7 +316,7 @@ static void sccp_session_handle_register_msg(struct sccp_session *session, struc
 
 static void sccp_session_handle_msg(struct sccp_session *session, struct sccp_msg *msg)
 {
-	int msg_id = letohl(msg->id);
+	uint32_t msg_id = letohl(msg->id);
 
 	switch (msg_id) {
 	case REGISTER_MESSAGE:
@@ -440,4 +440,30 @@ int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cf
 	}
 
 	return sccp_session_queue_msg_reload(session, cfg);
+}
+
+/*
+ * XXX could also be more generic, i.e. "transmit data" or "write"
+ */
+int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg)
+{
+	ssize_t nbyte;
+	size_t count;
+
+	if (!msg) {
+		ast_log(LOG_ERROR, "sccp session transmit msg failed: msg is null\n");
+		return -1;
+	}
+
+	count = letohl(msg->length) + SCCP_MSG_LENGTH_OFFSET;
+	nbyte = write(session->sockfd, msg, count);
+	if (nbyte == -1) {
+		ast_log(LOG_WARNING, "sccp session transmit msg failed: write: %s\n", strerror(errno));
+		return -1;
+	} else if (nbyte != (ssize_t) count) {
+		ast_log(LOG_WARNING, "sccp session transmit msg failed: write wrote less bytes than expected\n");
+		return -1;
+	}
+
+	return 0;
 }
