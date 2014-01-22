@@ -3,7 +3,7 @@
 #include <asterisk/module.h>
 
 #include "sccp_config.h"
-#include "sccp_device.h"
+#include "sccp_device_registry.h"
 #include "sccp_server.h"
 
 #ifndef VERSION

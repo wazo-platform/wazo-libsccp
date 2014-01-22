@@ -7,6 +7,7 @@
 
 #include "sccp_config.h"
 #include "sccp_device.h"
+#include "sccp_device_registry.h"
 #include "sccp_msg.h"
 #include "sccp_queue.h"
 #include "sccp_session.h"
