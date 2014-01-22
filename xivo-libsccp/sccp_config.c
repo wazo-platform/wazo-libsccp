@@ -458,11 +458,6 @@ error:
 	return NULL;
 }
 
-static struct sccp_device_cfg *sccp_cfg_find_device(struct sccp_cfg *cfg, const char *name)
-{
-	return ao2_find(cfg->devices_cfg, name, OBJ_KEY);
-}
-
 static struct sccp_line_cfg *sccp_cfg_find_line(struct sccp_cfg *cfg, const char *name)
 {
 	return ao2_find(cfg->lines_cfg, name, OBJ_KEY);
@@ -790,4 +785,20 @@ void sccp_config_destroy(void)
 struct sccp_cfg *sccp_config_get(void)
 {
 	return ao2_global_obj_ref(global_cfg);
+}
+
+struct sccp_device_cfg *sccp_cfg_guest_device(struct sccp_cfg *cfg)
+{
+	struct sccp_device_cfg *device_cfg = cfg->general_cfg->guest_device_cfg;
+
+	if (device_cfg) {
+		ao2_ref(device_cfg, +1);
+	}
+
+	return device_cfg;
+}
+
+struct sccp_device_cfg *sccp_cfg_find_device(struct sccp_cfg *cfg, const char *name)
+{
+	return ao2_find(cfg->devices_cfg, name, OBJ_KEY);
 }

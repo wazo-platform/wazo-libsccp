@@ -2,6 +2,7 @@
 #define SCCP_SESSION_H_
 
 struct sccp_cfg;
+struct sccp_device_registry;
 struct sccp_session;
 
 /*!
@@ -10,7 +11,7 @@ struct sccp_session;
  * \retval non-NULL on success
  * \retval NULL on failure
  */
-struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, int sockfd);
+struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, int sockfd);
 
 /*!
  * \brief Run the session.

@@ -2,6 +2,8 @@
 #define SCCP_SERVER_H_
 
 struct sccp_cfg;
+struct sccp_device;
+struct sccp_device_registry;
 struct sccp_server;
 
 /*!
@@ -10,7 +12,7 @@ struct sccp_server;
  * \retval non-NULL on success
  * \retval NULL on failure
  */
-struct sccp_server *sccp_server_create(struct sccp_cfg *cfg);
+struct sccp_server *sccp_server_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry);
 
 /*!
  * \brief Destroy the server..

@@ -3,12 +3,14 @@
 #include <asterisk/module.h>
 
 #include "sccp_config.h"
+#include "sccp_device.h"
 #include "sccp_server.h"
 
 #ifndef VERSION
 #define VERSION "unknown"
 #endif
 
+static struct sccp_device_registry *global_registry;
 static struct sccp_server *global_server;
 
 static char *cli_show_sessions(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
@@ -61,15 +63,23 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
+	global_registry = sccp_device_registry_create();
+	if (!global_registry) {
+		sccp_config_destroy();
+		return AST_MODULE_LOAD_DECLINE;
+	}
+
 	cfg = sccp_config_get();
-	global_server = sccp_server_create(cfg);
+	global_server = sccp_server_create(cfg, global_registry);
 	if (!global_server) {
+		sccp_device_registry_destroy(global_registry);
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
 	if (sccp_server_start(global_server)) {
 		sccp_server_destroy(global_server);
+		sccp_device_registry_destroy(global_registry);
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
 	}
@@ -84,8 +94,7 @@ static int unload_module(void)
 	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
 	sccp_server_destroy(global_server);
-	global_server = NULL;
-
+	sccp_device_registry_destroy(global_registry);
 	sccp_config_destroy();
 
 	return 0;

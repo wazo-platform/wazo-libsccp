@@ -28,6 +28,7 @@ struct sccp_server {
 	pthread_t thread;
 
 	struct sccp_cfg *cfg;
+	struct sccp_device_registry *registry;
 	struct sccp_queue *queue;
 	/*
 	 * When the server is in running state, only the server thread modify the
@@ -419,7 +420,7 @@ static void *server_run(void *data)
 
 			ast_verb(4, "New connection from %s:%d accepted\n", ast_inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
-			session = sccp_session_create(server->cfg, sockfd);
+			session = sccp_session_create(server->cfg, server->registry, sockfd);
 			if (!session) {
 				close(sockfd);
 				goto end;
@@ -454,12 +455,17 @@ end:
 	return NULL;
 }
 
-struct sccp_server *sccp_server_create(struct sccp_cfg *cfg)
+struct sccp_server *sccp_server_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry)
 {
 	struct sccp_server *server;
 
 	if (!cfg) {
 		ast_log(LOG_ERROR, "sccp server create failed: cfg is null\n");
+		return NULL;
+	}
+
+	if (!registry) {
+		ast_log(LOG_ERROR, "sccp server create failed: registry is null\n");
 		return NULL;
 	}
 
@@ -476,6 +482,7 @@ struct sccp_server *sccp_server_create(struct sccp_cfg *cfg)
 
 	server->state = STATE_CREATED;
 	server->cfg = cfg;
+	server->registry = registry;
 	AST_LIST_HEAD_INIT(&server->srv_sessions);
 
 	return server;

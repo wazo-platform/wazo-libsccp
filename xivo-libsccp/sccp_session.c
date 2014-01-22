@@ -10,6 +10,7 @@
 #include "sccp_msg.h"
 #include "sccp_queue.h"
 #include "sccp_session.h"
+#include "sccp_utils.h"
 
 #define SCCP_MAX_PACKET_SZ 2000
 
@@ -26,6 +27,7 @@ struct sccp_session {
 	char outbuf[SCCP_MAX_PACKET_SZ];
 
 	struct sccp_cfg *cfg;
+	struct sccp_device_registry *registry;
 	struct sccp_queue *queue;
 	struct sccp_device *device;
 };
@@ -123,13 +125,18 @@ static int set_session_sock_option(int sockfd)
 	return 0;
 }
 
-struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, int sockfd)
+struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, int sockfd)
 {
 	struct sccp_queue *queue;
 	struct sccp_session *session;
 
 	if (!cfg) {
 		ast_log(LOG_ERROR, "sccp session create failed: cfg is null\n");
+		return NULL;
+	}
+
+	if (!registry) {
+		ast_log(LOG_ERROR, "sccp session create failed: registry is null\n");
 		return NULL;
 	}
 
@@ -154,6 +161,7 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, int sockfd)
 	session->quit = 0;
 	session->device = NULL;
 	session->cfg = cfg;
+	session->registry = registry;
 
 	return session;
 }
@@ -216,7 +224,10 @@ static void process_queue_cb(void *msg_data, void *arg)
 		ao2_ref(session->cfg, +1);
 
 		if (session->device) {
-			sccp_device_reload_config(session->device, msg->data.reload.cfg);
+			/* FIXME find the right device config, call reload_config with it
+			 *       or if not found, ask the device to close
+			 */
+			sccp_device_reload_config(session->device, NULL);
 		}
 		break;
 	case MSG_STOP:
@@ -263,12 +274,62 @@ static int sccp_session_read_sock(struct sccp_session *session)
 	return -1;
 }
 
-void sccp_session_handle_msg(struct sccp_session *session, struct sccp_msg *msg)
+static void sccp_session_handle_register_msg(struct sccp_session *session, struct sccp_msg *msg)
 {
-	/* TODO */
+	struct sccp_device *device;
+	struct sccp_device_cfg *device_cfg;
+	char *name;
+
+	if (session->device) {
+		ast_log(LOG_NOTICE, "ignoring register message: session already associated\n");
+		return;
+	}
+
+	name = msg->data.reg.name;
+	name[sizeof(msg->data.reg.name)] = '\0';
+
+	device_cfg = sccp_cfg_find_device(session->cfg, name);
+	if (!device_cfg) {
+		device_cfg = sccp_cfg_guest_device(session->cfg);
+		if (!device_cfg) {
+			ast_log(LOG_NOTICE, "ignoring register message: unknown device %s\n", name);
+			return;
+		}
+	}
+
+	device = sccp_device_create(device_cfg, name, session);
+	ao2_ref(device_cfg, -1);
+	if (!device) {
+		return;
+	}
+
+	if (sccp_device_registry_add(session->registry, device)) {
+		ao2_ref(device, -1);
+		return;
+	}
+
+	/* steal the reference ownership */
+	session->device = device;
+
+	ast_log(LOG_DEBUG, "registered device\n");
 }
 
-void sccp_session_on_sock_events(struct sccp_session *session, int events)
+static void sccp_session_handle_msg(struct sccp_session *session, struct sccp_msg *msg)
+{
+	int msg_id = letohl(msg->id);
+
+	switch (msg_id) {
+	case REGISTER_MESSAGE:
+		sccp_session_handle_register_msg(session, msg);
+		break;
+	}
+
+	if (session->device) {
+		sccp_device_handle_msg(session->device, msg);
+	}
+}
+
+static void sccp_session_on_sock_events(struct sccp_session *session, int events)
 {
 	struct sccp_msg *msg;
 	int ret;
@@ -358,8 +419,11 @@ end:
 	sccp_session_empty_queue(session);
 
 	if (session->device) {
-		/* XXX */
-		//sccp_session_dissociate_device(session);
+		sccp_device_registry_remove(session->registry, session->device);
+		sccp_device_destroy(session->device);
+
+		ao2_ref(session->device, -1);
+		session->device = NULL;
 	}
 }
 
