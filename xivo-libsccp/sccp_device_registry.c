@@ -1,5 +1,6 @@
 #include <asterisk.h>
 #include <asterisk/astobj2.h>
+#include <asterisk/strings.h>
 
 #include "sccp_device.h"
 #include "sccp_device_registry.h"
@@ -75,8 +76,7 @@ int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_
 	if (other_device) {
 		ao2_unlock(registry->devices);
 		ao2_ref(other_device, -1);
-		ast_log(LOG_DEBUG, "sccp device registry add failed: device already present\n");
-		return -1;
+		return SCCP_DEVICE_REGISTRY_ALREADY;
 	}
 
 	if (!ao2_link_flags(registry->devices, device, OBJ_NOLOCK)) {

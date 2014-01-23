@@ -10,6 +10,7 @@
 #include "sccp_device_registry.h"
 #include "sccp_msg.h"
 #include "sccp_queue.h"
+#include "sccp_serializer.h"
 #include "sccp_session.h"
 #include "sccp_utils.h"
 
@@ -19,13 +20,9 @@ static void sccp_session_empty_queue(struct sccp_session *session);
 
 struct sccp_session {
 	struct sccp_deserializer deserializer;
+	struct sccp_serializer serializer;
 	int sockfd;
-	/* XXX don't know if we should really use this or if using return values
-	 *     would be better...
-	 */
-	int quit;
-
-	char outbuf[SCCP_MAX_PACKET_SZ];
+	int stop;
 
 	struct sccp_cfg *cfg;
 	struct sccp_device_registry *registry;
@@ -96,6 +93,7 @@ static void sccp_session_destructor(void *data)
 	sccp_session_empty_queue(session);
 	sccp_queue_destroy(session->queue);
 	close(session->sockfd);
+	ao2_ref(session->cfg, -1);
 }
 
 static int set_session_sock_option(int sockfd)
@@ -156,12 +154,14 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 		return NULL;
 	}
 
-	sccp_deserializer_init(&session->deserializer);
+	sccp_deserializer_init(&session->deserializer, sockfd);
+	sccp_serializer_init(&session->serializer, sockfd);
 	session->sockfd = sockfd;
 	session->queue = queue;
-	session->quit = 0;
+	session->stop = 0;
 	session->device = NULL;
 	session->cfg = cfg;
+	ao2_ref(cfg, +1);
 	session->registry = registry;
 
 	return session;
@@ -212,6 +212,47 @@ static int sccp_session_queue_msg_stop(struct sccp_session *session)
 	return sccp_session_queue_msg(session, &msg);
 }
 
+/*
+ * XXX move into sccp_config ?
+ *
+ * \note reference count IS incremented
+ */
+static struct sccp_device_cfg *find_device_cfg(struct sccp_cfg *cfg, const char *name)
+{
+	struct sccp_device_cfg *device_cfg;
+
+	device_cfg = sccp_cfg_find_device(cfg, name);
+	if (!device_cfg) {
+		device_cfg = sccp_cfg_guest_device(cfg);
+	}
+
+	return device_cfg;
+}
+
+static void process_reload(struct sccp_session *session, struct sccp_cfg *cfg)
+{
+	struct sccp_device_cfg *device_cfg;
+
+	ao2_ref(session->cfg, -1);
+	session->cfg = cfg;
+	ao2_ref(cfg, +1);
+
+	if (!session->device) {
+		return;
+	}
+
+	device_cfg = find_device_cfg(cfg, sccp_device_name(session->device));
+	if (!device_cfg) {
+		session->stop = 1;
+	} else {
+		if (sccp_device_reload_config(session->device, device_cfg)) {
+			session->stop = 1;
+		}
+
+		ao2_ref(device_cfg, -1);
+	}
+}
+
 static void process_queue_cb(void *msg_data, void *arg)
 {
 	struct session_msg *msg = msg_data;
@@ -219,23 +260,10 @@ static void process_queue_cb(void *msg_data, void *arg)
 
 	switch (msg->id) {
 	case MSG_RELOAD:
-		ast_debug(1, "received session reload request\n");
-		ao2_ref(session->cfg, -1);
-		session->cfg = msg->data.reload.cfg;
-		ao2_ref(session->cfg, +1);
-
-		if (session->device) {
-			/* FIXME find the right device config, call reload_config with it
-			 *       or if not found, ask the device to close
-			 */
-			sccp_device_reload_config(session->device, NULL);
-		}
+		process_reload(session, msg->data.reload.cfg);
 		break;
 	case MSG_STOP:
-		session->quit = 1;
-		break;
-	default:
-		ast_log(LOG_ERROR, "session process queue: got unknown msg id %d\n", msg->id);
+		session->stop = 1;
 		break;
 	}
 
@@ -249,8 +277,8 @@ void sccp_session_on_queue_events(struct sccp_session *session, int events)
 	}
 
 	if (events & ~POLLIN) {
-		/* unexpected events */
-		session->quit = 1;
+		ast_log(LOG_WARNING, "sccp session on queue events failed: unexpected event 0x%X\n", events);
+		session->stop = 1;
 	}
 }
 
@@ -258,75 +286,94 @@ static int sccp_session_read_sock(struct sccp_session *session)
 {
 	int ret;
 
-	ret = sccp_deserializer_read(&session->deserializer, session->sockfd);
+	ret = sccp_deserializer_read(&session->deserializer);
 	if (!ret) {
 		return 0;
 	}
 
 	switch (ret) {
-	case SCCP_DESERIALIZER_FULL:
-		ast_log(LOG_WARNING, "Deserializer buffer is full -- probably invalid or too big message\n");
-		break;
 	case SCCP_DESERIALIZER_EOF:
 		ast_log(LOG_NOTICE, "Device has closed the connection\n");
+		if (session->device) {
+			sccp_device_on_connection_lost(session->device);
+		}
+
+		break;
+	case SCCP_DESERIALIZER_FULL:
+		ast_log(LOG_WARNING, "Deserializer buffer is full -- probably invalid or too big message\n");
 		break;
 	}
 
 	return -1;
 }
 
-static void sccp_session_handle_register_msg(struct sccp_session *session, struct sccp_msg *msg)
+static void sccp_session_handle_msg_register(struct sccp_session *session, struct sccp_msg *msg)
 {
+	struct sccp_device_info device_info;
 	struct sccp_device *device;
 	struct sccp_device_cfg *device_cfg;
 	char *name;
+	int ret;
 
-	if (session->device) {
-		ast_log(LOG_NOTICE, "ignoring register message: session already associated\n");
-		return;
-	}
+	/* A: session->device is null */
 
 	name = msg->data.reg.name;
 	name[sizeof(msg->data.reg.name)] = '\0';
 
-	device_cfg = sccp_cfg_find_device(session->cfg, name);
+	device_cfg = find_device_cfg(session->cfg, name);
 	if (!device_cfg) {
-		device_cfg = sccp_cfg_guest_device(session->cfg);
-		if (!device_cfg) {
-			ast_log(LOG_NOTICE, "ignoring register message: unknown device %s\n", name);
-			return;
-		}
-	}
-
-	device = sccp_device_create(device_cfg, name, session);
-	ao2_ref(device_cfg, -1);
-	if (!device) {
+		ast_log(LOG_WARNING, "Device is not configured [%s]\n", name);
+		sccp_serializer_push_register_rej(&session->serializer);
 		return;
 	}
 
-	if (sccp_device_registry_add(session->registry, device)) {
+	device_info.name = name;
+	device_info.type = letohl(msg->data.reg.type);
+	device_info.proto_version = letohl(msg->data.reg.protoVersion);
+	device = sccp_device_create(device_cfg, session, &device_info);
+	ao2_ref(device_cfg, -1);
+	if (!device) {
+		sccp_serializer_push_register_rej(&session->serializer);
+		return;
+	}
+
+	ret = sccp_device_registry_add(session->registry, device);
+	if (ret) {
+		if (ret == SCCP_DEVICE_REGISTRY_ALREADY) {
+			ast_log(LOG_WARNING, "Device already registered [%s]\n", name);
+		}
+
+		sccp_serializer_push_register_rej(&session->serializer);
+		sccp_device_destroy(device);
 		ao2_ref(device, -1);
 		return;
 	}
 
+	/* XXX missing session ip address and port */
+	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", device_info.proto_version, name, "unknown", -1);
+
+	sccp_device_on_registration_success(device);
+
 	/* steal the reference ownership */
 	session->device = device;
-
-	ast_log(LOG_DEBUG, "registered device\n");
 }
 
 static void sccp_session_handle_msg(struct sccp_session *session, struct sccp_msg *msg)
 {
 	uint32_t msg_id = letohl(msg->id);
 
-	switch (msg_id) {
-	case REGISTER_MESSAGE:
-		sccp_session_handle_register_msg(session, msg);
-		break;
+	if (!session->device) {
+		switch (msg_id) {
+		case REGISTER_MESSAGE:
+			sccp_session_handle_msg_register(session, msg);
+			break;
+		}
 	}
 
 	if (session->device) {
-		sccp_device_handle_msg(session->device, msg);
+		if (sccp_device_handle_msg(session->device, msg)) {
+			session->stop = 1;
+		}
 	}
 }
 
@@ -337,12 +384,11 @@ static void sccp_session_on_sock_events(struct sccp_session *session, int events
 
 	if (events & POLLIN) {
 		if (sccp_session_read_sock(session)) {
-			session->quit = 1;
+			session->stop = 1;
 			return;
 		}
 
-		while (!(ret = sccp_deserializer_get(&session->deserializer, &msg))) {
-			/* XXX check that session->quit is not none... at some place... */
+		while (!(ret = sccp_deserializer_pop(&session->deserializer, &msg))) {
 			sccp_session_handle_msg(session, msg);
 		}
 
@@ -351,18 +397,14 @@ static void sccp_session_on_sock_events(struct sccp_session *session, int events
 			break;
 		case SCCP_DESERIALIZER_MALFORMED:
 			ast_log(LOG_WARNING, "sccp session on sock events failed: malformed message\n");
-			session->quit = 1;
-			break;
-		default:
-			ast_log(LOG_WARNING, "sccp session on sock events failed: unknown %d\n", ret);
-			session->quit = 1;
+			session->stop = 1;
 			break;
 		}
 	}
 
 	if (events & ~POLLIN) {
-		ast_log(LOG_WARNING, "sccp session on sock events failed: unexpected event\n");
-		session->quit = 1;
+		ast_log(LOG_WARNING, "sccp session on sock events failed: unexpected event 0x%X\n", events);
+		session->stop = 1;
 	}
 }
 
@@ -383,32 +425,21 @@ void sccp_session_run(struct sccp_session *session)
 			goto end;
 		}
 
+		if (session->stop || session->serializer.error) {
+			goto end;
+		}
+
 		if (fds[1].revents) {
 			sccp_session_on_queue_events(session, fds[1].revents);
-			if (session->quit) {
+			if (session->stop || session->serializer.error) {
 				goto end;
 			}
 		}
 
 		if (fds[0].revents) {
 			sccp_session_on_sock_events(session, fds[0].revents);
-			if (session->quit) {
+			if (session->stop || session->serializer.error) {
 				goto end;
-			}
-		}
-
-		/* XXX check device and al. */
-		if (session->device) {
-			/* FIXME the task running should be done in the device module, not here */
-			//lab_device_run_task(session->device);
-
-			if (sccp_device_want_disconnect(session->device)) {
-				goto end;
-			}
-
-			if (sccp_device_want_unlink(session->device)) {
-				/* XXX */
-				//sccp_session_dissociate_device(session);
 			}
 		}
 	}
@@ -430,6 +461,12 @@ end:
 
 int sccp_session_stop(struct sccp_session *session)
 {
+	/* set session->stop to 1 here so that if called from the session thread,
+	 * the flag will be set when going back in the session_run
+	 */
+	session->stop = 1;
+
+	/* XXX we could queue a generic "progress" msg now that session->stop is set here*/
 	return sccp_session_queue_msg_stop(session);
 }
 
@@ -443,28 +480,7 @@ int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cf
 	return sccp_session_queue_msg_reload(session, cfg);
 }
 
-/*
- * XXX could also be more generic, i.e. "transmit data" or "write"
- */
-int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg)
+struct sccp_serializer *sccp_session_serializer(struct sccp_session *session)
 {
-	ssize_t nbyte;
-	size_t count;
-
-	if (!msg) {
-		ast_log(LOG_ERROR, "sccp session transmit msg failed: msg is null\n");
-		return -1;
-	}
-
-	count = letohl(msg->length) + SCCP_MSG_LENGTH_OFFSET;
-	nbyte = write(session->sockfd, msg, count);
-	if (nbyte == -1) {
-		ast_log(LOG_WARNING, "sccp session transmit msg failed: write: %s\n", strerror(errno));
-		return -1;
-	} else if (nbyte != (ssize_t) count) {
-		ast_log(LOG_WARNING, "sccp session transmit msg failed: write wrote less bytes than expected\n");
-		return -1;
-	}
-
-	return 0;
+	return &session->serializer;
 }

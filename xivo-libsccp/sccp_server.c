@@ -482,6 +482,7 @@ struct sccp_server *sccp_server_create(struct sccp_cfg *cfg, struct sccp_device_
 
 	server->state = STATE_CREATED;
 	server->cfg = cfg;
+	ao2_ref(cfg, +1);
 	server->registry = registry;
 	AST_LIST_HEAD_INIT(&server->srv_sessions);
 
@@ -501,6 +502,7 @@ void sccp_server_destroy(struct sccp_server *server)
 	}
 
 	sccp_queue_destroy(server->queue);
+	ao2_ref(server->cfg, -1);
 	AST_LIST_HEAD_DESTROY(&server->srv_sessions);
 }
 

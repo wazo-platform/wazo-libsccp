@@ -1,77 +1,164 @@
-#include <string.h>
-
-#include <asterisk.h>
-#include <asterisk/logger.h>
-
 #include "sccp_msg.h"
-#include "sccp_utils.h"
 
-#define MIN_TOTAL_LENGTH 12
-#define MAX_TOTAL_LENGTH sizeof(struct sccp_msg)
-
-void sccp_deserializer_init(struct sccp_deserializer *deserializer)
+const char *sccp_device_type_str(enum sccp_device_type device_type)
 {
-	deserializer->start = 0;
-	deserializer->end = 0;
+	switch (device_type) {
+	case SCCP_DEVICE_7905:
+		return "7905";
+	case SCCP_DEVICE_7906:
+		return "7906";
+	case SCCP_DEVICE_7911:
+		return "7911";
+	case SCCP_DEVICE_7912:
+		return "7912";
+	case SCCP_DEVICE_7920:
+		return "7920";
+	case SCCP_DEVICE_7921:
+		return "7921";
+	case SCCP_DEVICE_7931:
+		return "7931";
+	case SCCP_DEVICE_7937:
+		return "7937";
+	case SCCP_DEVICE_7940:
+		return "7940";
+	case SCCP_DEVICE_7941:
+		return "7941";
+	case SCCP_DEVICE_7941GE:
+		return "7941GE";
+	case SCCP_DEVICE_7942:
+		return "7942";
+	case SCCP_DEVICE_7960:
+		return "7960";
+	case SCCP_DEVICE_7961:
+		return "7961";
+	case SCCP_DEVICE_7962:
+		return "7962";
+	case SCCP_DEVICE_7970:
+		return "7970";
+	case SCCP_DEVICE_CIPC:
+		return "CIPC";
+	}
+
+	return "unknown";
 }
 
-int sccp_deserializer_read(struct sccp_deserializer *deserializer, int fd)
-{
-	ssize_t n;
-	size_t bytes_left;
-
-	bytes_left = sizeof(deserializer->buf) - deserializer->end;
-	if (!bytes_left) {
-		ast_log(LOG_WARNING, "sccp deserializer read failed: buffer is full\n");
-		return SCCP_DESERIALIZER_FULL;
+const char *msg_id_str(uint32_t msg_id) {
+	switch (msg_id) {
+	case KEEP_ALIVE_MESSAGE:
+		return "keep alive";
+	case REGISTER_MESSAGE:
+		return "register";
+	case IP_PORT_MESSAGE:
+		return "ip port";
+	case ENBLOC_CALL_MESSAGE:
+		return "enbloc call";
+	case KEYPAD_BUTTON_MESSAGE:
+		return "keypad button";
+	case STIMULUS_MESSAGE:
+		return "stimulus";
+	case OFFHOOK_MESSAGE:
+		return "offhook";
+	case ONHOOK_MESSAGE:
+		return "onhook";
+	case FORWARD_STATUS_REQ_MESSAGE:
+		return "forward status req";
+	case SPEEDDIAL_STAT_REQ_MESSAGE:
+		return "speeddial stat req";
+	case LINE_STATUS_REQ_MESSAGE:
+		return "line status req";
+	case CONFIG_STATUS_REQ_MESSAGE:
+		return "config status req";
+	case TIME_DATE_REQ_MESSAGE:
+		return "time date req";
+	case BUTTON_TEMPLATE_REQ_MESSAGE:
+		return "button template req";
+	case VERSION_REQ_MESSAGE:
+		return "version req";
+	case CAPABILITIES_RES_MESSAGE:
+		return "capabilities res";
+	case ALARM_MESSAGE:
+		return "alarm";
+	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
+		return "open receive channel ack";
+	case SOFTKEY_SET_REQ_MESSAGE:
+		return "softkey set req";
+	case SOFTKEY_EVENT_MESSAGE:
+		return "softkey event";
+	case UNREGISTER_MESSAGE:
+		return "unregister";
+	case SOFTKEY_TEMPLATE_REQ_MESSAGE:
+		return "softkey template req";
+	case REGISTER_AVAILABLE_LINES_MESSAGE:
+		return "register available lines";
+	case FEATURE_STATUS_REQ_MESSAGE:
+		return "feature status req";
+	case ACCESSORY_STATUS_MESSAGE:
+		return "accessory status";
+	case REGISTER_ACK_MESSAGE:
+		return "register ack";
+	case START_TONE_MESSAGE:
+		return "start tone";
+	case STOP_TONE_MESSAGE:
+		return "stop tone";
+	case SET_RINGER_MESSAGE:
+		return "set ringer";
+	case SET_LAMP_MESSAGE:
+		return "set lamp";
+	case SET_SPEAKER_MESSAGE:
+		return "set speaker";
+	case STOP_MEDIA_TRANSMISSION_MESSAGE:
+		return "stop media transmission";
+	case START_MEDIA_TRANSMISSION_MESSAGE:
+		return "start media transmission";
+	case CALL_INFO_MESSAGE:
+		return "call info";
+	case FORWARD_STATUS_RES_MESSAGE:
+		return "forward status res";
+	case SPEEDDIAL_STAT_RES_MESSAGE:
+		return "speeddial stat res";
+	case LINE_STATUS_RES_MESSAGE:
+		return "line status res";
+	case CONFIG_STATUS_RES_MESSAGE:
+		return "config status res";
+	case DATE_TIME_RES_MESSAGE:
+		return "date time res";
+	case BUTTON_TEMPLATE_RES_MESSAGE:
+		return "button template res";
+	case VERSION_RES_MESSAGE:
+		return "version res";
+	case CAPABILITIES_REQ_MESSAGE:
+		return "capabilities req";
+	case REGISTER_REJ_MESSAGE:
+		return "register rej";
+	case RESET_MESSAGE:
+		return "reset";
+	case KEEP_ALIVE_ACK_MESSAGE:
+		return "keep alive ack";
+	case OPEN_RECEIVE_CHANNEL_MESSAGE:
+		return "open receive channel";
+	case CLOSE_RECEIVE_CHANNEL_MESSAGE:
+		return "close receive channel";
+	case SOFTKEY_TEMPLATE_RES_MESSAGE:
+		return "softkey template res";
+	case SOFTKEY_SET_RES_MESSAGE:
+		return "softkey set res";
+	case SELECT_SOFT_KEYS_MESSAGE:
+		return "select soft keys";
+	case CALL_STATE_MESSAGE:
+		return "call state";
+	case DISPLAY_NOTIFY_MESSAGE:
+		return "display notify";
+	case CLEAR_NOTIFY_MESSAGE:
+		return "clear notify";
+	case ACTIVATE_CALL_PLANE_MESSAGE:
+		return "activate call plane";
+	case DIALED_NUMBER_MESSAGE:
+		return "dialed number";
+	case FEATURE_STAT_MESSAGE:
+		return "feature stat";
+	case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
+		return "start media transmission ack";
 	}
 
-	n = read(fd, &deserializer->buf[deserializer->end], bytes_left);
-	if (n == -1) {
-		ast_log(LOG_ERROR, "sccp deserializer read failed: read: %s\n", strerror(errno));
-		return SCCP_DESERIALIZER_ERROR;
-	} else if (n == 0) {
-		return SCCP_DESERIALIZER_EOF;
-	}
-
-	deserializer->end += (size_t) n;
-	ast_log(LOG_DEBUG, "new end is %zd\n", deserializer->end);
-
-	return 0;
-}
-
-int sccp_deserializer_get(struct sccp_deserializer *deserializer, struct sccp_msg **msg)
-{
-	size_t avail_bytes;
-	size_t new_start;
-	size_t total_length;
-	uint32_t msg_length;
-
-	avail_bytes = deserializer->end - deserializer->start;
-	ast_log(LOG_DEBUG, "pop: %zd %zd (%zd)\n", deserializer->start, deserializer->end, avail_bytes);
-
-	if (avail_bytes < MIN_TOTAL_LENGTH) {
-		return SCCP_DESERIALIZER_NOMSG;
-	}
-
-	memcpy(&msg_length, &deserializer->buf[deserializer->start], sizeof(msg_length));
-	total_length = letohl(msg_length) + SCCP_MSG_LENGTH_OFFSET;
-	if (total_length < MIN_TOTAL_LENGTH || total_length > MAX_TOTAL_LENGTH) {
-		return SCCP_DESERIALIZER_MALFORMED;
-	} else if (avail_bytes < total_length) {
-		return SCCP_DESERIALIZER_NOMSG;
-	}
-
-	memcpy(&deserializer->msg, &deserializer->buf[deserializer->start], total_length);
-	*msg = &deserializer->msg;
-
-	new_start = deserializer->start + total_length;
-	if (new_start == deserializer->end) {
-		deserializer->start = 0;
-		deserializer->end = 0;
-	} else {
-		deserializer->start = new_start;
-	}
-
-	return 0;
+	return "unknown";
 }

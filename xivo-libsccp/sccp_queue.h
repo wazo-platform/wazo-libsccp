@@ -8,9 +8,9 @@ struct sccp_queue;
  */
 typedef void (*sccp_queue_process_cb)(void *msg_data, void *arg);
 
+#define SCCP_QUEUE_ERROR -1
 #define SCCP_QUEUE_CLOSED 1
 #define SCCP_QUEUE_EMPTY 2
-#define SCCP_QUEUE_ERROR 3
 
 /*!
  * \brief Create a new (FIFO) queue.

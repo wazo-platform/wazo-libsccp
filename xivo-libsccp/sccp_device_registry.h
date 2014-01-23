@@ -4,6 +4,8 @@
 struct sccp_device;
 struct sccp_device_registry;
 
+#define SCCP_DEVICE_REGISTRY_ALREADY 1
+
 /*!
  * \brief Create a new device registry.
  *
@@ -22,10 +24,9 @@ void sccp_device_registry_destroy(struct sccp_device_registry *registry);
 /*!
  * \brief Add a device to the registry.
  *
- * \note If a device with same name as already been added, this will fail.
- *
  * \retval 0 on success
- * \retval non-zero on failure
+ * \retval SCCP_DEVICE_REGISTRY_ALREADY if a device with the same same has already been added
+ * \retval -1 on other failure
  */
 int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_device *device);
 

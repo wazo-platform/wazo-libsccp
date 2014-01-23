@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define SCCP_MSG_LENGTH_OFFSET 8
+#define MAX_BUTTON_DEFINITION 42
 
 enum sccp_device_type {
 	SCCP_DEVICE_7960 = 7,
@@ -121,7 +121,6 @@ enum sccp_button_type {
 	BT_CALLPARK = STIMULUS_CALLPARK,
 	BT_CALLPICKUP = STIMULUS_CALLPICKUP,
 	BT_NONE = STIMULUS_NONE,
-	BT_CUST_LINESPEEDDIAL = 0xB0,	/* line or speeddial */
 };
 
 enum sccp_softkey_status {
@@ -457,7 +456,7 @@ struct button_template_res_message {
 	uint32_t buttonOffset;
 	uint32_t buttonCount;
 	uint32_t totalButtonCount;
-	struct button_definition definition[42];
+	struct button_definition definition[MAX_BUTTON_DEFINITION];
 };
 
 #define VERSION_RES_MESSAGE 0x0098
@@ -649,67 +648,7 @@ struct sccp_msg {
 	union sccp_data data;
 };
 
-/* XXX move deserializer / serializer in another file ? */
-
-#define SCCP_DESERIALIZER_NOMSG 1
-#define SCCP_DESERIALIZER_FULL 2
-#define SCCP_DESERIALIZER_EOF 3
-#define SCCP_DESERIALIZER_MALFORMED 4
-#define SCCP_DESERIALIZER_ERROR 5
-
-struct sccp_deserializer {
-	struct sccp_msg msg;
-	size_t start;
-	size_t end;
-	char buf[2048];
-};
-
-/*!
- * \brief Initialize the deserializer.
- */
-void sccp_deserializer_init(struct sccp_deserializer *deserializer);
-
-/*!
- * \brief Read data into the deserializer buffer.
- *
- * \param fd the file descriptor to read data from
- *
- * \retval 0 on success
- * \retval SCCP_DESERIALIZER_FULL if the buffer is full
- * \retval SCCP_DESERIALIZER_EOF if the end of file is reached
- * \retval SCCP_DESERIALIZER_ERROR on other failure
- */
-int sccp_deserializer_read(struct sccp_deserializer *deserializer, int fd);
-
-/*!
- * \brief Get the next message from the deserializer.
- *
- * \param msg output parameter used to store the address of the parsed message
- *
- * \retval 0 on success
- * \retval SCCP_DESERIALIZER_NOMSG if no message are available
- * \retval SCCP_DESERIALIZER_MALFORMED if next message is malformed
- *
- * \note The message stored in *msg is only valid between calls to this function.
- */
-int sccp_deserializer_get(struct sccp_deserializer *deserializer, struct sccp_msg **msg);
-
-/* TODO serializer... */
-
-struct sccp_serializer {
-
-};
-
-void sccp_serializer_init(struct sccp_serializer *serializer);
-
-/*!
- * \brief Serialize the message
- */
-int sccp_serializer_put(struct sccp_serializer *serializer, struct sccp_msg *msg);
-
-/*!
- * \brief Write the outstanding serialize buffer to the given file descriptor.
- */
-int sccp_serializer_write(struct sccp_serializer *serializer, int fd);
+const char *sccp_device_type_str(enum sccp_device_type device_type);
+const char *msg_id_str(uint32_t msg_id);
 
 #endif /* SCCP_MSG_H_ */
