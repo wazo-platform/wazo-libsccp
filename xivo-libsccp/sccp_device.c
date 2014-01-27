@@ -85,9 +85,9 @@ struct sccp_device {
 	char name[SCCP_DEVICE_NAME_MAX];
 };
 
-static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type);
 static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 static void handle_msg_state_registering(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
+static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type);
 
 static struct sccp_device_state state_new = {
 	.id = STATE_NEW,
@@ -805,6 +805,25 @@ void sccp_device_on_connection_lost(struct sccp_device *device)
 	device->state = &state_connlost;
 }
 
+static void on_keepalive_timeout(struct sccp_device *device, void __attribute__((unused)) *data)
+{
+	ast_log(LOG_WARNING, "Device %s has timed out\n", device->name);
+
+	sccp_session_stop(device->session);
+}
+
+static int add_keepalive_task(struct sccp_device *device)
+{
+	int timeout = 2 * device->cfg->keepalive;
+
+	return sccp_session_add_device_task(device->session, on_keepalive_timeout, NULL, timeout);
+}
+
+void sccp_device_on_data_read(struct sccp_device *device)
+{
+	add_keepalive_task(device);
+}
+
 void sccp_device_on_registration_success(struct sccp_device *device)
 {
 	sccp_serializer_set_proto_version(device->serializer, device->proto_version);
@@ -817,6 +836,8 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 	transmit_capabilities_req(device);
 	transmit_clear_message(device);
 	/* TODO transmit_lamp_state depending on the number of voicemail, ... */
+
+	add_keepalive_task(device);
 
 	device->state = &state_registering;
 }

@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <asterisk.h>
 #include <asterisk/heap.h>
 #include <asterisk/linkedlists.h>
@@ -6,41 +8,52 @@
 
 #include "sccp_task.h"
 
-struct sccp_runnable_task {
-	struct sccp_task task;
+struct task {
+	AST_LIST_ENTRY(task) list;
 	struct timeval when;
 	ssize_t __heap_index;
 
-	AST_LIST_ENTRY(sccp_runnable_task) list;
+	sccp_task_cb callback;
+	void *data[0];
 };
 
 struct sccp_task_runner {
+	AST_LIST_HEAD_NOLOCK(, task) tasks;
 	struct ast_heap *heap;
-
-	AST_LIST_HEAD_NOLOCK(, sccp_runnable_task) rtasks;
+	size_t data_size;
 };
 
-struct sccp_task sccp_task(sccp_task_cb callback, void *data)
+static struct task *task_create(size_t data_size, sccp_task_cb callback, void *data)
 {
-	struct sccp_task task = {
-		.callback = callback,
-		.data = data,
-	};
+	struct task *task;
+
+	task = ast_calloc(1, sizeof(*task) + data_size);
+	if (!task) {
+		return NULL;
+	}
+
+	task->callback = callback;
+	memcpy(task->data, data, data_size);
 
 	return task;
 }
 
-static int sccp_task_eq(struct sccp_task a, struct sccp_task b)
+static void task_destroy(struct task *task)
 {
-	return a.callback == b.callback && a.data == b.data;
+	ast_free(task);
 }
 
-static int sccp_runnable_task_cmp(void *a, void *b)
+static int task_is_equal(struct task *task, sccp_task_cb callback, void *data, size_t data_size)
 {
-	return ast_tvcmp(((struct sccp_runnable_task *) b)->when, ((struct sccp_runnable_task *) a)->when);
+	return task->callback == callback && !memcmp(task->data, data, data_size);
 }
 
-struct sccp_task_runner *sccp_task_runner_create(void)
+static int task_cmp(void *a, void *b)
+{
+	return ast_tvcmp(((struct task *) b)->when, ((struct task *) a)->when);
+}
+
+struct sccp_task_runner *sccp_task_runner_create(size_t data_size)
 {
 	struct sccp_task_runner *runner;
 
@@ -49,72 +62,74 @@ struct sccp_task_runner *sccp_task_runner_create(void)
 		return NULL;
 	}
 
-	runner->heap = ast_heap_create(3, sccp_runnable_task_cmp, offsetof(struct sccp_runnable_task, __heap_index));
+	runner->heap = ast_heap_create(3, task_cmp, offsetof(struct task, __heap_index));
 	if (!runner->heap) {
 		ast_free(runner);
 		return NULL;
 	}
 
-	AST_LIST_HEAD_INIT_NOLOCK(&runner->rtasks);
+	AST_LIST_HEAD_INIT_NOLOCK(&runner->tasks);
+	runner->data_size = data_size;
 
 	return runner;
 }
 
 void sccp_task_runner_destroy(struct sccp_task_runner *runner)
 {
-	struct sccp_runnable_task *rtask;
+	struct task *task;
 
 	ast_heap_destroy(runner->heap);
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&runner->rtasks, rtask, list) {
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&runner->tasks, task, list) {
 		AST_LIST_REMOVE_CURRENT(list);
-		ast_free(rtask);
+		task_destroy(task);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
 
 	ast_free(runner);
 }
 
-int sccp_task_runner_add(struct sccp_task_runner *runner, struct sccp_task task, int sec)
+int sccp_task_runner_add(struct sccp_task_runner *runner, sccp_task_cb callback, void *data, int sec)
 {
-	struct sccp_runnable_task *rtask;
+	struct task *task;
+	size_t data_size = runner->data_size;
 
 	/* check if the task is already known */
-	AST_LIST_TRAVERSE(&runner->rtasks, rtask, list) {
-		if (sccp_task_eq(rtask->task, task)) {
+	AST_LIST_TRAVERSE(&runner->tasks, task, list) {
+		if (task_is_equal(task, callback, data, data_size)) {
 			break;
 		}
 	}
 
-	if (rtask) {
-		ast_heap_remove(runner->heap, rtask);
+	if (task) {
+		ast_heap_remove(runner->heap, task);
 	} else {
-		rtask = ast_calloc(1, sizeof(*rtask));
-		if (!rtask) {
+		task = task_create(data_size, callback, data);
+		if (!task) {
 			return -1;
 		}
 
-		rtask->task = task;
-		AST_LIST_INSERT_TAIL(&runner->rtasks, rtask, list);
+		AST_LIST_INSERT_TAIL(&runner->tasks, task, list);
 	}
 
 	if (sec < 0) {
-		rtask->when = ast_tvnow();
+		task->when = ast_tvnow();
 	} else {
-		rtask->when = ast_tvadd(ast_tvnow(), ast_tv(sec, 0));
+		task->when = ast_tvadd(ast_tvnow(), ast_tv(sec, 0));
 	}
 
-	return ast_heap_push(runner->heap, rtask);
+	return ast_heap_push(runner->heap, task);
 }
 
-void sccp_task_runner_remove(struct sccp_task_runner *runner, struct sccp_task task)
+void sccp_task_runner_remove(struct sccp_task_runner *runner, sccp_task_cb callback, void *data)
 {
-	struct sccp_runnable_task *rtask;
+	struct task *task;
+	size_t data_size = runner->data_size;
 
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&runner->rtasks, rtask, list) {
-		if (sccp_task_eq(rtask->task, task)) {
-			ast_heap_remove(runner->heap, rtask);
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&runner->tasks, task, list) {
+		if (task_is_equal(task, callback, data, data_size)) {
+			ast_heap_remove(runner->heap, task);
 			AST_LIST_REMOVE_CURRENT(list);
-			ast_free(rtask);
+			task_destroy(task);
 			break;
 		}
 	}
@@ -123,40 +138,40 @@ void sccp_task_runner_remove(struct sccp_task_runner *runner, struct sccp_task t
 
 void sccp_task_runner_run(struct sccp_task_runner *runner, struct sccp_session *session)
 {
-	struct sccp_runnable_task *rtask;
+	struct task *task;
 	struct timeval when;
 
 	when = ast_tvadd(ast_tvnow(), ast_tv(0, 1000));
 	while (1) {
-		rtask = ast_heap_peek(runner->heap, 1);
-		if (!rtask) {
+		task = ast_heap_peek(runner->heap, 1);
+		if (!task) {
 			break;
 		}
 
-		if (ast_tvcmp(rtask->when, when) != -1) {
+		if (ast_tvcmp(task->when, when) != -1) {
 			break;
 		}
 
 		ast_heap_pop(runner->heap);
-		AST_LIST_REMOVE(&runner->rtasks, rtask, list);
+		AST_LIST_REMOVE(&runner->tasks, task, list);
 
-		rtask->task.callback(session, rtask->task.data);
+		task->callback(session, task->data);
 
-		ast_free(rtask);
+		task_destroy(task);
 	}
 }
 
 int sccp_task_runner_next_ms(struct sccp_task_runner *runner)
 {
-	struct sccp_runnable_task *rtask;
+	struct task *task;
 	int ms;
 
-	rtask = ast_heap_peek(runner->heap, 1);
-	if (!rtask) {
+	task = ast_heap_peek(runner->heap, 1);
+	if (!task) {
 		return -1;
 	}
 
-	ms = ast_tvdiff_ms(rtask->when, ast_tvnow());
+	ms = ast_tvdiff_ms(task->when, ast_tvnow());
 	if (ms < 0) {
 		ms = 0;
 	}

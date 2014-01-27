@@ -8,18 +8,6 @@ struct sccp_msg;
 struct sccp_session;
 
 /*!
- * \brief Function type for device task callback
- *
- * \note Part of the device API.
- */
-typedef void (*sccp_device_task_cb)(struct sccp_device *device, void *data);
-
-struct sccp_device_task {
-	sccp_device_task_cb callback;
-	void *data;
-};
-
-/*!
  * \brief Create a new session (astobj2 object).
  *
  * \retval non-NULL on success
@@ -52,12 +40,22 @@ int sccp_session_stop(struct sccp_session *session);
 int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg);
 
 /*!
+ * \brief Function type for device task callback
+ *
+ * \note Part of the device API.
+ */
+typedef void (*sccp_device_task_cb)(struct sccp_device *device, void *data);
+
+/*!
  * \brief Add a device task.
  *
  * \note Must be called only from the session thread.
  * \note Part of the device API.
+ *
+ * \retval 0 on success
+ * \retval non-zero on failure
  */
-int sccp_session_add_device_task(struct sccp_session *session, struct sccp_device_task task, int sec);
+int sccp_session_add_device_task(struct sccp_session *session, sccp_device_task_cb callback, void *data, int sec);
 
 /*!
  * \brief Remove a device task.
@@ -65,7 +63,7 @@ int sccp_session_add_device_task(struct sccp_session *session, struct sccp_devic
  * \note Must be called only from the session thread.
  * \note Part of the device API.
  */
-void sccp_session_remove_device_task(struct sccp_session *session, struct sccp_device_task task);
+void sccp_session_remove_device_task(struct sccp_session *session, sccp_device_task_cb callback, void *data);
 
 /*
  * XXX called to force the session thread to call sccp_device_progress(session->device)

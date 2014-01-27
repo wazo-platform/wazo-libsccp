@@ -50,9 +50,14 @@ struct session_msg {
 	enum session_msg_id id;
 };
 
-static void on_session_auth_timeout(struct sccp_session *session, void *data);
+struct session_task_data_device {
+	sccp_device_task_cb callback;
+	void *data;
+};
 
-static const struct sccp_task authtimeout_task = {on_session_auth_timeout, NULL};
+union session_task_data {
+	struct session_task_data_device device;
+};
 
 static void session_msg_init_reload(struct session_msg *msg, struct sccp_cfg *cfg)
 {
@@ -78,6 +83,14 @@ static void session_msg_destroy(struct session_msg *msg)
 		ast_log(LOG_ERROR, "session msg destroy failed: unknown msg id %d\n", msg->id);
 		break;
 	}
+}
+
+/* important to zero out the data memory since sccp_task does a byte level
+ * compare to see if two task are equal
+ */
+static void session_task_zero(union session_task_data *data)
+{
+	memset(data, 0, sizeof(*data));
 }
 
 static void sccp_session_destructor(void *data)
@@ -156,7 +169,7 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 		return NULL;
 	}
 
-	task_runner = sccp_task_runner_create();
+	task_runner = sccp_task_runner_create(sizeof(union session_task_data));
 	if (!task_runner) {
 		sccp_queue_destroy(queue);
 		return NULL;
@@ -245,25 +258,29 @@ static struct sccp_device_cfg *find_device_cfg(struct sccp_cfg *cfg, const char 
 	return device_cfg;
 }
 
-static void sccp_session_add_auth_timeout_task(struct sccp_session *session)
+static void on_auth_timeout(struct sccp_session *session, void __attribute__((unused)) *data)
 {
-	int timeout = session->cfg->general_cfg->authtimeout;
-
-	sccp_task_runner_add(session->task_runner, authtimeout_task, timeout);
-}
-
-static void sccp_session_remove_auth_timeout_task(struct sccp_session *session)
-{
-	sccp_task_runner_remove(session->task_runner, authtimeout_task);
-}
-
-static void on_session_auth_timeout(struct sccp_session *session, void *data)
-{
-	int timeout = session->cfg->general_cfg->authtimeout;
-
-	ast_log(LOG_WARNING, "Device authentication timed out [%dsec]\n", timeout);
+	ast_log(LOG_WARNING, "Device authentication timed out\n");
 
 	session->stop = 1;
+}
+
+static int add_auth_timeout_task(struct sccp_session *session)
+{
+	union session_task_data task_data;
+
+	session_task_zero(&task_data);
+
+	return sccp_task_runner_add(session->task_runner, on_auth_timeout, &task_data, session->cfg->general_cfg->authtimeout);
+}
+
+static void remove_auth_timeout_task(struct sccp_session *session)
+{
+	union session_task_data task_data;
+
+	session_task_zero(&task_data);
+
+	sccp_task_runner_remove(session->task_runner, on_auth_timeout, &task_data);
 }
 
 static void process_reload(struct sccp_session *session, struct sccp_cfg *cfg)
@@ -325,6 +342,10 @@ static int sccp_session_read_sock(struct sccp_session *session)
 
 	ret = sccp_deserializer_read(&session->deserializer);
 	if (!ret) {
+		if (session->device) {
+			sccp_device_on_data_read(session->device);
+		}
+
 		return 0;
 	}
 
@@ -389,7 +410,7 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 	/* XXX missing session ip address and port */
 	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", device_info.proto_version, name, "unknown", -1);
 
-	sccp_session_remove_auth_timeout_task(session);
+	remove_auth_timeout_task(session);
 	sccp_device_on_registration_success(device);
 
 	/* steal the reference ownership */
@@ -457,7 +478,7 @@ void sccp_session_run(struct sccp_session *session)
 	fds[1].fd = sccp_queue_fd(session->queue);
 	fds[1].events = POLLIN;
 
-	sccp_session_add_auth_timeout_task(session);
+	add_auth_timeout_task(session);
 
 	for (;;) {
 		timeout = sccp_task_runner_next_ms(session->task_runner);
@@ -528,6 +549,29 @@ int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cf
 	}
 
 	return sccp_session_queue_msg_reload(session, cfg);
+}
+
+static void on_device_task_timeout(struct sccp_session *session, void *data)
+{
+	union session_task_data *task_data = data;
+
+	if (!session->device) {
+		ast_log(LOG_ERROR, "on device task timeout failed: session has no device associated\n");
+		return;
+	}
+
+	task_data->device.callback(session->device, task_data->device.data);
+}
+
+int sccp_session_add_device_task(struct sccp_session *session, sccp_device_task_cb callback, void *data, int sec)
+{
+	union session_task_data task_data;
+
+	session_task_zero(&task_data);
+	task_data.device.callback = callback;
+	task_data.device.data = data;
+
+	return sccp_task_runner_add(session->task_runner, on_device_task_timeout, &task_data, sec);
 }
 
 struct sccp_serializer *sccp_session_serializer(struct sccp_session *session)
