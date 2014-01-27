@@ -12,6 +12,7 @@
 #include "sccp_queue.h"
 #include "sccp_serializer.h"
 #include "sccp_session.h"
+#include "sccp_task.h"
 #include "sccp_utils.h"
 
 #define SCCP_MAX_PACKET_SZ 2000
@@ -27,6 +28,7 @@ struct sccp_session {
 	struct sccp_cfg *cfg;
 	struct sccp_device_registry *registry;
 	struct sccp_queue *queue;
+	struct sccp_task_runner *task_runner;
 	struct sccp_device *device;
 };
 
@@ -47,6 +49,10 @@ struct session_msg {
 	union session_msg_data data;
 	enum session_msg_id id;
 };
+
+static void on_session_auth_timeout(struct sccp_session *session, void *data);
+
+static const struct sccp_task authtimeout_task = {on_session_auth_timeout, NULL};
 
 static void session_msg_init_reload(struct session_msg *msg, struct sccp_cfg *cfg)
 {
@@ -92,6 +98,7 @@ static void sccp_session_destructor(void *data)
 	/* empty the queue here too to handle the case the session was never run */
 	sccp_session_empty_queue(session);
 	sccp_queue_destroy(session->queue);
+	sccp_task_runner_destroy(session->task_runner);
 	close(session->sockfd);
 	ao2_ref(session->cfg, -1);
 }
@@ -127,6 +134,7 @@ static int set_session_sock_option(int sockfd)
 struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, int sockfd)
 {
 	struct sccp_queue *queue;
+	struct sccp_task_runner *task_runner;
 	struct sccp_session *session;
 
 	if (!cfg) {
@@ -148,8 +156,15 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 		return NULL;
 	}
 
+	task_runner = sccp_task_runner_create();
+	if (!task_runner) {
+		sccp_queue_destroy(queue);
+		return NULL;
+	}
+
 	session = ao2_alloc(sizeof(*session), sccp_session_destructor);
 	if (!session) {
+		sccp_task_runner_destroy(task_runner);
 		sccp_queue_destroy(queue);
 		return NULL;
 	}
@@ -158,6 +173,7 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 	sccp_serializer_init(&session->serializer, sockfd);
 	session->sockfd = sockfd;
 	session->queue = queue;
+	session->task_runner = task_runner;
 	session->stop = 0;
 	session->device = NULL;
 	session->cfg = cfg;
@@ -227,6 +243,27 @@ static struct sccp_device_cfg *find_device_cfg(struct sccp_cfg *cfg, const char 
 	}
 
 	return device_cfg;
+}
+
+static void sccp_session_add_auth_timeout_task(struct sccp_session *session)
+{
+	int timeout = session->cfg->general_cfg->authtimeout;
+
+	sccp_task_runner_add(session->task_runner, authtimeout_task, timeout);
+}
+
+static void sccp_session_remove_auth_timeout_task(struct sccp_session *session)
+{
+	sccp_task_runner_remove(session->task_runner, authtimeout_task);
+}
+
+static void on_session_auth_timeout(struct sccp_session *session, void *data)
+{
+	int timeout = session->cfg->general_cfg->authtimeout;
+
+	ast_log(LOG_WARNING, "Device authentication timed out [%dsec]\n", timeout);
+
+	session->stop = 1;
 }
 
 static void process_reload(struct sccp_session *session, struct sccp_cfg *cfg)
@@ -352,6 +389,7 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 	/* XXX missing session ip address and port */
 	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", device_info.proto_version, name, "unknown", -1);
 
+	sccp_session_remove_auth_timeout_task(session);
 	sccp_device_on_registration_success(device);
 
 	/* steal the reference ownership */
@@ -412,14 +450,19 @@ void sccp_session_run(struct sccp_session *session)
 {
 	struct pollfd fds[2];
 	int nfds;
+	int timeout;
 
 	fds[0].fd = session->sockfd;
 	fds[0].events = POLLIN;
 	fds[1].fd = sccp_queue_fd(session->queue);
 	fds[1].events = POLLIN;
 
+	sccp_session_add_auth_timeout_task(session);
+
 	for (;;) {
-		nfds = poll(fds, ARRAY_LEN(fds), -1);
+		timeout = sccp_task_runner_next_ms(session->task_runner);
+
+		nfds = poll(fds, ARRAY_LEN(fds), timeout);
 		if (nfds == -1) {
 			ast_log(LOG_ERROR, "sccp session run failed: poll: %s\n", strerror(errno));
 			goto end;
@@ -429,17 +472,24 @@ void sccp_session_run(struct sccp_session *session)
 			goto end;
 		}
 
-		if (fds[1].revents) {
-			sccp_session_on_queue_events(session, fds[1].revents);
+		if (!nfds) {
+			sccp_task_runner_run(session->task_runner, session);
 			if (session->stop || session->serializer.error) {
 				goto end;
 			}
-		}
+		} else {
+			if (fds[1].revents) {
+				sccp_session_on_queue_events(session, fds[1].revents);
+				if (session->stop || session->serializer.error) {
+					goto end;
+				}
+			}
 
-		if (fds[0].revents) {
-			sccp_session_on_sock_events(session, fds[0].revents);
-			if (session->stop || session->serializer.error) {
-				goto end;
+			if (fds[0].revents) {
+				sccp_session_on_sock_events(session, fds[0].revents);
+				if (session->stop || session->serializer.error) {
+					goto end;
+				}
 			}
 		}
 	}
