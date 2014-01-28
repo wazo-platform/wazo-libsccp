@@ -1,6 +1,9 @@
 #ifndef SCCP_DEVICE_H_
 #define SCCP_DEVICE_H_
 
+/* XXX for SCCP_DEVICE_NAME_MAX definition */
+#include "sccp_config.h"
+
 struct sccp_device;
 struct sccp_device_cfg;
 struct sccp_msg;
@@ -11,6 +14,13 @@ struct sccp_device_info {
 	const char *name;
 	uint32_t type;
 	uint8_t proto_version;
+};
+
+struct sccp_device_snapshot {
+	uint32_t type;
+	uint8_t proto_version;
+	char name[SCCP_DEVICE_NAME_MAX];
+	char capabilities[32];
 };
 
 /*!
@@ -81,5 +91,12 @@ void sccp_device_on_registration_success(struct sccp_device *device);
  * \brief Return the name of the device.
  */
 const char *sccp_device_name(const struct sccp_device *device);
+
+/*!
+ * \brief Take a snapshot of information from the device.
+ *
+ * \param snapshot memory where the snapshot will be saved
+ */
+void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_snapshot *snapshot);
 
 #endif /* SCCP_DEVICE_H_ */

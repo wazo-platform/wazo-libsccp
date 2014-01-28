@@ -96,5 +96,51 @@ void sccp_device_registry_remove(struct sccp_device_registry *registry, struct s
 		return;
 	}
 
-	ao2_unlink(registry->devices, device);
+	ao2_lock(registry->devices);
+	ao2_unlink_flags(registry->devices, device, OBJ_NOLOCK);
+	ao2_unlock(registry->devices);
+}
+
+int sccp_device_registry_take_snapshots(struct sccp_device_registry *registry, struct sccp_device_snapshot **snapshots, size_t *n)
+{
+	struct ao2_iterator iter;
+	struct sccp_device *device;
+	size_t i;
+	int ret = 0;
+
+	if (!snapshots) {
+		ast_log(LOG_ERROR, "registry take snapshots failed: snapshots is null\n");
+		return -1;
+	}
+
+	if (!n) {
+		ast_log(LOG_ERROR, "registry take snapshots failed: n is null\n");
+		return -1;
+	}
+
+	ao2_lock(registry->devices);
+	*n = ao2_container_count(registry->devices);
+	if (!*n) {
+		*snapshots = NULL;
+		goto unlock;
+	}
+
+	*snapshots = ast_calloc(*n, sizeof(**snapshots));
+	if (!*snapshots) {
+		goto unlock;
+		ret = -1;
+	}
+
+	i = 0;
+	iter = ao2_iterator_init(registry->devices, AO2_ITERATOR_DONTLOCK);
+	while ((device = ao2_iterator_next(&iter))) {
+		sccp_device_take_snapshot(device, &*snapshots[i++]);
+		ao2_ref(device, -1);
+	}
+	ao2_iterator_destroy(&iter);
+
+unlock:
+	ao2_unlock(registry->devices);
+
+	return ret;
 }

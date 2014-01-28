@@ -3,7 +3,9 @@
 #include <asterisk/module.h>
 
 #include "sccp_config.h"
+#include "sccp_device.h"
 #include "sccp_device_registry.h"
+#include "sccp_msg.h"
 #include "sccp_server.h"
 
 #ifndef VERSION
@@ -12,6 +14,44 @@
 
 static struct sccp_device_registry *global_registry;
 static struct sccp_server *global_server;
+
+static char *cli_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+#define FORMAT_STRING  "%-16.16s %-6.6s %-6.6s %-18.18s\n"
+#define FORMAT_STRING2 "%-16.16s %-6.6s %-6u %-18.18s\n"
+	struct sccp_device_snapshot *snapshots;
+	size_t n;
+	size_t i;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show devices";
+		e->usage =
+				"Usage: sccp show devices\n"
+				"       Show the connected devices.\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	if (sccp_device_registry_take_snapshots(global_registry, &snapshots, &n)) {
+		return CLI_FAILURE;
+	}
+
+	ast_cli(a->fd, FORMAT_STRING, "Device", "Type", "Proto", "Capabilities");
+	for (i = 0; i < n; i++) {
+		ast_cli(a->fd, FORMAT_STRING2, snapshots[i].name, sccp_device_type_str(snapshots[i].type), snapshots[i].proto_version, snapshots[i].capabilities);
+	}
+
+	ast_cli(a->fd, "Total: %zu connected device(s)\n", n);
+
+	ast_free(snapshots);
+
+	return CLI_SUCCESS;
+
+#undef FORMAT_STRING
+#undef FORMAT_STRING2
+}
 
 static char *cli_show_sessions(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
@@ -46,6 +86,7 @@ static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 }
 
 static struct ast_cli_entry cli_entries[] = {
+	AST_CLI_DEFINE(cli_show_devices, "Show the connected devices"),
 	AST_CLI_DEFINE(cli_show_sessions, "Show the active sessions"),
 	AST_CLI_DEFINE(cli_show_version, "Show the module version"),
 };

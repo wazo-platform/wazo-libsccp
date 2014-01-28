@@ -411,11 +411,6 @@ void sccp_device_destroy(struct sccp_device *device)
 	}
 }
 
-const char *sccp_device_name(const struct sccp_device *device)
-{
-	return device->name;
-}
-
 /*
  * \note reference count is NOT incremented
  */
@@ -902,4 +897,20 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 	add_keepalive_task(device);
 
 	device->state = &state_registering;
+}
+
+const char *sccp_device_name(const struct sccp_device *device)
+{
+	return device->name;
+}
+
+void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_snapshot *snapshot)
+{
+	/* XXX need locking at other place, duh */
+	ast_mutex_lock(&device->lock);
+	snapshot->type = device->type;
+	snapshot->proto_version = device->proto_version;
+	ast_copy_string(snapshot->name, device->name, sizeof(snapshot->name));
+	ast_getformatname_multiple(snapshot->capabilities, sizeof(snapshot->capabilities), device->caps);
+	ast_mutex_unlock(&device->lock);
 }
