@@ -75,6 +75,8 @@ struct sccp_device {
 	struct sccp_device_cfg *cfg;
 	/* (dynamic) */
 	struct sccp_device_state *state;
+	/* (dynamic) */
+	struct ast_format_cap *caps;	/* Supported capabilities */
 
 	enum sccp_device_type type;
 	uint8_t proto_version;
@@ -278,6 +280,7 @@ static void sccp_device_destructor(void *data)
 	 */
 
 	ast_mutex_destroy(&device->lock);
+	ast_format_cap_destroy(device->caps);
 	ao2_ref(device->session, -1);
 	ao2_ref(device->cfg, -1);
 }
@@ -316,10 +319,17 @@ static int device_type_is_supported(enum sccp_device_type device_type)
 
 static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct sccp_session *session, struct sccp_device_info *info)
 {
+	struct ast_format_cap *caps;
 	struct sccp_device *device;
+
+	caps = ast_format_cap_alloc_nolock();
+	if (!caps) {
+		return NULL;
+	}
 
 	device = ao2_alloc_options(sizeof(*device), sccp_device_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!device) {
+		ast_format_cap_destroy(caps);
 		return NULL;
 	}
 
@@ -330,6 +340,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	device->cfg = cfg;
 	ao2_ref(cfg, +1);
 	device->state = &state_new;
+	device->caps = caps;
 	device->type = info->type;
 	device->proto_version = info->proto_version;
 	ast_copy_string(device->name, info->name, sizeof(device->name));
@@ -555,6 +566,53 @@ static void handle_msg_button_template_req(struct sccp_device *device)
 	transmit_button_template_res(device);
 }
 
+static void codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_format *result)
+{
+	switch (sccpcodec) {
+	case SCCP_CODEC_G711_ALAW:
+		ast_format_set(result, AST_FORMAT_ALAW, 0);
+		break;
+	case SCCP_CODEC_G711_ULAW:
+		ast_format_set(result, AST_FORMAT_ULAW, 0);
+		break;
+	case SCCP_CODEC_G723_1:
+		ast_format_set(result, AST_FORMAT_G723_1, 0);
+		break;
+	case SCCP_CODEC_G729A:
+		ast_format_set(result, AST_FORMAT_G729A, 0);
+		break;
+	case SCCP_CODEC_H261:
+		ast_format_set(result, AST_FORMAT_H261, 0);
+		break;
+	case SCCP_CODEC_H263:
+		ast_format_set(result, AST_FORMAT_H263, 0);
+		break;
+	default:
+		ast_format_clear(result);
+		break;
+	}
+}
+
+static void handle_msg_capabilities_res(struct sccp_device *device, struct sccp_msg *msg)
+{
+	struct ast_format format;
+	uint32_t count = letohl(msg->data.caps.count);
+	uint32_t sccpcodec;
+	uint32_t i;
+
+	if (count > SCCP_MAX_CAPABILITIES) {
+		count = SCCP_MAX_CAPABILITIES;
+		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
+	}
+
+	for (i = 0; i < count; i++) {
+		sccpcodec = letohl(msg->data.caps.caps[i].codec);
+		codec_sccp2ast(sccpcodec, &format);
+
+		ast_format_cap_add(device->caps, &format);
+	}
+}
+
 static void handle_msg_config_status_req(struct sccp_device *device)
 {
 	transmit_config_status_res(device);
@@ -643,6 +701,10 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 		break;
 
 	case FORWARD_STATUS_REQ_MESSAGE:
+		break;
+
+	case CAPABILITIES_RES_MESSAGE:
+		handle_msg_capabilities_res(device, msg);
 		break;
 
 	case SPEEDDIAL_STAT_REQ_MESSAGE:
