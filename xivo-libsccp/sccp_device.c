@@ -3,6 +3,7 @@
 #include <asterisk/astobj2.h>
 #include <asterisk/event.h>
 #include <asterisk/lock.h>
+#include <asterisk/pbx.h>
 
 #include "sccp_config.h"
 #include "sccp_device.h"
@@ -22,6 +23,10 @@ struct sccp_speeddial {
 	/* (static) */
 	uint32_t instance;
 	uint32_t index;
+
+	/* (dynamic) */
+	int state_id;
+	int state;	/* enum ast_extension_states */
 };
 
 struct speeddial_group {
@@ -93,6 +98,8 @@ struct sccp_device {
 
 static void subscribe_mwi(struct sccp_device *device);
 static void unsubscribe_mwi(struct sccp_device *device);
+static void subscribe_hints(struct sccp_device *device);
+static void unsubscribe_hints(struct sccp_device *device);
 static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 static void handle_msg_state_registering(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type);
@@ -137,6 +144,7 @@ static struct sccp_speeddial *sccp_speeddial_alloc(struct sccp_speeddial_cfg *cf
 	ao2_ref(cfg, +1);
 	sd->instance = instance;
 	sd->index = index;
+	sd->state_id = -1;
 
 	return sd;
 }
@@ -402,6 +410,7 @@ void sccp_device_destroy(struct sccp_device *device)
 	ast_log(LOG_DEBUG, "destroying device %s\n", device->name);
 
 	unsubscribe_mwi(device);
+	unsubscribe_hints(device);
 
 	line_group_destroy(&device->line_group);
 	line_group_deinit(&device->line_group);
@@ -504,10 +513,43 @@ static void transmit_clear_message(struct sccp_device *device)
 	sccp_serializer_push_clear_message(device->serializer);
 }
 
+static enum sccp_blf_status extstate_ast2sccp(int state)
+{
+	switch (state) {
+	case AST_EXTENSION_DEACTIVATED:
+		return SCCP_BLF_STATUS_UNKNOWN;
+	case AST_EXTENSION_REMOVED:
+		return SCCP_BLF_STATUS_UNKNOWN;
+	case AST_EXTENSION_RINGING:
+		return SCCP_BLF_STATUS_ALERTING;
+	case AST_EXTENSION_INUSE | AST_EXTENSION_RINGING:
+		return SCCP_BLF_STATUS_INUSE;
+	case AST_EXTENSION_UNAVAILABLE:
+		return SCCP_BLF_STATUS_UNKNOWN;
+	case AST_EXTENSION_BUSY:
+		return SCCP_BLF_STATUS_INUSE;
+	case AST_EXTENSION_INUSE:
+		return SCCP_BLF_STATUS_INUSE;
+	case AST_EXTENSION_ONHOLD:
+		return SCCP_BLF_STATUS_INUSE;
+	case AST_EXTENSION_INUSE | AST_EXTENSION_ONHOLD:
+		return SCCP_BLF_STATUS_INUSE;
+	case AST_EXTENSION_NOT_INUSE:
+		return SCCP_BLF_STATUS_IDLE;
+	default:
+		return SCCP_BLF_STATUS_UNKNOWN;
+	}
+}
+
 static void transmit_feature_status(struct sccp_device *device, struct sccp_speeddial *sd)
 {
-	/* XXX status is hardcoded right now */
-	sccp_serializer_push_feature_status(device->serializer, sd->instance, BT_FEATUREBUTTON, SCCP_BLF_STATUS_IDLE, sd->cfg->label);
+	enum sccp_blf_status status = SCCP_BLF_STATUS_UNKNOWN;
+
+	if (sd->cfg->blf) {
+		status = extstate_ast2sccp(sd->state);
+	}
+
+	sccp_serializer_push_feature_status(device->serializer, sd->instance, BT_FEATUREBUTTON, status, sd->cfg->label);
 }
 
 static void transmit_forward_status_res(struct sccp_device *device, struct sccp_line *line)
@@ -614,6 +656,54 @@ static void unsubscribe_mwi(struct sccp_device *device)
 {
 	if (device->mwi_event_sub) {
 		ast_event_unsubscribe(device->mwi_event_sub);
+	}
+}
+
+static int on_hint_state_change(char *context, char *id, struct ast_state_cb_info *info, void *data)
+{
+	struct sccp_speeddial *sd = data;
+
+	/* XXX don't think there's a need to lock the device... but if
+	 *     we do lock, we'll need to be careful when subscribing / unsubscribing (especially
+	 *     unsubscribing) to not cause a deadlock caused by a lock
+	 *     inversion problem
+	 */
+	sd->state = info->exten_state;
+
+	transmit_feature_status(sd->device, sd);
+
+	return 0;
+}
+
+static void subscribe_hints(struct sccp_device *device)
+{
+	struct sccp_speeddial *sd;
+	char *context = device->line_group.line->cfg->context;
+	size_t i;
+
+	for (i = 0; i < device->sd_group.count; i++) {
+		sd = device->sd_group.speeddials[i];
+		if (sd->cfg->blf) {
+			sd->state_id = ast_extension_state_add(context, sd->cfg->extension, on_hint_state_change, sd);
+			if (sd->state_id == -1) {
+				ast_log(LOG_WARNING, "Could not subscribe to %s@%s\n", sd->cfg->extension, context);
+			} else {
+				sd->state = ast_extension_state(NULL, context, sd->cfg->extension);
+			}
+		}
+	}
+}
+
+static void unsubscribe_hints(struct sccp_device *device)
+{
+	struct sccp_speeddial *sd;
+	size_t i;
+
+	for (i = 0; i < device->sd_group.count; i++) {
+		sd = device->sd_group.speeddials[i];
+		if (sd->cfg->blf && sd->state_id != -1) {
+			ast_extension_state_del(sd->state_id, NULL);
+		}
 	}
 }
 
@@ -859,7 +949,7 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 		return 0;
 	}
 
-	/* right now, the context is also used as the voicemail context */
+	/* right now, the context is also used as the voicemail context and speeddial hint context */
 	if (strcmp(old_line_cfg->context, new_line_cfg->context)) {
 		return 0;
 	}
@@ -875,6 +965,10 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 		}
 
 		if (old_sd_cfg->blf != new_sd_cfg->blf) {
+			return 0;
+		}
+
+		if (new_sd_cfg->blf && strcmp(old_sd_cfg->extension, new_sd_cfg->extension)) {
 			return 0;
 		}
 	}
@@ -973,7 +1067,7 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 	sccp_serializer_set_proto_version(device->serializer, device->proto_version);
 
 	subscribe_mwi(device);
-	/* TODO register speeddial callback */
+	subscribe_hints(device);
 	/* TODO call ast_devstate_changed */
 
 	transmit_register_ack(device);
