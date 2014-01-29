@@ -127,14 +127,14 @@ int sccp_device_registry_take_snapshots(struct sccp_device_registry *registry, s
 
 	*snapshots = ast_calloc(*n, sizeof(**snapshots));
 	if (!*snapshots) {
-		goto unlock;
 		ret = -1;
+		goto unlock;
 	}
 
 	i = 0;
 	iter = ao2_iterator_init(registry->devices, AO2_ITERATOR_DONTLOCK);
 	while ((device = ao2_iterator_next(&iter))) {
-		sccp_device_take_snapshot(device, &*snapshots[i++]);
+		sccp_device_take_snapshot(device, &(*snapshots)[i++]);
 		ao2_ref(device, -1);
 	}
 	ao2_iterator_destroy(&iter);
