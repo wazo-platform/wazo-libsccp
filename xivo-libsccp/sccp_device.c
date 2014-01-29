@@ -101,7 +101,6 @@ static void unsubscribe_mwi(struct sccp_device *device);
 static void subscribe_hints(struct sccp_device *device);
 static void unsubscribe_hints(struct sccp_device *device);
 static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
-static void handle_msg_state_registering(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type);
 
 static struct sccp_device_state state_new = {
@@ -111,7 +110,7 @@ static struct sccp_device_state state_new = {
 
 static struct sccp_device_state state_registering = {
 	.id = STATE_REGISTERING,
-	.handle_msg = handle_msg_state_registering,
+	.handle_msg = handle_msg_state_common,
 };
 
 static struct sccp_device_state state_connlost = {
@@ -886,12 +885,6 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 	}
 }
 
-static void handle_msg_state_registering(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id)
-{
-	/* XXX something more evolved ? */
-	handle_msg_state_common(device, msg, msg_id);
-}
-
 int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 {
 	uint32_t msg_id;
@@ -989,7 +982,6 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 
 	if (!sccp_device_test_apply_config(device, new_device_cfg)) {
 		transmit_reset(device, SCCP_RESET_SOFT);
-		/* XXX should we close the session ? set a timer to close it ? change state ? */
 
 		return 0;
 	}
