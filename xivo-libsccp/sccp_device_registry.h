@@ -37,6 +37,15 @@ int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_
 void sccp_device_registry_remove(struct sccp_device_registry *registry, struct sccp_device *device);
 
 /*!
+ * \brief Find a device by name.
+ *
+ * \note The returned object has its reference count incremented by one.
+ *
+ * \retval the device with the given name, or NULL if no such device exist
+ */
+struct sccp_device *sccp_device_registry_find(struct sccp_device_registry *registry, const char *name);
+
+/*!
  * \brief Take a snapshot of all the devices in the registry.
  *
  * XXX on success, *snapshots, must be freed, else you'll leak memory

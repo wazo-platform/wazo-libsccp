@@ -15,6 +15,46 @@
 static struct sccp_device_registry *global_registry;
 static struct sccp_server *global_server;
 
+static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	static const char * const choices[] = { "restart", NULL };
+	struct sccp_device *device;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp reset";
+		e->usage =
+			"Usage: sccp reset <device> [restart]\n"
+			"       Resets an SCCP device, optionally with a full restart.\n";
+		return NULL;
+
+	case CLI_GENERATE:
+		if (a->pos == 2) {
+			/* TODO implement complete sccp devices... */
+			return NULL;
+		} else if (a->pos == 3) {
+			return ast_cli_complete(a->word, choices, a->n);
+		}
+
+		return NULL;
+	}
+
+	device = sccp_device_registry_find(global_registry, a->argv[2]);
+	if (!device) {
+		return CLI_FAILURE;
+	}
+
+	if (a->argc == 4 && !strcasecmp(a->argv[3], "restart")) {
+		sccp_device_reset(device, SCCP_RESET_HARD_RESTART);
+	} else {
+		sccp_device_reset(device, SCCP_RESET_SOFT);
+	}
+
+	ao2_ref(device, -1);
+
+	return CLI_SUCCESS;
+}
+
 static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 #define FORMAT_STRING  "%-18.18s %-12.12s %-12.12s %-4d\n"
@@ -133,6 +173,7 @@ static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 }
 
 static struct ast_cli_entry cli_entries[] = {
+	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
 	AST_CLI_DEFINE(cli_show_config, "Show the module configuration"),
 	AST_CLI_DEFINE(cli_show_devices, "Show the connected devices"),
 	AST_CLI_DEFINE(cli_show_sessions, "Show the active sessions"),

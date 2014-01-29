@@ -3,6 +3,8 @@
 
 /* XXX for SCCP_DEVICE_NAME_MAX definition */
 #include "sccp_config.h"
+/* XXX for sccp_reset_type */
+#include "sccp_msg.h"
 
 struct sccp_device;
 struct sccp_device_cfg;
@@ -51,6 +53,16 @@ int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg);
  */
 int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg *device_cfg);
 
+/*!
+ * \brief Reset the device.
+ *
+ * \note Thread safe.
+ *
+ * \retval 0 on success
+ * \retval non-zero on failure
+ */
+int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type);
+
 /*
  * Called when the session detected the remote peer has closed the connection.
  *
@@ -61,8 +73,6 @@ void sccp_device_on_connection_lost(struct sccp_device *device);
 
 /*
  * Called each time data is read from the session socket.
- *
- * XXX to use for the keepalive task
  *
  * \note Must be called only from the session thread.
  */
@@ -94,6 +104,8 @@ const char *sccp_device_name(const struct sccp_device *device);
 
 /*!
  * \brief Take a snapshot of information from the device.
+ *
+ * \note Thread safe.
  *
  * \param snapshot memory where the snapshot will be saved
  */

@@ -857,6 +857,15 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 	return 0;
 }
 
+int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
+{
+	ast_mutex_lock(&device->lock);
+	transmit_reset(device, type);
+	ast_mutex_unlock(&device->lock);
+
+	return 0;
+}
+
 void sccp_device_on_connection_lost(struct sccp_device *device)
 {
 	device->state = &state_connlost;
@@ -906,7 +915,6 @@ const char *sccp_device_name(const struct sccp_device *device)
 
 void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_snapshot *snapshot)
 {
-	/* XXX need locking at other place, duh */
 	ast_mutex_lock(&device->lock);
 	snapshot->type = device->type;
 	snapshot->proto_version = device->proto_version;

@@ -101,6 +101,16 @@ void sccp_device_registry_remove(struct sccp_device_registry *registry, struct s
 	ao2_unlock(registry->devices);
 }
 
+struct sccp_device *sccp_device_registry_find(struct sccp_device_registry *registry, const char *name)
+{
+	if (!name) {
+		ast_log(LOG_ERROR, "registry find failed: name is null\n");
+		return NULL;
+	}
+
+	return ao2_find(registry->devices, name, OBJ_KEY);
+}
+
 int sccp_device_registry_take_snapshots(struct sccp_device_registry *registry, struct sccp_device_snapshot **snapshots, size_t *n)
 {
 	struct ao2_iterator iter;
