@@ -1,7 +1,6 @@
 #include <errno.h>
 
 #include <asterisk.h>
-#include <asterisk/cli.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/network.h>
 
