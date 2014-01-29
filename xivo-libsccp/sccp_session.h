@@ -81,4 +81,9 @@ void sccp_session_progress(struct sccp_session *session);
  */
 struct sccp_serializer *sccp_session_serializer(struct sccp_session *session);
 
+/*!
+ * \brief Return the (formatted) IP address of the session.
+ */
+const char *sccp_session_ipaddr(const struct sccp_session *session);
+
 #endif /* SCCP_SESSION_H_ */

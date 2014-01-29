@@ -20,6 +20,7 @@ struct sccp_device_snapshot {
 	uint32_t type;
 	uint8_t proto_version;
 	char name[SCCP_DEVICE_NAME_MAX];
+	char ipaddr[16];
 	char capabilities[32];
 };
 

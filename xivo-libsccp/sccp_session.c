@@ -112,11 +112,13 @@ static void sccp_session_destructor(void *data)
 		ast_log(LOG_ERROR, "session->device is not null in destructor, something is really wrong\n");
 	}
 
+	close(session->sockfd);
+	ast_verb(4, "SCCP connection from %s:%d closed\n", session->ipaddr, session->port);
+
 	/* empty the queue here too to handle the case the session was never run */
 	sccp_session_empty_queue(session);
 	sccp_queue_destroy(session->queue);
 	sccp_task_runner_destroy(session->task_runner);
-	close(session->sockfd);
 	ao2_ref(session->cfg, -1);
 }
 
@@ -418,8 +420,7 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 		return;
 	}
 
-	/* XXX missing session ip address and port */
-	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", device_info.proto_version, name, "unknown", -1);
+	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", device_info.proto_version, name, session->ipaddr, session->port);
 
 	remove_auth_timeout_task(session);
 	sccp_device_on_registration_success(device);
@@ -594,4 +595,9 @@ int sccp_session_add_device_task(struct sccp_session *session, sccp_device_task_
 struct sccp_serializer *sccp_session_serializer(struct sccp_session *session)
 {
 	return &session->serializer;
+}
+
+const char *sccp_session_ipaddr(const struct sccp_session *session)
+{
+	return session->ipaddr;
 }

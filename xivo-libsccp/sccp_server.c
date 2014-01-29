@@ -417,7 +417,7 @@ static void *server_run(void *data)
 				goto end;
 			}
 
-			ast_verb(4, "New connection from %s:%d accepted\n", ast_inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+			ast_verb(4, "New SCCP connection from %s:%d accepted\n", ast_inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
 			session = sccp_session_create(server->cfg, server->registry, &addr, sockfd);
 			if (!session) {

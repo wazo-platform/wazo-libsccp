@@ -1082,6 +1082,7 @@ void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_sn
 	snapshot->type = device->type;
 	snapshot->proto_version = device->proto_version;
 	ast_copy_string(snapshot->name, device->name, sizeof(snapshot->name));
+	ast_copy_string(snapshot->ipaddr, sccp_session_ipaddr(device->session), sizeof(snapshot->ipaddr));
 	ast_getformatname_multiple(snapshot->capabilities, sizeof(snapshot->capabilities), device->caps);
 	ast_mutex_unlock(&device->lock);
 }
