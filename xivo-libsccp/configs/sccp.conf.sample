@@ -6,6 +6,7 @@ guest = no
 [SEP0015C66BFD16]
 type = device
 dateformat = D/M/Y
+voicemail = 1002
 keepalive = 10
 dialtimeout = 5
 line = 1001
@@ -20,7 +21,6 @@ setvar = XIVO_USERID=1
 setvar = PICKUPMARK=1001%default
 context = default
 language = en_US
-voicemail = 1002
 vmexten = *98
 directmedia = yes
 tos_audio = EF

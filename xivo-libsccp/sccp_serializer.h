@@ -79,6 +79,8 @@ int sccp_serializer_push_forward_status_res(struct sccp_serializer *szer, uint32
 
 int sccp_serializer_push_keep_alive_ack(struct sccp_serializer *szer);
 
+int sccp_serializer_push_lamp_state(struct sccp_serializer *szer, enum sccp_stimulus_type stimulus, uint32_t instance, enum sccp_lamp_state indication);
+
 int sccp_serializer_push_line_status_res(struct sccp_serializer *szer, uint32_t line_instance, const char *cid_name, const char *cid_num);
 
 int sccp_serializer_push_register_ack(struct sccp_serializer *szer, uint8_t proto_version, uint32_t keepalive, const char *datefmt);

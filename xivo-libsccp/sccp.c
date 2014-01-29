@@ -85,7 +85,7 @@ static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 		ast_cli(a->fd, FORMAT_STRING,
 				device_cfg->name,
 				device_cfg->line_cfg->name,
-				S_OR(device_cfg->line_cfg->voicemail, "(None)"),
+				S_OR(device_cfg->voicemail, "(None)"),
 				(int) device_cfg->speeddial_count);
 		ao2_ref(device_cfg, -1);
 		count++;

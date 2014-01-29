@@ -321,6 +321,19 @@ int sccp_serializer_push_keep_alive_ack(struct sccp_serializer *szer)
 	return sccp_serializer_push(szer, msg);
 }
 
+int sccp_serializer_push_lamp_state(struct sccp_serializer *szer, enum sccp_stimulus_type stimulus, uint32_t instance, enum sccp_lamp_state indication)
+{
+	struct sccp_msg *msg = &szer->msg;
+
+	set_msg_header(msg, sizeof(struct set_lamp_message), SET_LAMP_MESSAGE);
+
+	msg->data.setlamp.stimulus = htolel(stimulus);
+	msg->data.setlamp.lineInstance = htolel(instance);
+	msg->data.setlamp.state = htolel(indication);
+
+	return sccp_serializer_push(szer, msg);
+}
+
 int sccp_serializer_push_line_status_res(struct sccp_serializer *szer, uint32_t line_instance, const char *cid_name, const char *cid_num)
 {
 	struct sccp_msg *msg = &szer->msg;

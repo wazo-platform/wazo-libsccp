@@ -1,5 +1,7 @@
 #include <asterisk.h>
+#include <asterisk/app.h>
 #include <asterisk/astobj2.h>
+#include <asterisk/event.h>
 #include <asterisk/lock.h>
 
 #include "sccp_config.h"
@@ -77,6 +79,8 @@ struct sccp_device {
 	struct sccp_device_state *state;
 	/* (dynamic) */
 	struct ast_format_cap *caps;	/* Supported capabilities */
+	/* (dynamic) */
+	struct ast_event_sub *mwi_event_sub;
 
 	enum sccp_device_type type;
 	uint8_t proto_version;
@@ -87,6 +91,8 @@ struct sccp_device {
 	char name[SCCP_DEVICE_NAME_MAX];
 };
 
+static void subscribe_mwi(struct sccp_device *device);
+static void unsubscribe_mwi(struct sccp_device *device);
 static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 static void handle_msg_state_registering(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type);
@@ -395,6 +401,8 @@ void sccp_device_destroy(struct sccp_device *device)
 {
 	ast_log(LOG_DEBUG, "destroying device %s\n", device->name);
 
+	unsubscribe_mwi(device);
+
 	line_group_destroy(&device->line_group);
 	line_group_deinit(&device->line_group);
 
@@ -556,9 +564,57 @@ static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type
 	sccp_serializer_push_reset(device->serializer, type);
 }
 
+static void transmit_voicemail_lamp_state(struct sccp_device *device, int new_msgs)
+{
+	enum sccp_lamp_state indication = new_msgs ? SCCP_LAMP_ON : SCCP_LAMP_OFF;
+
+	sccp_serializer_push_lamp_state(device->serializer, STIMULUS_VOICEMAIL, 0, indication);
+}
+
 static void handle_msg_button_template_req(struct sccp_device *device)
 {
 	transmit_button_template_res(device);
+}
+
+/*
+ * called from event thread
+ */
+static void on_mwi_event(const struct ast_event *event, void *data)
+{
+	struct sccp_device *device = data;
+	int new_msgs = ast_event_get_ie_uint(event, AST_EVENT_IE_NEWMSGS);
+
+	/* XXX don't think there's a need to lock the device... we are just
+	 *     transmitting a message... but if we do lock, we'll need to
+	 *     be careful when subscribing / unsubscribing (especially
+	 *     unsubscribing) to not cause a deadlock caused by a lock
+	 *     inversion problem
+	 */
+
+	transmit_voicemail_lamp_state(device, new_msgs);
+}
+
+static void subscribe_mwi(struct sccp_device *device)
+{
+	if (ast_strlen_zero(device->cfg->voicemail)) {
+		return;
+	}
+
+	device->mwi_event_sub = ast_event_subscribe(AST_EVENT_MWI, on_mwi_event, "sccp mwi subsciption", device,
+			AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, device->cfg->voicemail,
+			AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, device->line_group.line->cfg->context,
+			AST_EVENT_IE_NEWMSGS, AST_EVENT_IE_PLTYPE_EXISTS,
+			AST_EVENT_IE_END);
+	if (!device->mwi_event_sub) {
+		ast_log(LOG_WARNING, "device %s subscribe mwi failed\n", device->name);
+	}
+}
+
+static void unsubscribe_mwi(struct sccp_device *device)
+{
+	if (device->mwi_event_sub) {
+		ast_event_unsubscribe(device->mwi_event_sub);
+	}
 }
 
 static void codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_format *result)
@@ -778,6 +834,10 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 		return 0;
 	}
 
+	if (strcmp(old_device_cfg->voicemail, new_device_cfg->voicemail)) {
+		return 0;
+	}
+
 	if (old_device_cfg->keepalive != new_device_cfg->keepalive) {
 		return 0;
 	}
@@ -799,7 +859,8 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 		return 0;
 	}
 
-	if (strcmp(old_line_cfg->voicemail, new_line_cfg->voicemail)) {
+	/* right now, the context is also used as the voicemail context */
+	if (strcmp(old_line_cfg->context, new_line_cfg->context)) {
 		return 0;
 	}
 
@@ -890,18 +951,35 @@ void sccp_device_on_data_read(struct sccp_device *device)
 	add_keepalive_task(device);
 }
 
+static void init_voicemail_lamp_state(struct sccp_device *device)
+{
+	int new_msgs;
+	int old_msgs;
+
+	if (ast_strlen_zero(device->cfg->voicemail)) {
+		return;
+	}
+
+	if (ast_app_inboxcount(device->cfg->voicemail, &new_msgs, &old_msgs) == -1) {
+		ast_log(LOG_NOTICE, "could not get voicemail count for %s\n", device->cfg->voicemail);
+		return;
+	}
+
+	transmit_voicemail_lamp_state(device, new_msgs);
+}
+
 void sccp_device_on_registration_success(struct sccp_device *device)
 {
 	sccp_serializer_set_proto_version(device->serializer, device->proto_version);
 
-	/* TODO register mwi callback */
+	subscribe_mwi(device);
 	/* TODO register speeddial callback */
 	/* TODO call ast_devstate_changed */
 
 	transmit_register_ack(device);
 	transmit_capabilities_req(device);
 	transmit_clear_message(device);
-	/* TODO transmit_lamp_state depending on the number of voicemail, ... */
+	init_voicemail_lamp_state(device);
 
 	add_keepalive_task(device);
 

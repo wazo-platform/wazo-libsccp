@@ -674,6 +674,7 @@ int sccp_config_init(void)
 	/* device options */
 	aco_option_register(&cfg_info, "type", ACO_EXACT, device_types, NULL, OPT_NOOP_T, 0, 0);
 	aco_option_register(&cfg_info, "dateformat", ACO_EXACT, device_types, "D/M/Y", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_device_cfg, dateformat));
+	aco_option_register(&cfg_info, "voicemail", ACO_EXACT, device_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_device_cfg, voicemail));
 	aco_option_register(&cfg_info, "keepalive", ACO_EXACT, device_types, "10", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_device_cfg, keepalive), 1, 600);
 	aco_option_register(&cfg_info, "dialtimeout", ACO_EXACT, device_types, "2", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_device_cfg, dialtimeout), 1, 60);
 	aco_option_register_custom(&cfg_info, "line", ACO_EXACT, device_types, NULL, device_cfg_line_handler, 0);
@@ -686,7 +687,6 @@ int sccp_config_init(void)
 	aco_option_register_custom(&cfg_info, "setvar", ACO_EXACT, line_types, NULL, line_cfg_setvar_handler, 0);
 	aco_option_register(&cfg_info, "context", ACO_EXACT, line_types, "default", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, context));
 	aco_option_register(&cfg_info, "language", ACO_EXACT, line_types, "en_US", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, language));
-	aco_option_register(&cfg_info, "voicemail", ACO_EXACT, line_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, voicemail));
 	aco_option_register(&cfg_info, "vmexten", ACO_EXACT, line_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, vmexten));
 	aco_option_register(&cfg_info, "directmedia", ACO_EXACT, line_types, "", OPT_BOOL_T, 1, FLDSET(struct sccp_line_cfg, directmedia));
 	aco_option_register_custom(&cfg_info, "tos_audio", ACO_EXACT, line_types, "EF", line_cfg_tos_audio_handler, 0);
