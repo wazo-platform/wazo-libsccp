@@ -1,5 +1,6 @@
 #include <asterisk.h>
 #include <asterisk/acl.h>
+#include <asterisk/astobj2.h>
 #include <asterisk/config_options.h>
 #include <asterisk/linkedlists.h>
 #include <asterisk/strings.h>

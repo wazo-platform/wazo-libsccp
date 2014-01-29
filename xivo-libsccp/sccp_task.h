@@ -5,8 +5,6 @@ struct ast_heap;
 struct sccp_session;
 struct sccp_task_runner;
 
-/* XXX the API doesn't work well with reference counting, might have to change it */
-
 /*!
  * \brief Function type for session task callback
  */

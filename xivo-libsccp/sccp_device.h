@@ -1,9 +1,7 @@
 #ifndef SCCP_DEVICE_H_
 #define SCCP_DEVICE_H_
 
-/* XXX for SCCP_DEVICE_NAME_MAX definition */
-#include "sccp_config.h"
-/* XXX for sccp_reset_type */
+#include "sccp.h"
 #include "sccp_msg.h"
 
 struct sccp_device;

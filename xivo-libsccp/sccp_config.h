@@ -1,14 +1,12 @@
 #ifndef SCCP_CONFIG_H_
 #define SCCP_CONFIG_H_
 
+#include <asterisk/channel.h>
 #include <stddef.h>
 
-#include <asterisk/astobj2.h>
-#include <asterisk/channel.h>
+#include "sccp.h"
 
-#define SCCP_DEVICE_NAME_MAX 40
-#define SCCP_LINE_NAME_MAX 40
-#define SCCP_SPEEDDIAL_NAME_MAX 40
+struct ao2_container;
 
 struct sccp_cfg {
 	struct sccp_general_cfg *general_cfg;
