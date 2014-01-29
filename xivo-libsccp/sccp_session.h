@@ -6,6 +6,7 @@ struct sccp_device;
 struct sccp_device_registry;
 struct sccp_msg;
 struct sccp_session;
+struct sockaddr_in;
 
 /*!
  * \brief Create a new session (astobj2 object).
@@ -13,7 +14,7 @@ struct sccp_session;
  * \retval non-NULL on success
  * \retval NULL on failure
  */
-struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, int sockfd);
+struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, struct sockaddr_in *addr, int sockfd);
 
 /*!
  * \brief Run the session.

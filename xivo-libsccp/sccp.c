@@ -2,6 +2,7 @@
 #include <asterisk/cli.h>
 #include <asterisk/module.h>
 
+#include "sccp_debug.h"
 #include "sccp_config.h"
 #include "sccp_device.h"
 #include "sccp_device_registry.h"
@@ -50,6 +51,40 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	}
 
 	ao2_ref(device, -1);
+
+	return CLI_SUCCESS;
+}
+
+static char *sccp_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	const char *what;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp set debug {on|off|ip}";
+		e->usage =
+			"Usage: sccp set debug {on|off|ip addr}\n"
+			"       Enable/disable dumping of SCCP packets.\n";
+		return NULL;
+
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	what = a->argv[e->args - 1];
+
+	if (!strcasecmp(what, "on")) {
+		sccp_enable_debug();
+		ast_cli(a->fd, "SCCP debugging enabled\n");
+	} else if (!strcasecmp(what, "off")) {
+		sccp_disable_debug();
+		ast_cli(a->fd, "SCCP debugging disabled\n");
+	}  else if (!strcasecmp(what, "ip") && a->argc == e->args + 1) {
+		sccp_enable_debug_ip(a->argv[e->args]);
+		ast_cli(a->fd, "SCCP debugging enabled for IP: %s\n", sccp_debug_addr);
+	} else {
+		return CLI_SHOWUSAGE;
+	}
 
 	return CLI_SUCCESS;
 }
@@ -173,6 +208,7 @@ static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 
 static struct ast_cli_entry cli_entries[] = {
 	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
+	AST_CLI_DEFINE(sccp_set_debug, "Enable/Disable SCCP debugging"),
 	AST_CLI_DEFINE(cli_show_config, "Show the module configuration"),
 	AST_CLI_DEFINE(cli_show_devices, "Show the connected devices"),
 	AST_CLI_DEFINE(cli_show_sessions, "Show the active sessions"),

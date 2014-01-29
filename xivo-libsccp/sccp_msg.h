@@ -648,7 +648,8 @@ struct sccp_msg {
 	union sccp_data data;
 };
 
+const char *sccp_msg_id_str(uint32_t msg_id);
 const char *sccp_device_type_str(enum sccp_device_type device_type);
-const char *msg_id_str(uint32_t msg_id);
+const char *sccp_state_str(enum sccp_state state);
 
 #endif /* SCCP_MSG_H_ */

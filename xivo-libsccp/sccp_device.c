@@ -896,7 +896,6 @@ int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 
 	msg_id = letohl(msg->id);
 
-	ast_log(LOG_DEBUG, "handling message %s\n", msg_id_str(msg_id));
 	if (device->state->handle_msg) {
 		device->state->handle_msg(device, msg, msg_id);
 	}

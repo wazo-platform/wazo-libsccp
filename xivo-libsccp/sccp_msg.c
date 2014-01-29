@@ -1,48 +1,6 @@
 #include "sccp_msg.h"
 
-const char *sccp_device_type_str(enum sccp_device_type device_type)
-{
-	switch (device_type) {
-	case SCCP_DEVICE_7905:
-		return "7905";
-	case SCCP_DEVICE_7906:
-		return "7906";
-	case SCCP_DEVICE_7911:
-		return "7911";
-	case SCCP_DEVICE_7912:
-		return "7912";
-	case SCCP_DEVICE_7920:
-		return "7920";
-	case SCCP_DEVICE_7921:
-		return "7921";
-	case SCCP_DEVICE_7931:
-		return "7931";
-	case SCCP_DEVICE_7937:
-		return "7937";
-	case SCCP_DEVICE_7940:
-		return "7940";
-	case SCCP_DEVICE_7941:
-		return "7941";
-	case SCCP_DEVICE_7941GE:
-		return "7941GE";
-	case SCCP_DEVICE_7942:
-		return "7942";
-	case SCCP_DEVICE_7960:
-		return "7960";
-	case SCCP_DEVICE_7961:
-		return "7961";
-	case SCCP_DEVICE_7962:
-		return "7962";
-	case SCCP_DEVICE_7970:
-		return "7970";
-	case SCCP_DEVICE_CIPC:
-		return "CIPC";
-	}
-
-	return "unknown";
-}
-
-const char *msg_id_str(uint32_t msg_id) {
+const char *sccp_msg_id_str(uint32_t msg_id) {
 	switch (msg_id) {
 	case KEEP_ALIVE_MESSAGE:
 		return "keep alive";
@@ -161,4 +119,80 @@ const char *msg_id_str(uint32_t msg_id) {
 	}
 
 	return "unknown";
+}
+
+const char *sccp_device_type_str(enum sccp_device_type device_type)
+{
+	switch (device_type) {
+	case SCCP_DEVICE_7905:
+		return "7905";
+	case SCCP_DEVICE_7906:
+		return "7906";
+	case SCCP_DEVICE_7911:
+		return "7911";
+	case SCCP_DEVICE_7912:
+		return "7912";
+	case SCCP_DEVICE_7920:
+		return "7920";
+	case SCCP_DEVICE_7921:
+		return "7921";
+	case SCCP_DEVICE_7931:
+		return "7931";
+	case SCCP_DEVICE_7937:
+		return "7937";
+	case SCCP_DEVICE_7940:
+		return "7940";
+	case SCCP_DEVICE_7941:
+		return "7941";
+	case SCCP_DEVICE_7941GE:
+		return "7941GE";
+	case SCCP_DEVICE_7942:
+		return "7942";
+	case SCCP_DEVICE_7960:
+		return "7960";
+	case SCCP_DEVICE_7961:
+		return "7961";
+	case SCCP_DEVICE_7962:
+		return "7962";
+	case SCCP_DEVICE_7970:
+		return "7970";
+	case SCCP_DEVICE_CIPC:
+		return "CIPC";
+	}
+
+	return "unknown";
+}
+
+const char *sccp_state_str(enum sccp_state state)
+{
+	switch (state) {
+	case SCCP_OFFHOOK:
+		return "Offhook";
+	case SCCP_ONHOOK:
+		return "Onhook";
+	case SCCP_RINGOUT:
+		return "Ringout";
+	case SCCP_RINGIN:
+		return "Ringin";
+	case SCCP_CONNECTED:
+		return "Connected";
+	case SCCP_BUSY:
+		return "Busy";
+	case SCCP_CONGESTION:
+		return "Congestion";
+	case SCCP_HOLD:
+		return "Hold";
+	case SCCP_CALLWAIT:
+		return "Callwait";
+	case SCCP_TRANSFER:
+		return "Transfer";
+	case SCCP_PARK:
+		return "Park";
+	case SCCP_PROGRESS:
+		return "Progress";
+	case SCCP_INVALID:
+		return "Invalid";
+	}
+
+	return "Unknown";
 }

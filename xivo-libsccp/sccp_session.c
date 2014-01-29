@@ -5,6 +5,7 @@
 #include <asterisk/network.h>
 #include <asterisk/utils.h>
 
+#include "sccp_debug.h"
 #include "sccp_config.h"
 #include "sccp_device.h"
 #include "sccp_device_registry.h"
@@ -24,12 +25,15 @@ struct sccp_session {
 	struct sccp_serializer serializer;
 	int sockfd;
 	int stop;
+	int port;
 
 	struct sccp_cfg *cfg;
 	struct sccp_device_registry *registry;
 	struct sccp_queue *queue;
 	struct sccp_task_runner *task_runner;
 	struct sccp_device *device;
+
+	char ipaddr[INET_ADDRSTRLEN];
 };
 
 enum session_msg_id {
@@ -144,7 +148,7 @@ static int set_session_sock_option(int sockfd)
 	return 0;
 }
 
-struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, int sockfd)
+struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, struct sockaddr_in *addr, int sockfd)
 {
 	struct sccp_queue *queue;
 	struct sccp_task_runner *task_runner;
@@ -157,6 +161,11 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 
 	if (!registry) {
 		ast_log(LOG_ERROR, "sccp session create failed: registry is null\n");
+		return NULL;
+	}
+
+	if (!addr) {
+		ast_log(LOG_ERROR, "sccp session create failed: addr is null\n");
 		return NULL;
 	}
 
@@ -192,6 +201,8 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 	session->cfg = cfg;
 	ao2_ref(cfg, +1);
 	session->registry = registry;
+	session->port = ntohs(addr->sin_port);
+	ast_copy_string(session->ipaddr, ast_inet_ntoa(addr->sin_addr), sizeof(session->ipaddr));
 
 	return session;
 }
@@ -420,6 +431,12 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 static void sccp_session_handle_msg(struct sccp_session *session, struct sccp_msg *msg)
 {
 	uint32_t msg_id = letohl(msg->id);
+
+	if (sccp_debug) {
+		if (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, session->ipaddr)) {
+			sccp_dump_message_received(msg, session->ipaddr, session->port);
+		}
+	}
 
 	if (!session->device) {
 		switch (msg_id) {
