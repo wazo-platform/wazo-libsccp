@@ -30,8 +30,7 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 
 	case CLI_GENERATE:
 		if (a->pos == 2) {
-			/* TODO implement complete sccp devices... */
-			return NULL;
+			return sccp_device_registry_complete(global_registry, a->word, a->n);
 		} else if (a->pos == 3) {
 			return ast_cli_complete(a->word, choices, a->n);
 		}

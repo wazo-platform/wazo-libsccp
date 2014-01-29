@@ -111,6 +111,36 @@ struct sccp_device *sccp_device_registry_find(struct sccp_device_registry *regis
 	return ao2_find(registry->devices, name, OBJ_KEY);
 }
 
+char *sccp_device_registry_complete(struct sccp_device_registry *registry, const char *word, int state)
+{
+	struct ao2_iterator iter;
+	struct sccp_device *device;
+	char *result = NULL;
+	int which = 0;
+	int len;
+
+	if (!word) {
+		ast_log(LOG_ERROR, "registry complete failed: word is null\n");
+		return NULL;
+	}
+
+	len = strlen(word);
+
+	iter = ao2_iterator_init(registry->devices, 0);
+	while ((device = ao2_iterator_next(&iter))) {
+		if (!strncasecmp(word, sccp_device_name(device), len) && ++which > state) {
+			result = ast_strdup(sccp_device_name(device));
+			ao2_ref(device, -1);
+			break;
+		}
+
+		ao2_ref(device, -1);
+	}
+	ao2_iterator_destroy(&iter);
+
+	return result;
+}
+
 int sccp_device_registry_take_snapshots(struct sccp_device_registry *registry, struct sccp_device_snapshot **snapshots, size_t *n)
 {
 	struct ao2_iterator iter;

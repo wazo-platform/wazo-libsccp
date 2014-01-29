@@ -46,6 +46,11 @@ void sccp_device_registry_remove(struct sccp_device_registry *registry, struct s
 struct sccp_device *sccp_device_registry_find(struct sccp_device_registry *registry, const char *name);
 
 /*!
+ * \brief Completion function for CLI.
+ */
+char *sccp_device_registry_complete(struct sccp_device_registry *registry, const char *word, int state);
+
+/*!
  * \brief Take a snapshot of all the devices in the registry.
  *
  * XXX on success, *snapshots, must be freed, else you'll leak memory
