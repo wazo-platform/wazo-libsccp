@@ -433,10 +433,8 @@ static void sccp_session_handle_msg(struct sccp_session *session, struct sccp_ms
 {
 	uint32_t msg_id = letohl(msg->id);
 
-	if (sccp_debug) {
-		if (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, session->ipaddr)) {
-			sccp_dump_message_received(msg, session->ipaddr, session->port);
-		}
+	if (sccp_debug_enabled(session->ipaddr)) {
+		sccp_dump_message_received(msg, session->ipaddr, session->port);
 	}
 
 	if (!session->device) {
