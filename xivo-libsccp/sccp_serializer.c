@@ -42,6 +42,7 @@ int sccp_deserializer_pop(struct sccp_deserializer *deserializer, struct sccp_ms
 	size_t avail_bytes;
 	size_t new_start;
 	size_t total_length;
+	size_t copy_length;
 	uint32_t msg_length;
 
 	avail_bytes = deserializer->end - deserializer->start;
@@ -51,13 +52,24 @@ int sccp_deserializer_pop(struct sccp_deserializer *deserializer, struct sccp_ms
 
 	memcpy(&msg_length, &deserializer->buf[deserializer->start], sizeof(msg_length));
 	total_length = letohl(msg_length) + SCCP_MSG_LEN_OFFSET;
-	if (total_length < SCCP_MSG_MIN_TOTAL_LEN || total_length > SCCP_MSG_MAX_TOTAL_LEN) {
-		return SCCP_DESERIALIZER_MALFORMED;
-	} else if (avail_bytes < total_length) {
+	if (avail_bytes < total_length) {
 		return SCCP_DESERIALIZER_NOMSG;
+	}  else if (total_length < SCCP_MSG_MIN_TOTAL_LEN) {
+		ast_log(LOG_WARNING, "invalid message: total length (%u) is too small\n", total_length);
+		return SCCP_DESERIALIZER_MALFORMED;
+	} else if (total_length > SCCP_MSG_MAX_TOTAL_LEN) {
+		 if (total_length <= sizeof(deserializer->buf)) {
+			 copy_length = SCCP_MSG_MAX_TOTAL_LEN;
+			 ast_log(LOG_DEBUG, "truncating %u bytes from message\n", total_length - copy_length);
+		 } else {
+			 ast_log(LOG_WARNING, "invalid message: total length (%u) is too large\n", total_length);
+			 return SCCP_DESERIALIZER_MALFORMED;
+		 }
+	} else {
+		copy_length = total_length;
 	}
 
-	memcpy(&deserializer->msg, &deserializer->buf[deserializer->start], total_length);
+	memcpy(&deserializer->msg, &deserializer->buf[deserializer->start], copy_length);
 	*msg = &deserializer->msg;
 
 	new_start = deserializer->start + total_length;
