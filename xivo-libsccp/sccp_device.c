@@ -24,7 +24,7 @@ struct sccp_speeddial {
 	uint32_t instance;
 	uint32_t index;
 
-	/* (dynamic) */
+	/* (dynamic, modified in thread session only) */
 	int state_id;
 	int state;	/* enum ast_extension_states */
 };
@@ -85,7 +85,7 @@ struct sccp_device {
 	struct sccp_device_state *state;
 	/* (dynamic) */
 	struct ast_format_cap *caps;	/* Supported capabilities */
-	/* (dynamic) */
+	/* (dynamic, modified in thread session only) */
 	struct ast_event_sub *mwi_event_sub;
 
 	enum sccp_device_type type;
@@ -405,6 +405,10 @@ struct sccp_device *sccp_device_create(struct sccp_device_cfg *device_cfg, struc
 	return device;
 }
 
+/*
+ * entry point: yes
+ * thread: session
+ */
 void sccp_device_destroy(struct sccp_device *device)
 {
 	ast_log(LOG_DEBUG, "destroying device %s\n", device->name);
@@ -412,6 +416,7 @@ void sccp_device_destroy(struct sccp_device *device)
 	unsubscribe_mwi(device);
 	unsubscribe_hints(device);
 
+	ast_mutex_lock(&device->lock);
 	line_group_destroy(&device->line_group);
 	line_group_deinit(&device->line_group);
 
@@ -426,6 +431,8 @@ void sccp_device_destroy(struct sccp_device *device)
 		transmit_reset(device, SCCP_RESET_SOFT);
 		break;
 	}
+
+	ast_mutex_unlock(&device->lock);
 }
 
 /*
@@ -662,23 +669,23 @@ static void handle_msg_button_template_req(struct sccp_device *device)
 }
 
 /*
- * called from event thread
+ * entry point: yes
+ * thread: event processing thread
  */
 static void on_mwi_event(const struct ast_event *event, void *data)
 {
 	struct sccp_device *device = data;
 	int new_msgs = ast_event_get_ie_uint(event, AST_EVENT_IE_NEWMSGS);
 
-	/* XXX don't think there's a need to lock the device... we are just
-	 *     transmitting a message... but if we do lock, we'll need to
-	 *     be careful when subscribing / unsubscribing (especially
-	 *     unsubscribing) to not cause a deadlock caused by a lock
-	 *     inversion problem
-	 */
-
+	ast_mutex_lock(&device->lock);
 	transmit_voicemail_lamp_state(device, new_msgs);
+	ast_mutex_unlock(&device->lock);
 }
 
+/*
+ * thread: session
+ * locked: MUST NOT
+ */
 static void subscribe_mwi(struct sccp_device *device)
 {
 	if (ast_strlen_zero(device->cfg->voicemail)) {
@@ -695,6 +702,10 @@ static void subscribe_mwi(struct sccp_device *device)
 	}
 }
 
+/*
+ * thread: session
+ * locked: MUST NOT
+ */
 static void unsubscribe_mwi(struct sccp_device *device)
 {
 	if (device->mwi_event_sub) {
@@ -702,22 +713,28 @@ static void unsubscribe_mwi(struct sccp_device *device)
 	}
 }
 
+/*
+ * entry point: yes
+ * thread: XXX good question, but not session thread, and not pbx thread I supose
+ */
 static int on_hint_state_change(char *context, char *id, struct ast_state_cb_info *info, void *data)
 {
 	struct sccp_speeddial *sd = data;
+	struct sccp_device *device = sd->device;
 
-	/* XXX don't think there's a need to lock the device... but if
-	 *     we do lock, we'll need to be careful when subscribing / unsubscribing (especially
-	 *     unsubscribing) to not cause a deadlock caused by a lock
-	 *     inversion problem
-	 */
+	ast_mutex_lock(&device->lock);
 	sd->state = info->exten_state;
 
-	transmit_feature_status(sd->device, sd);
+	transmit_feature_status(device, sd);
+	ast_mutex_unlock(&device->lock);
 
 	return 0;
 }
 
+/*
+ * thread: session
+ * locked: MUST NOT
+ */
 static void subscribe_hints(struct sccp_device *device)
 {
 	struct sccp_speeddial *sd;
@@ -727,16 +744,19 @@ static void subscribe_hints(struct sccp_device *device)
 	for (i = 0; i < device->sd_group.count; i++) {
 		sd = device->sd_group.speeddials[i];
 		if (sd->cfg->blf) {
+			sd->state = ast_extension_state(NULL, context, sd->cfg->extension);
 			sd->state_id = ast_extension_state_add(context, sd->cfg->extension, on_hint_state_change, sd);
 			if (sd->state_id == -1) {
 				ast_log(LOG_WARNING, "Could not subscribe to %s@%s\n", sd->cfg->extension, context);
-			} else {
-				sd->state = ast_extension_state(NULL, context, sd->cfg->extension);
 			}
 		}
 	}
 }
 
+/*
+ * thread: session
+ * locked: MUST NOT
+ */
 static void unsubscribe_hints(struct sccp_device *device)
 {
 	struct sccp_speeddial *sd;
@@ -929,6 +949,10 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 	}
 }
 
+/*
+ * entry point: true
+ * thread: session
+ */
 int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 {
 	uint32_t msg_id;
@@ -940,13 +964,20 @@ int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 
 	msg_id = letohl(msg->id);
 
+	/* XXX not necessary if the device->state can only change in session thread */
+	ast_mutex_lock(&device->lock);
 	if (device->state->handle_msg) {
 		device->state->handle_msg(device, msg, msg_id);
 	}
 
+	ast_mutex_unlock(&device->lock);
+
 	return 0;
 }
 
+/*
+ * thread: session
+ */
 static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp_device_cfg *new_device_cfg)
 {
 	struct sccp_device_cfg *old_device_cfg = device->cfg;
@@ -1012,6 +1043,10 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 	return 1;
 }
 
+/*
+ * entry point: yes
+ * thread: session
+ */
 int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg *new_device_cfg)
 {
 	struct sccp_line *line = device->line_group.line;
@@ -1024,11 +1059,14 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 	}
 
 	if (!sccp_device_test_apply_config(device, new_device_cfg)) {
+		ast_mutex_lock(&device->lock);
 		transmit_reset(device, SCCP_RESET_SOFT);
+		ast_mutex_unlock(&device->lock);
 
 		return 0;
 	}
 
+	ast_mutex_lock(&device->lock);
 	ao2_ref(device->cfg, -1);
 	device->cfg = new_device_cfg;
 	ao2_ref(device->cfg, +1);
@@ -1044,9 +1082,15 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 		ao2_ref(speeddial->cfg, +1);
 	}
 
+	ast_mutex_unlock(&device->lock);
+
 	return 0;
 }
 
+/*
+ * entry point: yes
+ * thread: any
+ */
 int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
 {
 	ast_mutex_lock(&device->lock);
@@ -1056,11 +1100,21 @@ int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
 	return 0;
 }
 
+/*
+ * entry point: yes
+ * thread: session
+ */
 void sccp_device_on_connection_lost(struct sccp_device *device)
 {
+	ast_mutex_lock(&device->lock);
 	device->state = &state_connlost;
+	ast_mutex_unlock(&device->lock);
 }
 
+/*
+ * entry point: yes
+ * thread: session
+ */
 static void on_keepalive_timeout(struct sccp_device *device, void __attribute__((unused)) *data)
 {
 	ast_log(LOG_WARNING, "Device %s has timed out\n", device->name);
@@ -1068,6 +1122,9 @@ static void on_keepalive_timeout(struct sccp_device *device, void __attribute__(
 	sccp_session_stop(device->session);
 }
 
+/*
+ * thread: session
+ */
 static int add_keepalive_task(struct sccp_device *device)
 {
 	int timeout = 2 * device->cfg->keepalive;
@@ -1075,11 +1132,18 @@ static int add_keepalive_task(struct sccp_device *device)
 	return sccp_session_add_device_task(device->session, on_keepalive_timeout, NULL, timeout);
 }
 
+/*
+ * entry point: yes
+ * thread: session
+ */
 void sccp_device_on_data_read(struct sccp_device *device)
 {
 	add_keepalive_task(device);
 }
 
+/*
+ * thread: session
+ */
 static void init_voicemail_lamp_state(struct sccp_device *device)
 {
 	int new_msgs;
@@ -1097,27 +1161,41 @@ static void init_voicemail_lamp_state(struct sccp_device *device)
 	transmit_voicemail_lamp_state(device, new_msgs);
 }
 
+/*
+ * entry point: yes
+ * thread: session
+ */
 void sccp_device_on_registration_success(struct sccp_device *device)
 {
-	subscribe_mwi(device);
-	subscribe_hints(device);
-	/* TODO call ast_devstate_changed */
-
+	ast_mutex_lock(&device->lock);
 	transmit_register_ack(device);
 	transmit_capabilities_req(device);
 	transmit_clear_message(device);
+
 	init_voicemail_lamp_state(device);
 
 	add_keepalive_task(device);
 
 	device->state = &state_registering;
+	/* TODO call ast_devstate_changed (even if it's in fact a bit early) */
+	ast_mutex_unlock(&device->lock);
+
+	subscribe_mwi(device);
+	subscribe_hints(device);
 }
 
+/*
+ * thread: any
+ */
 const char *sccp_device_name(const struct sccp_device *device)
 {
 	return device->name;
 }
 
+/*
+ * entry point: yes
+ * thread: any
+ */
 void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_snapshot *snapshot)
 {
 	ast_mutex_lock(&device->lock);

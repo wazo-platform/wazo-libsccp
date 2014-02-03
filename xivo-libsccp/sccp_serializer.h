@@ -3,6 +3,8 @@
 
 #include "sccp_msg.h"
 
+/* XXX rename file ? move to sccp_msg ? */
+
 #define SCCP_DESERIALIZER_ERROR -1
 #define SCCP_DESERIALIZER_NOMSG 1
 #define SCCP_DESERIALIZER_FULL 2

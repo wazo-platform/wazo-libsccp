@@ -17,6 +17,9 @@ typedef void (*sccp_task_cb)(struct sccp_session *session, void *data);
  */
 struct sccp_task_runner *sccp_task_runner_create(size_t data_size);
 
+/*!
+ * \brief Destroy the task runner.
+ */
 void sccp_task_runner_destroy(struct sccp_task_runner *runner);
 
 /*!
