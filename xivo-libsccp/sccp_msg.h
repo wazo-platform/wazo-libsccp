@@ -652,10 +652,6 @@ struct sccp_msg {
 #define SCCP_MSG_TOTAL_LEN_FROM_LEN(msg_length) ((msg_length) + 8)
 #define SCCP_MSG_LEN_FROM_DATA_LEN(data_length) ((data_length) + 4)
 
-const char *sccp_msg_id_str(uint32_t msg_id);
-const char *sccp_device_type_str(enum sccp_device_type device_type);
-const char *sccp_state_str(enum sccp_state state);
-
 void sccp_msg_button_template_res(struct sccp_msg *msg, struct button_definition *definition, size_t n);
 void sccp_msg_capabilities_req(struct sccp_msg *msg);
 void sccp_msg_config_status_res(struct sccp_msg *msg, const char *name, uint32_t line_count, uint32_t speeddial_count);
@@ -682,5 +678,9 @@ struct sccp_msg_builder {
 void sccp_msg_builder_init(struct sccp_msg_builder *msg_builder, enum sccp_device_type type, uint8_t proto_version);
 void sccp_msg_builder_line_status_res(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *cid_name, const char *cid_num, uint32_t line_instance);
 void sccp_msg_builder_register_ack(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *datefmt, uint32_t keepalive);
+
+const char *sccp_msg_id_str(uint32_t msg_id);
+const char *sccp_device_type_str(enum sccp_device_type device_type);
+const char *sccp_state_str(enum sccp_state state);
 
 #endif /* SCCP_MSG_H_ */
