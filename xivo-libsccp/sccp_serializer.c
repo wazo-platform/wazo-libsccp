@@ -6,9 +6,6 @@
 #include "sccp_serializer.h"
 #include "sccp_utils.h"
 
-#define MIN_TOTAL_LENGTH 12
-#define MAX_TOTAL_LENGTH sizeof(struct sccp_msg)
-
 void sccp_deserializer_init(struct sccp_deserializer *deserializer, int fd)
 {
 	deserializer->start = 0;
@@ -48,13 +45,13 @@ int sccp_deserializer_pop(struct sccp_deserializer *deserializer, struct sccp_ms
 	uint32_t msg_length;
 
 	avail_bytes = deserializer->end - deserializer->start;
-	if (avail_bytes < MIN_TOTAL_LENGTH) {
+	if (avail_bytes < SCCP_MSG_MIN_TOTAL_LEN) {
 		return SCCP_DESERIALIZER_NOMSG;
 	}
 
 	memcpy(&msg_length, &deserializer->buf[deserializer->start], sizeof(msg_length));
-	total_length = letohl(msg_length) + SCCP_MSG_LENGTH_OFFSET;
-	if (total_length < MIN_TOTAL_LENGTH || total_length > MAX_TOTAL_LENGTH) {
+	total_length = letohl(msg_length) + SCCP_MSG_LEN_OFFSET;
+	if (total_length < SCCP_MSG_MIN_TOTAL_LEN || total_length > SCCP_MSG_MAX_TOTAL_LEN) {
 		return SCCP_DESERIALIZER_MALFORMED;
 	} else if (avail_bytes < total_length) {
 		return SCCP_DESERIALIZER_NOMSG;

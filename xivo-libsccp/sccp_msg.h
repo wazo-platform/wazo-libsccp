@@ -3,9 +3,6 @@
 
 #include <stdint.h>
 
-#define MAX_BUTTON_DEFINITION 42
-#define SCCP_MSG_LENGTH_OFFSET 8
-
 enum sccp_device_type {
 	SCCP_DEVICE_7960 = 7,
 	SCCP_DEVICE_7940 = 8,
@@ -453,6 +450,7 @@ struct button_definition {
 	uint8_t buttonDefinition;
 };
 
+#define MAX_BUTTON_DEFINITION 42
 struct button_template_res_message {
 	uint32_t buttonOffset;
 	uint32_t buttonCount;
@@ -648,6 +646,11 @@ struct sccp_msg {
 	uint32_t id;
 	union sccp_data data;
 };
+
+#define SCCP_MSG_MIN_TOTAL_LEN 12
+#define SCCP_MSG_MAX_TOTAL_LEN sizeof(struct sccp_msg)
+/* offset that must be added to the "length" field of a msg to obtain the total length */
+#define SCCP_MSG_LEN_OFFSET 8
 
 const char *sccp_msg_id_str(uint32_t msg_id);
 const char *sccp_device_type_str(enum sccp_device_type device_type);

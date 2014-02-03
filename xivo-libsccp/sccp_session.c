@@ -597,7 +597,7 @@ int sccp_session_add_device_task(struct sccp_session *session, sccp_device_task_
 
 int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg)
 {
-	size_t count = letohl(msg->length) + SCCP_MSG_LENGTH_OFFSET;
+	size_t count = letohl(msg->length) + SCCP_MSG_LEN_OFFSET;
 	ssize_t n;
 
 	if (sccp_debug_enabled(session->ipaddr)) {
