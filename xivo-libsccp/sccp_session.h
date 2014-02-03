@@ -75,11 +75,14 @@ void sccp_session_remove_device_task(struct sccp_session *session, sccp_device_t
 void sccp_session_progress(struct sccp_session *session);
 
 /*!
- * \brief Return the serializer of the session.
+ * \brief Transmit a message over the session.
  *
  * \note Part of the device API.
+ *
+ * \retval 0 on success
+ * \retval non-zero on failure
  */
-struct sccp_serializer *sccp_session_serializer(struct sccp_session *session);
+int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg);
 
 /*!
  * \brief Return the (formatted) IP address of the session.

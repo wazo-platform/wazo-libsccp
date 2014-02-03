@@ -75,9 +75,10 @@ struct sccp_device {
 	struct line_group line_group;
 
 	/* (static) */
-	struct sccp_session *session;
+	struct sccp_msg_builder msg_builder;
+
 	/* (static) */
-	struct sccp_serializer *serializer;
+	struct sccp_session *session;
 	/* (dynamic) */
 	struct sccp_device_cfg *cfg;
 	/* (dynamic) */
@@ -347,9 +348,9 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	}
 
 	ast_mutex_init(&device->lock);
+	sccp_msg_builder_init(&device->msg_builder, info->type, info->proto_version);
 	device->session = session;
 	ao2_ref(session, +1);
-	device->serializer = sccp_session_serializer(session);
 	device->cfg = cfg;
 	ao2_ref(cfg, +1);
 	device->state = &state_new;
@@ -477,6 +478,7 @@ static struct sccp_speeddial *sccp_device_get_speeddial_by_index(struct sccp_dev
 
 static void transmit_button_template_res(struct sccp_device *device)
 {
+	struct sccp_msg msg;
 	struct button_definition definition[MAX_BUTTON_DEFINITION];
 	struct sccp_speeddial **speeddials = device->sd_group.speeddials;
 	size_t n = 0;
@@ -494,22 +496,32 @@ static void transmit_button_template_res(struct sccp_device *device)
 		n++;
 	}
 
-	sccp_serializer_push_button_template_res(device->serializer, definition, n);
+	sccp_msg_button_template_res(&msg, definition, n);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_capabilities_req(struct sccp_device *device)
 {
-	sccp_serializer_push_capabilities_req(device->serializer);
+	struct sccp_msg msg;
+
+	sccp_msg_capabilities_req(&msg);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_config_status_res(struct sccp_device *device)
 {
-	sccp_serializer_push_config_status_res(device->serializer, device->name, device->line_group.count, device->sd_group.count);
+	struct sccp_msg msg;
+
+	sccp_msg_config_status_res(&msg, device->name, device->line_group.count, device->sd_group.count);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_clear_message(struct sccp_device *device)
 {
-	sccp_serializer_push_clear_message(device->serializer);
+	struct sccp_msg msg;
+
+	sccp_msg_clear_message(&msg);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static enum sccp_blf_status extstate_ast2sccp(int state)
@@ -542,74 +554,106 @@ static enum sccp_blf_status extstate_ast2sccp(int state)
 
 static void transmit_feature_status(struct sccp_device *device, struct sccp_speeddial *sd)
 {
+	struct sccp_msg msg;
 	enum sccp_blf_status status = SCCP_BLF_STATUS_UNKNOWN;
 
 	if (sd->cfg->blf) {
 		status = extstate_ast2sccp(sd->state);
 	}
 
-	sccp_serializer_push_feature_status(device->serializer, sd->instance, BT_FEATUREBUTTON, status, sd->cfg->label);
+	sccp_msg_feature_status(&msg, sd->instance, BT_FEATUREBUTTON, status, sd->cfg->label);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_forward_status_res(struct sccp_device *device, struct sccp_line *line)
 {
-	sccp_serializer_push_forward_status_res(device->serializer, line->instance, "", 0);
+	struct sccp_msg msg;
+
+	sccp_msg_forward_status_res(&msg, line->instance, "", 0);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_keep_alive_ack(struct sccp_device *device)
 {
-	sccp_serializer_push_keep_alive_ack(device->serializer);
+	struct sccp_msg msg;
+
+	sccp_msg_keep_alive_ack(&msg);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_line_status_res(struct sccp_device *device, struct sccp_line *line)
 {
+	struct sccp_msg msg;
 	struct sccp_line_cfg *line_cfg = line->cfg;
 
-	sccp_serializer_push_line_status_res(device->serializer, line->instance, line_cfg->cid_name, line_cfg->cid_num);
+	sccp_msg_builder_line_status_res(&device->msg_builder, &msg, line_cfg->cid_name, line_cfg->cid_num, line->instance);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_register_ack(struct sccp_device *device)
 {
+	struct sccp_msg msg;
 	struct sccp_device_cfg *device_cfg = device->cfg;
 
-	sccp_serializer_push_register_ack(device->serializer, device->proto_version, device_cfg->keepalive, device_cfg->dateformat);
+	sccp_msg_builder_register_ack(&device->msg_builder, &msg, device_cfg->dateformat, device_cfg->keepalive);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_selectsoftkeys(struct sccp_device *device, uint32_t line_instance, uint32_t callid, enum sccp_softkey_status softkey)
 {
-	sccp_serializer_push_select_softkeys(device->serializer, line_instance, callid, softkey);
+	struct sccp_msg msg;
+
+	sccp_msg_select_softkeys(&msg, line_instance, callid, softkey);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_speeddial_stat_res(struct sccp_device *device, struct sccp_speeddial *sd)
 {
-	sccp_serializer_push_speeddial_stat_res(device->serializer, sd->index, sd->cfg->extension, sd->cfg->label);
+	struct sccp_msg msg;
+
+	sccp_msg_speeddial_stat_res(&msg, sd->index, sd->cfg->extension, sd->cfg->label);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_softkey_set_res(struct sccp_device *device)
 {
-	sccp_serializer_push_softkey_set_res(device->serializer);
+	struct sccp_msg msg;
+
+	sccp_msg_softkey_set_res(&msg);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_softkey_template_res(struct sccp_device *device)
 {
-	sccp_serializer_push_softkey_template_res(device->serializer);
+	struct sccp_msg msg;
+
+	sccp_msg_softkey_template_res(&msg);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_time_date_res(struct sccp_device *device)
 {
-	sccp_serializer_push_time_date_res(device->serializer);
+	struct sccp_msg msg;
+
+	sccp_msg_time_date_res(&msg);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type)
 {
-	sccp_serializer_push_reset(device->serializer, type);
+	struct sccp_msg msg;
+
+	sccp_msg_reset(&msg, type);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void transmit_voicemail_lamp_state(struct sccp_device *device, int new_msgs)
 {
+	struct sccp_msg msg;
 	enum sccp_lamp_state indication = new_msgs ? SCCP_LAMP_ON : SCCP_LAMP_OFF;
 
-	sccp_serializer_push_lamp_state(device->serializer, STIMULUS_VOICEMAIL, 0, indication);
+	sccp_msg_lamp_state(&msg, STIMULUS_VOICEMAIL, 0, indication);
+	sccp_session_transmit_msg(device->session, &msg);
 }
 
 static void handle_msg_button_template_req(struct sccp_device *device)
@@ -1055,8 +1099,6 @@ static void init_voicemail_lamp_state(struct sccp_device *device)
 
 void sccp_device_on_registration_success(struct sccp_device *device)
 {
-	sccp_serializer_set_proto_version(device->serializer, device->proto_version);
-
 	subscribe_mwi(device);
 	subscribe_hints(device);
 	/* TODO call ast_devstate_changed */

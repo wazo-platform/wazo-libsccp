@@ -7,17 +7,16 @@
 struct sccp_device;
 struct sccp_device_cfg;
 struct sccp_msg;
-struct sccp_serializer;
 struct sccp_session;
 
 struct sccp_device_info {
 	const char *name;
-	uint32_t type;
+	enum sccp_device_type type;
 	uint8_t proto_version;
 };
 
 struct sccp_device_snapshot {
-	uint32_t type;
+	enum sccp_device_type type;
 	uint8_t proto_version;
 	char name[SCCP_DEVICE_NAME_MAX];
 	char ipaddr[16];

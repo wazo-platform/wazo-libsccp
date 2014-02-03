@@ -16,13 +16,10 @@
 #include "sccp_task.h"
 #include "sccp_utils.h"
 
-#define SCCP_MAX_PACKET_SZ 2000
-
 static void sccp_session_empty_queue(struct sccp_session *session);
 
 struct sccp_session {
 	struct sccp_deserializer deserializer;
-	struct sccp_serializer serializer;
 	int sockfd;
 	int stop;
 	int port;
@@ -194,7 +191,6 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 	}
 
 	sccp_deserializer_init(&session->deserializer, sockfd);
-	sccp_serializer_init(&session->serializer, sockfd);
 	session->sockfd = sockfd;
 	session->queue = queue;
 	session->task_runner = task_runner;
@@ -378,6 +374,15 @@ static int sccp_session_read_sock(struct sccp_session *session)
 	return -1;
 }
 
+static int sccp_session_transmit_register_rej(struct sccp_session *session)
+{
+	struct sccp_msg msg;
+
+	sccp_msg_register_rej(&msg);
+
+	return sccp_session_transmit_msg(session, &msg);
+}
+
 static void sccp_session_handle_msg_register(struct sccp_session *session, struct sccp_msg *msg)
 {
 	struct sccp_device_info device_info;
@@ -394,7 +399,7 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 	device_cfg = find_device_cfg(session->cfg, name);
 	if (!device_cfg) {
 		ast_log(LOG_WARNING, "Device is not configured [%s]\n", name);
-		sccp_serializer_push_register_rej(&session->serializer);
+		sccp_session_transmit_register_rej(session);
 		return;
 	}
 
@@ -404,7 +409,7 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 	device = sccp_device_create(device_cfg, session, &device_info);
 	ao2_ref(device_cfg, -1);
 	if (!device) {
-		sccp_serializer_push_register_rej(&session->serializer);
+		sccp_session_transmit_register_rej(session);
 		return;
 	}
 
@@ -414,7 +419,7 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 			ast_log(LOG_WARNING, "Device already registered [%s]\n", name);
 		}
 
-		sccp_serializer_push_register_rej(&session->serializer);
+		sccp_session_transmit_register_rej(session);
 		sccp_device_destroy(device);
 		ao2_ref(device, -1);
 		return;
@@ -505,26 +510,26 @@ void sccp_session_run(struct sccp_session *session)
 			goto end;
 		}
 
-		if (session->stop || session->serializer.error) {
+		if (session->stop) {
 			goto end;
 		}
 
 		if (!nfds) {
 			sccp_task_runner_run(session->task_runner, session);
-			if (session->stop || session->serializer.error) {
+			if (session->stop) {
 				goto end;
 			}
 		} else {
 			if (fds[1].revents) {
 				sccp_session_on_queue_events(session, fds[1].revents);
-				if (session->stop || session->serializer.error) {
+				if (session->stop) {
 					goto end;
 				}
 			}
 
 			if (fds[0].revents) {
 				sccp_session_on_sock_events(session, fds[0].revents);
-				if (session->stop || session->serializer.error) {
+				if (session->stop) {
 					goto end;
 				}
 			}
@@ -590,9 +595,28 @@ int sccp_session_add_device_task(struct sccp_session *session, sccp_device_task_
 	return sccp_task_runner_add(session->task_runner, on_device_task_timeout, &task_data, sec);
 }
 
-struct sccp_serializer *sccp_session_serializer(struct sccp_session *session)
+int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg)
 {
-	return &session->serializer;
+	size_t count = letohl(msg->length) + SCCP_MSG_LENGTH_OFFSET;
+	ssize_t n;
+
+	if (sccp_debug_enabled(session->ipaddr)) {
+		sccp_dump_message_transmitting(msg, session->ipaddr, session->port);
+	}
+
+	n = write(session->sockfd, msg, count);
+	if (n == (ssize_t) count) {
+		return 0;
+	}
+
+	session->stop = 1;
+	if (n == -1) {
+		ast_log(LOG_WARNING, "sccp session transmit msg failed: write: %s\n", strerror(errno));
+	} else {
+		ast_log(LOG_WARNING, "sccp session transmit msg failed: write wrote less bytes than expected\n");
+	}
+
+	return -1;
 }
 
 const char *sccp_session_ipaddr(const struct sccp_session *session)

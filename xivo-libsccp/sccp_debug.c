@@ -2,7 +2,6 @@
 #include <asterisk/strings.h>
 
 #include "sccp_debug.h"
-#include "sccp_device.h"
 #include "sccp_msg.h"
 #include "sccp_utils.h"
 
