@@ -51,7 +51,7 @@ int sccp_deserializer_pop(struct sccp_deserializer *deserializer, struct sccp_ms
 	}
 
 	memcpy(&msg_length, &deserializer->buf[deserializer->start], sizeof(msg_length));
-	total_length = letohl(msg_length) + SCCP_MSG_LEN_OFFSET;
+	total_length = SCCP_MSG_TOTAL_LEN_FROM_LEN(letohl(msg_length));
 	if (avail_bytes < total_length) {
 		return SCCP_DESERIALIZER_NOMSG;
 	}  else if (total_length < SCCP_MSG_MIN_TOTAL_LEN) {

@@ -306,7 +306,7 @@ const char *sccp_state_str(enum sccp_state state)
 
 static void prepare_msg(struct sccp_msg *msg, uint32_t data_length, uint32_t msg_id)
 {
-	msg->length = htolel(4 + data_length);
+	msg->length = htolel(SCCP_MSG_LEN_FROM_DATA_LEN(data_length));
 	msg->reserved = 0;
 	msg->id = htolel(msg_id);
 	memset(&msg->data, 0, data_length);

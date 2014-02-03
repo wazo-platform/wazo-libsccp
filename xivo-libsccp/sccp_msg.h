@@ -649,8 +649,8 @@ struct sccp_msg {
 
 #define SCCP_MSG_MIN_TOTAL_LEN 12
 #define SCCP_MSG_MAX_TOTAL_LEN sizeof(struct sccp_msg)
-/* offset that must be added to the "length" field of a msg to obtain the total length */
-#define SCCP_MSG_LEN_OFFSET 8
+#define SCCP_MSG_TOTAL_LEN_FROM_LEN(msg_length) ((msg_length) + 8)
+#define SCCP_MSG_LEN_FROM_DATA_LEN(data_length) ((data_length) + 4)
 
 const char *sccp_msg_id_str(uint32_t msg_id);
 const char *sccp_device_type_str(enum sccp_device_type device_type);
