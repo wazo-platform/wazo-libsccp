@@ -150,16 +150,18 @@ void sccp_line_select_subchan(struct sccp_line *line, struct sccp_subchannel *su
 	line->active_subchan = subchan;
 }
 
-void sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
+int sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id)
 {
 	struct sccp_subchannel *subchan_itr;
 
 	AST_RWLIST_TRAVERSE(&line->subchans, subchan_itr, list) {
 		if (subchan_itr->id == subchan_id) {
 			sccp_line_select_subchan(line, subchan_itr);
-			break;
+			return 0;
 		}
 	}
+
+	return -1;
 }
 
 void sccp_line_set_field(struct sccp_line *line, const char *name, const char *value)

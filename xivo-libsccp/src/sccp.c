@@ -1177,7 +1177,12 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 		}
 	}
 
-	sccp_line_select_subchan_id(line, subchan_id);
+	if (sccp_line_select_subchan_id(line, subchan_id)) {
+		ast_mutex_unlock(&line->device->lock);
+		ast_log(LOG_NOTICE, "could not resume subchan %u: not found\n", subchan_id);
+		return 0;
+	}
+
 	line->state = SCCP_CONNECTED;
 
 	/* put on connected */
@@ -1191,9 +1196,8 @@ static int handle_softkey_resume(uint32_t line_instance, uint32_t subchan_id, st
 	if (line->active_subchan && line->active_subchan->rtp) {
 		line->active_subchan->resuming = 1;
 		transmit_open_receive_channel(session, line->active_subchan);
+		line->active_subchan->on_hold = 0;
 	}
-
-	line->active_subchan->on_hold = 0;
 
 	ast_mutex_unlock(&line->device->lock);
 
@@ -1907,12 +1911,10 @@ static int handle_keypad_button_message(struct sccp_msg *msg, struct sccp_sessio
 	char digit;
 	int button;
 	int instance;
-	int callid;
 	size_t len;
 
 	button = letohl(msg->data.keypad.button);
 	instance = letohl(msg->data.keypad.lineInstance);
-	callid = letohl(msg->data.keypad.callInstance);
 
 	switch (session->device->type) {
 	case SCCP_DEVICE_7905:

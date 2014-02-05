@@ -65,8 +65,12 @@ struct sccp_subchannel *sccp_line_get_subchan(struct sccp_line *line, uint32_t s
  */
 int sccp_line_remove_subchan(struct sccp_line *line, struct sccp_subchannel *subchan);
 
+/*
+ * \retval 0 if the subchan with the given ID was found
+ * \retval non-zero otherwise
+ */
+int sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 void sccp_line_select_subchan(struct sccp_line *line, struct sccp_subchannel *subchan);
-void sccp_line_select_subchan_id(struct sccp_line *line, uint32_t subchan_id);
 void sccp_line_set_field(struct sccp_line *line, const char *name, const char *value);
 
 struct sccp_line *sccp_line_find_by_name(const char *name, struct list_line *list_line);
