@@ -9,7 +9,7 @@
 #include "sccp_config.h"
 #include "sccp_task.h"
 
-#define SCCP_MAX_PACKET_SZ 2000
+#define SCCP_MAX_PACKET_SZ 2048
 
 struct sccp_server {
 
