@@ -529,6 +529,7 @@ void sccp_server_destroy(struct sccp_server *server)
 	sccp_sync_queue_destroy(server->sync_q);
 	ao2_ref(server->cfg, -1);
 	AST_LIST_HEAD_DESTROY(&server->srv_sessions);
+	ast_free(server);
 }
 
 int sccp_server_start(struct sccp_server *server)
