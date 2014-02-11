@@ -22,7 +22,7 @@ enum server_state {
 struct sccp_server {
 	enum server_state state;
 	int sockfd;
-	int quit;
+	int stop;
 
 	pthread_t thread;
 
@@ -275,57 +275,6 @@ static void server_join_sessions(struct sccp_server *server)
 	AST_LIST_UNLOCK(&server->srv_sessions);
 }
 
-static void server_on_session_end(struct sccp_server *server, struct server_session *srv_session)
-{
-	int ret;
-
-	ast_debug(1, "joining session %p thread\n", srv_session->session);
-	ret = pthread_join(srv_session->thread, NULL);
-	if (ret) {
-		ast_log(LOG_ERROR, "server on session end failed: pthread_join: %s\n", strerror(ret));
-	}
-
-	server_remove_srv_session(server, srv_session);
-	server_session_destroy(srv_session);
-}
-
-static void server_process_msg(struct sccp_server *server, struct server_msg *msg)
-{
-	switch (msg->id) {
-	case MSG_RELOAD:
-		ao2_ref(server->cfg, -1);
-		server->cfg = msg->data.reload.cfg;
-		ao2_ref(server->cfg, +1);
-
-		server_reload_sessions(server, msg->data.reload.cfg);
-		break;
-	case MSG_SESSION_END:
-		server_on_session_end(server, msg->data.session_end.srv_session);
-		break;
-	case MSG_STOP:
-		server->quit = 1;
-		break;
-	default:
-		ast_log(LOG_ERROR, "server process queue: got unknown msg id %d\n", msg->id);
-		break;
-	}
-
-	server_msg_destroy(msg);
-}
-
-static void server_process_queue(struct sccp_server *server)
-{
-	struct sccp_queue q;
-	struct server_msg msg;
-
-	sccp_sync_queue_get_all(server->sync_q, &q);
-	while (!sccp_queue_get(&q, &msg)) {
-		server_process_msg(server, &msg);
-	}
-
-	sccp_queue_destroy(&q);
-}
-
 static int new_server_socket(struct sccp_cfg *cfg)
 {
 	struct sockaddr_in addr;
@@ -378,16 +327,115 @@ static int server_start(struct sccp_server *server)
 	return 0;
 }
 
+static void server_on_session_end(struct sccp_server *server, struct server_session *srv_session)
+{
+	int ret;
+
+	ast_debug(1, "joining session %p thread\n", srv_session->session);
+	ret = pthread_join(srv_session->thread, NULL);
+	if (ret) {
+		ast_log(LOG_ERROR, "server on session end failed: pthread_join: %s\n", strerror(ret));
+	}
+
+	server_remove_srv_session(server, srv_session);
+	server_session_destroy(srv_session);
+}
+
+static void server_process_msg(struct sccp_server *server, struct server_msg *msg)
+{
+	switch (msg->id) {
+	case MSG_RELOAD:
+		ao2_ref(server->cfg, -1);
+		server->cfg = msg->data.reload.cfg;
+		ao2_ref(server->cfg, +1);
+
+		server_reload_sessions(server, msg->data.reload.cfg);
+		break;
+	case MSG_SESSION_END:
+		server_on_session_end(server, msg->data.session_end.srv_session);
+		break;
+	case MSG_STOP:
+		server->stop = 1;
+		break;
+	default:
+		ast_log(LOG_ERROR, "server process queue: got unknown msg id %d\n", msg->id);
+		break;
+	}
+
+	server_msg_destroy(msg);
+}
+
+static void server_on_queue_events(struct sccp_server *server, int events)
+{
+	struct sccp_queue q;
+	struct server_msg msg;
+
+	if (events & POLLIN) {
+		sccp_sync_queue_get_all(server->sync_q, &q);
+		while (!sccp_queue_get(&q, &msg)) {
+			server_process_msg(server, &msg);
+		}
+
+		sccp_queue_destroy(&q);
+	}
+
+	if (events & ~POLLIN) {
+		ast_log(LOG_WARNING, "server on queue events failed: unexpected event 0x%X\n", events);
+		server->stop = 1;
+	}
+}
+
+static void server_on_sock_events(struct sccp_server *server, int events)
+{
+	struct sockaddr_in addr;
+	struct sccp_session *session;
+	struct server_session *srv_session;
+	socklen_t addrlen;
+	int sockfd;
+
+	if (events & POLLIN) {
+		addrlen = sizeof(addr);
+		sockfd = accept(server->sockfd, (struct sockaddr *) &addr, &addrlen);
+		if (sockfd == -1) {
+			ast_log(LOG_ERROR, "server on sock events failed: accept: %s\n", strerror(errno));
+			server->stop = 1;
+			return;
+		}
+
+		ast_verb(4, "New SCCP connection from %s:%d accepted\n", ast_inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+
+		session = sccp_session_create(server->cfg, server->registry, &addr, sockfd);
+		if (!session) {
+			close(sockfd);
+			return;
+		}
+
+		/* on success, the srv_session will own the session reference */
+		srv_session = server_session_create(session, server);
+		if (!srv_session) {
+			ao2_ref(session, -1);
+			return;
+		}
+
+		server_add_srv_session(server, srv_session);
+		if (server_start_session(server, srv_session)) {
+			server_remove_srv_session(server, srv_session);
+			server_session_destroy(srv_session);
+			return;
+		}
+	}
+
+	if (events & ~POLLIN) {
+		ast_log(LOG_WARNING, "server on sock events failed: unexpected event 0x%X\n", events);
+		server->stop = 1;
+	}
+}
+
 static void *server_run(void *data)
 {
 	struct sccp_server *server = data;
-	struct sccp_session *session;
-	struct server_session *srv_session;
 	struct pollfd fds[2];
-	struct sockaddr_in addr;
-	socklen_t addrlen;
 	int nfds;
-	int sockfd;
 
 	if (listen(server->sockfd, SERVER_BACKLOG) == -1) {
 		ast_log(LOG_ERROR, "server run failed: listen: %s\n", strerror(errno));
@@ -399,56 +447,26 @@ static void *server_run(void *data)
 	fds[1].fd = sccp_sync_queue_fd(server->sync_q);
 	fds[1].events = POLLIN;
 
-	server->quit = 0;
-	while (!server->quit) {
+	server->stop = 0;
+	for (;;) {
 		nfds = poll(fds, ARRAY_LEN(fds), -1);
 		if (nfds == -1) {
 			ast_log(LOG_ERROR, "server run failed: poll: %s\n", strerror(errno));
 			goto end;
 		}
 
-		if (fds[1].revents & POLLIN) {
-			server_process_queue(server);
-			if (server->quit) {
+		if (fds[1].revents) {
+			server_on_queue_events(server, fds[1].revents);
+			if (server->stop) {
 				goto end;
 			}
-		} else if (fds[1].revents) {
-			/* unexpected events */
-			goto end;
 		}
 
-		if (fds[0].revents & POLLIN) {
-			addrlen = sizeof(addr);
-			sockfd = accept(server->sockfd, (struct sockaddr *)&addr, &addrlen);
-			if (sockfd == -1) {
-				ast_log(LOG_ERROR, "server run failed: accept: %s\n", strerror(errno));
+		if (fds[0].revents) {
+			server_on_sock_events(server, fds[0].revents);
+			if (server->stop) {
 				goto end;
 			}
-
-			ast_verb(4, "New SCCP connection from %s:%d accepted\n", ast_inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-
-			session = sccp_session_create(server->cfg, server->registry, &addr, sockfd);
-			if (!session) {
-				close(sockfd);
-				goto end;
-			}
-
-			/* on success, the srv_session will own the session reference */
-			srv_session = server_session_create(session, server);
-			if (!srv_session) {
-				ao2_ref(session, -1);
-				goto end;
-			}
-
-			server_add_srv_session(server, srv_session);
-			if (server_start_session(server, srv_session)) {
-				server_remove_srv_session(server, srv_session);
-				server_session_destroy(srv_session);
-				goto end;
-			}
-		} else if (fds[0].revents) {
-			/* unexpected events */
-			goto end;
 		}
 	}
 
