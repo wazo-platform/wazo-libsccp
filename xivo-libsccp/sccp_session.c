@@ -349,7 +349,7 @@ static void sccp_session_process_msg(struct sccp_session *session, struct sessio
 	session_msg_destroy(msg);
 }
 
-void sccp_session_on_queue_events(struct sccp_session *session, int events)
+static void sccp_session_on_queue_events(struct sccp_session *session, int events)
 {
 	struct sccp_queue q;
 	struct session_msg msg;
