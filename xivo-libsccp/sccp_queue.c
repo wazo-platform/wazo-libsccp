@@ -168,62 +168,62 @@ int queue_reservation_cancel(struct queue_reservation *reservation)
 	return queue_cancel_reserved(reservation->q, reservation);
 }
 
-struct sccp_queue {
+struct sccp_sync_queue {
 	ast_mutex_t lock;
 	struct queue q;
 	int pipefd[2];
 	int closed;
 };
 
-struct sccp_queue *sccp_queue_create(size_t item_size)
+struct sccp_sync_queue *sccp_sync_queue_create(size_t item_size)
 {
-	struct sccp_queue *queue;
+	struct sccp_sync_queue *sync_q;
 
-	queue = ast_calloc(1, sizeof(*queue));
-	if (!queue) {
+	sync_q = ast_calloc(1, sizeof(*sync_q));
+	if (!sync_q) {
 		return NULL;
 	}
 
-	if (pipe2(queue->pipefd, O_NONBLOCK) == -1) {
+	if (pipe2(sync_q->pipefd, O_NONBLOCK) == -1) {
 		ast_log(LOG_ERROR, "sccp queue create failed: pipe: %s\n", strerror(errno));
-		ast_free(queue);
+		ast_free(sync_q);
 		return NULL;
 	}
 
-	ast_mutex_init(&queue->lock);
-	queue_init(&queue->q, item_size);
-	queue->closed = 0;
+	ast_mutex_init(&sync_q->lock);
+	queue_init(&sync_q->q, item_size);
+	sync_q->closed = 0;
 
-	return queue;
+	return sync_q;
 }
 
-void sccp_queue_destroy(struct sccp_queue *queue)
+void sccp_sync_queue_destroy(struct sccp_sync_queue *sync_q)
 {
-	ast_mutex_destroy(&queue->lock);
-	queue_destroy(&queue->q);
-	close(queue->pipefd[0]);
-	close(queue->pipefd[1]);
-	ast_free(queue);
+	ast_mutex_destroy(&sync_q->lock);
+	queue_destroy(&sync_q->q);
+	close(sync_q->pipefd[0]);
+	close(sync_q->pipefd[1]);
+	ast_free(sync_q);
 }
 
-int sccp_queue_fd(struct sccp_queue *queue)
+int sccp_sync_queue_fd(struct sccp_sync_queue *sync_q)
 {
-	return queue->pipefd[0];
+	return sync_q->pipefd[0];
 }
 
-void sccp_queue_close(struct sccp_queue *queue)
+void sccp_sync_queue_close(struct sccp_sync_queue *sync_q)
 {
-	ast_mutex_lock(&queue->lock);
-	queue->closed = 1;
-	ast_mutex_unlock(&queue->lock);
+	ast_mutex_lock(&sync_q->lock);
+	sync_q->closed = 1;
+	ast_mutex_unlock(&sync_q->lock);
 }
 
-static int sccp_queue_write_pipe(struct sccp_queue *queue)
+static int sccp_sync_queue_write_pipe(struct sccp_sync_queue *sync_q)
 {
 	static const char pipeval = 0xF0;
 	ssize_t n;
 
-	n = write(queue->pipefd[1], &pipeval, sizeof(pipeval));
+	n = write(sync_q->pipefd[1], &pipeval, sizeof(pipeval));
 
 	switch (n) {
 	case -1:
@@ -237,12 +237,12 @@ static int sccp_queue_write_pipe(struct sccp_queue *queue)
 	return 0;
 }
 
-static int sccp_queue_read_pipe(struct sccp_queue *queue)
+static int sccp_sync_queue_read_pipe(struct sccp_sync_queue *sync_q)
 {
 	ssize_t n;
 	char buf[8];
 
-	n = read(queue->pipefd[0], buf, sizeof(buf));
+	n = read(sync_q->pipefd[0], buf, sizeof(buf));
 
 	switch (n) {
 	case -1:
@@ -256,20 +256,20 @@ static int sccp_queue_read_pipe(struct sccp_queue *queue)
 	return 0;
 }
 
-static int sccp_queue_put_no_lock(struct sccp_queue *queue, void *item)
+static int sccp_sync_queue_put_no_lock(struct sccp_sync_queue *sync_q, void *item)
 {
-	if (queue->closed) {
+	if (sync_q->closed) {
 		return SCCP_QUEUE_CLOSED;
 	}
 
-	if (queue_empty(&queue->q)) {
-		if (sccp_queue_write_pipe(queue)) {
+	if (queue_empty(&sync_q->q)) {
+		if (sccp_sync_queue_write_pipe(sync_q)) {
 			ast_log(LOG_ERROR, "sccp queue put failed: could not write to pipe\n");
 			return -1;
 		}
 	}
 
-	if (queue_put(&queue->q, item)) {
+	if (queue_put(&sync_q->q, item)) {
 		ast_log(LOG_ERROR, "sccp queue put failed: could not queue item\n");
 		return -1;
 	}
@@ -277,59 +277,59 @@ static int sccp_queue_put_no_lock(struct sccp_queue *queue, void *item)
 	return 0;
 }
 
-int sccp_queue_put(struct sccp_queue *queue, void *item)
+int sccp_sync_queue_put(struct sccp_sync_queue *sync_q, void *item)
 {
 	int ret;
 
-	ast_mutex_lock(&queue->lock);
-	ret = sccp_queue_put_no_lock(queue, item);
-	ast_mutex_unlock(&queue->lock);
+	ast_mutex_lock(&sync_q->lock);
+	ret = sccp_sync_queue_put_no_lock(sync_q, item);
+	ast_mutex_unlock(&sync_q->lock);
 
 	return ret;
 }
 
-static int sccp_queue_get_no_lock(struct sccp_queue *queue, void *item)
+static int sccp_sync_queue_get_no_lock(struct sccp_sync_queue *sync_q, void *item)
 {
-	if (queue_get(&queue->q, item)) {
+	if (queue_get(&sync_q->q, item)) {
 		return SCCP_QUEUE_EMPTY;
 	}
 
-	if (queue_empty(&queue->q)) {
-		sccp_queue_read_pipe(queue);
+	if (queue_empty(&sync_q->q)) {
+		sccp_sync_queue_read_pipe(sync_q);
 	}
 
 	return 0;
 }
 
-int sccp_queue_get(struct sccp_queue *queue, void *item)
+int sccp_sync_queue_get(struct sccp_sync_queue *sync_q, void *item)
 {
 	int ret;
 
-	ast_mutex_lock(&queue->lock);
-	ret = sccp_queue_get_no_lock(queue, item);
-	ast_mutex_unlock(&queue->lock);
+	ast_mutex_lock(&sync_q->lock);
+	ret = sccp_sync_queue_get_no_lock(sync_q, item);
+	ast_mutex_unlock(&sync_q->lock);
 
 	return ret;
 }
 
-static void sccp_queue_get_all_no_lock(struct sccp_queue *queue, struct queue *ret)
+static void sccp_sync_queue_get_all_no_lock(struct sccp_sync_queue *sync_q, struct queue *ret)
 {
-	queue_move(ret, &queue->q);
+	queue_move(ret, &sync_q->q);
 	if (!queue_empty(ret)) {
-		sccp_queue_read_pipe(queue);
+		sccp_sync_queue_read_pipe(sync_q);
 	}
 }
 
-int sccp_queue_get_all(struct sccp_queue *queue, struct queue *ret)
+int sccp_sync_queue_get_all(struct sccp_sync_queue *sync_q, struct queue *ret)
 {
 	if (!ret) {
 		ast_log(LOG_ERROR, "sccp queue get all failed: ret is null\n");
 		return SCCP_QUEUE_INVAL;
 	}
 
-	ast_mutex_lock(&queue->lock);
-	sccp_queue_get_all_no_lock(queue, ret);
-	ast_mutex_unlock(&queue->lock);
+	ast_mutex_lock(&sync_q->lock);
+	sccp_sync_queue_get_all_no_lock(sync_q, ret);
+	ast_mutex_unlock(&sync_q->lock);
 
 	return 0;
 }

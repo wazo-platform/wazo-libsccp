@@ -27,7 +27,7 @@ struct sccp_session {
 
 	struct sccp_cfg *cfg;
 	struct sccp_device_registry *registry;
-	struct sccp_queue *queue;
+	struct sccp_sync_queue *sync_q;
 	struct sccp_task_runner *task_runner;
 	struct sccp_device *device;
 
@@ -115,7 +115,7 @@ static void sccp_session_destructor(void *data)
 
 	/* empty the queue here too to handle the case the session was never run */
 	sccp_session_empty_queue(session);
-	sccp_queue_destroy(session->queue);
+	sccp_sync_queue_destroy(session->sync_q);
 	sccp_task_runner_destroy(session->task_runner);
 	ao2_ref(session->cfg, -1);
 }
@@ -163,7 +163,7 @@ static int set_sock_options(int sockfd)
 struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, struct sockaddr_in *addr, int sockfd)
 {
 	struct sockaddr_in local_addr;
-	struct sccp_queue *queue;
+	struct sccp_sync_queue *sync_q;
 	struct sccp_task_runner *task_runner;
 	struct sccp_session *session;
 
@@ -190,28 +190,28 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 		return NULL;
 	}
 
-	queue = sccp_queue_create(sizeof(struct session_msg));
-	if (!queue) {
+	sync_q = sccp_sync_queue_create(sizeof(struct session_msg));
+	if (!sync_q) {
 		return NULL;
 	}
 
 	task_runner = sccp_task_runner_create(sizeof(union session_task_data));
 	if (!task_runner) {
-		sccp_queue_destroy(queue);
+		sccp_sync_queue_destroy(sync_q);
 		return NULL;
 	}
 
 	session = ao2_alloc(sizeof(*session), sccp_session_destructor);
 	if (!session) {
 		sccp_task_runner_destroy(task_runner);
-		sccp_queue_destroy(queue);
+		sccp_sync_queue_destroy(sync_q);
 		return NULL;
 	}
 
 	sccp_deserializer_init(&session->deserializer, sockfd);
 	session->local_addr = local_addr;
 	session->sockfd = sockfd;
-	session->queue = queue;
+	session->sync_q = sync_q;
 	session->task_runner = task_runner;
 	session->stop = 0;
 	session->device = NULL;
@@ -226,7 +226,7 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 
 static void sccp_session_close_queue(struct sccp_session *session)
 {
-	sccp_queue_close(session->queue);
+	sccp_sync_queue_close(session->sync_q);
 }
 
 static void sccp_session_empty_queue(struct sccp_session *session)
@@ -234,7 +234,7 @@ static void sccp_session_empty_queue(struct sccp_session *session)
 	struct queue q;
 	struct session_msg msg;
 
-	sccp_queue_get_all(session->queue, &q);
+	sccp_sync_queue_get_all(session->sync_q, &q);
 	while (!queue_get(&q, &msg)) {
 		session_msg_destroy(&msg);
 	}
@@ -246,7 +246,7 @@ static int sccp_session_queue_msg(struct sccp_session *session, struct session_m
 {
 	int ret;
 
-	ret = sccp_queue_put(session->queue, msg);
+	ret = sccp_sync_queue_put(session->sync_q, msg);
 	if (ret) {
 		session_msg_destroy(msg);
 	}
@@ -358,7 +358,7 @@ void sccp_session_on_queue_events(struct sccp_session *session, int events)
 	struct session_msg msg;
 
 	if (events & POLLIN) {
-		sccp_queue_get_all(session->queue, &q);
+		sccp_sync_queue_get_all(session->sync_q, &q);
 		while (!queue_get(&q, &msg)) {
 			sccp_session_process_msg(session, &msg);
 		}
@@ -523,7 +523,7 @@ void sccp_session_run(struct sccp_session *session)
 
 	fds[0].fd = session->sockfd;
 	fds[0].events = POLLIN;
-	fds[1].fd = sccp_queue_fd(session->queue);
+	fds[1].fd = sccp_sync_queue_fd(session->sync_q);
 	fds[1].events = POLLIN;
 
 	add_auth_timeout_task(session);

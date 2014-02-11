@@ -28,7 +28,7 @@ struct sccp_server {
 
 	struct sccp_cfg *cfg;
 	struct sccp_device_registry *registry;
-	struct sccp_queue *queue;
+	struct sccp_sync_queue *sync_q;
 	/*
 	 * When the server is in running state, only the server thread modify the
 	 * srv_sessions list. That said, lock are needed on add / remove since another
@@ -127,7 +127,7 @@ static void server_msg_destroy(struct server_msg *msg)
 
 static void server_close_queue(struct sccp_server *server)
 {
-	sccp_queue_close(server->queue);
+	sccp_sync_queue_close(server->sync_q);
 }
 
 static void server_empty_queue(struct sccp_server *server)
@@ -135,7 +135,7 @@ static void server_empty_queue(struct sccp_server *server)
 	struct queue q;
 	struct server_msg msg;
 
-	sccp_queue_get_all(server->queue, &q);
+	sccp_sync_queue_get_all(server->sync_q, &q);
 	while (!queue_get(&q, &msg)) {
 		server_msg_destroy(&msg);
 	}
@@ -147,7 +147,7 @@ static int server_queue_msg(struct sccp_server *server, struct server_msg *msg)
 {
 	int ret;
 
-	ret = sccp_queue_put(server->queue, msg);
+	ret = sccp_sync_queue_put(server->sync_q, msg);
 	if (ret) {
 		server_msg_destroy(msg);
 	}
@@ -318,7 +318,7 @@ static void server_process_queue(struct sccp_server *server)
 	struct queue q;
 	struct server_msg msg;
 
-	sccp_queue_get_all(server->queue, &q);
+	sccp_sync_queue_get_all(server->sync_q, &q);
 	while (!queue_get(&q, &msg)) {
 		server_process_msg(server, &msg);
 	}
@@ -396,7 +396,7 @@ static void *server_run(void *data)
 
 	fds[0].fd = server->sockfd;
 	fds[0].events = POLLIN;
-	fds[1].fd = sccp_queue_fd(server->queue);
+	fds[1].fd = sccp_sync_queue_fd(server->sync_q);
 	fds[1].events = POLLIN;
 
 	server->quit = 0;
@@ -481,8 +481,8 @@ struct sccp_server *sccp_server_create(struct sccp_cfg *cfg, struct sccp_device_
 		return NULL;
 	}
 
-	server->queue = sccp_queue_create(sizeof(struct server_msg));
-	if (!server->queue) {
+	server->sync_q = sccp_sync_queue_create(sizeof(struct server_msg));
+	if (!server->sync_q) {
 		ast_free(server);
 		return NULL;
 	}
@@ -508,7 +508,7 @@ void sccp_server_destroy(struct sccp_server *server)
 		server_join_sessions(server);
 	}
 
-	sccp_queue_destroy(server->queue);
+	sccp_sync_queue_destroy(server->sync_q);
 	ao2_ref(server->cfg, -1);
 	AST_LIST_HEAD_DESTROY(&server->srv_sessions);
 }

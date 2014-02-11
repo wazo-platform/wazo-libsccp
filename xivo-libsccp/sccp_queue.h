@@ -3,7 +3,7 @@
 
 #include <asterisk/linkedlists.h>
 
-struct sccp_queue;
+struct sccp_sync_queue;
 
 #define SCCP_QUEUE_CLOSED 1
 #define SCCP_QUEUE_EMPTY 2
@@ -106,19 +106,19 @@ int queue_reservation_put(struct queue_reservation *reservation, void *item);
 int queue_reservation_cancel(struct queue_reservation *reservation);
 
 /*!
- * \brief Create a new (FIFO) queue.
+ * \brief Create a new synchronized (FIFO) queue.
  *
  * \param item_size size of item data
  *
  * \retval non-NULL on success
  * \retval NULL on failure
  */
-struct sccp_queue *sccp_queue_create(size_t item_size);
+struct sccp_sync_queue *sccp_sync_queue_create(size_t item_size);
 
 /*!
  * \brief Destroy the queue.
  */
-void sccp_queue_destroy(struct sccp_queue *queue);
+void sccp_sync_queue_destroy(struct sccp_sync_queue *sync_q);
 
 /*!
  * \brief Return the read file descriptor of the queue.
@@ -126,14 +126,14 @@ void sccp_queue_destroy(struct sccp_queue *queue);
  * \note The file descriptor is ready when the queue is not empty.
  * \note You must not use the file descriptor for anything else than select / poll.
  */
-int sccp_queue_fd(struct sccp_queue *queue);
+int sccp_sync_queue_fd(struct sccp_sync_queue *sync_q);
 
 /*!
  * \brief Close the queue so that no more item can be queued.
  *
  * \note This does not destroy the queue.
  */
-void sccp_queue_close(struct sccp_queue *queue);
+void sccp_sync_queue_close(struct sccp_sync_queue *sync_q);
 
 /*!
  * \brief Put an item into the queue.
@@ -142,7 +142,7 @@ void sccp_queue_close(struct sccp_queue *queue);
  * \retval SCCP_QUEUE_CLOSED if the queue is closed
  * \retval SCCP_QUEUE_ERROR on other failure
  */
-int sccp_queue_put(struct sccp_queue *queue, void *item);
+int sccp_sync_queue_put(struct sccp_sync_queue *sync_q, void *item);
 
 /*!
  * \brief Get an item from the queue.
@@ -150,7 +150,7 @@ int sccp_queue_put(struct sccp_queue *queue, void *item);
  * \retval 0 on success
  * \retval SCCP_QUEUE_EMPTY if the queue is empty
  */
-int sccp_queue_get(struct sccp_queue *queue, void *item);
+int sccp_sync_queue_get(struct sccp_sync_queue *sync_q, void *item);
 
 /*!
  * \brief Get all the items from the queue.
@@ -161,6 +161,6 @@ int sccp_queue_get(struct sccp_queue *queue, void *item);
  * \retval 0 on success
  * \retval SCCP_QUEUE_INVAL if ret is null
  */
-int sccp_queue_get_all(struct sccp_queue *queue, struct queue *ret);
+int sccp_sync_queue_get_all(struct sccp_sync_queue *sync_q, struct queue *ret);
 
 #endif /* SCCP_QUEUE_H_ */
