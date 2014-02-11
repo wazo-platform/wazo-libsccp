@@ -81,9 +81,6 @@ static void session_msg_destroy(struct session_msg *msg)
 		break;
 	case MSG_STOP:
 		break;
-	default:
-		ast_log(LOG_ERROR, "session msg destroy failed: unknown msg id %d\n", msg->id);
-		break;
 	}
 }
 

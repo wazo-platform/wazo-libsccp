@@ -119,9 +119,6 @@ static void server_msg_destroy(struct server_msg *msg)
 	case MSG_SESSION_END:
 	case MSG_STOP:
 		break;
-	default:
-		ast_log(LOG_ERROR, "server msg destroy failed: unknown msg id %d\n", msg->id);
-		break;
 	}
 }
 
@@ -356,9 +353,6 @@ static void server_process_msg(struct sccp_server *server, struct server_msg *ms
 		break;
 	case MSG_STOP:
 		server->stop = 1;
-		break;
-	default:
-		ast_log(LOG_ERROR, "server process queue: got unknown msg id %d\n", msg->id);
 		break;
 	}
 
