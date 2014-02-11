@@ -1209,7 +1209,7 @@ static void transmit_subchan_start_media_transmission(struct sccp_device *device
 
 	fmt = ast_codec_pref_getsize(&subchan->line->cfg->codec_pref, &subchan->fmt);
 
-	ast_debug(2, "Sending start media transmission to %s: %s %d\n", sccp_session_ipaddr(device->session), ast_inet_ntoa(endpoint->sin_addr), ntohs(endpoint->sin_port));
+	ast_debug(2, "Sending start media transmission to %s: %s %d\n", sccp_session_remote_addr_ch(device->session), ast_inet_ntoa(endpoint->sin_addr), ntohs(endpoint->sin_port));
 	sccp_msg_start_media_transmission(&msg, subchan->id, fmt.cur_ms, codec_ast2sccp(&fmt.format), subchan->line->cfg->tos_audio, endpoint);
 	sccp_session_transmit_msg(device->session, &msg);
 }
@@ -2202,7 +2202,7 @@ void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_sn
 	snapshot->type = device->type;
 	snapshot->proto_version = device->proto_version;
 	ast_copy_string(snapshot->name, device->name, sizeof(snapshot->name));
-	ast_copy_string(snapshot->ipaddr, sccp_session_ipaddr(device->session), sizeof(snapshot->ipaddr));
+	ast_copy_string(snapshot->ipaddr, sccp_session_remote_addr_ch(device->session), sizeof(snapshot->ipaddr));
 	ast_getformatname_multiple(snapshot->capabilities, sizeof(snapshot->capabilities), device->caps);
 	sccp_device_unlock(device);
 }

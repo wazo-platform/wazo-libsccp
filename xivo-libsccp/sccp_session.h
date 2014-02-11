@@ -88,13 +88,11 @@ int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg
  * \brief Return the remote (i.e. peer) IPv4 address of the session, as a char*.
  *
  * \note The returned pointer becomes invalid when the session reference count reach zero.
- *
- * TODO rename
  */
-const char *sccp_session_ipaddr(const struct sccp_session *session);
+const char *sccp_session_remote_addr_ch(const struct sccp_session *session);
 
 /*!
- * \brief Return the local (i.e. bound) IPv4 address of the session.
+ * \brief Return the local (i.e. sock) IPv4 address of the session.
  *
  * \note The returned pointer becomes invalid when the session reference count reach zero.
  */

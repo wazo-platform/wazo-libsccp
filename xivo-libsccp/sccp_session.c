@@ -23,7 +23,7 @@ struct sccp_session {
 	struct sockaddr_in local_addr;
 	int sockfd;
 	int stop;
-	int port;
+	int remote_port;
 
 	struct sccp_cfg *cfg;
 	struct sccp_device_registry *registry;
@@ -31,7 +31,7 @@ struct sccp_session {
 	struct sccp_task_runner *task_runner;
 	struct sccp_device *device;
 
-	char ipaddr[INET_ADDRSTRLEN];	/* TODO rename */
+	char remote_addr_ch[INET_ADDRSTRLEN];
 };
 
 enum session_msg_id {
@@ -111,7 +111,7 @@ static void sccp_session_destructor(void *data)
 	}
 
 	close(session->sockfd);
-	ast_verb(4, "SCCP connection from %s:%d closed\n", session->ipaddr, session->port);
+	ast_verb(4, "SCCP connection from %s:%d closed\n", session->remote_addr_ch, session->remote_port);
 
 	/* empty the queue here too to handle the case the session was never run */
 	sccp_session_empty_queue(session);
@@ -218,8 +218,8 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 	session->cfg = cfg;
 	ao2_ref(cfg, +1);
 	session->registry = registry;
-	session->port = ntohs(addr->sin_port);
-	ast_copy_string(session->ipaddr, ast_inet_ntoa(addr->sin_addr), sizeof(session->ipaddr));
+	session->remote_port = ntohs(addr->sin_port);
+	ast_copy_string(session->remote_addr_ch, ast_inet_ntoa(addr->sin_addr), sizeof(session->remote_addr_ch));
 
 	return session;
 }
@@ -452,7 +452,7 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 		return;
 	}
 
-	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", device_info.proto_version, name, session->ipaddr, session->port);
+	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", device_info.proto_version, name, session->remote_addr_ch, session->remote_port);
 
 	remove_auth_timeout_task(session);
 	sccp_device_on_registration_success(device);
@@ -465,8 +465,8 @@ static void sccp_session_handle_msg(struct sccp_session *session, struct sccp_ms
 {
 	uint32_t msg_id = letohl(msg->id);
 
-	if (sccp_debug_enabled(session->ipaddr)) {
-		sccp_dump_message_received(msg, session->ipaddr, session->port);
+	if (sccp_debug_enabled(session->remote_addr_ch)) {
+		sccp_dump_message_received(msg, session->remote_addr_ch, session->remote_port);
 	}
 
 	if (!session->device) {
@@ -627,8 +627,8 @@ int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg
 	size_t count = SCCP_MSG_TOTAL_LEN_FROM_LEN(letohl(msg->length));
 	ssize_t n;
 
-	if (sccp_debug_enabled(session->ipaddr)) {
-		sccp_dump_message_transmitting(msg, session->ipaddr, session->port);
+	if (sccp_debug_enabled(session->remote_addr_ch)) {
+		sccp_dump_message_transmitting(msg, session->remote_addr_ch, session->remote_port);
 	}
 
 	n = write(session->sockfd, msg, count);
@@ -646,9 +646,9 @@ int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg
 	return -1;
 }
 
-const char *sccp_session_ipaddr(const struct sccp_session *session)
+const char *sccp_session_remote_addr_ch(const struct sccp_session *session)
 {
-	return session->ipaddr;
+	return session->remote_addr_ch;
 }
 
 const struct sockaddr_in *sccp_session_local_addr(const struct sccp_session *session)
