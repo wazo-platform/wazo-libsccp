@@ -1,6 +1,11 @@
 #include <asterisk.h>
+#include <asterisk/causes.h>
+#include <asterisk/channel.h>
 #include <asterisk/cli.h>
+#include <asterisk/devicestate.h>
 #include <asterisk/module.h>
+#include <asterisk/rtp_engine.h>
+#include <asterisk/sched.h>
 
 #include "sccp_debug.h"
 #include "sccp_config.h"
@@ -13,8 +18,118 @@
 #define VERSION "unknown"
 #endif
 
+struct ast_sched_context *sccp_sched;
+
 static struct sccp_device_registry *global_registry;
 static struct sccp_server *global_server;
+
+static struct ast_channel *sccp_request(const char *type, struct ast_format_cap *cap, const struct ast_channel *requestor, const char *addr, int *cause)
+{
+	struct sccp_line *line;
+	struct ast_channel *channel;
+
+	line = sccp_device_registry_find_line(global_registry, addr);
+	if (!line) {
+		/* XXX in fact, with the new system, it could be either because:
+		 *
+		 * the line (i.e. associated device) is not registered (AST_CAUSE_SUBSCRIBER_ABSENT)
+		 * the line does not exist (AST_CAUSE_NO_ROUTE_DESTINATION)
+		 */
+		*cause = AST_CAUSE_NO_ROUTE_DESTINATION;
+		return NULL;
+	}
+
+	/* TODO add support for autoanswer */
+	channel = sccp_line_request(line, cap, requestor ? ast_channel_linkedid(requestor) : NULL, cause);
+	ao2_ref(line, -1);
+
+	return channel;
+}
+
+static int sccp_devicestate(const char *data)
+{
+	/* TODO */
+	return AST_DEVICE_INVALID;
+}
+
+static int sccp_call(struct ast_channel *channel, const char *dest, int timeout)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	return sccp_subchannel_call(subchan);
+}
+
+static int sccp_hangup(struct ast_channel *channel)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	return sccp_subchannel_hangup(subchan);
+}
+
+static int sccp_answer(struct ast_channel *channel)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	return sccp_subchannel_answer(subchan);
+}
+
+static struct ast_frame *sccp_read(struct ast_channel *channel)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	return sccp_subchannel_read(subchan);
+}
+
+static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	return sccp_subchannel_write(subchan, frame);
+}
+
+static int sccp_indicate(struct ast_channel *channel, int ind, const void *data, size_t datalen)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	return sccp_subchannel_indicate(subchan, ind, data, datalen);
+}
+
+static int sccp_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(newchannel);
+
+	return sccp_subchannel_fixup(subchan, newchannel);
+}
+
+static int sccp_senddigit_begin(struct ast_channel *channel, char digit)
+{
+	ast_log(LOG_DEBUG, "senddigit begin %c\n", digit);
+	return 0;
+}
+
+static int sccp_senddigit_end(struct ast_channel *channel, char digit, unsigned int duration)
+{
+	ast_log(LOG_DEBUG, "senddigit end %c\n", digit);
+	return 0;
+}
+
+struct ast_channel_tech sccp_tech = {
+	.type = "sccp",
+	.description = "Skinny Client Control Protocol",
+	.properties = AST_CHAN_TP_WANTSJITTER | AST_CHAN_TP_CREATESJITTER,
+	.requester = sccp_request,
+	.devicestate = sccp_devicestate,
+	.call = sccp_call,
+	.hangup = sccp_hangup,
+	.answer = sccp_answer,
+	.read = sccp_read,
+	.write = sccp_write,
+	.indicate = sccp_indicate,
+	.fixup = sccp_fixup,
+	.send_digit_begin = sccp_senddigit_begin,
+	.send_digit_end = sccp_senddigit_end,
+	.bridge = ast_rtp_instance_bridge,
+};
 
 static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
@@ -215,6 +330,24 @@ static struct ast_cli_entry cli_entries[] = {
 	AST_CLI_DEFINE(cli_show_version, "Show the module version"),
 };
 
+static int register_sccp_tech(void)
+{
+	sccp_tech.capabilities = ast_format_cap_alloc();
+	if (!sccp_tech.capabilities) {
+		return -1;
+	}
+
+	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
+
+	return ast_channel_register(&sccp_tech);
+}
+
+static void unregister_sccp_tech(void)
+{
+	ast_channel_unregister(&sccp_tech);
+	ast_format_cap_destroy(sccp_tech.capabilities);
+}
+
 static int load_module(void)
 {
 	RAII_VAR(struct sccp_cfg *, cfg, NULL, ao2_cleanup);
@@ -234,9 +367,17 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
+	sccp_sched = ast_sched_context_create();
+	if (!sccp_sched) {
+		sccp_device_registry_destroy(global_registry);
+		sccp_config_destroy();
+		return AST_MODULE_LOAD_DECLINE;
+	}
+
 	cfg = sccp_config_get();
 	global_server = sccp_server_create(cfg, global_registry);
 	if (!global_server) {
+		ast_sched_context_destroy(sccp_sched);
 		sccp_device_registry_destroy(global_registry);
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
@@ -244,6 +385,15 @@ static int load_module(void)
 
 	if (sccp_server_start(global_server)) {
 		sccp_server_destroy(global_server);
+		ast_sched_context_destroy(sccp_sched);
+		sccp_device_registry_destroy(global_registry);
+		sccp_config_destroy();
+		return AST_MODULE_LOAD_DECLINE;
+	}
+
+	if (register_sccp_tech()) {
+		sccp_server_destroy(global_server);
+		ast_sched_context_destroy(sccp_sched);
 		sccp_device_registry_destroy(global_registry);
 		sccp_config_destroy();
 		return AST_MODULE_LOAD_DECLINE;
@@ -258,7 +408,9 @@ static int unload_module(void)
 {
 	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
+	unregister_sccp_tech();
 	sccp_server_destroy(global_server);
+	ast_sched_context_destroy(sccp_sched);
 	sccp_device_registry_destroy(global_registry);
 	sccp_config_destroy();
 

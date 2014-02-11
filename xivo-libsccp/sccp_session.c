@@ -20,6 +20,7 @@ static void sccp_session_empty_queue(struct sccp_session *session);
 
 struct sccp_session {
 	struct sccp_deserializer deserializer;
+	struct sockaddr_in local_addr;
 	int sockfd;
 	int stop;
 	int port;
@@ -30,7 +31,7 @@ struct sccp_session {
 	struct sccp_task_runner *task_runner;
 	struct sccp_device *device;
 
-	char ipaddr[INET_ADDRSTRLEN];
+	char ipaddr[INET_ADDRSTRLEN];	/* TODO rename */
 };
 
 enum session_msg_id {
@@ -119,7 +120,19 @@ static void sccp_session_destructor(void *data)
 	ao2_ref(session->cfg, -1);
 }
 
-static int set_session_sock_option(int sockfd)
+static int get_sock_local_addr(int sockfd, struct sockaddr_in *addr)
+{
+	socklen_t slen = sizeof(*addr);
+
+	if (getsockname(sockfd, (struct sockaddr *) addr, &slen)) {
+		ast_log(LOG_ERROR, "get session local addr failed: getsockname: %s\n", strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+static int set_sock_options(int sockfd)
 {
 	int flag_nodelay;
 	struct timeval flag_timeout;
@@ -149,6 +162,7 @@ static int set_session_sock_option(int sockfd)
 
 struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, struct sockaddr_in *addr, int sockfd)
 {
+	struct sockaddr_in local_addr;
 	struct sccp_queue *queue;
 	struct sccp_task_runner *task_runner;
 	struct sccp_session *session;
@@ -168,7 +182,11 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 		return NULL;
 	}
 
-	if (set_session_sock_option(sockfd)) {
+	if (get_sock_local_addr(sockfd, &local_addr)) {
+		return NULL;
+	}
+
+	if (set_sock_options(sockfd)) {
 		return NULL;
 	}
 
@@ -191,6 +209,7 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 	}
 
 	sccp_deserializer_init(&session->deserializer, sockfd);
+	session->local_addr = local_addr;
 	session->sockfd = sockfd;
 	session->queue = queue;
 	session->task_runner = task_runner;
@@ -205,11 +224,6 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 	return session;
 }
 
-static void empty_queue_cb(void *msg_data, void __attribute__((unused)) *arg)
-{
-	session_msg_destroy((struct session_msg *) msg_data);
-}
-
 static void sccp_session_close_queue(struct sccp_session *session)
 {
 	sccp_queue_close(session->queue);
@@ -217,7 +231,15 @@ static void sccp_session_close_queue(struct sccp_session *session)
 
 static void sccp_session_empty_queue(struct sccp_session *session)
 {
-	sccp_queue_process(session->queue, empty_queue_cb, NULL);
+	struct queue q;
+	struct session_msg msg;
+
+	sccp_queue_get_all(session->queue, &q);
+	while (!queue_get(&q, &msg)) {
+		session_msg_destroy(&msg);
+	}
+
+	queue_destroy(&q);
 }
 
 static int sccp_session_queue_msg(struct sccp_session *session, struct session_msg *msg)
@@ -316,11 +338,8 @@ static void process_reload(struct sccp_session *session, struct sccp_cfg *cfg)
 	}
 }
 
-static void process_queue_cb(void *msg_data, void *arg)
+static void sccp_session_process_msg(struct sccp_session *session, struct session_msg *msg)
 {
-	struct session_msg *msg = msg_data;
-	struct sccp_session *session = arg;
-
 	switch (msg->id) {
 	case MSG_RELOAD:
 		process_reload(session, msg->data.reload.cfg);
@@ -335,8 +354,16 @@ static void process_queue_cb(void *msg_data, void *arg)
 
 void sccp_session_on_queue_events(struct sccp_session *session, int events)
 {
+	struct queue q;
+	struct session_msg msg;
+
 	if (events & POLLIN) {
-		sccp_queue_process(session->queue, process_queue_cb, session);
+		sccp_queue_get_all(session->queue, &q);
+		while (!queue_get(&q, &msg)) {
+			sccp_session_process_msg(session, &msg);
+		}
+
+		queue_destroy(&q);
 	}
 
 	if (events & ~POLLIN) {
@@ -622,4 +649,9 @@ int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg
 const char *sccp_session_ipaddr(const struct sccp_session *session)
 {
 	return session->ipaddr;
+}
+
+const struct sockaddr_in *sccp_session_local_addr(const struct sccp_session *session)
+{
+	return &session->local_addr;
 }

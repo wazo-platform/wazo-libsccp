@@ -4,10 +4,14 @@
 #include "sccp.h"
 #include "sccp_msg.h"
 
+struct ast_channel;
+struct ast_format_cap;
 struct sccp_device;
 struct sccp_device_cfg;
+struct sccp_line;
 struct sccp_msg;
 struct sccp_session;
+struct sccp_subchannel;
 
 struct sccp_device_info {
 	const char *name;
@@ -96,11 +100,6 @@ void sccp_device_on_progress(struct sccp_device *device);
 void sccp_device_on_registration_success(struct sccp_device *device);
 
 /*!
- * \brief Return the name of the device.
- */
-const char *sccp_device_name(const struct sccp_device *device);
-
-/*!
  * \brief Take a snapshot of information from the device.
  *
  * \note Thread safe.
@@ -108,5 +107,54 @@ const char *sccp_device_name(const struct sccp_device *device);
  * \param snapshot memory where the snapshot will be saved
  */
 void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_snapshot *snapshot);
+
+/*!
+ * \brief Return the number of lines of the device.
+ *
+ * \note The number of line of a device is a constant attribute.
+ */
+unsigned int sccp_device_line_count(const struct sccp_device *device);
+
+/*!
+ * \brief Get the i'th line of the device (starting from zero).
+ *
+ * \note The reference count is NOT incremented
+ */
+struct sccp_line* sccp_device_line(struct sccp_device *device, unsigned int i);
+
+/*!
+ * \brief Return the name of the device.
+ *
+ * \note The name of a device is a constant attribute.
+ */
+const char *sccp_device_name(const struct sccp_device *device);
+
+/*!
+ * \brief Return the name of the line.
+ *
+ * \note The name of a line is a constant attribute.
+ */
+const char *sccp_line_name(const struct sccp_line *line);
+
+/*
+ * XXX request a new subchannel + channel
+ *
+ * \note The tech_pvt of the returned channel is a sccp_subchannel pointer.
+ */
+struct ast_channel *sccp_line_request(struct sccp_line *line, struct ast_format_cap *cap, const char *linkedid, int *cause);
+
+int sccp_subchannel_call(struct sccp_subchannel *subchan);
+
+int sccp_subchannel_hangup(struct sccp_subchannel *subchan);
+
+int sccp_subchannel_answer(struct sccp_subchannel *subchan);
+
+struct ast_frame *sccp_subchannel_read(struct sccp_subchannel *subchan);
+
+int sccp_subchannel_write(struct sccp_subchannel *subchan, struct ast_frame *frame);
+
+int sccp_subchannel_indicate(struct sccp_subchannel *subchan, int ind, const void *data, size_t datalen);
+
+int sccp_subchannel_fixup(struct sccp_subchannel *subchan, struct ast_channel *newchannel);
 
 #endif /* SCCP_DEVICE_H_ */

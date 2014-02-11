@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+struct sockaddr_in;
+
 enum sccp_device_type {
 	SCCP_DEVICE_7960 = 7,
 	SCCP_DEVICE_7940 = 8,
@@ -653,21 +655,32 @@ struct sccp_msg {
 #define SCCP_MSG_LEN_FROM_DATA_LEN(data_length) ((data_length) + 4)
 
 void sccp_msg_button_template_res(struct sccp_msg *msg, struct button_definition *definition, size_t n);
+void sccp_msg_callinfo(struct sccp_msg *msg, const char *from_name, const char *from_num, const char *to_name, const char *to_num, uint32_t line_instance, uint32_t callid, enum sccp_direction direction);
+void sccp_msg_callstate(struct sccp_msg *msg, enum sccp_state state, uint32_t line_instance, uint32_t callid);
 void sccp_msg_capabilities_req(struct sccp_msg *msg);
 void sccp_msg_config_status_res(struct sccp_msg *msg, const char *name, uint32_t line_count, uint32_t speeddial_count);
 void sccp_msg_clear_message(struct sccp_msg *msg);
+void sccp_msg_close_receive_channel(struct sccp_msg *msg, uint32_t callid);
+void sccp_msg_dialed_number(struct sccp_msg *msg, const char *extension, uint32_t line_instance, uint32_t callid);
 void sccp_msg_feature_status(struct sccp_msg *msg, uint32_t instance, enum sccp_button_type type, enum sccp_blf_status status, const char *label);
 void sccp_msg_forward_status_res(struct sccp_msg *msg, uint32_t line_instance, const char *extension, uint32_t status);
 void sccp_msg_keep_alive_ack(struct sccp_msg *msg);
 void sccp_msg_lamp_state(struct sccp_msg *msg, enum sccp_stimulus_type stimulus, uint32_t instance, enum sccp_lamp_state indication);
 void sccp_msg_line_status_res(struct sccp_msg *msg, const char *cid_name, const char *cid_num, uint32_t line_instance);
+void sccp_msg_open_receive_channel(struct sccp_msg *msg, uint32_t callid, uint32_t packets, uint32_t capability);
 void sccp_msg_register_ack(struct sccp_msg *msg, const char *datefmt, uint32_t keepalive, uint8_t proto_version, uint8_t unknown1, uint8_t unknown2, uint8_t unknown3);
 void sccp_msg_register_rej(struct sccp_msg *msg);
+void sccp_msg_ringer_mode(struct sccp_msg *msg, enum sccp_ringer_mode mode);
 void sccp_msg_select_softkeys(struct sccp_msg *msg, uint32_t line_instance, uint32_t callid, enum sccp_softkey_status softkey);
 void sccp_msg_softkey_set_res(struct sccp_msg *msg);
 void sccp_msg_softkey_template_res(struct sccp_msg *msg);
+void sccp_msg_speaker_mode(struct sccp_msg *msg, enum sccp_speaker_mode mode);
 void sccp_msg_speeddial_stat_res(struct sccp_msg *msg, uint32_t index, const char *extension, const char *label);
+void sccp_msg_start_media_transmission(struct sccp_msg *msg, uint32_t callid, uint32_t packet_size, uint32_t payload_type, uint32_t precedence, struct sockaddr_in *endpoint);
+void sccp_msg_stop_media_transmission(struct sccp_msg *msg, uint32_t callid);
+void sccp_msg_stop_tone(struct sccp_msg *msg, uint32_t line_instance, uint32_t callid);
 void sccp_msg_time_date_res(struct sccp_msg *msg);
+void sccp_msg_tone(struct sccp_msg *msg, enum sccp_tone tone, uint32_t line_instance, uint32_t callid);
 void sccp_msg_reset(struct sccp_msg *msg, enum sccp_reset_type type);
 
 struct sccp_msg_builder {
@@ -676,6 +689,7 @@ struct sccp_msg_builder {
 };
 
 void sccp_msg_builder_init(struct sccp_msg_builder *msg_builder, enum sccp_device_type type, uint8_t proto_version);
+void sccp_msg_builder_callinfo(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *from_name, const char *from_num, const char *to_name, const char *to_num, uint32_t line_instance, uint32_t callid, enum sccp_direction direction);
 void sccp_msg_builder_line_status_res(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *cid_name, const char *cid_num, uint32_t line_instance);
 void sccp_msg_builder_register_ack(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *datefmt, uint32_t keepalive);
 

@@ -85,8 +85,19 @@ void sccp_session_progress(struct sccp_session *session);
 int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg);
 
 /*!
- * \brief Return the (formatted) IP address of the session.
+ * \brief Return the remote (i.e. peer) IPv4 address of the session, as a char*.
+ *
+ * \note The returned pointer becomes invalid when the session reference count reach zero.
+ *
+ * TODO rename
  */
 const char *sccp_session_ipaddr(const struct sccp_session *session);
+
+/*!
+ * \brief Return the local (i.e. bound) IPv4 address of the session.
+ *
+ * \note The returned pointer becomes invalid when the session reference count reach zero.
+ */
+const struct sockaddr_in *sccp_session_local_addr(const struct sccp_session *session);
 
 #endif /* SCCP_SESSION_H_ */

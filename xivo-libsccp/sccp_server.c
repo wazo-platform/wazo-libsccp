@@ -130,14 +130,17 @@ static void server_close_queue(struct sccp_server *server)
 	sccp_queue_close(server->queue);
 }
 
-static void empty_queue_cb(void *msg_data, void __attribute__((unused)) *arg)
-{
-	server_msg_destroy((struct server_msg *) msg_data);
-}
-
 static void server_empty_queue(struct sccp_server *server)
 {
-	sccp_queue_process(server->queue, empty_queue_cb, NULL);
+	struct queue q;
+	struct server_msg msg;
+
+	sccp_queue_get_all(server->queue, &q);
+	while (!queue_get(&q, &msg)) {
+		server_msg_destroy(&msg);
+	}
+
+	queue_destroy(&q);
 }
 
 static int server_queue_msg(struct sccp_server *server, struct server_msg *msg)
@@ -286,11 +289,8 @@ static void server_on_session_end(struct sccp_server *server, struct server_sess
 	server_session_destroy(srv_session);
 }
 
-static void process_queue_cb(void *msg_data, void *arg)
+static void server_process_msg(struct sccp_server *server, struct server_msg *msg)
 {
-	struct server_msg *msg = msg_data;
-	struct sccp_server *server = arg;
-
 	switch (msg->id) {
 	case MSG_RELOAD:
 		ao2_ref(server->cfg, -1);
@@ -315,7 +315,15 @@ static void process_queue_cb(void *msg_data, void *arg)
 
 static void server_process_queue(struct sccp_server *server)
 {
-	sccp_queue_process(server->queue, process_queue_cb, server);
+	struct queue q;
+	struct server_msg msg;
+
+	sccp_queue_get_all(server->queue, &q);
+	while (!queue_get(&q, &msg)) {
+		server_process_msg(server, &msg);
+	}
+
+	queue_destroy(&q);
 }
 
 static int new_server_socket(struct sccp_cfg *cfg)

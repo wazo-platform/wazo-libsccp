@@ -5,49 +5,177 @@
 
 #include <asterisk.h>
 #include <asterisk/lock.h>
-#include <asterisk/linkedlists.h>
 #include <asterisk/utils.h>
 
 #include "sccp_queue.h"
 
+static struct queue_item_container *container_alloc(size_t item_size)
+{
+	return ast_calloc(1, sizeof(struct queue_item_container) + item_size);
+}
+
+static void container_destroy(struct queue_item_container *container)
+{
+	ast_free(container);
+}
+
+static void container_write_item(struct queue_item_container *container, size_t item_size, void *item)
+{
+	memcpy(container->item, item, item_size);
+}
+
+static void container_read_item(struct queue_item_container *container, size_t item_size, void *item)
+{
+	memcpy(item, container->item, item_size);
+}
+
+int queue_init(struct queue *q, size_t item_size)
+{
+	if (!item_size) {
+		return SCCP_QUEUE_INVAL;
+	}
+
+	AST_LIST_HEAD_INIT_NOLOCK(&q->containers);
+	AST_LIST_HEAD_INIT_NOLOCK(&q->reserved);
+	q->item_size = item_size;
+
+	return 0;
+}
+
+void queue_destroy(struct queue *q)
+{
+	struct queue_item_container *container;
+
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&q->containers, container, list) {
+		AST_LIST_REMOVE_CURRENT(list);
+		container_destroy(container);
+	}
+	AST_LIST_TRAVERSE_SAFE_END;
+
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&q->reserved, container, list) {
+		AST_LIST_REMOVE_CURRENT(list);
+		container_destroy(container);
+	}
+	AST_LIST_TRAVERSE_SAFE_END;
+}
+
+int queue_put(struct queue *q, void *item)
+{
+	struct queue_item_container *container;
+
+	container = container_alloc(q->item_size);
+	if (!container) {
+		return -1;
+	}
+
+	AST_LIST_INSERT_TAIL(&q->containers, container, list);
+
+	container_write_item(container, q->item_size, item);
+
+	return 0;
+}
+
+static int queue_put_reserved(struct queue *q, struct queue_reservation *reservation, void *item)
+{
+	struct queue_item_container *container = reservation->container;
+
+	if (!AST_LIST_REMOVE(&q->reserved, container, list)) {
+		ast_log(LOG_ERROR, "queue put reserved failed: container not in reserved list\n");
+		return SCCP_QUEUE_INVAL;
+	}
+
+	AST_LIST_INSERT_TAIL(&q->containers, container, list);
+
+	container_write_item(container, q->item_size, item);
+
+	return 0;
+}
+
+static int queue_cancel_reserved(struct queue *q, struct queue_reservation *reservation)
+{
+	struct queue_item_container *container = reservation->container;
+
+	if (!AST_LIST_REMOVE(&q->reserved, container, list)) {
+		ast_log(LOG_ERROR, "queue cancel reserved failed: container not in reserved list\n");
+		return SCCP_QUEUE_INVAL;
+	}
+
+	container_destroy(container);
+
+	return 0;
+}
+
+int queue_reserve(struct queue *q, struct queue_reservation *reservation)
+{
+	struct queue_item_container *container;
+
+	container = container_alloc(q->item_size);
+	if (!container) {
+		return -1;
+	}
+
+	AST_LIST_INSERT_TAIL(&q->reserved, container, list);
+
+	reservation->q = q;
+	reservation->container = container;
+
+	return 0;
+}
+
+int queue_get(struct queue *q, void *item)
+{
+	struct queue_item_container *container;
+
+	container = AST_LIST_FIRST(&q->containers);
+	if (!container) {
+		return -1;
+	}
+
+	AST_LIST_REMOVE_HEAD(&q->containers, list);
+	container_read_item(container, q->item_size, item);
+	container_destroy(container);
+
+	return 0;
+}
+
+int queue_move(struct queue *dest, struct queue *src)
+{
+	if (!dest || !src) {
+		return SCCP_QUEUE_INVAL;
+	}
+
+	dest->containers = src->containers;
+	AST_LIST_HEAD_INIT_NOLOCK(&dest->reserved);
+	dest->item_size = src->item_size;
+
+	AST_LIST_HEAD_INIT_NOLOCK(&src->containers);
+
+	return 0;
+}
+
+int queue_empty(const struct queue *q)
+{
+	return AST_LIST_EMPTY(&q->containers);
+}
+
+int queue_reservation_put(struct queue_reservation *reservation, void *item)
+{
+	return queue_put_reserved(reservation->q, reservation, item);
+}
+
+int queue_reservation_cancel(struct queue_reservation *reservation)
+{
+	return queue_cancel_reserved(reservation->q, reservation);
+}
+
 struct sccp_queue {
 	ast_mutex_t lock;
-	AST_LIST_HEAD_NOLOCK(, msg) msgs;
-	size_t msg_size;
+	struct queue q;
 	int pipefd[2];
 	int closed;
 };
 
-struct msg {
-	AST_LIST_ENTRY(msg) list;
-	void *data[0];
-};
-
-static struct msg *msg_create(size_t data_size, void *data)
-{
-	struct msg *msg;
-
-	msg = ast_calloc(1, sizeof(*msg) + data_size);
-	if (!msg) {
-		return NULL;
-	}
-
-	memcpy(msg->data, data, data_size);
-
-	return msg;
-}
-
-static void msg_extract_data(struct msg *msg, size_t data_size, void *data)
-{
-	memcpy(data, msg->data, data_size);
-}
-
-static void msg_destroy(struct msg *msg)
-{
-	ast_free(msg);
-}
-
-struct sccp_queue *sccp_queue_create(size_t msg_size)
+struct sccp_queue *sccp_queue_create(size_t item_size)
 {
 	struct sccp_queue *queue;
 
@@ -63,8 +191,7 @@ struct sccp_queue *sccp_queue_create(size_t msg_size)
 	}
 
 	ast_mutex_init(&queue->lock);
-	AST_LIST_HEAD_INIT_NOLOCK(&queue->msgs);
-	queue->msg_size = msg_size;
+	queue_init(&queue->q, item_size);
 	queue->closed = 0;
 
 	return queue;
@@ -72,15 +199,8 @@ struct sccp_queue *sccp_queue_create(size_t msg_size)
 
 void sccp_queue_destroy(struct sccp_queue *queue)
 {
-	struct msg *msg;
-
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&queue->msgs, msg, list) {
-		AST_LIST_REMOVE_CURRENT(list);
-		msg_destroy(msg);
-	}
-	AST_LIST_TRAVERSE_SAFE_END;
-
 	ast_mutex_destroy(&queue->lock);
+	queue_destroy(&queue->q);
 	close(queue->pipefd[0]);
 	close(queue->pipefd[1]);
 	ast_free(queue);
@@ -136,93 +256,80 @@ static int sccp_queue_read_pipe(struct sccp_queue *queue)
 	return 0;
 }
 
-static int sccp_queue_put_no_lock(struct sccp_queue *queue, void *msg_data)
+static int sccp_queue_put_no_lock(struct sccp_queue *queue, void *item)
 {
-	struct msg *msg = NULL;
-
 	if (queue->closed) {
 		return SCCP_QUEUE_CLOSED;
 	}
 
-	msg = msg_create(queue->msg_size, msg_data);
-	if (!msg) {
-		ast_log(LOG_ERROR, "sccp queue put failed\n");
-		return SCCP_QUEUE_ERROR;
-	}
-
-	if (AST_LIST_EMPTY(&queue->msgs)) {
+	if (queue_empty(&queue->q)) {
 		if (sccp_queue_write_pipe(queue)) {
-			ast_log(LOG_ERROR, "sccp queue put failed\n");
-			msg_destroy(msg);
-			return SCCP_QUEUE_ERROR;
+			ast_log(LOG_ERROR, "sccp queue put failed: could not write to pipe\n");
+			return -1;
 		}
 	}
 
-	AST_LIST_INSERT_TAIL(&queue->msgs, msg, list);
+	if (queue_put(&queue->q, item)) {
+		ast_log(LOG_ERROR, "sccp queue put failed: could not queue item\n");
+		return -1;
+	}
 
 	return 0;
 }
 
-int sccp_queue_put(struct sccp_queue *queue, void *msg_data)
+int sccp_queue_put(struct sccp_queue *queue, void *item)
 {
 	int ret;
 
 	ast_mutex_lock(&queue->lock);
-	ret = sccp_queue_put_no_lock(queue, msg_data);
+	ret = sccp_queue_put_no_lock(queue, item);
 	ast_mutex_unlock(&queue->lock);
 
 	return ret;
 }
 
-static int sccp_queue_get_no_lock(struct sccp_queue *queue, void *msg_data)
+static int sccp_queue_get_no_lock(struct sccp_queue *queue, void *item)
 {
-	struct msg *msg;
-
-	msg = AST_LIST_FIRST(&queue->msgs);
-	if (!msg) {
+	if (queue_get(&queue->q, item)) {
 		return SCCP_QUEUE_EMPTY;
 	}
 
-	AST_LIST_REMOVE_HEAD(&queue->msgs, list);
-	msg_extract_data(msg, queue->msg_size, msg_data);
-	msg_destroy(msg);
-
-	if (AST_LIST_EMPTY(&queue->msgs)) {
+	if (queue_empty(&queue->q)) {
 		sccp_queue_read_pipe(queue);
 	}
 
 	return 0;
 }
 
-int sccp_queue_get(struct sccp_queue *queue, void *msg_data)
+int sccp_queue_get(struct sccp_queue *queue, void *item)
 {
 	int ret;
 
 	ast_mutex_lock(&queue->lock);
-	ret = sccp_queue_get_no_lock(queue, msg_data);
+	ret = sccp_queue_get_no_lock(queue, item);
 	ast_mutex_unlock(&queue->lock);
 
 	return ret;
 }
 
-void sccp_queue_process(struct sccp_queue *queue, sccp_queue_process_cb callback, void *arg)
+static void sccp_queue_get_all_no_lock(struct sccp_queue *queue, struct queue *ret)
 {
-	struct msg *msg;
-	struct msg *nextmsg;
-
-	ast_mutex_lock(&queue->lock);
-	nextmsg = AST_LIST_FIRST(&queue->msgs);
-	AST_LIST_HEAD_INIT_NOLOCK(&queue->msgs);
-	if (nextmsg) {
+	queue_move(ret, &queue->q);
+	if (!queue_empty(ret)) {
 		sccp_queue_read_pipe(queue);
 	}
+}
+
+int sccp_queue_get_all(struct sccp_queue *queue, struct queue *ret)
+{
+	if (!ret) {
+		ast_log(LOG_ERROR, "sccp queue get all failed: ret is null\n");
+		return SCCP_QUEUE_INVAL;
+	}
+
+	ast_mutex_lock(&queue->lock);
+	sccp_queue_get_all_no_lock(queue, ret);
 	ast_mutex_unlock(&queue->lock);
 
-	while ((msg = nextmsg)) {
-		nextmsg = AST_LIST_NEXT(msg, list);
-
-		callback(msg->data, arg);
-
-		msg_destroy(msg);
-	}
+	return 0;
 }

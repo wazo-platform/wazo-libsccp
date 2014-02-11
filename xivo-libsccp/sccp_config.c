@@ -89,25 +89,35 @@ static void sccp_line_cfg_destructor(void *obj)
 	struct sccp_line_cfg *line_cfg = obj;
 
 	sccp_line_cfg_free_internal(line_cfg);
+	ast_format_cap_destroy(line_cfg->caps);
 }
 
 static void *sccp_line_cfg_alloc(const char *category)
 {
 	struct sccp_line_cfg *line_cfg;
 	struct sccp_line_cfg_internal *internal;
+	struct ast_format_cap *caps;
 
 	internal = ast_calloc(1, sizeof(*internal));
 	if (!internal) {
 		return NULL;
 	}
 
+	caps = ast_format_cap_alloc_nolock();
+	if (!caps) {
+		ast_free(internal);
+		return NULL;
+	}
+
 	line_cfg = ao2_alloc_options(sizeof(*line_cfg), sccp_line_cfg_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!line_cfg) {
+		ast_format_cap_destroy(caps);
 		ast_free(internal);
 		return NULL;
 	}
 
 	ast_copy_string(line_cfg->name, category, sizeof(line_cfg->name));
+	line_cfg->caps = caps;
 	line_cfg->chanvars = NULL;
 	line_cfg->internal = internal;
 	line_cfg->internal->associated = 0;
@@ -675,7 +685,7 @@ int sccp_config_init(void)
 	/* device options */
 	aco_option_register(&cfg_info, "type", ACO_EXACT, device_types, NULL, OPT_NOOP_T, 0, 0);
 	aco_option_register(&cfg_info, "dateformat", ACO_EXACT, device_types, "D/M/Y", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_device_cfg, dateformat));
-	aco_option_register(&cfg_info, "voicemail", ACO_EXACT, device_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_device_cfg, voicemail));
+	aco_option_register(&cfg_info, "voicemail", ACO_EXACT, device_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_device_cfg, voicemail));
 	aco_option_register(&cfg_info, "keepalive", ACO_EXACT, device_types, "10", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_device_cfg, keepalive), 1, 600);
 	aco_option_register(&cfg_info, "dialtimeout", ACO_EXACT, device_types, "2", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_device_cfg, dialtimeout), 1, 60);
 	aco_option_register_custom(&cfg_info, "line", ACO_EXACT, device_types, NULL, device_cfg_line_handler, 0);
@@ -683,22 +693,22 @@ int sccp_config_init(void)
 
 	/* line options */
 	aco_option_register(&cfg_info, "type", ACO_EXACT, line_types, NULL, OPT_NOOP_T, 0, 0);
-	aco_option_register(&cfg_info, "cid_name", ACO_EXACT, line_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, cid_name));
-	aco_option_register(&cfg_info, "cid_num", ACO_EXACT, line_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, cid_num));
+	aco_option_register(&cfg_info, "cid_name", ACO_EXACT, line_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, cid_name));
+	aco_option_register(&cfg_info, "cid_num", ACO_EXACT, line_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, cid_num));
 	aco_option_register_custom(&cfg_info, "setvar", ACO_EXACT, line_types, NULL, line_cfg_setvar_handler, 0);
 	aco_option_register(&cfg_info, "context", ACO_EXACT, line_types, "default", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, context));
 	aco_option_register(&cfg_info, "language", ACO_EXACT, line_types, "en_US", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, language));
-	aco_option_register(&cfg_info, "vmexten", ACO_EXACT, line_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, vmexten));
-	aco_option_register(&cfg_info, "directmedia", ACO_EXACT, line_types, "", OPT_BOOL_T, 1, FLDSET(struct sccp_line_cfg, directmedia));
+	aco_option_register(&cfg_info, "vmexten", ACO_EXACT, line_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, vmexten));
+	aco_option_register(&cfg_info, "directmedia", ACO_EXACT, line_types, "no", OPT_BOOL_T, 1, FLDSET(struct sccp_line_cfg, directmedia));
 	aco_option_register_custom(&cfg_info, "tos_audio", ACO_EXACT, line_types, "EF", line_cfg_tos_audio_handler, 0);
-	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, "all", OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, codec_pref, caps));
+	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, NULL, OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, codec_pref, caps));
 	aco_option_register(&cfg_info, "allow", ACO_EXACT, line_types, "ulaw,alaw", OPT_CODEC_T, 1, FLDSET(struct sccp_line_cfg, codec_pref, caps));
 
 	/* speeddial options */
 	aco_option_register(&cfg_info, "type", ACO_EXACT, speeddial_types, NULL, OPT_NOOP_T, 0, 0);
-	aco_option_register(&cfg_info, "label", ACO_EXACT, speeddial_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_speeddial_cfg, label));
-	aco_option_register(&cfg_info, "extension", ACO_EXACT, speeddial_types, "", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_speeddial_cfg, extension));
-	aco_option_register(&cfg_info, "blf", ACO_EXACT, speeddial_types, "", OPT_BOOL_T, 1, FLDSET(struct sccp_speeddial_cfg, blf));
+	aco_option_register(&cfg_info, "label", ACO_EXACT, speeddial_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_speeddial_cfg, label));
+	aco_option_register(&cfg_info, "extension", ACO_EXACT, speeddial_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_speeddial_cfg, extension));
+	aco_option_register(&cfg_info, "blf", ACO_EXACT, speeddial_types, "no", OPT_BOOL_T, 1, FLDSET(struct sccp_speeddial_cfg, blf));
 
 	return 0;
 }

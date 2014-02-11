@@ -46,6 +46,15 @@ void sccp_device_registry_remove(struct sccp_device_registry *registry, struct s
 struct sccp_device *sccp_device_registry_find(struct sccp_device_registry *registry, const char *name);
 
 /*!
+ * \brief Find a line by name.
+ *
+ * \note The returned object has its reference count incremented by one.
+ *
+ * \retval the line with the given name, or NULL if no such line exist
+ */
+struct sccp_line *sccp_device_registry_find_line(struct sccp_device_registry *registry, const char *name);
+
+/*!
  * \brief Completion function for CLI.
  */
 char *sccp_device_registry_complete(struct sccp_device_registry *registry, const char *word, int state);

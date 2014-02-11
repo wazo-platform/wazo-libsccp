@@ -135,6 +135,47 @@ void sccp_msg_button_template_res(struct sccp_msg *msg, struct button_definition
 	msg->data.buttontemplate.totalButtonCount = htolel(n);
 }
 
+void sccp_msg_callinfo(struct sccp_msg *msg, const char *from_name, const char *from_num, const char *to_name, const char *to_num, uint32_t line_instance, uint32_t callid, enum sccp_direction direction)
+{
+	prepare_msg(msg, sizeof(struct call_info_message), CALL_INFO_MESSAGE);
+
+	/* XXX the check should be done in caller function, not here, so that every sccp_msg_* function does
+	 *     the same thing, i.e. no check
+	 */
+	if (from_name) {
+		ast_copy_string(msg->data.callinfo.callingPartyName, from_name, sizeof(msg->data.callinfo.callingPartyName));
+	}
+
+	if (from_num) {
+		ast_copy_string(msg->data.callinfo.callingParty, from_num, sizeof(msg->data.callinfo.callingParty));
+	}
+
+	if (to_name) {
+		ast_copy_string(msg->data.callinfo.calledPartyName, to_name, sizeof(msg->data.callinfo.calledPartyName));
+		ast_copy_string(msg->data.callinfo.originalCalledPartyName, to_name, sizeof(msg->data.callinfo.originalCalledPartyName));
+	}
+
+	if (to_num) {
+		ast_copy_string(msg->data.callinfo.calledParty, to_num, sizeof(msg->data.callinfo.calledParty));
+		ast_copy_string(msg->data.callinfo.originalCalledParty, to_num, sizeof(msg->data.callinfo.originalCalledParty));
+	}
+
+	msg->data.callinfo.lineInstance = htolel(line_instance);
+	msg->data.callinfo.callInstance = htolel(callid);
+	msg->data.callinfo.type = htolel(direction);
+}
+
+void sccp_msg_callstate(struct sccp_msg *msg, enum sccp_state state, uint32_t line_instance, uint32_t callid)
+{
+	prepare_msg(msg, sizeof(struct call_state_message), CALL_STATE_MESSAGE);
+
+	msg->data.callstate.callState = htolel(state);
+	msg->data.callstate.lineInstance = htolel(line_instance);
+	msg->data.callstate.callReference = htolel(callid);
+	msg->data.callstate.visibility = 0;
+	msg->data.callstate.priority = htolel(4);
+}
+
 void sccp_msg_capabilities_req(struct sccp_msg *msg)
 {
 	prepare_msg(msg, 0, CAPABILITIES_REQ_MESSAGE);
@@ -154,6 +195,24 @@ void sccp_msg_config_status_res(struct sccp_msg *msg, const char *name, uint32_t
 void sccp_msg_clear_message(struct sccp_msg *msg)
 {
 	prepare_msg(msg, 0, CLEAR_NOTIFY_MESSAGE);
+}
+
+void sccp_msg_close_receive_channel(struct sccp_msg *msg, uint32_t callid)
+{
+	prepare_msg(msg, sizeof(struct close_receive_channel_message), CLOSE_RECEIVE_CHANNEL_MESSAGE);
+
+	msg->data.closereceivechannel.conferenceId = htolel(callid);
+	msg->data.closereceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
+	msg->data.closereceivechannel.conferenceId1 = htolel(callid);
+}
+
+void sccp_msg_dialed_number(struct sccp_msg *msg, const char *extension, uint32_t line_instance, uint32_t callid)
+{
+	prepare_msg(msg, sizeof(struct dialed_number_message), DIALED_NUMBER_MESSAGE);
+
+	ast_copy_string(msg->data.dialednumber.calledParty, extension, sizeof(msg->data.dialednumber.calledParty));
+	msg->data.dialednumber.lineInstance = htolel(line_instance);
+	msg->data.dialednumber.callInstance = htolel(callid);
 }
 
 void sccp_msg_feature_status(struct sccp_msg *msg, uint32_t instance, enum sccp_button_type type, enum sccp_blf_status status, const char *label)
@@ -204,6 +263,20 @@ void sccp_msg_line_status_res(struct sccp_msg *msg, const char *cid_name, const 
 	ast_copy_string(msg->data.linestatus.lineDisplayAlias, cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
 }
 
+void sccp_msg_open_receive_channel(struct sccp_msg *msg, uint32_t callid, uint32_t packets, uint32_t capability)
+{
+	prepare_msg(msg, sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
+
+	msg->data.openreceivechannel.conferenceId = htolel(callid);
+	msg->data.openreceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
+	msg->data.openreceivechannel.packets = packets;
+	msg->data.openreceivechannel.capability = capability;
+	msg->data.openreceivechannel.echo = htolel(0);
+	msg->data.openreceivechannel.bitrate = htolel(0);
+	msg->data.openreceivechannel.conferenceId1 = htolel(callid);
+	msg->data.openreceivechannel.rtpTimeout = htolel(10);
+}
+
 void sccp_msg_register_ack(struct sccp_msg *msg, const char *datefmt, uint32_t keepalive, uint8_t proto_version, uint8_t unknown1, uint8_t unknown2, uint8_t unknown3)
 {
 	prepare_msg(msg, sizeof(struct register_ack_message), REGISTER_ACK_MESSAGE);
@@ -222,6 +295,15 @@ void sccp_msg_register_rej(struct sccp_msg *msg)
 	prepare_msg(msg, sizeof(struct register_rej_message), REGISTER_REJ_MESSAGE);
 
 	msg->data.regrej.errMsg[0] = '\0';
+}
+
+void sccp_msg_ringer_mode(struct sccp_msg *msg, enum sccp_ringer_mode mode)
+{
+	prepare_msg(msg, sizeof(struct set_ringer_message), SET_RINGER_MESSAGE);
+
+	msg->data.setringer.ringerMode = htolel(mode);
+	msg->data.setringer.unknown1 = htolel(1);
+	msg->data.setringer.unknown2 = htolel(1);
 }
 
 void sccp_msg_select_softkeys(struct sccp_msg *msg, uint32_t line_instance, uint32_t callid, enum sccp_softkey_status softkey)
@@ -268,6 +350,13 @@ void sccp_msg_softkey_template_res(struct sccp_msg *msg)
 	memcpy(msg->data.softkeytemplate.softKeyTemplateDefinition, softkey_template_default, sizeof(softkey_template_default));
 }
 
+void sccp_msg_speaker_mode(struct sccp_msg *msg, enum sccp_speaker_mode mode)
+{
+	prepare_msg(msg, sizeof(struct set_speaker_message), SET_SPEAKER_MESSAGE);
+
+	msg->data.setspeaker.mode = htolel(mode);
+}
+
 void sccp_msg_speeddial_stat_res(struct sccp_msg *msg, uint32_t index, const char *extension, const char *label)
 {
 	prepare_msg(msg, sizeof(struct speeddial_stat_res_message), SPEEDDIAL_STAT_RES_MESSAGE);
@@ -275,6 +364,41 @@ void sccp_msg_speeddial_stat_res(struct sccp_msg *msg, uint32_t index, const cha
 	msg->data.speeddialstatus.instance = htolel(index);
 	memcpy(msg->data.speeddialstatus.extension, extension, sizeof(msg->data.speeddialstatus.extension));
 	memcpy(msg->data.speeddialstatus.label, label, sizeof(msg->data.speeddialstatus.label));
+}
+
+void sccp_msg_start_media_transmission(struct sccp_msg *msg, uint32_t callid, uint32_t packet_size, uint32_t payload_type, uint32_t precedence, struct sockaddr_in *endpoint)
+{
+	prepare_msg(msg, sizeof(struct start_media_transmission_message), START_MEDIA_TRANSMISSION_MESSAGE);
+
+	msg->data.startmedia.conferenceId = htolel(callid);
+	msg->data.startmedia.passThruPartyId = htolel(callid ^ 0xFFFFFFFF);
+	msg->data.startmedia.remoteIp = htolel(endpoint->sin_addr.s_addr);
+	msg->data.startmedia.remotePort = htolel(ntohs(endpoint->sin_port));
+	msg->data.startmedia.packetSize = htolel(packet_size);
+	msg->data.startmedia.payloadType = htolel(payload_type);
+	msg->data.startmedia.qualifier.precedence = htolel(precedence);
+	msg->data.startmedia.qualifier.vad = htolel(0);
+	msg->data.startmedia.qualifier.packets = htolel(0);
+	msg->data.startmedia.qualifier.bitRate = htolel(0);
+	msg->data.startmedia.conferenceId1 = htolel(callid);
+	msg->data.startmedia.rtpTimeout = htolel(10);
+}
+
+void sccp_msg_stop_media_transmission(struct sccp_msg *msg, uint32_t callid)
+{
+	prepare_msg(msg, sizeof(struct stop_media_transmission_message), STOP_MEDIA_TRANSMISSION_MESSAGE);
+
+	msg->data.stopmedia.conferenceId = htolel(callid);
+	msg->data.stopmedia.partyId = htolel(callid ^ 0xFFFFFFFF);
+	msg->data.stopmedia.conferenceId1 = htolel(callid);
+}
+
+void sccp_msg_stop_tone(struct sccp_msg *msg, uint32_t line_instance, uint32_t callid)
+{
+	prepare_msg(msg, sizeof(struct stop_tone_message), STOP_TONE_MESSAGE);
+
+	msg->data.stop_tone.lineInstance = htolel(line_instance);
+	msg->data.stop_tone.callInstance = htolel(callid);
 }
 
 void sccp_msg_time_date_res(struct sccp_msg *msg)
@@ -296,6 +420,15 @@ void sccp_msg_time_date_res(struct sccp_msg *msg)
 	msg->data.timedate.seconds = htolel(cmtime.tm_sec);
 	msg->data.timedate.milliseconds = htolel(0);
 	msg->data.timedate.systemTime = htolel(now.tv_sec);
+}
+
+void sccp_msg_tone(struct sccp_msg *msg, enum sccp_tone tone, uint32_t line_instance, uint32_t callid)
+{
+	prepare_msg(msg, sizeof(struct start_tone_message), START_TONE_MESSAGE);
+
+	msg->data.starttone.tone = htolel(tone);
+	msg->data.starttone.lineInstance = htolel(line_instance);
+	msg->data.starttone.callInstance = htolel(callid);
 }
 
 void sccp_msg_reset(struct sccp_msg *msg, enum sccp_reset_type type)
@@ -344,6 +477,43 @@ void sccp_msg_builder_init(struct sccp_msg_builder *msg_builder, uint32_t type, 
 {
 	msg_builder->type = type;
 	msg_builder->proto = proto_version;
+}
+
+void sccp_msg_builder_callinfo(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *from_name, const char *from_num, const char *to_name, const char *to_num, uint32_t line_instance, uint32_t callid, enum sccp_direction direction)
+{
+	char *tmp;
+
+	if (builder->proto <= 11) {
+		if (!ast_strlen_zero(from_name)) {
+			tmp = ast_alloca(sizeof(msg->data.callinfo.callingPartyName));
+			if (!utf8_to_iso88591(tmp, from_name, sizeof(msg->data.callinfo.callingPartyName))) {
+				from_name = tmp;
+			}
+		}
+
+		if (!ast_strlen_zero(from_num)) {
+			tmp = ast_alloca(sizeof(msg->data.callinfo.callingParty));
+			if (!utf8_to_iso88591(tmp, from_num, sizeof(msg->data.callinfo.callingParty))) {
+				from_num = tmp;
+			}
+		}
+
+		if (!ast_strlen_zero(to_name)) {
+			tmp = ast_alloca(sizeof(msg->data.callinfo.calledPartyName));
+			if (!utf8_to_iso88591(tmp, to_name, sizeof(msg->data.callinfo.calledPartyName))) {
+				to_name = tmp;
+			}
+		}
+
+		if (!ast_strlen_zero(to_num)) {
+			tmp = ast_alloca(sizeof(msg->data.callinfo.calledParty));
+			if (!utf8_to_iso88591(tmp, to_num, sizeof(msg->data.callinfo.calledParty))) {
+				to_num = tmp;
+			}
+		}
+	}
+
+	sccp_msg_callinfo(msg, from_name, from_num, to_name, to_num, line_instance, callid, direction);
 }
 
 void sccp_msg_builder_line_status_res(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *cid_name, const char *cid_num, uint32_t line_instance)
