@@ -117,7 +117,7 @@ struct sccp_device {
 	/* (static) */
 	struct sccp_msg_builder msg_builder;
 	/* (dynamic) */
-	struct queue delayed_tasks_queue;	/* XXX name is ~+-~+-~ */
+	struct sccp_queue delayed_tasks_queue;	/* XXX name is ~+-~+-~ */
 	/* (dynamic) */
 	struct sockaddr_in remote;
 
@@ -369,7 +369,7 @@ static void exec_init_channel(union delayed_task_data *data)
 	ast_channel_unref(channel);
 }
 
-static void defer_init_channel(struct queue_reservation *reservation, struct sccp_line_cfg *line_cfg, struct ast_channel *channel)
+static void defer_init_channel(struct sccp_queue_reservation *reservation, struct sccp_line_cfg *line_cfg, struct ast_channel *channel)
 {
 	struct delayed_task dtask;
 
@@ -380,7 +380,7 @@ static void defer_init_channel(struct queue_reservation *reservation, struct scc
 	ao2_ref(line_cfg, +1);
 	ast_channel_ref(channel);
 
-	queue_reservation_put(reservation, &dtask);
+	sccp_queue_reservation_put(reservation, &dtask);
 }
 
 static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const char *linkedid, struct ast_format_cap *cap)
@@ -392,7 +392,7 @@ static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const ch
 	struct ast_format_cap *tmpcaps = NULL;
 	int has_joint;
 	char buf[256];
-	struct queue_reservation reservation;
+	struct sccp_queue_reservation reservation;
 
 	if (subchan->channel) {
 		ast_log(LOG_ERROR, "subchan already has a channel\n");
@@ -405,7 +405,7 @@ static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const ch
 		return -1;
 	}
 
-	if (queue_reserve(&device->delayed_tasks_queue, &reservation)) {
+	if (sccp_queue_reserve(&device->delayed_tasks_queue, &reservation)) {
 		return -1;
 	}
 
@@ -432,7 +432,7 @@ static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const ch
 
 	if (!channel) {
 		ast_log(LOG_ERROR, "channel allocation failed\n");
-		queue_reservation_cancel(&reservation);
+		sccp_queue_reservation_cancel(&reservation);
 		return -1;
 	}
 
@@ -590,7 +590,7 @@ static void sccp_device_destructor(void *data)
 	 * device object must be destroyed via sccp_device_destroy
 	 */
 
-	queue_destroy(&device->delayed_tasks_queue);
+	sccp_queue_destroy(&device->delayed_tasks_queue);
 	ast_mutex_destroy(&device->lock);
 	ast_format_cap_destroy(device->caps);
 	ao2_ref(device->session, -1);
@@ -647,7 +647,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 
 	ast_mutex_init(&device->lock);
 	sccp_msg_builder_init(&device->msg_builder, info->type, info->proto_version);
-	queue_init(&device->delayed_tasks_queue, sizeof(struct delayed_task));
+	sccp_queue_init(&device->delayed_tasks_queue, sizeof(struct delayed_task));
 	device->session = session;
 	ao2_ref(session, +1);
 	device->cfg = cfg;
@@ -857,22 +857,22 @@ static void sccp_device_lock(struct sccp_device *device)
 
 static void sccp_device_unlock(struct sccp_device *device)
 {
-	struct queue tasks;
+	struct sccp_queue tasks;
 	struct delayed_task task;
 
-	if (queue_empty(&device->delayed_tasks_queue)) {
+	if (sccp_queue_empty(&device->delayed_tasks_queue)) {
 		ast_mutex_unlock(&device->lock);
 		return;
 	}
 
-	queue_move(&tasks, &device->delayed_tasks_queue);
+	sccp_queue_move(&tasks, &device->delayed_tasks_queue);
 	ast_mutex_unlock(&device->lock);
 
-	while (!queue_get(&tasks, &task)) {
+	while (!sccp_queue_get(&tasks, &task)) {
 		task.callback(&task.data);
 	}
 
-	queue_destroy(&tasks);
+	sccp_queue_destroy(&tasks);
 }
 
 static enum sccp_codecs codec_ast2sccp(struct ast_format *format)
@@ -1445,7 +1445,7 @@ static void exec_hangup_channel(union delayed_task_data *data)
 	ast_channel_unref(channel);
 }
 
-static void defer_hangup_channel(struct queue_reservation *reservation, struct ast_channel *channel)
+static void defer_hangup_channel(struct sccp_queue_reservation *reservation, struct ast_channel *channel)
 {
 	struct delayed_task dtask;
 
@@ -1454,19 +1454,19 @@ static void defer_hangup_channel(struct queue_reservation *reservation, struct a
 
 	ast_channel_ref(channel);
 
-	queue_reservation_put(reservation, &dtask);
+	sccp_queue_reservation_put(reservation, &dtask);
 }
 
 static int do_hangup(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
-	struct queue_reservation reservation;
+	struct sccp_queue_reservation reservation;
 
 	device->exten[0] = '\0';
 
 	/* TODO add remove dialttimeout stuff */
 
 	if (subchan->channel) {
-		if (queue_reserve(&device->delayed_tasks_queue, &reservation)) {
+		if (sccp_queue_reserve(&device->delayed_tasks_queue, &reservation)) {
 			ast_log(LOG_ERROR, "do hangup failed: could not reserve space, channel will not be hanged up\n");
 			return -1;
 		}
@@ -1497,7 +1497,7 @@ static void exec_start_channel(union delayed_task_data *data)
 	ast_channel_unref(channel);
 }
 
-static void defer_start_channel(struct queue_reservation *reservation, struct sccp_line_cfg *line_cfg, struct ast_channel *channel)
+static void defer_start_channel(struct sccp_queue_reservation *reservation, struct sccp_line_cfg *line_cfg, struct ast_channel *channel)
 {
 	struct delayed_task dtask;
 
@@ -1508,15 +1508,15 @@ static void defer_start_channel(struct queue_reservation *reservation, struct sc
 	ao2_ref(line_cfg, +1);
 	ast_channel_ref(channel);
 
-	queue_reservation_put(reservation, &dtask);
+	sccp_queue_reservation_put(reservation, &dtask);
 }
 
 static int start_the_call(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
-	struct queue_reservation reservation;
+	struct sccp_queue_reservation reservation;
 	struct sccp_line *line = subchan->line;
 
-	if (queue_reserve(&device->delayed_tasks_queue, &reservation)) {
+	if (sccp_queue_reserve(&device->delayed_tasks_queue, &reservation)) {
 		return -1;
 	}
 
@@ -1524,7 +1524,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 
 	if (sccp_subchannel_new_channel(subchan, NULL, NULL)) {
 		do_clear_subchannel(device, subchan);
-		queue_reservation_cancel(&reservation);
+		sccp_queue_reservation_cancel(&reservation);
 
 		return -1;
 	}
@@ -1796,7 +1796,7 @@ static void exec_control_channel(union delayed_task_data *data)
 	ast_channel_unref(channel);
 }
 
-static void defer_control_channel(struct queue_reservation *reservation, struct ast_channel *channel, enum ast_control_frame_type control)
+static void defer_control_channel(struct sccp_queue_reservation *reservation, struct ast_channel *channel, enum ast_control_frame_type control)
 {
 	struct delayed_task dtask;
 
@@ -1806,12 +1806,12 @@ static void defer_control_channel(struct queue_reservation *reservation, struct 
 
 	ast_channel_ref(channel);
 
-	queue_reservation_put(reservation, &dtask);
+	sccp_queue_reservation_put(reservation, &dtask);
 }
 
 static void handle_msg_open_receive_channel_ack(struct sccp_device *device, struct sccp_msg *msg)
 {
-	struct queue_reservation reservation;
+	struct sccp_queue_reservation reservation;
 	uint32_t addr = msg->data.openreceivechannelack.ipAddr;
 	uint32_t port = letohl(msg->data.openreceivechannelack.port);
 
@@ -1820,7 +1820,7 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 		return;
 	}
 
-	if (queue_reserve(&device->delayed_tasks_queue, &reservation)) {
+	if (sccp_queue_reserve(&device->delayed_tasks_queue, &reservation)) {
 		/* XXX we probably want to "panic" on this kind of fatal error
 		 *     which probably has some impact on the usage of reservation
 		 *     (i.e. if we should panic when the reservation fail, we might as well

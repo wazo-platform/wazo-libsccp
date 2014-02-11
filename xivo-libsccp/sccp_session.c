@@ -231,15 +231,15 @@ static void sccp_session_close_queue(struct sccp_session *session)
 
 static void sccp_session_empty_queue(struct sccp_session *session)
 {
-	struct queue q;
+	struct sccp_queue q;
 	struct session_msg msg;
 
 	sccp_sync_queue_get_all(session->sync_q, &q);
-	while (!queue_get(&q, &msg)) {
+	while (!sccp_queue_get(&q, &msg)) {
 		session_msg_destroy(&msg);
 	}
 
-	queue_destroy(&q);
+	sccp_queue_destroy(&q);
 }
 
 static int sccp_session_queue_msg(struct sccp_session *session, struct session_msg *msg)
@@ -354,16 +354,16 @@ static void sccp_session_process_msg(struct sccp_session *session, struct sessio
 
 void sccp_session_on_queue_events(struct sccp_session *session, int events)
 {
-	struct queue q;
+	struct sccp_queue q;
 	struct session_msg msg;
 
 	if (events & POLLIN) {
 		sccp_sync_queue_get_all(session->sync_q, &q);
-		while (!queue_get(&q, &msg)) {
+		while (!sccp_queue_get(&q, &msg)) {
 			sccp_session_process_msg(session, &msg);
 		}
 
-		queue_destroy(&q);
+		sccp_queue_destroy(&q);
 	}
 
 	if (events & ~POLLIN) {

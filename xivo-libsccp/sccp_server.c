@@ -132,15 +132,15 @@ static void server_close_queue(struct sccp_server *server)
 
 static void server_empty_queue(struct sccp_server *server)
 {
-	struct queue q;
+	struct sccp_queue q;
 	struct server_msg msg;
 
 	sccp_sync_queue_get_all(server->sync_q, &q);
-	while (!queue_get(&q, &msg)) {
+	while (!sccp_queue_get(&q, &msg)) {
 		server_msg_destroy(&msg);
 	}
 
-	queue_destroy(&q);
+	sccp_queue_destroy(&q);
 }
 
 static int server_queue_msg(struct sccp_server *server, struct server_msg *msg)
@@ -315,15 +315,15 @@ static void server_process_msg(struct sccp_server *server, struct server_msg *ms
 
 static void server_process_queue(struct sccp_server *server)
 {
-	struct queue q;
+	struct sccp_queue q;
 	struct server_msg msg;
 
 	sccp_sync_queue_get_all(server->sync_q, &q);
-	while (!queue_get(&q, &msg)) {
+	while (!sccp_queue_get(&q, &msg)) {
 		server_process_msg(server, &msg);
 	}
 
-	queue_destroy(&q);
+	sccp_queue_destroy(&q);
 }
 
 static int new_server_socket(struct sccp_cfg *cfg)
