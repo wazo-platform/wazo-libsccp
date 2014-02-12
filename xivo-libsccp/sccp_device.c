@@ -189,6 +189,8 @@ static struct sccp_line *sccp_device_get_default_line(struct sccp_device *device
 static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type);
 static void transmit_subchan_start_media_transmission(struct sccp_device *device, struct sccp_subchannel *subchan, struct sockaddr_in *endpoint);
+static int add_dialtimeout_task(struct sccp_device *device, struct sccp_subchannel *subchan);
+static void remove_dialtimeout_task(struct sccp_device *device, struct sccp_subchannel *subchan);
 
 static struct sccp_device_state state_new = {
 	.id = STATE_NEW,
@@ -1628,7 +1630,7 @@ static int do_hangup(struct sccp_device *device, struct sccp_subchannel *subchan
 {
 	device->exten[0] = '\0';
 
-	/* TODO add remove dialttimeout stuff */
+	remove_dialtimeout_task(device, subchan);
 
 	if (subchan->channel) {
 		if (subchan->state == SCCP_RINGIN) {
@@ -1650,7 +1652,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 {
 	struct sccp_line *line = subchan->line;
 
-	/* TODO add dialtimeout stuff */
+	remove_dialtimeout_task(device, subchan);
 
 	if (sccp_subchannel_new_channel(subchan, NULL, NULL)) {
 		do_clear_subchannel(device, subchan);
@@ -1796,6 +1798,8 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 
 		if (digit == '#') {
 			start_the_call(device, subchan);
+		} else {
+			add_dialtimeout_task(device, subchan);
 		}
 
 		/* TODO add dialtimeout stuff */
@@ -2358,6 +2362,34 @@ static int add_keepalive_task(struct sccp_device *device)
 	int timeout = 2 * device->cfg->keepalive;
 
 	return sccp_session_add_device_task(device->session, on_keepalive_timeout, NULL, timeout);
+}
+
+/*
+ * entry point:  yes
+ * thread: session
+ */
+static void on_dial_timeout(struct sccp_device *device, void *data)
+{
+	struct sccp_subchannel *subchan = data;
+
+	sccp_device_lock(device);
+	start_the_call(device, subchan);
+	sccp_device_unlock(device);
+}
+
+/*
+ * thread: session
+ */
+static int add_dialtimeout_task(struct sccp_device *device, struct sccp_subchannel *subchan)
+{
+	int timeout = device->cfg->dialtimeout;
+
+	return sccp_session_add_device_task(device->session, on_dial_timeout, subchan, timeout);
+}
+
+static void remove_dialtimeout_task(struct sccp_device *device, struct sccp_subchannel *subchan)
+{
+	sccp_session_remove_device_task(device->session, on_dial_timeout, subchan);
 }
 
 /*

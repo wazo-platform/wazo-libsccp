@@ -619,6 +619,17 @@ int sccp_session_add_device_task(struct sccp_session *session, sccp_device_task_
 	return sccp_task_runner_add(session->task_runner, on_device_task_timeout, &task_data, sec);
 }
 
+void sccp_session_remove_device_task(struct sccp_session *session, sccp_device_task_cb callback, void *data)
+{
+	union session_task_data task_data;
+
+	session_task_zero(&task_data);
+	task_data.device.callback = callback;
+	task_data.device.data = data;
+
+	sccp_task_runner_remove(session->task_runner, on_device_task_timeout, &task_data);
+}
+
 int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg)
 {
 	size_t count = SCCP_MSG_TOTAL_LEN_FROM_LEN(letohl(msg->length));
