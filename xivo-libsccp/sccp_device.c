@@ -54,6 +54,8 @@ struct sccp_subchannel {
 	struct ast_channel *channel;
 	/* (dynamic) */
 	struct ast_rtp_instance *rtp;
+	/* (dynamic) */
+	struct sccp_subchannel *related;
 
 	/* (static) */
 	uint32_t id;
@@ -147,6 +149,11 @@ struct sccp_device {
 	char last_exten[AST_MAX_EXTENSION];
 };
 
+struct nolock_task_ast_channel_xfer_masquerade {
+	struct ast_channel *active_chan;
+	struct ast_channel *related_chan;
+};
+
 struct nolock_task_ast_queue_control {
 	struct ast_channel *channel;
 	enum ast_control_frame_type control;
@@ -167,6 +174,7 @@ struct nolock_task_start_channel {
 };
 
 union nolock_task_data {
+	struct nolock_task_ast_channel_xfer_masquerade xfer_masquerade;
 	struct nolock_task_ast_queue_control queue_control;
 	struct nolock_task_ast_queue_hangup queue_hangup;
 	struct nolock_task_init_channel init_channel;
@@ -338,6 +346,7 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	ao2_ref(line, +1);
 	subchan->channel = NULL;
 	subchan->rtp = NULL;
+	subchan->related = NULL;
 	subchan->id = id;
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
@@ -377,6 +386,36 @@ static void exec_nolock_tasks(struct sccp_queue *tasks)
 	while (!sccp_queue_get(tasks, &task)) {
 		task.exec(&task.data);
 	}
+}
+
+static void exec_ast_channel_transfer_masquerade(union nolock_task_data *data)
+{
+	struct ast_channel *active_chan = data->xfer_masquerade.active_chan;
+	struct ast_channel *related_chan = data->xfer_masquerade.related_chan;
+
+	ast_channel_transfer_masquerade(active_chan, ast_channel_connected(active_chan), 0,
+			ast_bridged_channel(related_chan), ast_channel_connected(related_chan), 1);
+
+	ast_channel_unref(active_chan);
+	ast_channel_unref(related_chan);
+}
+
+static int add_ast_channel_transfer_masquerade_task(struct sccp_device *device, struct ast_channel *active_chan, struct ast_channel *related_chan)
+{
+	struct nolock_task task;
+
+	task.exec = exec_ast_channel_transfer_masquerade;
+	task.data.xfer_masquerade.active_chan = active_chan;
+	task.data.xfer_masquerade.related_chan = related_chan;
+
+	if (add_nolock_task(device, &task)) {
+		return -1;
+	}
+
+	ast_channel_ref(active_chan);
+	ast_channel_ref(related_chan);
+
+	return 0;
 }
 
 static void exec_ast_queue_control(union nolock_task_data *data)
@@ -1622,6 +1661,11 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 
 	subchan->channel = NULL;
 
+	if (subchan->related) {
+		subchan->related->related = NULL;
+		subchan->related = NULL;
+	}
+
 	/* the ref is decremented at the end of the function */
 	AST_LIST_REMOVE(&line->subchans, subchan, list);
 	if (AST_LIST_EMPTY(&line->subchans)) {
@@ -2078,6 +2122,83 @@ static void handle_softkey_resume(struct sccp_device *device, uint32_t subchan_i
 	do_resume(device, subchan);
 }
 
+static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_instance)
+{
+	struct sccp_line *line = sccp_device_get_line(device, line_instance);
+	struct sccp_subchannel *subchan;
+	struct sccp_subchannel *xfer_subchan;
+
+	ast_log(LOG_DEBUG, "handle_softkey_transfer: line_instance(%u)\n", line_instance);
+
+	if (!line) {
+		ast_log(LOG_NOTICE, "handle softkey transfer failed: no line %u\n", line_instance);
+		return;
+	}
+
+	if (!device->active_subchan) {
+		ast_log(LOG_NOTICE, "handle softkey transfer failed: no active subchan\n");
+		return;
+	}
+
+	if (!device->active_subchan->channel) {
+		ast_log(LOG_NOTICE, "handle softkey transfer failed: no channel on subchan\n");
+		return;
+	}
+
+	/* first time we press transfer */
+	if (!device->active_subchan->related) {
+		xfer_subchan = device->active_subchan;
+
+		/* put on hold */
+		if (do_hold(device)) {
+			ast_log(LOG_NOTICE, "handle softkey transfer failed: could not put active subchan on hold\n");
+			return;
+		}
+
+		/* XXX compatibility stuff, would probably be better to add a parameter to do_hold... */
+		transmit_speaker_mode(device, SCCP_SPEAKERON);
+
+		/* spawn a new subchannel instance and mark both as related */
+		subchan = sccp_line_new_subchannel(line, SCCP_DIR_OUTGOING);
+		if (!subchan) {
+			return;
+		}
+
+		subchan->transferring = 1;
+
+		xfer_subchan->related = subchan;
+		subchan->related = xfer_subchan;
+
+		device->active_subchan = subchan;
+		line->state = SCCP_OFFHOOK;
+
+		transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
+		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_DIALINTRANSFER);
+		transmit_subchan_tone(device, subchan, SCCP_TONE_DIAL);
+	} else {
+		struct ast_channel *active_channel = device->active_subchan->channel;
+		struct ast_channel *related_channel = device->active_subchan->related->channel;
+
+		if (!related_channel) {
+			ast_log(LOG_NOTICE, "ignoring transfer softkey event; related channel is NULL\n");
+			return;
+		}
+
+		if (ast_channel_state(active_channel) == AST_STATE_DOWN
+			|| ast_channel_state(related_channel) == AST_STATE_DOWN) {
+			ast_log(LOG_DEBUG, "channel state AST_STATE_DOWN\n");
+			return;
+		}
+
+		if (ast_bridged_channel(related_channel)) {
+			add_ast_channel_transfer_masquerade_task(device, active_channel, related_channel);
+			add_ast_queue_hangup_task(device, related_channel);
+		} else {
+			add_ast_queue_hangup_task(device, active_channel);
+		}
+	}
+}
+
 static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg *msg)
 {
 	uint32_t softkey_event = letohl(msg->data.softkeyevent.softKeyEvent);
@@ -2098,6 +2219,10 @@ static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg
 
 	case SOFTKEY_HOLD:
 		handle_softkey_hold(device);
+		break;
+
+	case SOFTKEY_TRNSFER:
+		handle_softkey_transfer(device, line_instance);
 		break;
 
 	case SOFTKEY_ENDCALL:
