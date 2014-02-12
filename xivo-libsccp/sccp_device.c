@@ -1685,6 +1685,25 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	return 0;
 }
 
+static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddial *sd)
+{
+	struct sccp_subchannel *subchan;
+
+	/* TODO add callfwd stuff */
+
+	/* XXX this 3 steps stuff should be simplified into one function */
+	subchan = do_newcall(device);
+	if (!subchan) {
+		return;
+	}
+
+	/* open our speaker */
+	transmit_speaker_mode(device, SCCP_SPEAKERON);
+
+	ast_copy_string(device->exten, sd->cfg->extension, sizeof(device->exten));
+	start_the_call(device, subchan);
+}
+
 static void handle_msg_capabilities_res(struct sccp_device *device, struct sccp_msg *msg)
 {
 	struct ast_format format;
@@ -2113,6 +2132,30 @@ static void handle_msg_speeddial_status_req(struct sccp_device *device, struct s
 	transmit_speeddial_stat_res(device, speeddial);
 }
 
+static void handle_stimulus_featurebutton(struct sccp_device *device, uint32_t instance)
+{
+	struct sccp_speeddial *sd = sccp_device_get_speeddial(device, instance);
+
+	if (!sd) {
+		ast_log(LOG_NOTICE, "handle stimulus featurebutton failed: speeddial %u not found\n", instance);
+		return;
+	}
+
+	do_speeddial_action(device, sd);
+}
+
+static void handle_stimulus_speeddial(struct sccp_device *device, uint32_t index)
+{
+	struct sccp_speeddial *sd = sccp_device_get_speeddial_by_index(device, index);
+
+	if (!sd) {
+		ast_log(LOG_NOTICE, "handle stimulus speeddial failed: speeddial %u not found\n", index);
+		return;
+	}
+
+	do_speeddial_action(device, sd);
+}
+
 static void handle_stimulus_voicemail(struct sccp_device *device)
 {
 	struct sccp_subchannel *subchan;
@@ -2137,8 +2180,15 @@ static void handle_stimulus_voicemail(struct sccp_device *device)
 static void handle_msg_stimulus(struct sccp_device *device, struct sccp_msg *msg)
 {
 	uint32_t stimulus = letohl(msg->data.stimulus.stimulus);
+	uint32_t line_instance = letohl(msg->data.stimulus.lineInstance);
 
 	switch (stimulus) {
+	case STIMULUS_FEATUREBUTTON:
+		handle_stimulus_featurebutton(device, line_instance);
+		break;
+	case STIMULUS_SPEEDDIAL:
+		handle_stimulus_speeddial(device, line_instance);
+		break;
 	case STIMULUS_VOICEMAIL:
 		handle_stimulus_voicemail(device);
 		break;
