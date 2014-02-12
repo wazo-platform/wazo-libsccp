@@ -1885,6 +1885,13 @@ static void handle_softkey_redial(struct sccp_device *device)
 	}
 }
 
+static void handle_softkey_newcall(struct sccp_device *device)
+{
+	transmit_speaker_mode(device, SCCP_SPEAKERON);
+
+	do_newcall(device);
+}
+
 static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg *msg)
 {
 	uint32_t softkey_event = letohl(msg->data.softkeyevent.softKeyEvent);
@@ -1897,6 +1904,10 @@ static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg
 	switch (softkey_event) {
 	case SOFTKEY_REDIAL:
 		handle_softkey_redial(device);
+		break;
+
+	case SOFTKEY_NEWCALL:
+		handle_softkey_newcall(device);
 		break;
 
 	default:
