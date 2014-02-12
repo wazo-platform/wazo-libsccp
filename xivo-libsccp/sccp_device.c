@@ -1482,7 +1482,7 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device)
 
 	/* TODO update line devstate */
 
-	return 0;
+	return subchan;
 }
 
 static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan)
@@ -1867,6 +1867,43 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 	}
 }
 
+static void handle_softkey_redial(struct sccp_device *device)
+{
+	struct sccp_subchannel *subchan;
+
+	if (!ast_strlen_zero(device->last_exten)) {
+		transmit_speaker_mode(device, SCCP_SPEAKERON);
+
+		/* XXX this 3 steps stuff should be simplified into one function */
+		subchan = do_newcall(device);
+		if (!subchan) {
+			return;
+		}
+
+		ast_copy_string(device->exten, device->last_exten, sizeof(device->exten));
+		start_the_call(device, subchan);
+	}
+}
+
+static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg *msg)
+{
+	uint32_t softkey_event = letohl(msg->data.softkeyevent.softKeyEvent);
+	uint32_t line_instance = letohl(msg->data.softkeyevent.lineInstance);
+	uint32_t call_instance = letohl(msg->data.softkeyevent.callInstance);
+
+	ast_debug(1, "Softkey event message: event 0x%02X, line_instance %u, subchan_id %u\n",
+			softkey_event, line_instance, call_instance);
+
+	switch (softkey_event) {
+	case SOFTKEY_REDIAL:
+		handle_softkey_redial(device);
+		break;
+
+	default:
+		break;
+	}
+}
+
 static void handle_msg_softkey_set_req(struct sccp_device *device)
 {
 	transmit_softkey_set_res(device);
@@ -1963,6 +2000,10 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 
 	case SOFTKEY_TEMPLATE_REQ_MESSAGE:
 		handle_msg_softkey_template_req(device);
+		break;
+
+	case SOFTKEY_EVENT_MESSAGE:
+		handle_msg_softkey_event(device, msg);
 		break;
 
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
