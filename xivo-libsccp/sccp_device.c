@@ -2113,6 +2113,38 @@ static void handle_msg_speeddial_status_req(struct sccp_device *device, struct s
 	transmit_speeddial_stat_res(device, speeddial);
 }
 
+static void handle_stimulus_voicemail(struct sccp_device *device)
+{
+	struct sccp_subchannel *subchan;
+
+	if (ast_strlen_zero(device->cfg->voicemail) || ast_strlen_zero(device->cfg->vmexten)) {
+		return;
+	}
+
+	/* XXX 3 stuff steps should be replaced with something simpler */
+	subchan = do_newcall(device);
+	if (!subchan) {
+		return;
+	}
+
+	/* open our speaker */
+	transmit_speaker_mode(device, SCCP_SPEAKERON);
+
+	ast_copy_string(device->exten, device->cfg->vmexten, sizeof(device->exten));
+	start_the_call(device, subchan);
+}
+
+static void handle_msg_stimulus(struct sccp_device *device, struct sccp_msg *msg)
+{
+	uint32_t stimulus = letohl(msg->data.stimulus.stimulus);
+
+	switch (stimulus) {
+	case STIMULUS_VOICEMAIL:
+		handle_stimulus_voicemail(device);
+		break;
+	}
+}
+
 static void handle_msg_time_date_req(struct sccp_device *device)
 {
 	transmit_time_date_res(device);
@@ -2136,6 +2168,10 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 
 	case ENBLOC_CALL_MESSAGE:
 		handle_msg_enbloc_call(device, msg);
+		break;
+
+	case STIMULUS_MESSAGE:
+		handle_msg_stimulus(device, msg);
 		break;
 
 	case KEYPAD_BUTTON_MESSAGE:

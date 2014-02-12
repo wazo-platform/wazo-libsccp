@@ -28,6 +28,7 @@ struct sccp_device_cfg {
 	char name[SCCP_DEVICE_NAME_MAX];
 	char dateformat[6];
 	char voicemail[AST_MAX_EXTENSION];
+	char vmexten[AST_MAX_EXTENSION];
 	int keepalive;
 	int dialtimeout;
 
@@ -44,7 +45,6 @@ struct sccp_line_cfg {
 	char cid_name[40];
 	char language[MAX_LANGUAGE];
 	char context[AST_MAX_CONTEXT];
-	char vmexten[AST_MAX_EXTENSION];
 	int directmedia;
 	unsigned int tos_audio;
 
