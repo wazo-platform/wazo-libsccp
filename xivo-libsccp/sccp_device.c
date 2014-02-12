@@ -337,7 +337,7 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->channel = NULL;
 	subchan->rtp = NULL;
 	subchan->id = id;
-	subchan->state = SCCP_ONHOOK;
+	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
 	subchan->resuming = 0;
 	subchan->transferring = 0;
@@ -1452,6 +1452,74 @@ static void unsubscribe_hints(struct sccp_device *device)
 	}
 }
 
+/*
+ * device must have an active_subchan
+ */
+static int do_hold(struct sccp_device *device)
+{
+	struct sccp_subchannel *subchan = device->active_subchan;
+
+	if (subchan->channel) {
+		if (add_ast_queue_control_task(device, subchan->channel, AST_CONTROL_HOLD)) {
+			return -1;
+		}
+	}
+
+	if (subchan->rtp) {
+		ast_rtp_instance_stop(subchan->rtp);
+		ast_sockaddr_setnull(&subchan->direct_media_addr);
+	}
+
+	transmit_subchan_callstate(device, subchan, SCCP_HOLD);
+	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_ONHOLD);
+
+	/* close our speaker */
+	transmit_speaker_mode(device, SCCP_SPEAKEROFF);
+
+	/* stop audio stream */
+	transmit_close_receive_channel(device, subchan->id);
+	transmit_stop_media_transmission(device, subchan->id);
+
+	subchan->on_hold = 1;
+
+	device->active_subchan = NULL;
+
+	return 0;
+}
+
+/*
+ * device must have no active_subchan
+ */
+static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan)
+{
+	if (subchan->channel) {
+		if (add_ast_queue_control_task(device, subchan->channel, AST_CONTROL_UNHOLD)) {
+			return -1;
+		}
+	}
+
+	subchan->line->state = SCCP_CONNECTED;
+
+	/* put on connected */
+	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
+	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
+
+	/* open our speaker */
+	transmit_speaker_mode(device, SCCP_SPEAKERON);
+
+	/* restart the audio stream, which has been stopped in handle_softkey_hold */
+	if (subchan->rtp) {
+		subchan->resuming = 1;
+		transmit_subchan_open_receive_channel(device, subchan);
+	}
+
+	subchan->on_hold = 0;
+
+	device->active_subchan = subchan;
+
+	return 0;
+}
+
 static struct sccp_subchannel *do_newcall(struct sccp_device *device)
 {
 	struct sccp_line *line = sccp_device_get_default_line(device);
@@ -1463,13 +1531,16 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device)
 		return subchan;
 	}
 
+	if (device->active_subchan) {
+		if (do_hold(device)) {
+			ast_log(LOG_NOTICE, "do newcall failed: could not put active subchan on hold\n");
+			return NULL;
+		}
+	}
+
 	subchan = sccp_line_new_subchannel(line, SCCP_DIR_OUTGOING);
 	if (!subchan) {
 		return NULL;
-	}
-
-	if (device->active_subchan) {
-		/* TODO put on hold */
 	}
 
 	device->active_subchan = subchan;
@@ -1477,7 +1548,7 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device)
 
 	transmit_line_lamp_state(device, subchan->line, SCCP_LAMP_ON);
 	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
-	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_ONHOOK);
+	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_OFFHOOK);
 	transmit_subchan_tone(device, subchan, SCCP_TONE_DIAL);
 
 	/* TODO update line devstate */
@@ -1489,16 +1560,19 @@ static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan
 {
 	struct sccp_line *line = subchan->line;
 
+	if (!subchan->channel) {
+		ast_log(LOG_NOTICE, "do answer failed: subchan has no channel\n");
+		return -1;
+	}
+
 	if (device->active_subchan) {
-		/* TODO put on hold */
+		if (do_hold(device)) {
+			ast_log(LOG_NOTICE, "do answer failed: could not put active subchan on hold\n");
+			return -1;
+		}
 	}
 
 	device->active_subchan = subchan;
-
-	if (!subchan->channel) {
-		ast_log(LOG_NOTICE, "do answer failed: subchan has no channel\n");
-		return 0;
-	}
 
 	transmit_ringer_mode(device, SCCP_RING_OFF);
 	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
@@ -1893,6 +1967,16 @@ static void handle_softkey_endcall(struct sccp_device *device, uint32_t subchan_
 	do_hangup(device, subchan);
 }
 
+static void handle_softkey_hold(struct sccp_device *device)
+{
+	if (!device->active_subchan) {
+		ast_log(LOG_NOTICE, "handle softkey hold failed: no active subchan\n");
+		return;
+	}
+
+	do_hold(device);
+}
+
 static void handle_softkey_newcall(struct sccp_device *device)
 {
 	transmit_speaker_mode(device, SCCP_SPEAKERON);
@@ -1918,6 +2002,30 @@ static void handle_softkey_redial(struct sccp_device *device)
 	}
 }
 
+static void handle_softkey_resume(struct sccp_device *device, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
+
+	if (!subchan) {
+		ast_log(LOG_NOTICE, "handle softkey resume failed: no subchan %u\n", subchan_id);
+		return;
+	}
+
+	if (subchan == device->active_subchan) {
+		ast_log(LOG_NOTICE, "handle softkey resume failed: subchan is already active\n");
+		return;
+	}
+
+	if (device->active_subchan) {
+		if (do_hold(device)) {
+			ast_log(LOG_NOTICE, "handle softkey resume failed: could not put active subchan on hold\n");
+			return;
+		}
+	}
+
+	do_resume(device, subchan);
+}
+
 static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg *msg)
 {
 	uint32_t softkey_event = letohl(msg->data.softkeyevent.softKeyEvent);
@@ -1936,8 +2044,16 @@ static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg
 		handle_softkey_newcall(device);
 		break;
 
+	case SOFTKEY_HOLD:
+		handle_softkey_hold(device);
+		break;
+
 	case SOFTKEY_ENDCALL:
 		handle_softkey_endcall(device, call_instance);
+		break;
+
+	case SOFTKEY_RESUME:
+		handle_softkey_resume(device, call_instance);
 		break;
 
 	case SOFTKEY_ANSWER:
