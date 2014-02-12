@@ -198,6 +198,10 @@ static void server_stop_sessions(struct sccp_server *server)
 	struct server_session *srv_session;
 
 	AST_LIST_TRAVERSE(&server->srv_sessions, srv_session, list) {
+		/* XXX if sccp_session_stop returns non-zero (out of memory error or pipe error), then right
+		 *     now, we'll have some kind of partial deadlock since there is no hard guarantee that
+		 *     the session will ever see that it was requested to stop
+		 */
 		sccp_session_stop(srv_session->session);
 	}
 }

@@ -66,7 +66,7 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type);
 
 /*
- * Called when the session detected the remote peer has closed the connection.
+ * Called after the session detects that the remote peer has closed the connection.
  *
  * \note When the session detects a connection lost, it calls this function and then
  *       stop, so no need to ask the session to stop here.
