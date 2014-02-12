@@ -184,7 +184,7 @@ struct sccp_sync_queue *sccp_sync_queue_create(size_t item_size)
 		return NULL;
 	}
 
-	if (pipe2(sync_q->pipefd, O_NONBLOCK) == -1) {
+	if (pipe2(sync_q->pipefd, O_NONBLOCK | O_CLOEXEC) == -1) {
 		ast_log(LOG_ERROR, "sccp queue create failed: pipe: %s\n", strerror(errno));
 		ast_free(sync_q);
 		return NULL;
