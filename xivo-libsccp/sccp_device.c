@@ -1892,6 +1892,18 @@ static void handle_softkey_newcall(struct sccp_device *device)
 	do_newcall(device);
 }
 
+static void handle_softkey_endcall(struct sccp_device *device, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
+
+	if (!subchan) {
+		ast_log(LOG_NOTICE, "handle softkey endcall failed: no subchan %u\n", subchan_id);
+		return;
+	}
+
+	do_hangup(device, subchan);
+}
+
 static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg *msg)
 {
 	uint32_t softkey_event = letohl(msg->data.softkeyevent.softKeyEvent);
@@ -1908,6 +1920,10 @@ static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg
 
 	case SOFTKEY_NEWCALL:
 		handle_softkey_newcall(device);
+		break;
+
+	case SOFTKEY_ENDCALL:
+		handle_softkey_endcall(device, call_instance);
 		break;
 
 	default:
