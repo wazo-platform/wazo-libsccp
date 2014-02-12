@@ -1867,6 +1867,39 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 	}
 }
 
+static void handle_softkey_answer(struct sccp_device *device, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
+
+	transmit_speaker_mode(device, SCCP_SPEAKERON);
+
+	if (!subchan) {
+		ast_log(LOG_NOTICE, "handle softkey answer failed: no subchan %u\n", subchan_id);
+		return;
+	}
+
+	do_answer(device, subchan);
+}
+
+static void handle_softkey_endcall(struct sccp_device *device, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
+
+	if (!subchan) {
+		ast_log(LOG_NOTICE, "handle softkey endcall failed: no subchan %u\n", subchan_id);
+		return;
+	}
+
+	do_hangup(device, subchan);
+}
+
+static void handle_softkey_newcall(struct sccp_device *device)
+{
+	transmit_speaker_mode(device, SCCP_SPEAKERON);
+
+	do_newcall(device);
+}
+
 static void handle_softkey_redial(struct sccp_device *device)
 {
 	struct sccp_subchannel *subchan;
@@ -1883,39 +1916,6 @@ static void handle_softkey_redial(struct sccp_device *device)
 		ast_copy_string(device->exten, device->last_exten, sizeof(device->exten));
 		start_the_call(device, subchan);
 	}
-}
-
-static void handle_softkey_newcall(struct sccp_device *device)
-{
-	transmit_speaker_mode(device, SCCP_SPEAKERON);
-
-	do_newcall(device);
-}
-
-static void handle_softkey_endcall(struct sccp_device *device, uint32_t subchan_id)
-{
-	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
-
-	if (!subchan) {
-		ast_log(LOG_NOTICE, "handle softkey endcall failed: no subchan %u\n", subchan_id);
-		return;
-	}
-
-	do_hangup(device, subchan);
-}
-
-static void handle_softkey_answer(struct sccp_device *device, uint32_t subchan_id)
-{
-	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
-
-	transmit_speaker_mode(device, SCCP_SPEAKERON);
-
-	if (!subchan) {
-		ast_log(LOG_NOTICE, "handle softkey answer failed: no subchan %u\n", subchan_id);
-		return;
-	}
-
-	do_answer(device, subchan);
 }
 
 static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg *msg)
