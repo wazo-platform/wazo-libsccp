@@ -438,6 +438,13 @@ void sccp_msg_reset(struct sccp_msg *msg, enum sccp_reset_type type)
 	msg->data.reset.type = htolel(type);
 }
 
+void sccp_msg_version_res(struct sccp_msg *msg, const char *version)
+{
+	prepare_msg(msg, sizeof(struct version_res_message), VERSION_RES_MESSAGE);
+
+	ast_copy_string(msg->data.version.version, version, sizeof(msg->data.version.version));
+}
+
 static int utf8_to_iso88591(char *out, const char *in, size_t n)
 {
 	iconv_t cd;

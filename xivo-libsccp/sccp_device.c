@@ -1273,6 +1273,16 @@ static void transmit_tone(struct sccp_device *device, enum sccp_tone tone, uint3
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
+static void transmit_version_res(struct sccp_device *device)
+{
+	struct sccp_msg msg;
+
+	/* hardcoded firmware version value taken from chan_skinny */
+	sccp_msg_version_res(&msg, "P002F202");
+	sccp_session_transmit_msg(device->session, &msg);
+
+}
+
 static void transmit_line_lamp_state(struct sccp_device *device, struct sccp_line *line, enum sccp_lamp_state indication)
 {
 	transmit_lamp_state(device, STIMULUS_LINE, line->instance, indication);
@@ -2205,6 +2215,11 @@ static void handle_msg_unregister(struct sccp_device *device)
 	sccp_session_stop(device->session);
 }
 
+static void handle_msg_version_req(struct sccp_device *device)
+{
+	transmit_version_res(device);
+}
+
 static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id)
 {
 	switch (msg_id) {
@@ -2286,6 +2301,10 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 
 	case SOFTKEY_SET_REQ_MESSAGE:
 		handle_msg_softkey_set_req(device);
+		break;
+
+	case VERSION_REQ_MESSAGE:
+		handle_msg_version_req(device);
 		break;
 	}
 }

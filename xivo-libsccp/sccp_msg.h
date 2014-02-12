@@ -682,6 +682,7 @@ void sccp_msg_stop_tone(struct sccp_msg *msg, uint32_t line_instance, uint32_t c
 void sccp_msg_time_date_res(struct sccp_msg *msg);
 void sccp_msg_tone(struct sccp_msg *msg, enum sccp_tone tone, uint32_t line_instance, uint32_t callid);
 void sccp_msg_reset(struct sccp_msg *msg, enum sccp_reset_type type);
+void sccp_msg_version_res(struct sccp_msg *msg, const char *version);
 
 struct sccp_msg_builder {
 	enum sccp_device_type type;
