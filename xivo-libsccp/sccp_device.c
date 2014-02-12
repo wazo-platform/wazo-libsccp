@@ -1712,6 +1712,25 @@ static void handle_msg_config_status_req(struct sccp_device *device)
 	transmit_config_status_res(device);
 }
 
+static void handle_msg_enbloc_call(struct sccp_device *device, struct sccp_msg *msg)
+{
+	struct sccp_subchannel *subchan = sccp_device_get_next_offhook_subchan(device);
+	size_t len;
+
+	/* XXX this 2 steps stuff should be simplified */
+	if (subchan) {
+		ast_copy_string(device->exten, msg->data.enbloc.extension, sizeof(device->exten));
+
+		/* allow a terminating '#' character */
+		len = strlen(device->exten);
+		if (len > 0 && device->exten[len - 1] == '#') {
+			device->exten[len - 1] = '\0';
+		}
+
+		start_the_call(device, subchan);
+	}
+}
+
 static void handle_msg_feature_status_req(struct sccp_device *device, struct sccp_msg *msg)
 {
 	struct sccp_speeddial *speeddial;
@@ -2113,6 +2132,10 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 
 	case ALARM_MESSAGE:
 		ast_debug(1, "Alarm message: %s\n", msg->data.alarm.displayMessage);
+		break;
+
+	case ENBLOC_CALL_MESSAGE:
+		handle_msg_enbloc_call(device, msg);
 		break;
 
 	case KEYPAD_BUTTON_MESSAGE:
