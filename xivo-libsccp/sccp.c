@@ -26,16 +26,22 @@ static struct sccp_server *global_server;
 static struct ast_channel *sccp_request(const char *type, struct ast_format_cap *cap, const struct ast_channel *requestor, const char *addr, int *cause)
 {
 	struct sccp_line *line;
+	struct sccp_cfg *cfg;
+	struct sccp_line_cfg *line_cfg;
 	struct ast_channel *channel;
 
 	line = sccp_device_registry_find_line(global_registry, addr);
 	if (!line) {
-		/* XXX in fact, with the new system, it could be either because:
-		 *
-		 * the line (i.e. associated device) is not registered (AST_CAUSE_SUBSCRIBER_ABSENT)
-		 * the line does not exist (AST_CAUSE_NO_ROUTE_DESTINATION)
-		 */
-		*cause = AST_CAUSE_NO_ROUTE_DESTINATION;
+		cfg = sccp_config_get();
+		line_cfg = sccp_cfg_find_line(cfg, addr);
+		if (!line_cfg) {
+			*cause = AST_CAUSE_NO_ROUTE_DESTINATION;
+		} else {
+			*cause = AST_CAUSE_SUBSCRIBER_ABSENT;
+			ao2_ref(line_cfg, -1);
+		}
+
+		ao2_ref(cfg, -1);
 		return NULL;
 	}
 
