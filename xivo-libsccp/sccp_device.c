@@ -2915,6 +2915,7 @@ int sccp_subchannel_answer(struct sccp_subchannel *subchan)
 	}
 
 	if (subchan->on_hold) {
+		sccp_device_unlock(device);
 		return 0;
 	}
 
