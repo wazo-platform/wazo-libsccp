@@ -659,7 +659,7 @@ static int line_cfg_setvar_handler(const struct aco_option *opt, struct ast_vari
 	}
 
 	new_var->next = line_cfg->chanvars;
-	line_cfg->chanvars = NULL;
+	line_cfg->chanvars = new_var;
 
 	return 0;
 }
