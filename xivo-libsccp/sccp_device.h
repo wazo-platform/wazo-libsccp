@@ -146,7 +146,7 @@ enum ast_device_state sccp_line_devstate(const struct sccp_line *line);
  *
  * \note The tech_pvt of the returned channel is a sccp_subchannel pointer.
  */
-struct ast_channel *sccp_line_request(struct sccp_line *line, struct ast_format_cap *cap, const char *linkedid, int *cause);
+struct ast_channel *sccp_line_request(struct sccp_line *line, int autoanswer, struct ast_format_cap *cap, const char *linkedid, int *cause);
 
 int sccp_subchannel_call(struct sccp_subchannel *subchan);
 

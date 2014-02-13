@@ -29,6 +29,16 @@ static struct ast_channel *sccp_request(const char *type, struct ast_format_cap 
 	struct sccp_cfg *cfg;
 	struct sccp_line_cfg *line_cfg;
 	struct ast_channel *channel;
+	char *option;
+	int autoanswer = 0;
+
+	option = strchr(addr, '/');
+	if (option) {
+		*option = '\0';
+		if (!strncmp(option + 1, "autoanswer", 10)) {
+			autoanswer = 1;
+		}
+	}
 
 	line = sccp_device_registry_find_line(global_registry, addr);
 	if (!line) {
@@ -45,8 +55,8 @@ static struct ast_channel *sccp_request(const char *type, struct ast_format_cap 
 		return NULL;
 	}
 
-	/* TODO add support for autoanswer */
-	channel = sccp_line_request(line, cap, requestor ? ast_channel_linkedid(requestor) : NULL, cause);
+	channel = sccp_line_request(line, autoanswer, cap, requestor ? ast_channel_linkedid(requestor) : NULL, cause);
+
 	ao2_ref(line, -1);
 
 	return channel;

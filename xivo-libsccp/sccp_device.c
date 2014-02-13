@@ -66,6 +66,7 @@ struct sccp_subchannel {
 
 	uint8_t on_hold;
 	uint8_t resuming;
+	uint8_t autoanswer;
 	uint8_t transferring;
 
 	AST_LIST_ENTRY(sccp_subchannel) list;
@@ -352,6 +353,7 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
 	subchan->resuming = 0;
+	subchan->autoanswer = 0;
 	subchan->transferring = 0;
 
 	return subchan;
@@ -2764,7 +2766,7 @@ enum ast_device_state sccp_line_devstate(const struct sccp_line *line)
 	}
 }
 
-struct ast_channel *sccp_line_request(struct sccp_line *line, struct ast_format_cap *cap, const char *linkedid, int *cause)
+struct ast_channel *sccp_line_request(struct sccp_line *line, int autoanswer, struct ast_format_cap *cap, const char *linkedid, int *cause)
 {
 	struct sccp_device *device = line->device;
 	struct sccp_subchannel *subchan;
@@ -2785,6 +2787,7 @@ struct ast_channel *sccp_line_request(struct sccp_line *line, struct ast_format_
 		goto unlock;
 	}
 
+	subchan->autoanswer = autoanswer;
 	channel = subchan->channel;
 
 unlock:
@@ -2810,6 +2813,12 @@ static void format_party_name(struct ast_channel *channel, char *name, size_t n)
 static void format_party_number(struct ast_channel *channel, char **number)
 {
 	*number = ast_channel_connected(channel)->id.number.str;
+}
+
+static void autoanswer_call(struct sccp_device *device, struct sccp_subchannel *subchan)
+{
+	transmit_speaker_mode(device, SCCP_SPEAKERON);
+	do_answer(device, subchan);
 }
 
 int sccp_subchannel_call(struct sccp_subchannel *subchan)
@@ -2842,9 +2851,11 @@ int sccp_subchannel_call(struct sccp_subchannel *subchan)
 	transmit_callinfo(device, name, number, "", line->cfg->cid_num, line->instance, subchan->id, subchan->direction);
 	transmit_line_lamp_state(device, line, SCCP_LAMP_BLINK);
 
-	/* TODO add autoanswer stuff */
-
-	sccp_line_update_devstate(line, AST_DEVICE_RINGING);
+	if (subchan->autoanswer) {
+		autoanswer_call(device, subchan);
+	} else {
+		sccp_line_update_devstate(line, AST_DEVICE_RINGING);
+	}
 
 	sccp_device_unlock(device);
 
