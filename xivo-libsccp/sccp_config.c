@@ -14,7 +14,6 @@ static void sccp_device_cfg_free_internal(struct sccp_device_cfg *device_cfg);
 static void sccp_device_cfg_free_speeddials(struct sccp_device_cfg *device_cfg);
 static void sccp_line_cfg_free_internal(struct sccp_line_cfg *line_cfg);
 static void sccp_general_cfg_free_internal(struct sccp_general_cfg *general_cfg);
-static struct sccp_line_cfg *sccp_cfg_find_line(struct sccp_cfg *cfg, const char *name);
 static struct sccp_speeddial_cfg *sccp_cfg_find_speeddial(struct sccp_cfg *cfg, const char *name);
 static int pre_apply_config(void);
 
@@ -468,11 +467,6 @@ error:
 	return NULL;
 }
 
-static struct sccp_line_cfg *sccp_cfg_find_line(struct sccp_cfg *cfg, const char *name)
-{
-	return ao2_find(cfg->lines_cfg, name, OBJ_KEY);
-}
-
 static struct sccp_speeddial_cfg *sccp_cfg_find_speeddial(struct sccp_cfg *cfg, const char *name)
 {
 	return ao2_find(cfg->speeddials_cfg, name, OBJ_KEY);
@@ -757,4 +751,9 @@ struct sccp_device_cfg *sccp_cfg_guest_device(struct sccp_cfg *cfg)
 struct sccp_device_cfg *sccp_cfg_find_device(struct sccp_cfg *cfg, const char *name)
 {
 	return ao2_find(cfg->devices_cfg, name, OBJ_KEY);
+}
+
+struct sccp_line_cfg *sccp_cfg_find_line(struct sccp_cfg *cfg, const char *name)
+{
+	return ao2_find(cfg->lines_cfg, name, OBJ_KEY);
 }

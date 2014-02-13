@@ -48,8 +48,36 @@ static struct ast_channel *sccp_request(const char *type, struct ast_format_cap 
 
 static int sccp_devicestate(const char *data)
 {
-	/* TODO */
-	return AST_DEVICE_INVALID;
+	struct sccp_line *line;
+	struct sccp_cfg *cfg;
+	struct sccp_line_cfg *line_cfg;
+	char *name = ast_strdupa(data);
+	char *ptr;
+	int state = AST_DEVICE_UNKNOWN;
+
+	ptr = strchr(name, '/');
+	if (ptr) {
+		*ptr = '\0';
+	}
+
+	line = sccp_device_registry_find_line(global_registry, name);
+	if (!line) {
+		cfg = sccp_config_get();
+		line_cfg = sccp_cfg_find_line(cfg, name);
+		if (!line_cfg) {
+			state = AST_DEVICE_INVALID;
+		} else {
+			state = AST_DEVICE_UNAVAILABLE;
+			ao2_ref(line_cfg, -1);
+		}
+
+		ao2_ref(cfg, -1);
+	} else {
+		state = sccp_line_devstate(line);
+		ao2_ref(line, -1);
+	}
+
+	return state;
 }
 
 static int sccp_call(struct ast_channel *channel, const char *dest, int timeout)

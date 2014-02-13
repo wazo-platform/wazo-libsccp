@@ -136,6 +136,11 @@ const char *sccp_device_name(const struct sccp_device *device);
  */
 const char *sccp_line_name(const struct sccp_line *line);
 
+/*!
+ * \brief Return the device state of the line.
+ */
+enum ast_device_state sccp_line_devstate(const struct sccp_line *line);
+
 /*
  * XXX request a new subchannel + channel
  *

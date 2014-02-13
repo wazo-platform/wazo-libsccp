@@ -186,6 +186,7 @@ struct nolock_task {
 	void (*exec)(union nolock_task_data *data);
 };
 
+static void sccp_device_update_devstate_all(struct sccp_device *device, enum ast_device_state state);
 static void sccp_device_lock(struct sccp_device *device);
 static void sccp_device_unlock(struct sccp_device *device);
 static void sccp_device_panic(struct sccp_device *device);
@@ -872,6 +873,8 @@ void sccp_device_destroy(struct sccp_device *device)
 
 	sccp_device_lock(device);
 
+	sccp_device_update_devstate_all(device, AST_DEVICE_UNAVAILABLE);
+
 	device->active_subchan = NULL;
 
 	line_group_destroy(&device->line_group);
@@ -997,6 +1000,18 @@ static struct sccp_speeddial *sccp_device_get_speeddial_by_index(struct sccp_dev
 	}
 
 	return NULL;
+}
+
+static void sccp_device_update_devstate_all(struct sccp_device *device, enum ast_device_state state)
+{
+	struct sccp_line *line = device->line_group.line;
+
+	ast_devstate_changed(state, AST_DEVSTATE_CACHABLE, SCCP_LINE_PREFIX "/%s", line->cfg->name);
+}
+
+static void sccp_line_update_devstate(struct sccp_line *line, enum ast_device_state state)
+{
+	ast_devstate_changed(state, AST_DEVSTATE_CACHABLE, SCCP_LINE_PREFIX "/%s", line->cfg->name);
 }
 
 static void sccp_device_lock(struct sccp_device *device)
@@ -1602,7 +1617,7 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device)
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_OFFHOOK);
 	transmit_subchan_tone(device, subchan, SCCP_TONE_DIAL);
 
-	/* TODO update line devstate */
+	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
 
 	return subchan;
 }
@@ -1635,7 +1650,7 @@ static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan
 	line->state = SCCP_CONNECTED;
 	subchan->state = SCCP_CONNECTED;
 
-	/* TODO update line devstate */
+	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
 
 	return 0;
 }
@@ -1670,7 +1685,8 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 	AST_LIST_REMOVE(&line->subchans, subchan, list);
 	if (AST_LIST_EMPTY(&line->subchans)) {
 		transmit_speaker_mode(device, SCCP_SPEAKEROFF);
-		/* TODO update line devstate */
+		line->state = SCCP_ONHOOK;
+		sccp_line_update_devstate(line, AST_DEVICE_NOT_INUSE);
 	}
 
 	if (subchan == device->active_subchan) {
@@ -2691,8 +2707,7 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 	add_keepalive_task(device);
 
 	device->state = &state_registering;
-	/* TODO update line devstate (even if it's in fact a bit early since we don't know
-	 * yet the device capabilities) */
+	sccp_device_update_devstate_all(device, AST_DEVICE_NOT_INUSE);
 
 	sccp_device_unlock(device);
 
@@ -2738,6 +2753,15 @@ const char *sccp_device_name(const struct sccp_device *device)
 const char *sccp_line_name(const struct sccp_line *line)
 {
 	return line->name;
+}
+
+enum ast_device_state sccp_line_devstate(const struct sccp_line *line)
+{
+	if (line->state == SCCP_ONHOOK) {
+		return AST_DEVICE_NOT_INUSE;
+	} else {
+		return AST_DEVICE_INUSE;
+	}
 }
 
 struct ast_channel *sccp_line_request(struct sccp_line *line, struct ast_format_cap *cap, const char *linkedid, int *cause)
@@ -2819,7 +2843,8 @@ int sccp_subchannel_call(struct sccp_subchannel *subchan)
 	transmit_line_lamp_state(device, line, SCCP_LAMP_BLINK);
 
 	/* TODO add autoanswer stuff */
-	/* TODO add update line devstate stuff */
+
+	sccp_line_update_devstate(line, AST_DEVICE_RINGING);
 
 	sccp_device_unlock(device);
 

@@ -121,4 +121,14 @@ struct sccp_device_cfg *sccp_cfg_guest_device(struct sccp_cfg *cfg);
  */
 struct sccp_device_cfg *sccp_cfg_find_device(struct sccp_cfg *cfg, const char *name);
 
+/*!
+ * \brief Find the line config with the given name.
+ *
+ * \note The returned object has its reference count incremented by one.
+ *
+ * \retval non-NULL on success
+ * \retval NULL on failure
+ */
+struct sccp_line_cfg *sccp_cfg_find_line(struct sccp_cfg *cfg, const char *name);
+
 #endif /* SCCP_CONFIG_H_ */
