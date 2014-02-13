@@ -161,6 +161,11 @@ struct nolock_task_ast_queue_control {
 	enum ast_control_frame_type control;
 };
 
+struct nolock_task_ast_queue_frame_dtmf {
+	struct ast_channel *channel;
+	int digit;
+};
+
 struct nolock_task_ast_queue_hangup {
 	struct ast_channel *channel;
 };
@@ -178,6 +183,7 @@ struct nolock_task_start_channel {
 union nolock_task_data {
 	struct nolock_task_ast_channel_xfer_masquerade xfer_masquerade;
 	struct nolock_task_ast_queue_control queue_control;
+	struct nolock_task_ast_queue_frame_dtmf queue_frame_dtmf;
 	struct nolock_task_ast_queue_hangup queue_hangup;
 	struct nolock_task_init_channel init_channel;
 	struct nolock_task_start_channel start_channel;
@@ -439,6 +445,40 @@ static int add_ast_queue_control_task(struct sccp_device *device, struct ast_cha
 	task.exec = exec_ast_queue_control;
 	task.data.queue_control.channel = channel;
 	task.data.queue_control.control = control;
+
+	if (add_nolock_task(device, &task)) {
+		return -1;
+	}
+
+	ast_channel_ref(channel);
+
+	return 0;
+}
+
+static void exec_ast_queue_frame_dtmf(union nolock_task_data *data)
+{
+	struct ast_frame frame = { .frametype = AST_FRAME_DTMF, };
+	struct ast_channel *channel = data->queue_frame_dtmf.channel;
+	int digit = data->queue_frame_dtmf.digit;
+
+	frame.subclass.integer = digit;
+	frame.src = "sccp";
+	frame.len = 100;
+	frame.offset = 0;
+	frame.datalen = 0;
+
+	ast_queue_frame(channel, &frame);
+
+	ast_channel_unref(channel);
+}
+
+static int add_ast_queue_frame_dtmf_task(struct sccp_device *device, struct ast_channel *channel, int digit)
+{
+	struct nolock_task task;
+
+	task.exec = exec_ast_queue_frame_dtmf;
+	task.data.queue_frame_dtmf.channel = channel;
+	task.data.queue_frame_dtmf.digit = digit;
 
 	if (add_nolock_task(device, &task)) {
 		return -1;
@@ -1894,9 +1934,12 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 		ast_log(LOG_WARNING, "Unsupported digit %d\n", button);
 	}
 
-	/* TODO add dtmf stuff */
-
-	if (line->state == SCCP_OFFHOOK) {
+	if (line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS) {
+		/* Workaround for bug #4503 and bug #4841 */
+		if (device->active_subchan && device->active_subchan->channel) {
+			add_ast_queue_frame_dtmf_task(device, device->active_subchan->channel, digit);
+		}
+	} else if (line->state == SCCP_OFFHOOK) {
 		len = strlen(device->exten);
 		if (len < sizeof(device->exten) - 1 && digit != '#') {
 			device->exten[len] = digit;
@@ -1924,8 +1967,6 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 		} else {
 			add_dialtimeout_task(device, subchan);
 		}
-
-		/* TODO add dialtimeout stuff */
 	}
 }
 
