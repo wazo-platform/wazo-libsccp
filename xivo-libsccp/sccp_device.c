@@ -139,6 +139,7 @@ struct sccp_device {
 
 	uint32_t serial_callid;
 	int open_receive_channel_pending;
+	int reset_on_no_subchan;	/* XXX name is ~ */
 	enum sccp_device_type type;
 	uint8_t proto_version;
 
@@ -810,6 +811,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	device->active_subchan = NULL;
 	device->serial_callid = 1;
 	device->open_receive_channel_pending = 0;
+	device->reset_on_no_subchan = 0;
 	device->type = info->type;
 	device->proto_version = info->proto_version;
 	ast_copy_string(device->name, info->name, sizeof(device->name));
@@ -1002,6 +1004,13 @@ static struct sccp_speeddial *sccp_device_get_speeddial_by_index(struct sccp_dev
 	}
 
 	return NULL;
+}
+
+static int sccp_device_has_subchans(struct sccp_device *device)
+{
+	struct sccp_line *line = device->line_group.line;
+
+	return !AST_LIST_EMPTY(&line->subchans);
 }
 
 static void sccp_device_update_devstate_all(struct sccp_device *device, enum ast_device_state state)
@@ -1689,6 +1698,10 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 		transmit_speaker_mode(device, SCCP_SPEAKEROFF);
 		line->state = SCCP_ONHOOK;
 		sccp_line_update_devstate(line, AST_DEVICE_NOT_INUSE);
+
+		if (device->reset_on_no_subchan) {
+			transmit_reset(device, SCCP_RESET_SOFT);
+		}
 	}
 
 	if (subchan == device->active_subchan) {
@@ -2562,7 +2575,12 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 
 	if (!sccp_device_test_apply_config(device, new_device_cfg)) {
 		sccp_device_lock(device);
-		transmit_reset(device, SCCP_RESET_SOFT);
+		if (sccp_device_has_subchans(device)) {
+			device->reset_on_no_subchan = 1;
+		} else {
+			transmit_reset(device, SCCP_RESET_SOFT);
+		}
+
 		sccp_device_unlock(device);
 
 		return 0;
