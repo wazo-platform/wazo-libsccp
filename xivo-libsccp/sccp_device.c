@@ -1,5 +1,6 @@
 #include <asterisk.h>
 #include <asterisk/app.h>
+#include <asterisk/astdb.h>
 #include <asterisk/astobj2.h>
 #include <asterisk/causes.h>
 #include <asterisk/channelstate.h>
@@ -141,6 +142,7 @@ struct sccp_device {
 	uint32_t serial_callid;
 	int open_receive_channel_pending;
 	int reset_on_no_subchan;	/* XXX name is ~ */
+	int dnd;
 	enum sccp_device_type type;
 	uint8_t proto_version;
 
@@ -854,6 +856,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	device->serial_callid = 1;
 	device->open_receive_channel_pending = 0;
 	device->reset_on_no_subchan = 0;
+	device->dnd = 0;
 	device->type = info->type;
 	device->proto_version = info->proto_version;
 	ast_copy_string(device->name, info->name, sizeof(device->name));
@@ -1209,6 +1212,14 @@ static void transmit_dialed_number(struct sccp_device *device, const char *exten
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
+static void transmit_display_message(struct sccp_device *device, const char *text)
+{
+	struct sccp_msg msg;
+
+	sccp_msg_display_message(&msg, text);
+	sccp_session_transmit_msg(device->session, &msg);
+}
+
 static enum sccp_blf_status extstate_ast2sccp(int state)
 {
 	switch (state) {
@@ -1467,6 +1478,26 @@ static void sccp_device_panic(struct sccp_device *device)
 	sccp_session_stop(device->session);
 	/* XXX put into a "panic" state, instead of the conn lost state (which is the closest we have right now) */
 	device->state = &state_connlost;
+}
+
+static void update_displaymessage(struct sccp_device *device)
+{
+	char text[50];
+
+	if (!device->dnd) {
+		transmit_clear_message(device);
+		return;
+	}
+
+	text[0] = '\0';
+
+	if (device->dnd) {
+		strcat(text, "\200\77");
+	}
+
+	strcat(text, "     ");
+
+	transmit_display_message(device, text);
 }
 
 /*
@@ -2125,6 +2156,19 @@ static void handle_softkey_answer(struct sccp_device *device, uint32_t subchan_i
 	do_answer(device, subchan);
 }
 
+static void handle_softkey_dnd(struct sccp_device *device)
+{
+	if (device->dnd) {
+		ast_db_del("sccp/dnd", device->name);
+		device->dnd = 0;
+	} else {
+		ast_db_put("sccp/dnd", device->name, "on");
+		device->dnd = 1;
+	}
+
+	update_displaymessage(device);
+}
+
 static void handle_softkey_endcall(struct sccp_device *device, uint32_t subchan_id)
 {
 	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
@@ -2283,6 +2327,10 @@ static void handle_msg_softkey_event(struct sccp_device *device, struct sccp_msg
 			softkey_event, line_instance, call_instance);
 
 	switch (softkey_event) {
+	case SOFTKEY_DND:
+		handle_softkey_dnd(device);
+		break;
+
 	case SOFTKEY_REDIAL:
 		handle_softkey_redial(device);
 		break;
@@ -2753,6 +2801,17 @@ static void init_voicemail_lamp_state(struct sccp_device *device)
 	transmit_voicemail_lamp_state(device, new_msgs);
 }
 
+static void init_dnd(struct sccp_device *device)
+{
+	char dnd_status[4];
+
+	if (!ast_db_get("sccp/dnd", device->name, dnd_status, sizeof(dnd_status))) {
+		device->dnd = 1;
+	} else {
+		device->dnd = 0;
+	}
+}
+
 /*
  * entry point: yes
  * thread: session
@@ -2763,9 +2822,11 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 
 	transmit_register_ack(device);
 	transmit_capabilities_req(device);
-	transmit_clear_message(device);
 
+	init_dnd(device);
 	init_voicemail_lamp_state(device);
+
+	update_displaymessage(device);
 
 	add_keepalive_task(device);
 
@@ -2835,7 +2896,11 @@ struct ast_channel *sccp_line_request(struct sccp_line *line, int autoanswer, st
 
 	sccp_device_lock(device);
 
-	/* TODO add dnd support */
+	if (device->dnd) {
+		*cause = AST_CAUSE_BUSY;
+		goto unlock;
+	}
+
 	/* TODO add call forward support */
 
 	subchan = sccp_line_new_subchannel(line, SCCP_DIR_INCOMING);

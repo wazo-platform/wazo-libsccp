@@ -215,6 +215,14 @@ void sccp_msg_dialed_number(struct sccp_msg *msg, const char *extension, uint32_
 	msg->data.dialednumber.callInstance = htolel(callid);
 }
 
+void sccp_msg_display_message(struct sccp_msg *msg, const char *text)
+{
+	prepare_msg(msg, sizeof(struct display_notify_message), DISPLAY_NOTIFY_MESSAGE);
+
+	msg->data.notify.displayTimeout = 0;
+	ast_copy_string(msg->data.notify.displayMessage, text, sizeof(msg->data.notify.displayMessage));
+}
+
 void sccp_msg_feature_status(struct sccp_msg *msg, uint32_t instance, enum sccp_button_type type, enum sccp_blf_status status, const char *label)
 {
 	prepare_msg(msg, sizeof(struct feature_stat_message), FEATURE_STAT_MESSAGE);

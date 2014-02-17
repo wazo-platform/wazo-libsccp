@@ -662,6 +662,7 @@ void sccp_msg_config_status_res(struct sccp_msg *msg, const char *name, uint32_t
 void sccp_msg_clear_message(struct sccp_msg *msg);
 void sccp_msg_close_receive_channel(struct sccp_msg *msg, uint32_t callid);
 void sccp_msg_dialed_number(struct sccp_msg *msg, const char *extension, uint32_t line_instance, uint32_t callid);
+void sccp_msg_display_message(struct sccp_msg *msg, const char *text);
 void sccp_msg_feature_status(struct sccp_msg *msg, uint32_t instance, enum sccp_button_type type, enum sccp_blf_status status, const char *label);
 void sccp_msg_forward_status_res(struct sccp_msg *msg, uint32_t line_instance, const char *extension, uint32_t status);
 void sccp_msg_keep_alive_ack(struct sccp_msg *msg);
