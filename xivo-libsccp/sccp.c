@@ -175,6 +175,39 @@ struct ast_channel_tech sccp_tech = {
 	.bridge = ast_rtp_instance_bridge,
 };
 
+static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	return sccp_subchannel_get_rtp_peer(subchan, instance);
+}
+
+static int sccp_set_rtp_peer(struct ast_channel *channel,
+				struct ast_rtp_instance *rtp,
+				struct ast_rtp_instance *vrtp,
+				struct ast_rtp_instance *trtp,
+				const struct ast_format_cap *cap,
+				int nat_active)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	return sccp_subchannel_set_rtp_peer(subchan, rtp, cap);
+}
+
+static void sccp_get_codec(struct ast_channel *channel, struct ast_format_cap *result)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
+	sccp_subchannel_get_codec(subchan, result);
+}
+
+struct ast_rtp_glue sccp_rtp_glue = {
+	.type = "sccp",
+	.get_rtp_info = sccp_get_rtp_peer,
+	.update_peer = sccp_set_rtp_peer,
+	.get_codec = sccp_get_codec,
+};
+
 static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	static const char * const choices[] = { "restart", NULL };
@@ -443,6 +476,15 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
+	if (ast_rtp_glue_register(&sccp_rtp_glue)) {
+		unregister_sccp_tech();
+		sccp_server_destroy(global_server);
+		ast_sched_context_destroy(sccp_sched);
+		sccp_device_registry_destroy(global_registry);
+		sccp_config_destroy();
+		return AST_MODULE_LOAD_DECLINE;
+	}
+
 	ast_cli_register_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
 	return AST_MODULE_LOAD_SUCCESS;
@@ -452,6 +494,7 @@ static int unload_module(void)
 {
 	ast_cli_unregister_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
+	ast_rtp_glue_unregister(&sccp_rtp_glue);
 	unregister_sccp_tech();
 	sccp_server_destroy(global_server);
 	ast_sched_context_destroy(sccp_sched);

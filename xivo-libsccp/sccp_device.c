@@ -46,6 +46,7 @@ struct speeddial_group {
 struct sccp_subchannel {
 	/* (dynamic) */
 	struct ast_sockaddr direct_media_addr;
+	/* (static) */
 	struct ast_format fmt;
 
 	/* (static) */
@@ -359,6 +360,7 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->id = id;
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
+	subchan->on_hold = 0;
 	subchan->resuming = 0;
 	subchan->autoanswer = 0;
 	subchan->transferring = 0;
@@ -2943,16 +2945,13 @@ int sccp_subchannel_answer(struct sccp_subchannel *subchan)
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
 	struct ast_channel *channel = subchan->channel;
+	int wait_subchan_rtp = 0;
 
 	sccp_device_lock(device);
 
 	if (!subchan->rtp) {
 		transmit_subchan_open_receive_channel(device, subchan);
-
-		/* Wait for the phone to provide his ip:port information
-		   before the bridging is being done. */
-		/* XXX hum... need to review this sleep, which is even more suspicious now that we are locking */
-		usleep(500000);
+		wait_subchan_rtp = 1;
 	}
 
 	if (subchan->on_hold) {
@@ -2967,6 +2966,17 @@ int sccp_subchannel_answer(struct sccp_subchannel *subchan)
 	line->state = SCCP_CONNECTED;
 
 	sccp_device_unlock(device);
+
+	/* Wait for the phone to provide his ip:port information
+	 * before the bridging is being done.
+	 *
+	 * Must not be done while the device is locked.
+	 *
+	 * XXX should use something more robust...
+	 */
+	if (wait_subchan_rtp) {
+		usleep(500000);
+	}
 
 	ast_setstate(channel, AST_STATE_UP);
 
@@ -3158,4 +3168,87 @@ int sccp_subchannel_fixup(struct sccp_subchannel *subchan, struct ast_channel *n
 	sccp_device_unlock(device);
 
 	return 0;
+}
+
+enum ast_rtp_glue_result sccp_subchannel_get_rtp_peer(struct sccp_subchannel *subchan, struct ast_rtp_instance **instance)
+{
+	struct sccp_line *line = subchan->line;
+	struct sccp_device *device = line->device;
+	enum ast_rtp_glue_result res = AST_RTP_GLUE_RESULT_LOCAL;
+
+	sccp_device_lock(device);
+
+	if (!subchan->rtp) {
+		ast_log(LOG_DEBUG, "rtp is NULL\n");
+		res = AST_RTP_GLUE_RESULT_FORBID;
+		goto unlock;
+	}
+
+	ao2_ref(subchan->rtp, +1);
+	*instance = subchan->rtp;
+
+	if (line->cfg->directmedia) {
+		res = AST_RTP_GLUE_RESULT_REMOTE;
+	}
+
+unlock:
+	sccp_device_unlock(device);
+
+	return res;
+}
+
+int sccp_subchannel_set_rtp_peer(struct sccp_subchannel *subchan, struct ast_rtp_instance *rtp, const struct ast_format_cap *cap)
+{
+	struct sockaddr_in local;
+	struct sockaddr_in endpoint;
+	struct ast_sockaddr endpoint_tmp;
+	struct sccp_line *line = subchan->line;
+	struct sccp_device *device = line->device;
+	int res = 0;
+	int changed;
+
+	if (!rtp) {
+		ast_debug(1, "not updating peer: rtp is NULL\n");
+		return 0;
+	}
+
+	sccp_device_lock(device);
+
+	if (subchan->on_hold) {
+		ast_debug(1, "not updating peer: subchan is on hold\n");
+		goto unlock;
+	}
+
+	changed = ast_rtp_instance_get_and_cmp_remote_address(rtp, &subchan->direct_media_addr);
+	if (!changed) {
+		ast_debug(1, "not updating peer: remote address has not changed\n");
+		goto unlock;
+	}
+
+	sccp_subchannel_get_rtp_local_address(subchan, &local);
+
+	ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
+	ast_debug(1, "remote address %s\n", ast_sockaddr_stringify(&endpoint_tmp));
+
+	ast_sockaddr_to_sin(&endpoint_tmp, &endpoint);
+	if (endpoint.sin_addr.s_addr != 0) {
+		transmit_stop_media_transmission(device, subchan->id);
+		transmit_subchan_start_media_transmission(device, subchan, &endpoint);
+		add_ast_queue_control_task(device, subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
+	} else {
+		ast_debug(1, "updating peer: remote address is 0, device will send media to asterisk\n");
+
+		transmit_stop_media_transmission(device, subchan->id);
+		transmit_subchan_start_media_transmission(device, subchan, &local);
+	}
+
+unlock:
+	sccp_device_unlock(device);
+
+	return res;
+}
+
+void sccp_subchannel_get_codec(struct sccp_subchannel *subchan, struct ast_format_cap *result)
+{
+	ast_format_cap_set(result, &subchan->fmt);
 }

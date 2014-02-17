@@ -6,6 +6,7 @@
 
 struct ast_channel;
 struct ast_format_cap;
+struct ast_rtp_instance;
 struct sccp_device;
 struct sccp_device_cfg;
 struct sccp_line;
@@ -161,5 +162,11 @@ int sccp_subchannel_write(struct sccp_subchannel *subchan, struct ast_frame *fra
 int sccp_subchannel_indicate(struct sccp_subchannel *subchan, int ind, const void *data, size_t datalen);
 
 int sccp_subchannel_fixup(struct sccp_subchannel *subchan, struct ast_channel *newchannel);
+
+enum ast_rtp_glue_result sccp_subchannel_get_rtp_peer(struct sccp_subchannel *subchan, struct ast_rtp_instance **instance);
+
+int sccp_subchannel_set_rtp_peer(struct sccp_subchannel *subchan, struct ast_rtp_instance *rtp, const struct ast_format_cap *cap);
+
+void sccp_subchannel_get_codec(struct sccp_subchannel *subchan, struct ast_format_cap *result);
 
 #endif /* SCCP_DEVICE_H_ */
