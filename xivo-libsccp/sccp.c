@@ -141,7 +141,7 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.get_codec = sccp_rtp_glue_get_codec,
 };
 
-static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+static char *cli_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	static const char * const choices[] = { "restart", NULL };
 	struct sccp_device *device;
@@ -180,7 +180,7 @@ static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_
 	return CLI_SUCCESS;
 }
 
-static char *sccp_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+static char *cli_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	const char *what;
 
@@ -332,8 +332,8 @@ static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 }
 
 static struct ast_cli_entry cli_entries[] = {
-	AST_CLI_DEFINE(sccp_reset_device, "Reset SCCP device"),
-	AST_CLI_DEFINE(sccp_set_debug, "Enable/Disable SCCP debugging"),
+	AST_CLI_DEFINE(cli_reset_device, "Reset SCCP device"),
+	AST_CLI_DEFINE(cli_set_debug, "Enable/Disable SCCP debugging"),
 	AST_CLI_DEFINE(cli_show_config, "Show the module configuration"),
 	AST_CLI_DEFINE(cli_show_devices, "Show the connected devices"),
 	AST_CLI_DEFINE(cli_show_sessions, "Show the active sessions"),
