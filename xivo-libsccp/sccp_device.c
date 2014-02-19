@@ -845,7 +845,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	}
 
 	ast_mutex_init(&device->lock);
-	sccp_msg_builder_init(&device->msg_builder, info->type, info->proto_version);
+	sccp_msg_builder_init(&device->msg_builder, info->proto_version);
 	sccp_queue_init(&device->nolock_tasks, sizeof(struct nolock_task));
 	device->session = session;
 	ao2_ref(session, +1);

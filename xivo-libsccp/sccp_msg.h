@@ -686,11 +686,10 @@ void sccp_msg_reset(struct sccp_msg *msg, enum sccp_reset_type type);
 void sccp_msg_version_res(struct sccp_msg *msg, const char *version);
 
 struct sccp_msg_builder {
-	enum sccp_device_type type;
 	uint8_t proto;
 };
 
-void sccp_msg_builder_init(struct sccp_msg_builder *msg_builder, enum sccp_device_type type, uint8_t proto_version);
+void sccp_msg_builder_init(struct sccp_msg_builder *msg_builder, uint8_t proto_version);
 void sccp_msg_builder_callinfo(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *from_name, const char *from_num, const char *to_name, const char *to_num, uint32_t line_instance, uint32_t callid, enum sccp_direction direction);
 void sccp_msg_builder_line_status_res(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *cid_name, const char *cid_num, uint32_t line_instance);
 void sccp_msg_builder_register_ack(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *datefmt, uint32_t keepalive);

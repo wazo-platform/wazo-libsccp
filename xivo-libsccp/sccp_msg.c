@@ -488,9 +488,8 @@ static int utf8_to_iso88591(char *out, const char *in, size_t n)
 	return ret;
 }
 
-void sccp_msg_builder_init(struct sccp_msg_builder *msg_builder, uint32_t type, uint8_t proto_version)
+void sccp_msg_builder_init(struct sccp_msg_builder *msg_builder, uint8_t proto_version)
 {
-	msg_builder->type = type;
 	msg_builder->proto = proto_version;
 }
 
