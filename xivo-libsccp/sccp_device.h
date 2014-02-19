@@ -137,36 +137,4 @@ const char *sccp_device_name(const struct sccp_device *device);
  */
 const char *sccp_line_name(const struct sccp_line *line);
 
-/*!
- * \brief Return the device state of the line.
- */
-enum ast_device_state sccp_line_devstate(const struct sccp_line *line);
-
-/*
- * XXX request a new subchannel + channel
- *
- * \note The tech_pvt of the returned channel is a sccp_subchannel pointer.
- */
-struct ast_channel *sccp_line_request(struct sccp_line *line, int autoanswer, struct ast_format_cap *cap, const char *linkedid, int *cause);
-
-int sccp_subchannel_call(struct sccp_subchannel *subchan);
-
-int sccp_subchannel_hangup(struct sccp_subchannel *subchan);
-
-int sccp_subchannel_answer(struct sccp_subchannel *subchan);
-
-struct ast_frame *sccp_subchannel_read(struct sccp_subchannel *subchan);
-
-int sccp_subchannel_write(struct sccp_subchannel *subchan, struct ast_frame *frame);
-
-int sccp_subchannel_indicate(struct sccp_subchannel *subchan, int ind, const void *data, size_t datalen);
-
-int sccp_subchannel_fixup(struct sccp_subchannel *subchan, struct ast_channel *newchannel);
-
-enum ast_rtp_glue_result sccp_subchannel_get_rtp_peer(struct sccp_subchannel *subchan, struct ast_rtp_instance **instance);
-
-int sccp_subchannel_set_rtp_peer(struct sccp_subchannel *subchan, struct ast_rtp_instance *rtp, const struct ast_format_cap *cap);
-
-void sccp_subchannel_get_codec(struct sccp_subchannel *subchan, struct ast_format_cap *result);
-
 #endif /* SCCP_DEVICE_H_ */

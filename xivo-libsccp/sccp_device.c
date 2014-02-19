@@ -13,6 +13,8 @@
 #include <asterisk/pbx.h>
 #include <asterisk/rtp_engine.h>
 
+#include "device/sccp_channel_tech.h"
+#include "device/sccp_rtp_glue.h"
 #include "sccp.h"
 #include "sccp_config.h"
 #include "sccp_device.h"
@@ -2879,16 +2881,7 @@ const char *sccp_line_name(const struct sccp_line *line)
 	return line->name;
 }
 
-enum ast_device_state sccp_line_devstate(const struct sccp_line *line)
-{
-	if (line->state == SCCP_ONHOOK) {
-		return AST_DEVICE_NOT_INUSE;
-	} else {
-		return AST_DEVICE_INUSE;
-	}
-}
-
-struct ast_channel *sccp_line_request(struct sccp_line *line, int autoanswer, struct ast_format_cap *cap, const char *linkedid, int *cause)
+struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_channel *requestor, int *cause)
 {
 	struct sccp_device *device = line->device;
 	struct sccp_subchannel *subchan;
@@ -2908,18 +2901,30 @@ struct ast_channel *sccp_line_request(struct sccp_line *line, int autoanswer, st
 		goto unlock;
 	}
 
-	if (sccp_subchannel_new_channel(subchan, linkedid, cap)) {
+	if (sccp_subchannel_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL, cap)) {
 		do_clear_subchannel(device, subchan);
 		goto unlock;
 	}
 
-	subchan->autoanswer = autoanswer;
+	if (options && !strncmp(options, "autoanswer", 10)) {
+		subchan->autoanswer = 1;
+	}
+
 	channel = subchan->channel;
 
 unlock:
 	sccp_device_unlock(device);
 
 	return channel;
+}
+
+int sccp_channel_tech_devicestate(const struct sccp_line *line)
+{
+	if (line->state == SCCP_ONHOOK) {
+		return AST_DEVICE_NOT_INUSE;
+	} else {
+		return AST_DEVICE_INUSE;
+	}
 }
 
 static void format_party_name(struct ast_channel *channel, char *name, size_t n)
@@ -2941,17 +2946,11 @@ static void format_party_number(struct ast_channel *channel, char **number)
 	*number = ast_channel_connected(channel)->id.number.str;
 }
 
-static void autoanswer_call(struct sccp_device *device, struct sccp_subchannel *subchan)
+int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int timeout)
 {
-	transmit_speaker_mode(device, SCCP_SPEAKERON);
-	do_answer(device, subchan);
-}
-
-int sccp_subchannel_call(struct sccp_subchannel *subchan)
-{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	struct ast_channel *channel = subchan->channel;
 	char name[64];
 	char *number;
 
@@ -2978,7 +2977,8 @@ int sccp_subchannel_call(struct sccp_subchannel *subchan)
 	transmit_line_lamp_state(device, line, SCCP_LAMP_BLINK);
 
 	if (subchan->autoanswer) {
-		autoanswer_call(device, subchan);
+		transmit_speaker_mode(device, SCCP_SPEAKERON);
+		do_answer(device, subchan);
 	} else {
 		sccp_line_update_devstate(line, AST_DEVICE_RINGING);
 	}
@@ -2988,11 +2988,11 @@ int sccp_subchannel_call(struct sccp_subchannel *subchan)
 	return 0;
 }
 
-int sccp_subchannel_hangup(struct sccp_subchannel *subchan)
+int sccp_channel_tech_hangup(struct ast_channel *channel)
 {
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	struct ast_channel *channel = subchan->channel;
 
 	sccp_device_lock(device);
 	do_clear_subchannel(device, subchan);
@@ -3005,11 +3005,11 @@ int sccp_subchannel_hangup(struct sccp_subchannel *subchan)
 	return 0;
 }
 
-int sccp_subchannel_answer(struct sccp_subchannel *subchan)
+int sccp_channel_tech_answer(struct ast_channel *channel)
 {
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	struct ast_channel *channel = subchan->channel;
 	int wait_subchan_rtp = 0;
 
 	sccp_device_lock(device);
@@ -3048,11 +3048,11 @@ int sccp_subchannel_answer(struct sccp_subchannel *subchan)
 	return 0;
 }
 
-struct ast_frame *sccp_subchannel_read(struct sccp_subchannel *subchan)
+struct ast_frame *sccp_channel_tech_read(struct ast_channel *channel)
 {
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	struct ast_channel *channel = subchan->channel;
 	struct ast_frame *frame;
 	struct ast_rtp_instance *rtp;
 
@@ -3095,8 +3095,9 @@ struct ast_frame *sccp_subchannel_read(struct sccp_subchannel *subchan)
 	return frame;
 }
 
-int sccp_subchannel_write(struct sccp_subchannel *subchan, struct ast_frame *frame)
+int sccp_channel_tech_write(struct ast_channel *channel, struct ast_frame *frame)
 {
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
 	int res = 0;
@@ -3135,12 +3136,12 @@ static void indicate_connected_line(struct sccp_device *device, struct sccp_line
 	}
 }
 
-int sccp_subchannel_indicate(struct sccp_subchannel *subchan, int ind, const void *data, size_t datalen)
+int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void *data, size_t datalen)
 {
 #define _AST_PROVIDE_INBAND_SIGNALLING -1
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	struct ast_channel *channel = subchan->channel;
 	int res = 0;
 	int start_moh = 0;
 	int stop_moh = 0;
@@ -3223,8 +3224,9 @@ int sccp_subchannel_indicate(struct sccp_subchannel *subchan, int ind, const voi
 	return res;
 }
 
-int sccp_subchannel_fixup(struct sccp_subchannel *subchan, struct ast_channel *newchannel)
+int sccp_channel_tech_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
 {
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(newchannel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
 
@@ -3235,8 +3237,21 @@ int sccp_subchannel_fixup(struct sccp_subchannel *subchan, struct ast_channel *n
 	return 0;
 }
 
-enum ast_rtp_glue_result sccp_subchannel_get_rtp_peer(struct sccp_subchannel *subchan, struct ast_rtp_instance **instance)
+int sccp_channel_tech_send_digit_begin(struct ast_channel *channel, char digit)
 {
+	ast_log(LOG_DEBUG, "senddigit begin %c\n", digit);
+	return 0;
+}
+
+int sccp_channel_tech_send_digit_end(struct ast_channel *channel, char digit, unsigned int duration)
+{
+	ast_log(LOG_DEBUG, "senddigit end %c\n", digit);
+	return 0;
+}
+
+enum ast_rtp_glue_result sccp_rtp_glue_get_rtp_info(struct ast_channel *channel, struct ast_rtp_instance **instance)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
 	enum ast_rtp_glue_result res = AST_RTP_GLUE_RESULT_LOCAL;
@@ -3262,11 +3277,12 @@ unlock:
 	return res;
 }
 
-int sccp_subchannel_set_rtp_peer(struct sccp_subchannel *subchan, struct ast_rtp_instance *rtp, const struct ast_format_cap *cap)
+int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instance *rtp, struct ast_rtp_instance *vrtp, struct ast_rtp_instance *trtp, const struct ast_format_cap *cap, int nat_active)
 {
 	struct sockaddr_in local;
 	struct sockaddr_in endpoint;
 	struct ast_sockaddr endpoint_tmp;
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
 	int res = 0;
@@ -3313,7 +3329,9 @@ unlock:
 	return res;
 }
 
-void sccp_subchannel_get_codec(struct sccp_subchannel *subchan, struct ast_format_cap *result)
+void sccp_rtp_glue_get_codec(struct ast_channel *channel, struct ast_format_cap *result)
 {
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+
 	ast_format_cap_set(result, &subchan->fmt);
 }

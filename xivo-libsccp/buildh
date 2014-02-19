@@ -89,7 +89,8 @@ def _build_rsync_script(host, directory):
 rsync -v -rlp \
     --include '*.c' \
     --include '*.h' \
-    --include Makefile \
+    --include /device \
+    --include /Makefile \
     --exclude '*' \
     . {host}:{directory}
 '''.format(host=host, directory=directory)

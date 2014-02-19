@@ -7,6 +7,8 @@
 #include <asterisk/rtp_engine.h>
 #include <asterisk/sched.h>
 
+#include "device/sccp_channel_tech.h"
+#include "device/sccp_rtp_glue.h"
 #include "sccp_debug.h"
 #include "sccp_config.h"
 #include "sccp_device.h"
@@ -23,50 +25,72 @@ struct ast_sched_context *sccp_sched;
 static struct sccp_device_registry *global_registry;
 static struct sccp_server *global_server;
 
-static struct ast_channel *sccp_request(const char *type, struct ast_format_cap *cap, const struct ast_channel *requestor, const char *addr, int *cause)
+enum find_line_result {
+	LINE_FOUND,
+	LINE_NOT_REGISTERED,
+	LINE_NOT_FOUND,
+};
+
+/*!
+ * \brief Find a line and if not found, tell why.
+ *
+ * \note If the line is found, then its reference count is incremented by one.
+ *
+ * \retval LINE_FOUND on success
+ * \retval LINE_NOT_REGISTERED if the line exist in the config but is not currently registered
+ * \retval LINE_NOT_FOUND is the line doesn't exist in the config
+ */
+static enum find_line_result find_line(const char *name, struct sccp_line **result)
 {
-	struct sccp_line *line;
 	struct sccp_cfg *cfg;
 	struct sccp_line_cfg *line_cfg;
-	struct ast_channel *channel;
-	char *option;
-	int autoanswer = 0;
 
-	option = strchr(addr, '/');
-	if (option) {
-		*option = '\0';
-		if (!strncmp(option + 1, "autoanswer", 10)) {
-			autoanswer = 1;
-		}
+	*result = sccp_device_registry_find_line(global_registry, name);
+	if (*result) {
+		return LINE_FOUND;
 	}
 
-	line = sccp_device_registry_find_line(global_registry, addr);
-	if (!line) {
-		cfg = sccp_config_get();
-		line_cfg = sccp_cfg_find_line(cfg, addr);
-		if (!line_cfg) {
-			*cause = AST_CAUSE_NO_ROUTE_DESTINATION;
-		} else {
-			*cause = AST_CAUSE_SUBSCRIBER_ABSENT;
-			ao2_ref(line_cfg, -1);
-		}
-
-		ao2_ref(cfg, -1);
-		return NULL;
+	cfg = sccp_config_get();
+	line_cfg = sccp_cfg_find_line(cfg, name);
+	ao2_ref(cfg, -1);
+	if (line_cfg) {
+		ao2_ref(line_cfg, -1);
+		return LINE_NOT_REGISTERED;
 	}
 
-	channel = sccp_line_request(line, autoanswer, cap, requestor ? ast_channel_linkedid(requestor) : NULL, cause);
+	return LINE_NOT_FOUND;
+}
 
-	ao2_ref(line, -1);
+static struct ast_channel *channel_tech_requester(const char *type, struct ast_format_cap *cap, const struct ast_channel *requestor, const char *addr, int *cause)
+{
+	struct sccp_line *line;
+	struct ast_channel *channel = NULL;
+	char *options;
+
+	options = strchr(addr, '/');
+	if (options) {
+		*options++ = '\0';
+	}
+
+	switch (find_line(addr, &line)) {
+	case LINE_FOUND:
+		channel = sccp_channel_tech_requester(line, options, cap, requestor, cause);
+		ao2_ref(line, -1);
+		break;
+	case LINE_NOT_REGISTERED:
+		*cause = AST_CAUSE_SUBSCRIBER_ABSENT;
+		break;
+	case LINE_NOT_FOUND:
+		*cause = AST_CAUSE_NO_ROUTE_DESTINATION;
+		break;
+	}
 
 	return channel;
 }
 
-static int sccp_devicestate(const char *data)
+static int channel_tech_devicestate(const char *data)
 {
 	struct sccp_line *line;
-	struct sccp_cfg *cfg;
-	struct sccp_line_cfg *line_cfg;
 	char *name = ast_strdupa(data);
 	char *ptr;
 	int state = AST_DEVICE_UNKNOWN;
@@ -76,136 +100,45 @@ static int sccp_devicestate(const char *data)
 		*ptr = '\0';
 	}
 
-	line = sccp_device_registry_find_line(global_registry, name);
-	if (!line) {
-		cfg = sccp_config_get();
-		line_cfg = sccp_cfg_find_line(cfg, name);
-		if (!line_cfg) {
-			state = AST_DEVICE_INVALID;
-		} else {
-			state = AST_DEVICE_UNAVAILABLE;
-			ao2_ref(line_cfg, -1);
-		}
-
-		ao2_ref(cfg, -1);
-	} else {
-		state = sccp_line_devstate(line);
+	switch (find_line(name, &line)) {
+	case LINE_FOUND:
+		state = sccp_channel_tech_devicestate(line);
 		ao2_ref(line, -1);
+		break;
+	case LINE_NOT_REGISTERED:
+		state = AST_DEVICE_UNAVAILABLE;
+		break;
+	case LINE_NOT_FOUND:
+		state = AST_DEVICE_INVALID;
+		break;
 	}
 
 	return state;
-}
-
-static int sccp_call(struct ast_channel *channel, const char *dest, int timeout)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	return sccp_subchannel_call(subchan);
-}
-
-static int sccp_hangup(struct ast_channel *channel)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	return sccp_subchannel_hangup(subchan);
-}
-
-static int sccp_answer(struct ast_channel *channel)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	return sccp_subchannel_answer(subchan);
-}
-
-static struct ast_frame *sccp_read(struct ast_channel *channel)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	return sccp_subchannel_read(subchan);
-}
-
-static int sccp_write(struct ast_channel *channel, struct ast_frame *frame)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	return sccp_subchannel_write(subchan, frame);
-}
-
-static int sccp_indicate(struct ast_channel *channel, int ind, const void *data, size_t datalen)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	return sccp_subchannel_indicate(subchan, ind, data, datalen);
-}
-
-static int sccp_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(newchannel);
-
-	return sccp_subchannel_fixup(subchan, newchannel);
-}
-
-static int sccp_senddigit_begin(struct ast_channel *channel, char digit)
-{
-	ast_log(LOG_DEBUG, "senddigit begin %c\n", digit);
-	return 0;
-}
-
-static int sccp_senddigit_end(struct ast_channel *channel, char digit, unsigned int duration)
-{
-	ast_log(LOG_DEBUG, "senddigit end %c\n", digit);
-	return 0;
 }
 
 struct ast_channel_tech sccp_tech = {
 	.type = "sccp",
 	.description = "Skinny Client Control Protocol",
 	.properties = AST_CHAN_TP_WANTSJITTER | AST_CHAN_TP_CREATESJITTER,
-	.requester = sccp_request,
-	.devicestate = sccp_devicestate,
-	.call = sccp_call,
-	.hangup = sccp_hangup,
-	.answer = sccp_answer,
-	.read = sccp_read,
-	.write = sccp_write,
-	.indicate = sccp_indicate,
-	.fixup = sccp_fixup,
-	.send_digit_begin = sccp_senddigit_begin,
-	.send_digit_end = sccp_senddigit_end,
+	.requester = channel_tech_requester,
+	.devicestate = channel_tech_devicestate,
+	.call = sccp_channel_tech_call,
+	.hangup = sccp_channel_tech_hangup,
+	.answer = sccp_channel_tech_answer,
+	.read = sccp_channel_tech_read,
+	.write = sccp_channel_tech_write,
+	.indicate = sccp_channel_tech_indicate,
+	.fixup = sccp_channel_tech_fixup,
+	.send_digit_begin = sccp_channel_tech_send_digit_begin,
+	.send_digit_end = sccp_channel_tech_send_digit_end,
 	.bridge = ast_rtp_instance_bridge,
 };
 
-static enum ast_rtp_glue_result sccp_get_rtp_peer(struct ast_channel *channel, struct ast_rtp_instance **instance)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	return sccp_subchannel_get_rtp_peer(subchan, instance);
-}
-
-static int sccp_set_rtp_peer(struct ast_channel *channel,
-				struct ast_rtp_instance *rtp,
-				struct ast_rtp_instance *vrtp,
-				struct ast_rtp_instance *trtp,
-				const struct ast_format_cap *cap,
-				int nat_active)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	return sccp_subchannel_set_rtp_peer(subchan, rtp, cap);
-}
-
-static void sccp_get_codec(struct ast_channel *channel, struct ast_format_cap *result)
-{
-	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
-
-	sccp_subchannel_get_codec(subchan, result);
-}
-
-struct ast_rtp_glue sccp_rtp_glue = {
+static struct ast_rtp_glue sccp_rtp_glue = {
 	.type = "sccp",
-	.get_rtp_info = sccp_get_rtp_peer,
-	.update_peer = sccp_set_rtp_peer,
-	.get_codec = sccp_get_codec,
+	.get_rtp_info = sccp_rtp_glue_get_rtp_info,
+	.update_peer = sccp_rtp_glue_update_peer,
+	.get_codec = sccp_rtp_glue_get_codec,
 };
 
 static char *sccp_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
