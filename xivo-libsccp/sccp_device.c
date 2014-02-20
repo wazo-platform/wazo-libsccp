@@ -148,7 +148,7 @@ struct sccp_device {
 
 	uint32_t serial_callid;
 	int open_receive_channel_pending;
-	int reset_on_no_subchan;	/* XXX name is ~ */
+	int reset_on_idle;
 	int dnd;
 	enum sccp_device_type type;
 	uint8_t proto_version;
@@ -1168,7 +1168,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	device->active_subchan = NULL;
 	device->serial_callid = 1;
 	device->open_receive_channel_pending = 0;
-	device->reset_on_no_subchan = 0;
+	device->reset_on_idle = 0;
 	device->dnd = 0;
 	device->type = info->type;
 	device->proto_version = info->proto_version;
@@ -1268,6 +1268,11 @@ static void sccp_device_unlock(struct sccp_device *device)
 
 	exec_nolock_tasks(&tasks);
 	sccp_queue_destroy(&tasks);
+}
+
+static int sccp_device_is_idle(struct sccp_device *device)
+{
+	return !sccp_lines_has_subchans(&device->lines);
 }
 
 static enum sccp_codecs codec_ast2sccp(struct ast_format *format)
@@ -1860,14 +1865,14 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 		transmit_speaker_mode(device, SCCP_SPEAKEROFF);
 		line->state = SCCP_ONHOOK;
 		sccp_line_update_devstate(line, AST_DEVICE_NOT_INUSE);
-
-		if (device->reset_on_no_subchan) {
-			transmit_reset(device, SCCP_RESET_SOFT);
-		}
 	}
 
 	if (subchan == device->active_subchan) {
 		device->active_subchan = NULL;
+	}
+
+	if (device->reset_on_idle && sccp_device_is_idle(device)) {
+		transmit_reset(device, SCCP_RESET_SOFT);
 	}
 
 	ao2_ref(subchan, -1);
@@ -2713,10 +2718,10 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 
 	if (!sccp_device_test_apply_config(device, new_device_cfg)) {
 		sccp_device_lock(device);
-		if (sccp_lines_has_subchans(&device->lines)) {
-			device->reset_on_no_subchan = 1;
-		} else {
+		if (sccp_device_is_idle(device)) {
 			transmit_reset(device, SCCP_RESET_SOFT);
+		} else {
+			device->reset_on_idle = 1;
 		}
 
 		sccp_device_unlock(device);
