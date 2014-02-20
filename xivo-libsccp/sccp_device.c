@@ -108,15 +108,10 @@ struct sccp_lines {
 	size_t count;
 };
 
-enum sccp_device_state_id {
+enum sccp_device_state {
 	STATE_NEW,
-	STATE_REGISTERING,
+	STATE_WORKING,
 	STATE_CONNLOST,
-};
-
-struct sccp_device_state {
-	enum sccp_device_state_id id;
-	void (*handle_msg)(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 };
 
 struct sccp_device {
@@ -138,8 +133,6 @@ struct sccp_device {
 	/* (dynamic) */
 	struct sccp_device_cfg *cfg;
 	/* (dynamic) */
-	struct sccp_device_state *state;
-	/* (dynamic) */
 	struct ast_format_cap *caps;	/* Supported capabilities */
 	/* (dynamic, modified in thread session only) */
 	struct ast_event_sub *mwi_event_sub;
@@ -147,6 +140,7 @@ struct sccp_device {
 	struct sccp_subchannel *active_subchan;
 
 	uint32_t serial_callid;
+	enum sccp_device_state state;
 	int open_receive_channel_pending;
 	int reset_on_idle;
 	int dnd;
@@ -217,21 +211,6 @@ static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type
 static void transmit_subchan_start_media_transmission(struct sccp_device *device, struct sccp_subchannel *subchan, struct sockaddr_in *endpoint);
 static int add_dialtimeout_task(struct sccp_device *device, struct sccp_subchannel *subchan);
 static void remove_dialtimeout_task(struct sccp_device *device, struct sccp_subchannel *subchan);
-
-static struct sccp_device_state state_new = {
-	.id = STATE_NEW,
-	.handle_msg = NULL,
-};
-
-static struct sccp_device_state state_registering = {
-	.id = STATE_REGISTERING,
-	.handle_msg = handle_msg_state_common,
-};
-
-static struct sccp_device_state state_connlost = {
-	.id = STATE_CONNLOST,
-	.handle_msg = NULL,
-};
 
 static unsigned int chan_idx = 0;
 
@@ -1154,7 +1133,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	ao2_ref(session, +1);
 	device->cfg = cfg;
 	ao2_ref(cfg, +1);
-	device->state = &state_new;
+	device->state = STATE_NEW;
 	device->caps = caps;
 	device->mwi_event_sub = NULL;
 	device->active_subchan = NULL;
@@ -1229,7 +1208,7 @@ void sccp_device_destroy(struct sccp_device *device)
 	sccp_lines_deinit(&device->lines);
 	sccp_speeddials_deinit(&device->speeddials);
 
-	switch (device->state->id) {
+	switch (device->state) {
 	case STATE_NEW:
 	case STATE_CONNLOST:
 		break;
@@ -1617,8 +1596,7 @@ static void sccp_device_panic(struct sccp_device *device)
 
 	transmit_reset(device, SCCP_RESET_HARD_RESTART);
 	sccp_session_stop(device->session);
-	/* XXX put into a "panic" state, instead of the conn lost state (which is the closest we have right now) */
-	device->state = &state_connlost;
+	device->state = STATE_CONNLOST;
 }
 
 static void update_displaymessage(struct sccp_device *device)
@@ -2658,8 +2636,13 @@ int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 	msg_id = letohl(msg->id);
 
 	sccp_device_lock(device);
-	if (device->state->handle_msg) {
-		device->state->handle_msg(device, msg, msg_id);
+
+	switch (device->state) {
+	case STATE_WORKING:
+		handle_msg_state_common(device, msg, msg_id);
+		break;
+	default:
+		break;
 	}
 
 	sccp_device_unlock(device);
@@ -2755,7 +2738,7 @@ int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
 void sccp_device_on_connection_lost(struct sccp_device *device)
 {
 	sccp_device_lock(device);
-	device->state = &state_connlost;
+	device->state = STATE_CONNLOST;
 	sccp_device_unlock(device);
 }
 
@@ -2866,7 +2849,7 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 
 	add_keepalive_task(device);
 
-	device->state = &state_registering;
+	device->state = STATE_WORKING;
 
 	sccp_lines_on_registration_success(&device->lines);
 
