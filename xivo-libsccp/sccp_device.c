@@ -82,20 +82,20 @@ struct sccp_subchannel {
 };
 
 struct sccp_line {
-	/* (dynamic) */
 	AST_LIST_HEAD_NOLOCK(, sccp_subchannel) subchans;
 
-	/* (static) */
+	/* const */
 	struct sccp_device *device;
-	/* (dynamic) */
+	/* updated in session thread only */
 	struct sccp_line_cfg *cfg;
 
-	/* (static) */
+	/* const */
 	uint32_t instance;
-	/* (dynamic) */
 	enum sccp_state state;
 
-	/* special case of duplicated information from the config (static) */
+	/* const, same string as cfg->name, but this one can be used safely in
+	 * non-session thread without holding the device lock
+	 */
 	char name[SCCP_LINE_NAME_MAX];
 };
 
@@ -103,7 +103,7 @@ struct sccp_line {
  * and more important, it offers symmetry with speeddial_group, so there's only one system
  * to understand
  */
-struct line_group {
+struct sccp_lines {
 	struct sccp_line *line;
 	size_t count;
 };
@@ -124,7 +124,7 @@ struct sccp_device {
 	ast_mutex_t lock;
 
 	struct sccp_speeddials speeddials;
-	struct line_group line_group;
+	struct sccp_lines lines;
 
 	/* (static) */
 	struct sccp_msg_builder msg_builder;
@@ -204,13 +204,13 @@ struct nolock_task {
 	void (*exec)(union nolock_task_data *data);
 };
 
-static void sccp_device_update_devstate_all(struct sccp_device *device, enum ast_device_state state);
+static void sccp_line_update_devstate(struct sccp_line *line, enum ast_device_state state);
+static struct sccp_line *sccp_lines_get_default(struct sccp_lines *lines);
 static void sccp_device_lock(struct sccp_device *device);
 static void sccp_device_unlock(struct sccp_device *device);
 static void sccp_device_panic(struct sccp_device *device);
 static void subscribe_mwi(struct sccp_device *device);
 static void unsubscribe_mwi(struct sccp_device *device);
-static struct sccp_line *sccp_device_get_default_line(struct sccp_device *device);
 static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id);
 static void transmit_feature_status(struct sccp_device *device, struct sccp_speeddial *sd);
 static void transmit_reset(struct sccp_device *device, enum sccp_reset_type type);
@@ -283,7 +283,7 @@ static int on_extension_state_change(char *context, char *id, struct ast_state_c
  */
 static void sccp_speeddial_add_extension_state_cb(struct sccp_speeddial *sd)
 {
-	const char *context = sccp_device_get_default_line(sd->device)->cfg->context;
+	const char *context = sccp_lines_get_default(&sd->device->lines)->cfg->context;
 
 	/* XXX fetching the state isn't part of "add extension state callback", still it makes
 	 *     some sense to do it there...
@@ -482,8 +482,8 @@ static int sccp_speeddials_test_apply_config(struct sccp_speeddials *speeddials,
 
 	/* A: speeddials->count == new_device_cfg->speeddial_count */
 	for (i = 0; i < speeddials->count; i++) {
-		old_sd_cfg = speeddials->arr[i]->cfg;
 		new_sd_cfg = new_device_cfg->speeddials_cfg[i];
+		old_sd_cfg = speeddials->arr[i]->cfg;
 
 		if (strcmp(old_sd_cfg->label, new_sd_cfg->label)) {
 			return 0;
@@ -783,7 +783,7 @@ static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const ch
 		return -1;
 	}
 
-	has_joint = ast_format_cap_joint_copy(line->cfg->caps, line->device->caps, joint);
+	has_joint = ast_format_cap_joint_copy(line->cfg->caps, device->caps, joint);
 	if (!has_joint) {
 		ast_log(LOG_WARNING, "no compatible codecs\n");
 		return -1;
@@ -797,6 +797,7 @@ static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const ch
 
 	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
 
+	/* XXX is this is risky ? we are holding the device lock here */
 	channel = ast_channel_alloc(	1,				/* needqueue */
 					AST_STATE_DOWN,			/* state */
 					line->cfg->cid_num,		/* cid_num */
@@ -907,12 +908,21 @@ static void sccp_line_destroy(struct sccp_line *line)
 
 	ast_log(LOG_DEBUG, "destroying line %s\n", line->name);
 
+	/* destroy the subchans */
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&line->subchans, subchan, list) {
 		AST_LIST_REMOVE_CURRENT(list);
 		sccp_subchannel_destroy(subchan);
 		ao2_ref(subchan, -1);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
+
+	/* update the line devstate */
+	sccp_line_update_devstate(line, AST_DEVICE_UNAVAILABLE);
+}
+
+static void sccp_line_update_devstate(struct sccp_line *line, enum ast_device_state state)
+{
+	ast_devstate_changed(state, AST_DEVSTATE_CACHABLE, SCCP_LINE_PREFIX "/%s", line->cfg->name);
 }
 
 /*
@@ -933,31 +943,149 @@ static struct sccp_subchannel *sccp_line_new_subchannel(struct sccp_line *line, 
 	return subchan;
 }
 
-static int line_group_init(struct line_group *line_group, struct sccp_device *device, uint32_t instance)
+static int sccp_lines_init(struct sccp_lines *lines, struct sccp_device *device, uint32_t instance)
 {
 	struct sccp_line *line;
-
-	/* A: device->cfg has exactly one line */
 
 	line = sccp_line_alloc(device->cfg->line_cfg, device, instance);
 	if (!line) {
 		return -1;
 	}
 
-	line_group->line = line;
-	line_group->count = 1;
+	lines->line = line;
+	lines->count = 1;
 
 	return 0;
 }
 
-static void line_group_deinit(struct line_group *line_group)
+static void sccp_lines_deinit(struct sccp_lines *lines)
 {
-	ao2_ref(line_group->line, -1);
+	ao2_ref(lines->line, -1);
 }
 
-static void line_group_destroy(struct line_group *line_group)
+/*
+ * Must be called with the device locked.
+ */
+static void sccp_lines_destroy(struct sccp_lines *lines)
 {
-	sccp_line_destroy(line_group->line);
+	sccp_line_destroy(lines->line);
+}
+
+/*
+ * Must be called with the device locked.
+ */
+static void sccp_lines_on_registration_success(struct sccp_lines *lines)
+{
+	sccp_line_update_devstate(lines->line, AST_DEVICE_NOT_INUSE);
+}
+
+/*
+ * \note reference count is NOT incremented
+ */
+static struct sccp_line *sccp_lines_get_by_instance(struct sccp_lines *lines, uint32_t instance)
+{
+	struct sccp_line *line = lines->line;
+
+	if (line->instance == instance) {
+		return line;
+	}
+
+	return NULL;
+}
+
+/*
+ * \note reference count is NOT incremented
+ */
+static struct sccp_line *sccp_lines_get_default(struct sccp_lines *lines)
+{
+	return lines->line;
+}
+
+/*
+ * \note reference count is NOT incremented
+ */
+static struct sccp_subchannel *sccp_lines_get_subchan(struct sccp_lines *lines, uint32_t subchan_id)
+{
+	struct sccp_subchannel *subchan;
+
+	AST_LIST_TRAVERSE(&lines->line->subchans, subchan, list) {
+		if (subchan->id == subchan_id) {
+			return subchan;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * \note reference count is NOT incremented
+ */
+static struct sccp_subchannel *sccp_lines_get_next_ringin_subchan(struct sccp_lines *lines)
+{
+	struct sccp_subchannel *subchan;
+
+	AST_LIST_TRAVERSE(&lines->line->subchans, subchan, list) {
+		if (subchan->state == SCCP_RINGIN) {
+			return subchan;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * \note reference count is NOT incremented
+ */
+static struct sccp_subchannel *sccp_lines_get_next_offhook_subchan(struct sccp_lines *lines)
+{
+	struct sccp_subchannel *subchan;
+
+	AST_LIST_TRAVERSE(&lines->line->subchans, subchan, list) {
+		if (subchan->state == SCCP_OFFHOOK) {
+			return subchan;
+		}
+	}
+
+	return NULL;
+}
+
+static int sccp_lines_has_subchans(struct sccp_lines *lines)
+{
+	return !AST_LIST_EMPTY(&lines->line->subchans);
+}
+
+static int sccp_lines_test_apply_config(struct sccp_lines *lines, struct sccp_device_cfg *new_device_cfg)
+{
+	struct sccp_line_cfg *new_line_cfg = new_device_cfg->line_cfg;
+	struct sccp_line_cfg *old_line_cfg = lines->line->cfg;
+
+	if (strcmp(old_line_cfg->name, new_line_cfg->name)) {
+		return 0;
+	}
+
+	if (strcmp(old_line_cfg->cid_num, new_line_cfg->cid_num)) {
+		return 0;
+	}
+
+	if (strcmp(old_line_cfg->cid_name, new_line_cfg->cid_name)) {
+		return 0;
+	}
+
+	/* the context is also used as the voicemail context and speeddial hint context */
+	if (strcmp(old_line_cfg->context, new_line_cfg->context)) {
+		return 0;
+	}
+
+	return 1;
+}
+
+static void sccp_lines_apply_config(struct sccp_lines *lines, struct sccp_device_cfg *new_device_cfg)
+{
+	struct sccp_line *line = lines->line;
+
+	ao2_ref(line->cfg, -1);
+	line->cfg = new_device_cfg->line_cfg;
+	ao2_ref(line->cfg, +1);
 }
 
 static void sccp_device_destructor(void *data)
@@ -966,8 +1094,8 @@ static void sccp_device_destructor(void *data)
 
 	ast_log(LOG_DEBUG, "in destructor for device %s\n", device->name);
 
-	/* no, it is NOT missing an line_group_deinit(&device->line) nor a
-	 * speeddial_group_deinit(&device->group). Only completely created
+	/* no, it is NOT missing an sccp_lines_deinit(&device->line) nor a
+	 * sccp_speeddials_deinit(&device->group). Only completely created
 	 * device object have these field initialized, and completely created
 	 * device object must be destroyed via sccp_device_destroy
 	 */
@@ -1080,13 +1208,13 @@ struct sccp_device *sccp_device_create(struct sccp_device_cfg *device_cfg, struc
 		return NULL;
 	}
 
-	if (line_group_init(&device->line_group, device, LINE_INSTANCE_START)) {
+	if (sccp_lines_init(&device->lines, device, LINE_INSTANCE_START)) {
 		ao2_ref(device, -1);
 		return NULL;
 	}
 
-	if (sccp_speeddials_init(&device->speeddials, device, LINE_INSTANCE_START + device->line_group.count)) {
-		line_group_deinit(&device->line_group);
+	if (sccp_speeddials_init(&device->speeddials, device, LINE_INSTANCE_START + device->lines.count)) {
+		sccp_lines_deinit(&device->lines);
 		ao2_ref(device, -1);
 		return NULL;
 	}
@@ -1094,10 +1222,6 @@ struct sccp_device *sccp_device_create(struct sccp_device_cfg *device_cfg, struc
 	return device;
 }
 
-/*
- * entry point: yes
- * thread: session
- */
 void sccp_device_destroy(struct sccp_device *device)
 {
 	ast_log(LOG_DEBUG, "destroying device %s\n", device->name);
@@ -1107,13 +1231,10 @@ void sccp_device_destroy(struct sccp_device *device)
 
 	sccp_device_lock(device);
 
-	sccp_device_update_devstate_all(device, AST_DEVICE_UNAVAILABLE);
-
 	device->active_subchan = NULL;
 
-	line_group_destroy(&device->line_group);
-	line_group_deinit(&device->line_group);
-
+	sccp_lines_destroy(&device->lines);
+	sccp_lines_deinit(&device->lines);
 	sccp_speeddials_deinit(&device->speeddials);
 
 	switch (device->state->id) {
@@ -1126,98 +1247,6 @@ void sccp_device_destroy(struct sccp_device *device)
 	}
 
 	sccp_device_unlock(device);
-}
-
-/*
- * \note reference count is NOT incremented
- */
-static struct sccp_subchannel *sccp_device_get_subchan(struct sccp_device *device, uint32_t subchan_id)
-{
-	struct sccp_line *line = sccp_device_get_default_line(device);
-	struct sccp_subchannel *subchan;
-
-	AST_LIST_TRAVERSE(&line->subchans, subchan, list) {
-		if (subchan->id == subchan_id) {
-			return subchan;
-		}
-	}
-
-	return NULL;
-}
-
-/*
- * \note reference count is NOT incremented
- */
-static struct sccp_subchannel *sccp_device_get_next_ringin_subchan(struct sccp_device *device)
-{
-	struct sccp_line *line = sccp_device_get_default_line(device);
-	struct sccp_subchannel *subchan;
-
-	AST_LIST_TRAVERSE(&line->subchans, subchan, list) {
-		if (subchan->state == SCCP_RINGIN) {
-			return subchan;
-		}
-	}
-
-	return NULL;
-}
-
-/*
- * \note reference count is NOT incremented
- */
-static struct sccp_subchannel *sccp_device_get_next_offhook_subchan(struct sccp_device *device)
-{
-	struct sccp_line *line = sccp_device_get_default_line(device);
-	struct sccp_subchannel *subchan;
-
-	AST_LIST_TRAVERSE(&line->subchans, subchan, list) {
-		if (subchan->state == SCCP_OFFHOOK) {
-			return subchan;
-		}
-	}
-
-	return NULL;
-}
-
-/*
- * \note reference count is NOT incremented
- */
-static struct sccp_line *sccp_device_get_line(struct sccp_device *device, uint32_t instance)
-{
-	struct sccp_line *line = device->line_group.line;
-
-	if (line->instance == instance) {
-		return line;
-	}
-
-	return NULL;
-}
-
-/*
- * \note reference count is NOT incremented
- */
-static struct sccp_line *sccp_device_get_default_line(struct sccp_device *device)
-{
-	return device->line_group.line;
-}
-
-static int sccp_device_has_subchans(struct sccp_device *device)
-{
-	struct sccp_line *line = device->line_group.line;
-
-	return !AST_LIST_EMPTY(&line->subchans);
-}
-
-static void sccp_device_update_devstate_all(struct sccp_device *device, enum ast_device_state state)
-{
-	struct sccp_line *line = device->line_group.line;
-
-	ast_devstate_changed(state, AST_DEVSTATE_CACHABLE, SCCP_LINE_PREFIX "/%s", line->cfg->name);
-}
-
-static void sccp_line_update_devstate(struct sccp_line *line, enum ast_device_state state)
-{
-	ast_devstate_changed(state, AST_DEVSTATE_CACHABLE, SCCP_LINE_PREFIX "/%s", line->cfg->name);
 }
 
 static void sccp_device_lock(struct sccp_device *device)
@@ -1299,7 +1328,7 @@ static void transmit_button_template_res(struct sccp_device *device)
 
 	/* add the line */
 	definition[n].buttonDefinition = BT_LINE;
-	definition[n].lineInstance = device->line_group.line->instance;
+	definition[n].lineInstance = device->lines.line->instance;
 	n++;
 
 	/* add the speeddials */
@@ -1341,7 +1370,7 @@ static void transmit_config_status_res(struct sccp_device *device)
 {
 	struct sccp_msg msg;
 
-	sccp_msg_config_status_res(&msg, device->name, device->line_group.count, device->speeddials.count);
+	sccp_msg_config_status_res(&msg, device->name, device->lines.count, device->speeddials.count);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -1514,7 +1543,6 @@ static void transmit_version_res(struct sccp_device *device)
 	/* hardcoded firmware version value taken from chan_skinny */
 	sccp_msg_version_res(&msg, "P002F202");
 	sccp_session_transmit_msg(device->session, &msg);
-
 }
 
 static void transmit_line_lamp_state(struct sccp_device *device, struct sccp_line *line, enum sccp_lamp_state indication)
@@ -1636,13 +1664,15 @@ static void on_mwi_event(const struct ast_event *event, void *data)
  */
 static void subscribe_mwi(struct sccp_device *device)
 {
+	const char *context = sccp_lines_get_default(&device->lines)->cfg->context;
+
 	if (ast_strlen_zero(device->cfg->voicemail)) {
 		return;
 	}
 
 	device->mwi_event_sub = ast_event_subscribe(AST_EVENT_MWI, on_mwi_event, "sccp mwi subsciption", device,
 			AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, device->cfg->voicemail,
-			AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, device->line_group.line->cfg->context,
+			AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, context,
 			AST_EVENT_IE_NEWMSGS, AST_EVENT_IE_PLTYPE_EXISTS,
 			AST_EVENT_IE_END);
 	if (!device->mwi_event_sub) {
@@ -1731,10 +1761,10 @@ static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan
 
 static struct sccp_subchannel *do_newcall(struct sccp_device *device)
 {
-	struct sccp_line *line = sccp_device_get_default_line(device);
+	struct sccp_line *line = sccp_lines_get_default(&device->lines);
 	struct sccp_subchannel *subchan;
 
-	subchan = sccp_device_get_next_offhook_subchan(device);
+	subchan = sccp_lines_get_next_offhook_subchan(&device->lines);
 	if (subchan) {
 		ast_log(LOG_DEBUG, "Found an already offhook subchan\n");
 		return subchan;
@@ -1950,7 +1980,7 @@ static void handle_msg_config_status_req(struct sccp_device *device)
 
 static void handle_msg_enbloc_call(struct sccp_device *device, struct sccp_msg *msg)
 {
-	struct sccp_subchannel *subchan = sccp_device_get_next_offhook_subchan(device);
+	struct sccp_subchannel *subchan = sccp_lines_get_next_offhook_subchan(&device->lines);
 	size_t len;
 
 	/* XXX this 2 steps stuff should be simplified */
@@ -2003,10 +2033,10 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 	case SCCP_DEVICE_7905:
 	case SCCP_DEVICE_7912:
 	case SCCP_DEVICE_7920:
-		line = sccp_device_get_default_line(device);
+		line = sccp_lines_get_default(&device->lines);
 		break;
 	default:
-		line = sccp_device_get_line(device, instance);
+		line = sccp_lines_get_by_instance(&device->lines, instance);
 		break;
 	}
 
@@ -2067,7 +2097,7 @@ static void handle_msg_line_status_req(struct sccp_device *device, struct sccp_m
 	struct sccp_line *line;
 	uint32_t instance = letohl(msg->data.line.lineInstance);
 
-	line = sccp_device_get_line(device, instance);
+	line = sccp_lines_get_by_instance(&device->lines, instance);
 	if (!line) {
 		ast_log(LOG_DEBUG, "Line instance [%d] is not attached to device [%s]\n", instance, device->name);
 		sccp_session_stop(device->session);
@@ -2085,7 +2115,7 @@ static void handle_msg_onhook(struct sccp_device *device, struct sccp_msg *msg)
 
 	if (device->proto_version == 11) {
 		subchan_id = letohl(msg->data.onhook.callInstance);
-		subchan = sccp_device_get_subchan(device, subchan_id);
+		subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
 		if (!subchan) {
 			ast_log(LOG_NOTICE, "handle msg onhook failed: no subchan %u\n", subchan_id);
 			return;
@@ -2111,7 +2141,7 @@ static void handle_msg_offhook(struct sccp_device *device, struct sccp_msg *msg)
 			do_newcall(device);
 		} else {
 			subchan_id = letohl(msg->data.offhook.callInstance);
-			subchan = sccp_device_get_subchan(device, subchan_id);
+			subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
 			if (!subchan) {
 				ast_log(LOG_NOTICE, "handle msg offhook failed: no subchan %u\n", subchan_id);
 				return;
@@ -2120,7 +2150,7 @@ static void handle_msg_offhook(struct sccp_device *device, struct sccp_msg *msg)
 			do_answer(device, subchan);
 		}
 	} else {
-		subchan = sccp_device_get_next_ringin_subchan(device);
+		subchan = sccp_lines_get_next_ringin_subchan(&device->lines);
 		if (subchan) {
 			do_answer(device, subchan);
 		} else if (!device->active_subchan) {
@@ -2203,7 +2233,7 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 
 static void handle_softkey_answer(struct sccp_device *device, uint32_t subchan_id)
 {
-	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
+	struct sccp_subchannel *subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
 
 	transmit_speaker_mode(device, SCCP_SPEAKERON);
 
@@ -2230,7 +2260,7 @@ static void handle_softkey_dnd(struct sccp_device *device)
 
 static void handle_softkey_endcall(struct sccp_device *device, uint32_t subchan_id)
 {
-	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
+	struct sccp_subchannel *subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
 
 	if (!subchan) {
 		ast_log(LOG_NOTICE, "handle softkey endcall failed: no subchan %u\n", subchan_id);
@@ -2277,7 +2307,7 @@ static void handle_softkey_redial(struct sccp_device *device)
 
 static void handle_softkey_resume(struct sccp_device *device, uint32_t subchan_id)
 {
-	struct sccp_subchannel *subchan = sccp_device_get_subchan(device, subchan_id);
+	struct sccp_subchannel *subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
 
 	if (!subchan) {
 		ast_log(LOG_NOTICE, "handle softkey resume failed: no subchan %u\n", subchan_id);
@@ -2301,7 +2331,7 @@ static void handle_softkey_resume(struct sccp_device *device, uint32_t subchan_i
 
 static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_instance)
 {
-	struct sccp_line *line = sccp_device_get_line(device, line_instance);
+	struct sccp_line *line = sccp_lines_get_by_instance(&device->lines, line_instance);
 	struct sccp_subchannel *subchan;
 	struct sccp_subchannel *xfer_subchan;
 
@@ -2646,8 +2676,6 @@ int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp_device_cfg *new_device_cfg)
 {
 	struct sccp_device_cfg *old_device_cfg = device->cfg;
-	struct sccp_line_cfg *new_line_cfg = new_device_cfg->line_cfg;
-	struct sccp_line_cfg *old_line_cfg = old_device_cfg->line_cfg;
 
 	if (strcmp(old_device_cfg->dateformat, new_device_cfg->dateformat)) {
 		return 0;
@@ -2661,25 +2689,10 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 		return 0;
 	}
 
-	/** check for line **/
-	if (strcmp(old_line_cfg->name, new_line_cfg->name)) {
+	if (!sccp_lines_test_apply_config(&device->lines, new_device_cfg)) {
 		return 0;
 	}
 
-	if (strcmp(old_line_cfg->cid_num, new_line_cfg->cid_num)) {
-		return 0;
-	}
-
-	if (strcmp(old_line_cfg->cid_name, new_line_cfg->cid_name)) {
-		return 0;
-	}
-
-	/* right now, the context is also used as the voicemail context and speeddial hint context */
-	if (strcmp(old_line_cfg->context, new_line_cfg->context)) {
-		return 0;
-	}
-
-	/** check for speeddials **/
 	if (!sccp_speeddials_test_apply_config(&device->speeddials, new_device_cfg)) {
 		return 0;
 	}
@@ -2693,8 +2706,6 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
  */
 int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg *new_device_cfg)
 {
-	struct sccp_line *line = device->line_group.line;
-
 	if (!new_device_cfg) {
 		ast_log(LOG_ERROR, "sccp device reload config failed: device_cfg is null\n");
 		return -1;
@@ -2702,7 +2713,7 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 
 	if (!sccp_device_test_apply_config(device, new_device_cfg)) {
 		sccp_device_lock(device);
-		if (sccp_device_has_subchans(device)) {
+		if (sccp_lines_has_subchans(&device->lines)) {
 			device->reset_on_no_subchan = 1;
 		} else {
 			transmit_reset(device, SCCP_RESET_SOFT);
@@ -2719,10 +2730,7 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 	device->cfg = new_device_cfg;
 	ao2_ref(device->cfg, +1);
 
-	ao2_ref(line->cfg, -1);
-	line->cfg = new_device_cfg->line_cfg;
-	ao2_ref(line->cfg, +1);
-
+	sccp_lines_apply_config(&device->lines, new_device_cfg);
 	sccp_speeddials_apply_config(&device->speeddials, new_device_cfg);
 
 	sccp_device_unlock(device);
@@ -2862,7 +2870,8 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 	add_keepalive_task(device);
 
 	device->state = &state_registering;
-	sccp_device_update_devstate_all(device, AST_DEVICE_NOT_INUSE);
+
+	sccp_lines_on_registration_success(&device->lines);
 
 	sccp_device_unlock(device);
 
@@ -2887,17 +2896,16 @@ void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_sn
 
 unsigned int sccp_device_line_count(const struct sccp_device *device)
 {
-	return device->line_group.count;
+	return device->lines.count;
 }
 
 struct sccp_line* sccp_device_line(struct sccp_device *device, unsigned int i)
 {
-	if (i >= device->line_group.count) {
-		ast_log(LOG_ERROR, "sccp device line failed: %u is out of bound\n", i);
+	if (i >= device->lines.count) {
 		return NULL;
 	}
 
-	return device->line_group.line;
+	return device->lines.line;
 }
 
 const char *sccp_device_name(const struct sccp_device *device)
