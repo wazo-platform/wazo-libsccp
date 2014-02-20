@@ -44,9 +44,9 @@ struct sccp_speeddial {
 	int exten_state;
 };
 
-struct speeddial_group {
+struct sccp_speeddials {
 	/* const */
-	struct sccp_speeddial **speeddials;
+	struct sccp_speeddial **arr;
 	/* const */
 	size_t count;
 };
@@ -123,7 +123,7 @@ struct sccp_device {
 	/* (static) */
 	ast_mutex_t lock;
 
-	struct speeddial_group sd_group;
+	struct sccp_speeddials speeddials;
 	struct line_group line_group;
 
 	/* (static) */
@@ -349,72 +349,72 @@ static const char *sccp_speeddial_extension(const struct sccp_speeddial *sd) {
 	return sd->cfg->extension;
 }
 
-static int speeddial_group_init(struct speeddial_group *sd_group, struct sccp_device *device, uint32_t instance)
+static int sccp_speeddials_init(struct sccp_speeddials *speeddials, struct sccp_device *device, uint32_t instance)
 {
-	struct sccp_speeddial **speeddials;
+	struct sccp_speeddial **arr;
 	struct sccp_speeddial_cfg **speeddials_cfg = device->cfg->speeddials_cfg;
 	size_t i;
 	size_t n = device->cfg->speeddial_count;
 	uint32_t index = SPEEDDIAL_INDEX_START;
 
 	if (!n) {
-		sd_group->count = 0;
+		speeddials->count = 0;
 		return 0;
 	}
 
-	speeddials = ast_calloc(n, sizeof(*speeddials));
-	if (!speeddials) {
+	arr = ast_calloc(n, sizeof(*arr));
+	if (!arr) {
 		return -1;
 	}
 
 	for (i = 0; i < n; i++) {
-		speeddials[i] = sccp_speeddial_alloc(speeddials_cfg[i], device, instance++, index++);
-		if (!speeddials[i]) {
+		arr[i] = sccp_speeddial_alloc(speeddials_cfg[i], device, instance++, index++);
+		if (!arr[i]) {
 			goto error;
 		}
 	}
 
-	sd_group->speeddials = speeddials;
-	sd_group->count = n;
+	speeddials->arr = arr;
+	speeddials->count = n;
 
 	return 0;
 
 error:
 	for (; i > 0; i--) {
-		ao2_ref(speeddials[i - 1], -1);
+		ao2_ref(arr[i - 1], -1);
 	}
 
-	ast_free(speeddials);
+	ast_free(arr);
 
 	return -1;
 }
 
-static void speeddial_group_deinit(struct speeddial_group *sd_group)
+static void sccp_speeddials_deinit(struct sccp_speeddials *speeddials)
 {
 	size_t i;
 
-	if (!sd_group->count) {
+	if (!speeddials->count) {
 		return;
 	}
 
-	for (i = 0; i < sd_group->count; i++) {
-		ao2_ref(sd_group->speeddials[i], -1);
+	for (i = 0; i < speeddials->count; i++) {
+		ao2_ref(speeddials->arr[i], -1);
 	}
 
-	ast_free(sd_group->speeddials);
+	ast_free(speeddials->arr);
 }
 
 /*
  * Must be called only from the thread session, with the device NOT locked.
  */
-static void speeddial_group_destroy(struct speeddial_group *sd_group)
+static void sccp_speeddials_destroy(struct sccp_speeddials *speeddials)
 {
 	struct sccp_speeddial *sd;
 	size_t i;
 
 	/* unsubscribe to extension state notifications for BLFs */
-	for (i = 0; i < sd_group->count; i++) {
-		sd = sd_group->speeddials[i];
+	for (i = 0; i < speeddials->count; i++) {
+		sd = speeddials->arr[i];
 		if (sd->cfg->blf) {
 			sccp_speeddial_del_extension_state_cb(sd);
 		}
@@ -424,14 +424,14 @@ static void speeddial_group_destroy(struct speeddial_group *sd_group)
 /*
  * Must be called only from the thread session, with the device NOT locked.
  */
-static void speeddial_group_on_registration_success(struct speeddial_group *sd_group)
+static void sccp_speeddials_on_registration_success(struct sccp_speeddials *speeddials)
 {
 	struct sccp_speeddial *sd;
 	size_t i;
 
 	/* subscribe to extension state notifications for BLFs */
-	for (i = 0; i < sd_group->count; i++) {
-		sd = sd_group->speeddials[i];
+	for (i = 0; i < speeddials->count; i++) {
+		sd = speeddials->arr[i];
 		if (sd->cfg->blf) {
 			sccp_speeddial_add_extension_state_cb(sd);
 		}
@@ -441,13 +441,13 @@ static void speeddial_group_on_registration_success(struct speeddial_group *sd_g
 /*
  * \note reference count is NOT incremented
  */
-static struct sccp_speeddial *speeddial_group_get_by_instance(struct speeddial_group *sd_group, uint32_t instance)
+static struct sccp_speeddial *sccp_speeddials_get_by_instance(struct sccp_speeddials *speeddials, uint32_t instance)
 {
 	struct sccp_speeddial *sd;
 	size_t i;
 
-	for (i = 0; i < sd_group->count; i++) {
-		sd = sd_group->speeddials[i];
+	for (i = 0; i < speeddials->count; i++) {
+		sd = speeddials->arr[i];
 		if (sd->instance == instance) {
 			return sd;
 		}
@@ -459,30 +459,30 @@ static struct sccp_speeddial *speeddial_group_get_by_instance(struct speeddial_g
 /*
  * \note reference count is NOT incremented
  */
-static struct sccp_speeddial *speeddial_group_get_by_index(struct speeddial_group *sd_group, uint32_t index)
+static struct sccp_speeddial *sccp_speeddials_get_by_index(struct sccp_speeddials *speeddials, uint32_t index)
 {
 	size_t i = index - SPEEDDIAL_INDEX_START;
 
-	if (i >= sd_group->count) {
+	if (i >= speeddials->count) {
 		return NULL;
 	}
 
-	return sd_group->speeddials[i];
+	return speeddials->arr[i];
 }
 
-static int speeddial_group_test_apply_config(struct speeddial_group *sd_group, struct sccp_device_cfg *new_device_cfg)
+static int sccp_speeddials_test_apply_config(struct sccp_speeddials *speeddials, struct sccp_device_cfg *new_device_cfg)
 {
 	struct sccp_speeddial_cfg *new_sd_cfg;
 	struct sccp_speeddial_cfg *old_sd_cfg;
 	size_t i;
 
-	if (sd_group->count != new_device_cfg->speeddial_count) {
+	if (speeddials->count != new_device_cfg->speeddial_count) {
 		return 0;
 	}
 
-	/* A: sd_group->count == new_device_cfg->speeddial_count */
-	for (i = 0; i < sd_group->count; i++) {
-		old_sd_cfg = sd_group->speeddials[i]->cfg;
+	/* A: speeddials->count == new_device_cfg->speeddial_count */
+	for (i = 0; i < speeddials->count; i++) {
+		old_sd_cfg = speeddials->arr[i]->cfg;
 		new_sd_cfg = new_device_cfg->speeddials_cfg[i];
 
 		if (strcmp(old_sd_cfg->label, new_sd_cfg->label)) {
@@ -501,13 +501,13 @@ static int speeddial_group_test_apply_config(struct speeddial_group *sd_group, s
 	return 1;
 }
 
-static void speeddial_group_apply_config(struct speeddial_group *sd_group, struct sccp_device_cfg *new_device_cfg)
+static void sccp_speeddials_apply_config(struct sccp_speeddials *speeddials, struct sccp_device_cfg *new_device_cfg)
 {
 	struct sccp_speeddial *sd;
 	size_t i;
 
-	for (i = 0; i < sd_group->count; i++) {
-		sd = sd_group->speeddials[i];
+	for (i = 0; i < speeddials->count; i++) {
+		sd = speeddials->arr[i];
 		ao2_ref(sd->cfg, -1);
 		sd->cfg = new_device_cfg->speeddials_cfg[i];
 		ao2_ref(sd->cfg, +1);
@@ -1085,7 +1085,7 @@ struct sccp_device *sccp_device_create(struct sccp_device_cfg *device_cfg, struc
 		return NULL;
 	}
 
-	if (speeddial_group_init(&device->sd_group, device, LINE_INSTANCE_START + device->line_group.count)) {
+	if (sccp_speeddials_init(&device->speeddials, device, LINE_INSTANCE_START + device->line_group.count)) {
 		line_group_deinit(&device->line_group);
 		ao2_ref(device, -1);
 		return NULL;
@@ -1102,7 +1102,7 @@ void sccp_device_destroy(struct sccp_device *device)
 {
 	ast_log(LOG_DEBUG, "destroying device %s\n", device->name);
 
-	speeddial_group_destroy(&device->sd_group);
+	sccp_speeddials_destroy(&device->speeddials);
 	unsubscribe_mwi(device);
 
 	sccp_device_lock(device);
@@ -1114,7 +1114,7 @@ void sccp_device_destroy(struct sccp_device *device)
 	line_group_destroy(&device->line_group);
 	line_group_deinit(&device->line_group);
 
-	speeddial_group_deinit(&device->sd_group);
+	sccp_speeddials_deinit(&device->speeddials);
 
 	switch (device->state->id) {
 	case STATE_NEW:
@@ -1303,9 +1303,9 @@ static void transmit_button_template_res(struct sccp_device *device)
 	n++;
 
 	/* add the speeddials */
-	for (i = 0; i < device->sd_group.count && n < MAX_BUTTON_DEFINITION; i++) {
+	for (i = 0; i < device->speeddials.count && n < MAX_BUTTON_DEFINITION; i++) {
 		definition[n].buttonDefinition = BT_FEATUREBUTTON;
-		definition[n].lineInstance = device->sd_group.speeddials[i]->instance;
+		definition[n].lineInstance = device->speeddials.arr[i]->instance;
 		n++;
 	}
 
@@ -1341,7 +1341,7 @@ static void transmit_config_status_res(struct sccp_device *device)
 {
 	struct sccp_msg msg;
 
-	sccp_msg_config_status_res(&msg, device->name, device->line_group.count, device->sd_group.count);
+	sccp_msg_config_status_res(&msg, device->name, device->line_group.count, device->speeddials.count);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -1972,7 +1972,7 @@ static void handle_msg_feature_status_req(struct sccp_device *device, struct scc
 	struct sccp_speeddial *sd;
 	uint32_t instance = letohl(msg->data.feature.instance);
 
-	sd = speeddial_group_get_by_instance(&device->sd_group, instance);
+	sd = sccp_speeddials_get_by_instance(&device->speeddials, instance);
 	if (!sd) {
 		ast_log(LOG_DEBUG, "No speeddial [%d] on device [%s]\n", instance, device->name);
 		sccp_session_stop(device->session);
@@ -2439,7 +2439,7 @@ static void handle_msg_speeddial_status_req(struct sccp_device *device, struct s
 	struct sccp_speeddial *sd;
 	uint32_t index = letohl(msg->data.speeddial.instance);
 
-	sd = speeddial_group_get_by_index(&device->sd_group, index);
+	sd = sccp_speeddials_get_by_index(&device->speeddials, index);
 	if (!sd) {
 		ast_debug(2, "No speeddial [%d] on device [%s]\n", index, device->name);
 		return;
@@ -2450,7 +2450,7 @@ static void handle_msg_speeddial_status_req(struct sccp_device *device, struct s
 
 static void handle_stimulus_featurebutton(struct sccp_device *device, uint32_t instance)
 {
-	struct sccp_speeddial *sd = speeddial_group_get_by_instance(&device->sd_group, instance);
+	struct sccp_speeddial *sd = sccp_speeddials_get_by_instance(&device->speeddials, instance);
 
 	if (!sd) {
 		ast_log(LOG_NOTICE, "handle stimulus featurebutton failed: speeddial %u not found\n", instance);
@@ -2462,7 +2462,7 @@ static void handle_stimulus_featurebutton(struct sccp_device *device, uint32_t i
 
 static void handle_stimulus_speeddial(struct sccp_device *device, uint32_t index)
 {
-	struct sccp_speeddial *sd = speeddial_group_get_by_index(&device->sd_group, index);
+	struct sccp_speeddial *sd = sccp_speeddials_get_by_index(&device->speeddials, index);
 
 	if (!sd) {
 		ast_log(LOG_NOTICE, "handle stimulus speeddial failed: speeddial %u not found\n", index);
@@ -2680,7 +2680,7 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 	}
 
 	/** check for speeddials **/
-	if (!speeddial_group_test_apply_config(&device->sd_group, new_device_cfg)) {
+	if (!sccp_speeddials_test_apply_config(&device->speeddials, new_device_cfg)) {
 		return 0;
 	}
 
@@ -2723,7 +2723,7 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 	line->cfg = new_device_cfg->line_cfg;
 	ao2_ref(line->cfg, +1);
 
-	speeddial_group_apply_config(&device->sd_group, new_device_cfg);
+	sccp_speeddials_apply_config(&device->speeddials, new_device_cfg);
 
 	sccp_device_unlock(device);
 
@@ -2867,7 +2867,7 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 	sccp_device_unlock(device);
 
 	subscribe_mwi(device);
-	speeddial_group_on_registration_success(&device->sd_group);
+	sccp_speeddials_on_registration_success(&device->speeddials);
 }
 
 /*
