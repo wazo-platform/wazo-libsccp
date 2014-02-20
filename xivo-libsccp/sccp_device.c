@@ -341,14 +341,6 @@ static enum sccp_blf_status sccp_speeddial_status(const struct sccp_speeddial *s
 	}
 }
 
-static const char *sccp_speeddial_label(const struct sccp_speeddial *sd) {
-	return sd->cfg->label;
-}
-
-static const char *sccp_speeddial_extension(const struct sccp_speeddial *sd) {
-	return sd->cfg->extension;
-}
-
 static int sccp_speeddials_init(struct sccp_speeddials *speeddials, struct sccp_device *device, uint32_t instance)
 {
 	struct sccp_speeddial **arr;
@@ -1407,7 +1399,7 @@ static void transmit_feature_status(struct sccp_device *device, struct sccp_spee
 {
 	struct sccp_msg msg;
 
-	sccp_msg_feature_status(&msg, sd->instance, BT_FEATUREBUTTON, sccp_speeddial_status(sd), sccp_speeddial_label(sd));
+	sccp_msg_feature_status(&msg, sd->instance, BT_FEATUREBUTTON, sccp_speeddial_status(sd), sd->cfg->label);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -1481,7 +1473,7 @@ static void transmit_speeddial_stat_res(struct sccp_device *device, struct sccp_
 {
 	struct sccp_msg msg;
 
-	sccp_msg_speeddial_stat_res(&msg, sd->index, sccp_speeddial_extension(sd), sccp_speeddial_label(sd));
+	sccp_msg_speeddial_stat_res(&msg, sd->index, sd->cfg->extension, sd->cfg->label);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -1952,7 +1944,7 @@ static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddia
 	/* open our speaker */
 	transmit_speaker_mode(device, SCCP_SPEAKERON);
 
-	ast_copy_string(device->exten, sccp_speeddial_extension(sd), sizeof(device->exten));
+	ast_copy_string(device->exten, sd->cfg->extension, sizeof(device->exten));
 	start_the_call(device, subchan);
 }
 
