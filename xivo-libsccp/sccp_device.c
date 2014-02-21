@@ -829,6 +829,8 @@ static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const ch
 	ast_format_copy(ast_channel_readformat(channel), &subchan->fmt);
 	ast_format_copy(ast_channel_rawreadformat(channel), &subchan->fmt);
 
+	ast_module_ref(sccp_module_info->self);
+
 	return 0;
 }
 
@@ -3047,6 +3049,8 @@ int sccp_channel_tech_hangup(struct ast_channel *channel)
 	ast_setstate(channel, AST_STATE_DOWN);
 	ast_channel_tech_pvt_set(channel, NULL);
 	ao2_ref(subchan, -1);
+
+	ast_module_unref(sccp_module_info->self);
 
 	return 0;
 }

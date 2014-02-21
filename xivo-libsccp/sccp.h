@@ -9,5 +9,6 @@
 
 extern struct ast_channel_tech sccp_tech;
 extern struct ast_sched_context *sccp_sched;
+extern const struct ast_module_info *sccp_module_info;
 
 #endif /* SCCP_H_ */

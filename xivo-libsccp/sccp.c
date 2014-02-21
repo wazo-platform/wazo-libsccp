@@ -21,6 +21,7 @@
 #endif
 
 struct ast_sched_context *sccp_sched;
+const struct ast_module_info *sccp_module_info;
 
 static struct sccp_device_registry *global_registry;
 static struct sccp_server *global_server;
@@ -361,6 +362,8 @@ static void unregister_sccp_tech(void)
 static int load_module(void)
 {
 	RAII_VAR(struct sccp_cfg *, cfg, NULL, ao2_cleanup);
+
+	sccp_module_info = ast_module_info;
 
 	if (sccp_config_init()) {
 		return AST_MODULE_LOAD_DECLINE;
