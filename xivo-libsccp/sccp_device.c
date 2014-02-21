@@ -182,11 +182,6 @@ struct nolock_task_ast_queue_hangup {
 	struct ast_channel *channel;
 };
 
-struct nolock_task_init_channel {
-	struct ast_channel *channel;
-	struct sccp_line_cfg *line_cfg;
-};
-
 struct nolock_task_start_channel {
 	struct ast_channel *channel;
 	struct sccp_line_cfg *line_cfg;
@@ -197,7 +192,6 @@ union nolock_task_data {
 	struct nolock_task_ast_queue_control queue_control;
 	struct nolock_task_ast_queue_frame_dtmf queue_frame_dtmf;
 	struct nolock_task_ast_queue_hangup queue_hangup;
-	struct nolock_task_init_channel init_channel;
 	struct nolock_task_start_channel start_channel;
 };
 
@@ -691,40 +685,6 @@ static int add_ast_queue_hangup_task(struct sccp_device *device, struct ast_chan
 	return 0;
 }
 
-static void exec_init_channel(union nolock_task_data *data)
-{
-	struct ast_channel *channel = data->init_channel.channel;
-	struct sccp_line_cfg *line_cfg = data->init_channel.line_cfg;
-	struct ast_variable *var_itr;
-	char valuebuf[1024];
-
-	for (var_itr = line_cfg->chanvars; var_itr; var_itr = var_itr->next) {
-		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
-		pbx_builtin_setvar_helper(channel, var_itr->name, valuebuf);
-	}
-
-	ast_channel_unref(channel);
-	ao2_ref(line_cfg, -1);
-}
-
-static int add_init_channel_task(struct sccp_device *device, struct ast_channel *channel, struct sccp_line_cfg *line_cfg)
-{
-	struct nolock_task task;
-
-	task.exec = exec_init_channel;
-	task.data.init_channel.channel = channel;
-	task.data.init_channel.line_cfg = line_cfg;
-
-	if (add_nolock_task(device, &task)) {
-		return -1;
-	}
-
-	ast_channel_ref(channel);
-	ao2_ref(line_cfg, +1);
-
-	return 0;
-}
-
 static void exec_start_channel(union nolock_task_data *data)
 {
 	struct ast_channel *channel = data->start_channel.channel;
@@ -756,11 +716,40 @@ static int add_start_channel_task(struct sccp_device *device, struct ast_channel
 	return 0;
 }
 
-static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const char *linkedid, struct ast_format_cap *cap)
+/*
+ * The device must NOT be locked.
+ *
+ * Since the device lock is shared between subchannels, if we are holding the device lock before calling
+ * ast_channel_alloc, then it's possible that we are indirectly holding a channel lock if another
+ * subchannel is trying to lock the device.
+ */
+static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const char *exten, const char *linkedid)
+{
+	struct ast_channel *channel;
+	struct ast_variable *var_itr;
+	char valuebuf[1024];
+
+	channel = ast_channel_alloc(1, AST_STATE_DOWN, line_cfg->cid_num, line_cfg->cid_name, "code", exten, line_cfg->context, linkedid, 0, SCCP_LINE_PREFIX "/%s-%08x", line_cfg->name, ast_atomic_fetchadd_int((int *)&chan_idx, +1));
+	if (!channel) {
+		return NULL;
+	}
+
+	for (var_itr = line_cfg->chanvars; var_itr; var_itr = var_itr->next) {
+		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
+		pbx_builtin_setvar_helper(channel, var_itr->name, valuebuf);
+	}
+
+	if (!ast_strlen_zero(line_cfg->language)) {
+		ast_channel_language_set(channel, line_cfg->language);
+	}
+
+	return channel;
+}
+
+static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct ast_channel *channel, struct ast_format_cap *cap)
 {
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	struct ast_channel *channel;
 	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(), ast_format_cap_destroy);
 	struct ast_format_cap *tmpcaps = NULL;
 	int has_joint;
@@ -785,40 +774,10 @@ static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const ch
 
 	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
 
-	/* XXX is this is risky ? we are holding the device lock here, and if
-	 * the device has other subchans, it could hold indirectly a channel lock,
-	 * so yes, this IS dangerous */
-	channel = ast_channel_alloc(	1,				/* needqueue */
-					AST_STATE_DOWN,			/* state */
-					line->cfg->cid_num,		/* cid_num */
-					line->cfg->cid_name,	/* cid_name */
-					"code",				/* acctcode */
-					device->exten,	/* exten */
-					line->cfg->context,		/* context */
-					linkedid,			/* linked ID */
-					0,				/* amaflag */
-					SCCP_LINE_PREFIX "/%s-%08x",
-					line->name,
-					ast_atomic_fetchadd_int((int *)&chan_idx, +1));
-
-	if (!channel) {
-		ast_log(LOG_ERROR, "channel allocation failed\n");
-		return -1;
-	}
-
-	if (add_init_channel_task(device, channel, line->cfg)) {
-		ast_channel_unref(channel);
-		return -1;
-	}
-
 	ast_channel_tech_set(channel, &sccp_tech);
 	ast_channel_tech_pvt_set(channel, subchan);
 	ao2_ref(subchan, +1);
 	subchan->channel = channel;
-
-	if (!ast_strlen_zero(line->cfg->language)) {
-		ast_channel_language_set(channel, line->cfg->language);
-	}
 
 	ast_codec_choose(&line->cfg->codec_pref, joint, 1, &subchan->fmt);
 	ast_debug(1, "best codec %s\n", ast_getformatname(&subchan->fmt));
@@ -1892,16 +1851,39 @@ static int do_hangup(struct sccp_device *device, struct sccp_subchannel *subchan
 	return 0;
 }
 
+/* XXX whacked out operation that unlock the device and relock it after
+ *     when this function returns, you must check that your invariant still make
+ *     sense -- the better is to have nothing to do after this function return
+ * Must be called from the session thread.
+ */
 static int start_the_call(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
 	struct sccp_line *line = subchan->line;
+	struct ast_channel *channel;
 
 	remove_dialtimeout_task(device, subchan);
 
-	if (sccp_subchannel_new_channel(subchan, NULL, NULL)) {
-		do_clear_subchannel(device, subchan);
+	sccp_device_unlock(device);
 
+	/* we are in the session thread and line->cfg and device->exten are updated only in
+	 * session thread, so there's no race condition here
+	 */
+	channel = alloc_channel(line->cfg, device->exten, NULL);
+
+	sccp_device_lock(device);
+
+	if (!channel) {
 		return -1;
+	}
+
+	/* XXX if panic can be called from any thread, maybe we should test that we have
+	 * not panicked here -- no need to check if the device is destroyed though, since
+	 * device destroying happens only in the session thread
+	 */
+
+	if (sccp_subchannel_set_channel(subchan, channel, NULL)) {
+		do_clear_subchannel(device, subchan);
+		goto error;
 	}
 
 	line->state = SCCP_RINGOUT;
@@ -1917,16 +1899,21 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	transmit_subchan_callstate(device, subchan, SCCP_PROGRESS);
 	transmit_subchan_stop_tone(device, subchan);
 	transmit_subchan_tone(device, subchan, SCCP_TONE_ALERT);
-	transmit_callinfo(device, "", line->cfg->cid_num, "", line->device->exten, line->instance, subchan->id, subchan->direction);
+	transmit_callinfo(device, "", line->cfg->cid_num, "", device->exten, line->instance, subchan->id, subchan->direction);
 
-	memcpy(line->device->last_exten, line->device->exten, AST_MAX_EXTENSION);
+	memcpy(device->last_exten, device->exten, AST_MAX_EXTENSION);
 	line->device->exten[0] = '\0';
 
-	if (add_start_channel_task(device, subchan->channel, line->cfg)) {
-		return -1;
-	}
+	add_start_channel_task(device, subchan->channel, line->cfg);
 
 	return 0;
+
+error:
+	sccp_device_unlock(device);
+	ast_channel_release(channel);
+	sccp_device_lock(device);
+
+	return -1;
 }
 
 static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddial *sd)
@@ -2896,43 +2883,64 @@ const char *sccp_line_name(const struct sccp_line *line)
 	return line->name;
 }
 
-struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_channel *requestor, int *cause)
+static int channel_tech_requester_locked(struct sccp_device *device, struct sccp_line *line, struct ast_channel *channel, const char *options, struct ast_format_cap *cap, int *cause)
 {
-	struct sccp_device *device = line->device;
 	struct sccp_subchannel *subchan;
-	struct ast_channel *channel = NULL;
-
-	sccp_device_lock(device);
 
 	if (ast_test_flag(device, DEVICE_DESTROYED)) {
-		goto unlock;
+		return -1;
 	}
 
 	if (device->dnd) {
 		*cause = AST_CAUSE_BUSY;
-		goto unlock;
+		return -1;
 	}
 
 	/* TODO add call forward support */
 
 	subchan = sccp_line_new_subchannel(line, SCCP_DIR_INCOMING);
 	if (!subchan) {
-		goto unlock;
+		return -1;
 	}
 
-	if (sccp_subchannel_new_channel(subchan, requestor ? ast_channel_linkedid(requestor) : NULL, cap)) {
+	if (sccp_subchannel_set_channel(subchan, channel, cap)) {
 		do_clear_subchannel(device, subchan);
-		goto unlock;
+		return -1;
 	}
 
 	if (options && !strncmp(options, "autoanswer", 10)) {
 		subchan->autoanswer = 1;
 	}
 
-	channel = subchan->channel;
+	return 0;
+}
 
-unlock:
+struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_channel *requestor, int *cause)
+{
+	struct sccp_device *device = line->device;
+	struct sccp_line_cfg *line_cfg;
+	struct ast_channel *channel;
+	int res;
+
+	sccp_device_lock(device);
+	line_cfg = line->cfg;
+	ao2_ref(line_cfg, +1);
 	sccp_device_unlock(device);
+
+	channel = alloc_channel(line_cfg, "", requestor ? ast_channel_linkedid(requestor) : NULL);
+	ao2_ref(line_cfg, -1);
+	if (!channel) {
+		return NULL;
+	}
+
+	sccp_device_lock(device);
+	res = channel_tech_requester_locked(device, line, channel, options, cap, cause);
+	sccp_device_unlock(device);
+
+	if (res) {
+		ast_channel_release(channel);
+		return NULL;
+	}
 
 	return channel;
 }
