@@ -12,6 +12,7 @@
 #include <asterisk/network.h>
 #include <asterisk/pbx.h>
 #include <asterisk/rtp_engine.h>
+#include <asterisk/utils.h>
 
 #include "device/sccp_channel_tech.h"
 #include "device/sccp_rtp_glue.h"
@@ -114,11 +115,17 @@ enum sccp_device_state {
 	STATE_CONNLOST,
 };
 
+enum {
+	DEVICE_DESTROYED = (1 << 0),
+};
+
 struct sccp_device {
 	/* (static) */
 	ast_mutex_t lock;
 
+	/* updated in session thread only, on device destroy */
 	struct sccp_speeddials speeddials;
+	/* updated in session thread only, on device destroy */
 	struct sccp_lines lines;
 
 	/* (static) */
@@ -144,6 +151,7 @@ struct sccp_device {
 	int open_receive_channel_pending;
 	int reset_on_idle;
 	int dnd;
+	unsigned int flags;
 	enum sccp_device_type type;
 	uint8_t proto_version;
 
@@ -198,6 +206,7 @@ struct nolock_task {
 	void (*exec)(union nolock_task_data *data);
 };
 
+static int add_ast_queue_hangup_task(struct sccp_device *device, struct ast_channel *channel);
 static void sccp_line_update_devstate(struct sccp_line *line, enum ast_device_state state);
 static struct sccp_line *sccp_lines_get_default(struct sccp_lines *lines);
 static void sccp_device_lock(struct sccp_device *device);
@@ -530,7 +539,15 @@ static void sccp_subchannel_destroy(struct sccp_subchannel *subchan)
 {
 	ast_log(LOG_DEBUG, "destroying subchannel %u\n", subchan->id);
 
-	/* TODO hangup the channel if there's one, but not here (because we might deadlock) */
+	if (subchan->channel) {
+		add_ast_queue_hangup_task(subchan->line->device, subchan->channel);
+	} else {
+		if (subchan->rtp) {
+			ast_rtp_instance_stop(subchan->rtp);
+			ast_rtp_instance_destroy(subchan->rtp);
+			subchan->rtp = NULL;
+		}
+	}
 }
 
 /*
@@ -768,7 +785,9 @@ static int sccp_subchannel_new_channel(struct sccp_subchannel *subchan, const ch
 
 	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
 
-	/* XXX is this is risky ? we are holding the device lock here */
+	/* XXX is this is risky ? we are holding the device lock here, and if
+	 * the device has other subchans, it could hold indirectly a channel lock,
+	 * so yes, this IS dangerous */
 	channel = ast_channel_alloc(	1,				/* needqueue */
 					AST_STATE_DOWN,			/* state */
 					line->cfg->cid_num,		/* cid_num */
@@ -880,12 +899,12 @@ static void sccp_line_destroy(struct sccp_line *line)
 	ast_log(LOG_DEBUG, "destroying line %s\n", line->name);
 
 	/* destroy the subchans */
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&line->subchans, subchan, list) {
-		AST_LIST_REMOVE_CURRENT(list);
+	AST_LIST_TRAVERSE(&line->subchans, subchan, list) {
 		sccp_subchannel_destroy(subchan);
 		ao2_ref(subchan, -1);
 	}
-	AST_LIST_TRAVERSE_SAFE_END;
+
+	AST_LIST_HEAD_INIT_NOLOCK(&line->subchans);
 
 	/* update the line devstate */
 	sccp_line_update_devstate(line, AST_DEVICE_UNAVAILABLE);
@@ -1141,6 +1160,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	device->open_receive_channel_pending = 0;
 	device->reset_on_idle = 0;
 	device->dnd = 0;
+	device->flags = 0;
 	device->type = info->type;
 	device->proto_version = info->proto_version;
 	ast_copy_string(device->name, info->name, sizeof(device->name));
@@ -1202,8 +1222,6 @@ void sccp_device_destroy(struct sccp_device *device)
 
 	sccp_device_lock(device);
 
-	device->active_subchan = NULL;
-
 	sccp_lines_destroy(&device->lines);
 	sccp_lines_deinit(&device->lines);
 	sccp_speeddials_deinit(&device->speeddials);
@@ -1216,6 +1234,8 @@ void sccp_device_destroy(struct sccp_device *device)
 		transmit_reset(device, SCCP_RESET_SOFT);
 		break;
 	}
+
+	ast_set_flag(device, DEVICE_DESTROYED);
 
 	sccp_device_unlock(device);
 }
@@ -2620,10 +2640,6 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 	}
 }
 
-/*
- * entry point: true
- * thread: session
- */
 int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 {
 	uint32_t msg_id;
@@ -2650,9 +2666,6 @@ int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 	return 0;
 }
 
-/*
- * thread: session
- */
 static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp_device_cfg *new_device_cfg)
 {
 	struct sccp_device_cfg *old_device_cfg = device->cfg;
@@ -2680,10 +2693,6 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 	return 1;
 }
 
-/*
- * entry point: yes
- * thread: session
- */
 int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg *new_device_cfg)
 {
 	if (!new_device_cfg) {
@@ -2718,23 +2727,6 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 	return 0;
 }
 
-/*
- * entry point: yes
- * thread: any
- */
-int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
-{
-	sccp_device_lock(device);
-	transmit_reset(device, type);
-	sccp_device_unlock(device);
-
-	return 0;
-}
-
-/*
- * entry point: yes
- * thread: session
- */
 void sccp_device_on_connection_lost(struct sccp_device *device)
 {
 	sccp_device_lock(device);
@@ -2791,10 +2783,6 @@ static void remove_dialtimeout_task(struct sccp_device *device, struct sccp_subc
 	sccp_session_remove_device_task(device->session, on_dial_timeout, subchan);
 }
 
-/*
- * entry point: yes
- * thread: session
- */
 void sccp_device_on_data_read(struct sccp_device *device)
 {
 	add_keepalive_task(device);
@@ -2859,10 +2847,18 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 	sccp_speeddials_on_registration_success(&device->speeddials);
 }
 
-/*
- * entry point: yes
- * thread: any
- */
+int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
+{
+	sccp_device_lock(device);
+	if (!ast_test_flag(device, DEVICE_DESTROYED)) {
+		transmit_reset(device, type);
+	}
+
+	sccp_device_unlock(device);
+
+	return 0;
+}
+
 void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_snapshot *snapshot)
 {
 	sccp_device_lock(device);
@@ -2906,6 +2902,10 @@ struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const ch
 
 	sccp_device_lock(device);
 
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		goto unlock;
+	}
+
 	if (device->dnd) {
 		*cause = AST_CAUSE_BUSY;
 		goto unlock;
@@ -2937,11 +2937,21 @@ unlock:
 
 int sccp_channel_tech_devicestate(const struct sccp_line *line)
 {
-	if (line->state == SCCP_ONHOOK) {
-		return AST_DEVICE_NOT_INUSE;
+	struct sccp_device *device = line->device;
+	int res;
+
+	sccp_device_lock(device);
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		res = AST_DEVICE_UNAVAILABLE;
+	} else if (line->state == SCCP_ONHOOK) {
+		res = AST_DEVICE_NOT_INUSE;
 	} else {
-		return AST_DEVICE_INUSE;
+		res = AST_DEVICE_INUSE;
 	}
+
+	sccp_device_unlock(device);
+
+	return res;
 }
 
 static void format_party_name(struct ast_channel *channel, char *name, size_t n)
@@ -2970,11 +2980,17 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 	struct sccp_device *device = line->device;
 	char name[64];
 	char *number;
+	int res = 0;
 
 	ast_setstate(channel, AST_STATE_RINGING);
 	ast_queue_control(channel, AST_CONTROL_RINGING);
 
 	sccp_device_lock(device);
+
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		res = -1;
+		goto unlock;
+	}
 
 	/* TODO add callfwd stuff */
 
@@ -3000,9 +3016,10 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 		sccp_line_update_devstate(line, AST_DEVICE_RINGING);
 	}
 
+unlock:
 	sccp_device_unlock(device);
 
-	return 0;
+	return res;
 }
 
 int sccp_channel_tech_hangup(struct ast_channel *channel)
@@ -3012,7 +3029,19 @@ int sccp_channel_tech_hangup(struct ast_channel *channel)
 	struct sccp_device *device = line->device;
 
 	sccp_device_lock(device);
-	do_clear_subchannel(device, subchan);
+
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		if (subchan->rtp) {
+			ast_rtp_instance_stop(subchan->rtp);
+			ast_rtp_instance_destroy(subchan->rtp);
+			subchan->rtp = NULL;
+		}
+
+		subchan->channel = NULL;
+	} else {
+		do_clear_subchannel(device, subchan);
+	}
+
 	sccp_device_unlock(device);
 
 	ast_setstate(channel, AST_STATE_DOWN);
@@ -3030,6 +3059,11 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 	int wait_subchan_rtp = 0;
 
 	sccp_device_lock(device);
+
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		sccp_device_unlock(device);
+		return -1;
+	}
 
 	if (!subchan->rtp) {
 		transmit_subchan_open_receive_channel(device, subchan);
@@ -3074,11 +3108,17 @@ struct ast_frame *sccp_channel_tech_read(struct ast_channel *channel)
 	struct ast_rtp_instance *rtp;
 
 	sccp_device_lock(device);
+
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		goto unlock;
+	}
+
 	if (subchan->rtp) {
 		rtp = subchan->rtp;
 		ao2_ref(rtp, +1);
 	}
 
+unlock:
 	sccp_device_unlock(device);
 
 	if (!rtp) {
@@ -3121,6 +3161,11 @@ int sccp_channel_tech_write(struct ast_channel *channel, struct ast_frame *frame
 
 	sccp_device_lock(device);
 
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		res = -1;
+		goto unlock;
+	}
+
 	if (subchan->rtp) {
 		if (line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS) {
 			res = ast_rtp_instance_write(subchan->rtp, frame);
@@ -3131,6 +3176,7 @@ int sccp_channel_tech_write(struct ast_channel *channel, struct ast_frame *frame
 		transmit_subchan_open_receive_channel(device, subchan);
 	}
 
+unlock:
 	sccp_device_unlock(device);
 
 	return res;
@@ -3164,6 +3210,10 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 	int stop_moh = 0;
 
 	sccp_device_lock(device);
+
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		goto unlock;
+	}
 
 	switch (ind) {
 	case AST_CONTROL_RINGING:
@@ -3229,6 +3279,7 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 		break;
 	}
 
+unlock:
 	sccp_device_unlock(device);
 
 	/* XXX ugly solution... */
@@ -3302,7 +3353,6 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	int res = 0;
 	int changed;
 
 	if (!rtp) {
@@ -3311,6 +3361,10 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 	}
 
 	sccp_device_lock(device);
+
+	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		goto unlock;
+	}
 
 	if (subchan->on_hold) {
 		ast_debug(1, "not updating peer: subchan is on hold\n");
@@ -3343,7 +3397,7 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 unlock:
 	sccp_device_unlock(device);
 
-	return res;
+	return 0;
 }
 
 void sccp_rtp_glue_get_codec(struct ast_channel *channel, struct ast_format_cap *result)

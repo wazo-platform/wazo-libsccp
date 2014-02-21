@@ -41,43 +41,35 @@ struct sccp_device *sccp_device_create(struct sccp_device_cfg *device_cfg, struc
  *
  * \note This does not decrease the reference count of the object.
  * \note Must be called only from the session thread.
+ * \note Quite a few operations have undefined behavior once the device is destroyed.
  */
 void sccp_device_destroy(struct sccp_device *device);
 
-/*
+/*!
  * \note Must be called only from the session thread.
- * \note This function can modify the "stop" flag.
+ * \note It is an undefined behaviour to call this function on a destroyed device.
  */
 int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg);
 
 /*!
  * \note Must be called only from the session thread.
- * \note This function can modify the "stop" flag.
+ * \note It is an undefined behaviour to call this function on a destroyed device.
  */
 int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg *device_cfg);
 
 /*!
- * \brief Reset the device.
+ * \brief Signal that the remote peer has closed the connection.
  *
- * \note Thread safe.
- *
- * \retval 0 on success
- * \retval non-zero on failure
- */
-int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type);
-
-/*
- * Called after the session detects that the remote peer has closed the connection.
- *
- * \note When the session detects a connection lost, it calls this function and then
- *       stop, so no need to ask the session to stop here.
+ * \note Must be called only from the session thread.
+ * \note It is an undefined behaviour to call this function on a destroyed device.
  */
 void sccp_device_on_connection_lost(struct sccp_device *device);
 
-/*
- * Called each time data is read from the session socket.
+/*!
+ * \brief Signal that some data has been read from the session socket.
  *
  * \note Must be called only from the session thread.
+ * \note It is an undefined behaviour to call this function on a destroyed device.
  */
 void sccp_device_on_data_read(struct sccp_device *device);
 
@@ -88,22 +80,28 @@ void sccp_device_on_data_read(struct sccp_device *device);
  *     in another thread
  *
  * \note Must be called only from the session thread.
- * \note This function can modify the "stop" flag.
- *
- * \see sccp_session_progress
+ * \note It is an undefined behaviour to call this function on a destroyed device.
  */
 void sccp_device_on_progress(struct sccp_device *device);
 
-/*
- * Called exactly once after the device has been succesfully added to the registry
- * (which is the last step in the registration process)
+/*!
+ * \brief Signal that the registration was successful.
+ *
+ * \note Must be called only from the session thread.
+ * \note It is an undefined behaviour to call this function on a destroyed device.
  */
 void sccp_device_on_registration_success(struct sccp_device *device);
 
 /*!
- * \brief Take a snapshot of information from the device.
+ * \brief Reset the device.
  *
- * \note Thread safe.
+ * \retval 0 on success
+ * \retval non-zero on failure
+ */
+int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type);
+
+/*!
+ * \brief Take a snapshot of information from the device.
  *
  * \param snapshot memory where the snapshot will be saved
  */
@@ -113,6 +111,7 @@ void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_sn
  * \brief Return the number of lines of the device.
  *
  * \note The number of line of a device is a constant attribute.
+ * \note It is an undefined behaviour to call this function on a destroyed device.
  */
 unsigned int sccp_device_line_count(const struct sccp_device *device);
 
@@ -120,6 +119,7 @@ unsigned int sccp_device_line_count(const struct sccp_device *device);
  * \brief Get the i'th line of the device (starting from zero).
  *
  * \note The reference count is NOT incremented
+ * \note It is an undefined behaviour to call this function on a destroyed device.
  */
 struct sccp_line* sccp_device_line(struct sccp_device *device, unsigned int i);
 

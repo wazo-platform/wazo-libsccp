@@ -567,6 +567,11 @@ end:
 	sccp_session_empty_queue(session);
 
 	if (session->device) {
+		/* sccp_device_registry_remove must really be called before
+		 * sccp_device_destroy, else undefined behaviour happens, because
+		 * registry_remove use some functions that are invalid on destroyed
+		 * device
+		 */
 		sccp_device_registry_remove(session->registry, session->device);
 		sccp_device_destroy(session->device);
 
