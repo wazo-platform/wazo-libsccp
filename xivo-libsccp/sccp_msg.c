@@ -241,9 +241,9 @@ void sccp_msg_forward_status_res(struct sccp_msg *msg, uint32_t line_instance, c
 	msg->data.forwardstatus.lineInstance = htolel(line_instance);
 	msg->data.forwardstatus.cfwdAllStatus = htolel(status);
 	ast_copy_string(msg->data.forwardstatus.cfwdAllNumber, extension, sizeof(msg->data.forwardstatus.cfwdAllNumber));
-	msg->data.forwardstatus.cfwdBusyStatus = htolel(0);
+	msg->data.forwardstatus.cfwdBusyStatus = 0;
 	msg->data.forwardstatus.cfwdBusyNumber[0] = '\0';
-	msg->data.forwardstatus.cfwdNoAnswerStatus = htolel(0);
+	msg->data.forwardstatus.cfwdNoAnswerStatus = 0;
 	msg->data.forwardstatus.cfwdNoAnswerNumber[0] = '\0';
 }
 

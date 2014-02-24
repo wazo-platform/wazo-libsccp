@@ -13,6 +13,7 @@ static void dump_message(const struct sccp_msg *msg, const char *head1, const ch
 static void dump_call_info(char *str, size_t size, const struct call_info_message *m);
 static void dump_call_state(char *str, size_t size, const struct call_state_message *m);
 static void dump_close_receive_channel(char *str, size_t size, const struct close_receive_channel_message *m);
+static void dump_forward_status_res(char *str, size_t size, const struct forward_status_res_message *m);
 static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m);
 static void dump_offhook(char *str, size_t size, const struct offhook_message *m);
 static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
@@ -81,6 +82,9 @@ static void dump_message(const struct sccp_msg *msg, const char *head1, const ch
 		break;
 	case CLOSE_RECEIVE_CHANNEL_MESSAGE:
 		dump_close_receive_channel(body, sizeof(body), &msg->data.closereceivechannel);
+		break;
+	case FORWARD_STATUS_RES_MESSAGE:
+		dump_forward_status_res(body, sizeof(body), &msg->data.forwardstatus);
 		break;
 	case KEYPAD_BUTTON_MESSAGE:
 		dump_keypad_button(body, sizeof(body), &msg->data.keypad);
@@ -152,6 +156,19 @@ static void dump_close_receive_channel(char *str, size_t size, const struct clos
 	snprintf(str, size,
 			"Conference ID: %u\n",
 			letohl(m->conferenceId));
+}
+
+static void dump_forward_status_res(char *str, size_t size, const struct forward_status_res_message *m)
+{
+	snprintf(str, size,
+			"Status: %u\n"
+			"Line instance: %u\n"
+			"CfwdAll status: %u\n"
+			"CfwdAll number: %s\n",
+			letohl(m->status),
+			letohl(m->lineInstance),
+			letohl(m->cfwdAllStatus),
+			m->cfwdAllNumber);
 }
 
 static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m)
