@@ -325,6 +325,7 @@ static struct sccp_msg *msg_alloc(size_t data_length, uint32_t msg_id)
 
 static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 {
+	size_t count;
 	ssize_t nbyte;
 
 	if (!session) {
@@ -352,10 +353,14 @@ static int transmit_message(struct sccp_msg *msg, struct sccp_session *session)
 	memcpy(session->outbuf, msg, 12);
 	memcpy(session->outbuf+12, &msg->data, letohl(msg->length));
 
-	nbyte = write(session->sockfd, session->outbuf, letohl(msg->length)+8);
+	count = letohl(msg->length) + 8;
+	nbyte = write(session->sockfd, session->outbuf, count);
 	if (nbyte == -1) {
 		session->transmit_error = -1;
 		ast_log(LOG_WARNING, "message transmit failed: %s\n", strerror(errno));
+	} else if (nbyte != (ssize_t) count) {
+		session->transmit_error = -1;
+		ast_log(LOG_WARNING, "message transmit failed to write all bytes\n");
 	}
 
 end:

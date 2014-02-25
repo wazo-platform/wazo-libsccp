@@ -2365,6 +2365,7 @@ static void *thread_accept(void *data)
 	struct sockaddr_in addr;
 	struct sccp_session *session = NULL;
 	socklen_t addrlen = 0;
+	struct timeval flag_timeout = { .tv_sec = 10, .tv_usec = 0 };
 	int flag_nodelay = 1;
 	int err;
 
@@ -2379,7 +2380,14 @@ static void *thread_accept(void *data)
 		}
 
 		/* send multiple buffers as individual packets */
-		setsockopt(new_sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay));
+		if (setsockopt(new_sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay)) == -1) {
+			ast_log(LOG_ERROR, "setsockopt(TCP_NODELAY) failed: %s\n", strerror(errno));
+		}
+
+		/* set a low timeout to prevent timeout related freeze */
+		if (setsockopt(new_sockfd, SOL_SOCKET, SO_SNDTIMEO, &flag_timeout, sizeof(flag_timeout)) == -1) {
+			ast_log(LOG_ERROR, "setsockopt(SO_SNDTIMEO) failed: %s\n", strerror(errno));
+		}
 
 		session = session_create(new_sockfd, &addr);
 		if (!session) {
