@@ -300,22 +300,6 @@ static char *cli_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 #undef FORMAT_STRING2
 }
 
-static char *cli_show_sessions(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
-{
-	switch (cmd) {
-	case CLI_INIT:
-		e->command = "sccp show sessions";
-		e->usage = "Usage: sccp show sessions\n";
-		return NULL;
-	case CLI_GENERATE:
-		return NULL;
-	}
-
-	ast_cli(a->fd, "%d active sessions\n", sccp_server_session_count(global_server));
-
-	return CLI_SUCCESS;
-}
-
 static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	switch (cmd) {
@@ -337,7 +321,6 @@ static struct ast_cli_entry cli_entries[] = {
 	AST_CLI_DEFINE(cli_set_debug, "Enable/Disable SCCP debugging"),
 	AST_CLI_DEFINE(cli_show_config, "Show the module configuration"),
 	AST_CLI_DEFINE(cli_show_devices, "Show the connected devices"),
-	AST_CLI_DEFINE(cli_show_sessions, "Show the active sessions"),
 	AST_CLI_DEFINE(cli_show_version, "Show the module version"),
 };
 

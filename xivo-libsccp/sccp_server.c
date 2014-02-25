@@ -29,12 +29,7 @@ struct sccp_server {
 	struct sccp_cfg *cfg;
 	struct sccp_device_registry *registry;
 	struct sccp_sync_queue *sync_q;
-	/*
-	 * When the server is in running state, only the server thread modify the
-	 * srv_sessions list. That said, lock are needed on add / remove since another
-	 * thread could be running a "sccp show session"...
-	 */
-	AST_LIST_HEAD(, server_session) srv_sessions;
+	AST_LIST_HEAD_NOLOCK(, server_session) srv_sessions;
 };
 
 struct server_session {
@@ -217,16 +212,12 @@ static void server_reload_sessions(struct sccp_server *server, struct sccp_cfg *
 
 static void server_add_srv_session(struct sccp_server *server, struct server_session *srv_session)
 {
-	AST_LIST_LOCK(&server->srv_sessions);
 	AST_LIST_INSERT_TAIL(&server->srv_sessions, srv_session, list);
-	AST_LIST_UNLOCK(&server->srv_sessions);
 }
 
 static void server_remove_srv_session(struct sccp_server *server, struct server_session *srv_session)
 {
-	AST_LIST_LOCK(&server->srv_sessions);
 	AST_LIST_REMOVE(&server->srv_sessions, srv_session, list);
-	AST_LIST_UNLOCK(&server->srv_sessions);
 }
 
 static void *session_run(void *data)
@@ -261,7 +252,6 @@ static void server_join_sessions(struct sccp_server *server)
 	struct server_session *srv_session;
 	int ret;
 
-	AST_LIST_LOCK(&server->srv_sessions);
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&server->srv_sessions, srv_session, list) {
 		ast_debug(1, "joining session %p thread\n", srv_session->session);
 		ret = pthread_join(srv_session->thread, NULL);
@@ -273,7 +263,6 @@ static void server_join_sessions(struct sccp_server *server)
 		server_session_destroy(srv_session);
 	}
 	AST_LIST_TRAVERSE_SAFE_END;
-	AST_LIST_UNLOCK(&server->srv_sessions);
 }
 
 static int new_server_socket(struct sccp_cfg *cfg)
@@ -507,7 +496,7 @@ struct sccp_server *sccp_server_create(struct sccp_cfg *cfg, struct sccp_device_
 	server->cfg = cfg;
 	ao2_ref(cfg, +1);
 	server->registry = registry;
-	AST_LIST_HEAD_INIT(&server->srv_sessions);
+	AST_LIST_HEAD_INIT_NOLOCK(&server->srv_sessions);
 
 	return server;
 }
@@ -526,7 +515,6 @@ void sccp_server_destroy(struct sccp_server *server)
 
 	sccp_sync_queue_destroy(server->sync_q);
 	ao2_ref(server->cfg, -1);
-	AST_LIST_HEAD_DESTROY(&server->srv_sessions);
 	ast_free(server);
 }
 
@@ -558,18 +546,4 @@ int sccp_server_reload_config(struct sccp_server *server, struct sccp_cfg *cfg)
 	}
 
 	return 0;
-}
-
-int sccp_server_session_count(struct sccp_server *server)
-{
-	struct server_session *srv_session;
-	int total = 0;
-
-	AST_LIST_LOCK(&server->srv_sessions);
-	AST_LIST_TRAVERSE(&server->srv_sessions, srv_session, list) {
-		total++;
-	}
-	AST_LIST_UNLOCK(&server->srv_sessions);
-
-	return total;
 }

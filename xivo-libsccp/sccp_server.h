@@ -37,9 +37,4 @@ int sccp_server_start(struct sccp_server *server);
  */
 int sccp_server_reload_config(struct sccp_server *server, struct sccp_cfg *cfg);
 
-/*!
- * \brief Return the number of active sessions.
- */
-int sccp_server_session_count(struct sccp_server *server);
-
 #endif /* SCCP_SERVER_H_ */
