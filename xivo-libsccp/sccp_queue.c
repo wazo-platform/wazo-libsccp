@@ -36,7 +36,6 @@ int sccp_queue_init(struct sccp_queue *q, size_t item_size)
 	}
 
 	AST_LIST_HEAD_INIT_NOLOCK(&q->containers);
-	AST_LIST_HEAD_INIT_NOLOCK(&q->reserved);
 	q->item_size = item_size;
 
 	return 0;
@@ -47,12 +46,6 @@ void sccp_queue_destroy(struct sccp_queue *q)
 	struct queue_item_container *container;
 
 	AST_LIST_TRAVERSE_SAFE_BEGIN(&q->containers, container, list) {
-		AST_LIST_REMOVE_CURRENT(list);
-		container_destroy(container);
-	}
-	AST_LIST_TRAVERSE_SAFE_END;
-
-	AST_LIST_TRAVERSE_SAFE_BEGIN(&q->reserved, container, list) {
 		AST_LIST_REMOVE_CURRENT(list);
 		container_destroy(container);
 	}
@@ -71,53 +64,6 @@ int sccp_queue_put(struct sccp_queue *q, void *item)
 	AST_LIST_INSERT_TAIL(&q->containers, container, list);
 
 	container_write_item(container, q->item_size, item);
-
-	return 0;
-}
-
-static int sccp_queue_put_reserved(struct sccp_queue *q, struct sccp_queue_reservation *reservation, void *item)
-{
-	struct queue_item_container *container = reservation->container;
-
-	if (!AST_LIST_REMOVE(&q->reserved, container, list)) {
-		ast_log(LOG_ERROR, "queue put reserved failed: container not in reserved list\n");
-		return SCCP_QUEUE_INVAL;
-	}
-
-	AST_LIST_INSERT_TAIL(&q->containers, container, list);
-
-	container_write_item(container, q->item_size, item);
-
-	return 0;
-}
-
-static int sccp_queue_cancel_reserved(struct sccp_queue *q, struct sccp_queue_reservation *reservation)
-{
-	struct queue_item_container *container = reservation->container;
-
-	if (!AST_LIST_REMOVE(&q->reserved, container, list)) {
-		ast_log(LOG_ERROR, "queue cancel reserved failed: container not in reserved list\n");
-		return SCCP_QUEUE_INVAL;
-	}
-
-	container_destroy(container);
-
-	return 0;
-}
-
-int sccp_queue_reserve(struct sccp_queue *q, struct sccp_queue_reservation *reservation)
-{
-	struct queue_item_container *container;
-
-	container = container_alloc(q->item_size);
-	if (!container) {
-		return -1;
-	}
-
-	AST_LIST_INSERT_TAIL(&q->reserved, container, list);
-
-	reservation->q = q;
-	reservation->container = container;
 
 	return 0;
 }
@@ -145,7 +91,6 @@ int sccp_queue_move(struct sccp_queue *dest, struct sccp_queue *src)
 	}
 
 	dest->containers = src->containers;
-	AST_LIST_HEAD_INIT_NOLOCK(&dest->reserved);
 	dest->item_size = src->item_size;
 
 	AST_LIST_HEAD_INIT_NOLOCK(&src->containers);
@@ -156,16 +101,6 @@ int sccp_queue_move(struct sccp_queue *dest, struct sccp_queue *src)
 int sccp_queue_empty(const struct sccp_queue *q)
 {
 	return AST_LIST_EMPTY(&q->containers);
-}
-
-int sccp_queue_reservation_put(struct sccp_queue_reservation *reservation, void *item)
-{
-	return sccp_queue_put_reserved(reservation->q, reservation, item);
-}
-
-int sccp_queue_reservation_cancel(struct sccp_queue_reservation *reservation)
-{
-	return sccp_queue_cancel_reserved(reservation->q, reservation);
 }
 
 struct sccp_sync_queue {

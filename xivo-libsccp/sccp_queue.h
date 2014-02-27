@@ -22,12 +22,6 @@ struct sccp_queue {
 	size_t item_size;
 };
 
-/* not to be used directly */
-struct sccp_queue_reservation {
-	struct sccp_queue *q;
-	struct queue_item_container *container;
-};
-
 /*!
  * \brief Initialize a (FIFO) queue.
  *
@@ -53,20 +47,6 @@ void sccp_queue_destroy(struct sccp_queue *q);
 int sccp_queue_put(struct sccp_queue *q, void *item);
 
 /*!
- * \brief Reserve resources for a later put.
- *
- * \note If this function returns success, then you are guaranteed that the put using
- *       the reservation will not fail.
- * \note Once you get reservation, you must either call queue_reservation_put or
- *       queue_reservation_cancel, else resources will be leaked (until the queue is
- *       destroyed).
- *
- * \retval 0 on success
- * \retval non-zero on failure
- */
-int sccp_queue_reserve(struct sccp_queue *q, struct sccp_queue_reservation *reservation);
-
-/*!
  * \brief Get an item from the queue.
  *
  * \retval 0 on success
@@ -88,22 +68,6 @@ int sccp_queue_move(struct sccp_queue *dest, struct sccp_queue *src);
  * \brief Return non-zero if the queue is empty.
  */
 int sccp_queue_empty(const struct sccp_queue *q);
-
-/*!
- * \brief Put an item into the queue using the reservation.
- *
- * \retval 0 on success
- * \retval SCCP_QUEUE_INVAL if the reservation has already been used
- */
-int sccp_queue_reservation_put(struct sccp_queue_reservation *reservation, void *item);
-
-/*!
- * \brief Cancel a reservation.
- *
- * \retval 0 on success
- * \retval SCCP_QUEUE_INVAL if the reservation has already been used
- */
-int sccp_queue_reservation_cancel(struct sccp_queue_reservation *reservation);
 
 /*!
  * \brief Create a new synchronized (FIFO) queue.
