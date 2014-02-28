@@ -73,17 +73,6 @@ void sccp_device_on_connection_lost(struct sccp_device *device);
  */
 void sccp_device_on_data_read(struct sccp_device *device);
 
-/*
- * Called every time a progress is signaled to the session.
- *
- * XXX to use when stuff needs to be done in the session thread yet we are
- *     in another thread
- *
- * \note Must be called only from the session thread.
- * \note It is an undefined behaviour to call this function on a destroyed device.
- */
-void sccp_device_on_progress(struct sccp_device *device);
-
 /*!
  * \brief Signal that the registration was successful.
  *

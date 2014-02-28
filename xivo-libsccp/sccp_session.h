@@ -68,14 +68,6 @@ int sccp_session_add_device_task(struct sccp_session *session, sccp_device_task_
  */
 void sccp_session_remove_device_task(struct sccp_session *session, sccp_device_task_cb callback, void *data);
 
-/*
- * XXX called to force the session thread to call sccp_device_progress(session->device)
- * XXX name is bad
- *
- * \note Part of the device API.
- */
-void sccp_session_progress(struct sccp_session *session);
-
 /*!
  * \brief Transmit a message on the session socket.
  *
