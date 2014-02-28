@@ -235,7 +235,6 @@ static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 
 	cfg = sccp_config_get();
 
-	ast_cli(a->fd, "bindaddr = %s\n", cfg->general_cfg->bindaddr);
 	ast_cli(a->fd, "authtimeout = %d\n", cfg->general_cfg->authtimeout);
 	ast_cli(a->fd, "guest = %s\n\n", AST_CLI_YESNO(cfg->general_cfg->guest_device_cfg));
 

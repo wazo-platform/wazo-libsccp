@@ -283,7 +283,6 @@ static int new_server_socket(struct sccp_cfg *cfg)
 		return -1;
 	}
 
-	/* FIXME take into account bindaddr from the config */
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(SERVER_PORT);

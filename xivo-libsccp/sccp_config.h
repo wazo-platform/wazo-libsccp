@@ -16,7 +16,6 @@ struct sccp_cfg {
 };
 
 struct sccp_general_cfg {
-	char bindaddr[16];
 	int authtimeout;
 
 	struct sccp_device_cfg *guest_device_cfg;

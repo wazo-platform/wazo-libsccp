@@ -672,7 +672,6 @@ int sccp_config_init(void)
 	}
 
 	/* general options */
-	aco_option_register(&cfg_info, "bindaddr", ACO_EXACT, general_types, "0.0.0.0", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_general_cfg, bindaddr), 0);
 	aco_option_register(&cfg_info, "authtimeout", ACO_EXACT, general_types, "5", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_general_cfg, authtimeout), 1, 60);
 	aco_option_register_custom(&cfg_info, "guest", ACO_EXACT, general_types, "no", general_cfg_guest_handler, 0);
 
