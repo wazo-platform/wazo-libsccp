@@ -563,12 +563,19 @@ end:
 
 int sccp_session_stop(struct sccp_session *session)
 {
+	int ret;
+
 	/* set session->stop to 1 here so that if called from the session thread,
 	 * the flag will be set when going back in the session_run
 	 */
 	session->stop = 1;
 
-	return sccp_session_queue_msg_noop(session);
+	ret = sccp_session_queue_msg_noop(session);
+	if (ret == -1) {
+		return -1;
+	}
+
+	return 0;
 }
 
 int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg)

@@ -27,6 +27,8 @@ void sccp_session_run(struct sccp_session *session);
 /*!
  * \brief Stop the session.
  *
+ * If the session is already stopped, the function return success.
+ *
  * \retval 0 on sucess
  * \retval non-zero on failure
  */
