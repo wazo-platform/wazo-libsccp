@@ -1,0 +1,44 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+#
+# Helper script to generate large configuration file for testing purposes.
+
+import argparse
+import jinja2
+import sys
+
+TPL = '''\
+{% for i in range(base, base + n) %}
+[SEP{{ "%012d"|format(i) }}]
+type = device
+line = {{ i }}
+{% endfor %}
+
+
+{% for i in range(base, base + n) %}
+[{{ i }}]
+type = line
+cid_name = John
+cid_num = {{ i }}
+{% endfor %}
+
+
+'''
+
+def main():
+    parsed_args = _parse_args()
+
+    template = jinja2.Template(TPL)
+    template.stream(base=parsed_args.base, n=parsed_args.n).dump(sys.stdout)
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-b', '--base', default=0, type=int,
+                        help='base number for device/line')
+    parser.add_argument('n', type=int,
+                        help='number of devices/lines to create')
+    return parser.parse_args()
+
+
+main()
