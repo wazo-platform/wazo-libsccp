@@ -3,10 +3,9 @@
 #include <asterisk/lock.h>
 #include <asterisk/strings.h>
 
+#include "sccp.h"
 #include "sccp_device.h"
 #include "sccp_device_registry.h"
-
-#define BUCKETS 7
 
 struct sccp_device_registry {
 	ast_mutex_t lock;
@@ -77,13 +76,13 @@ struct sccp_device_registry *sccp_device_registry_create(void)
 		return NULL;
 	}
 
-	registry->devices = ao2_container_alloc_options(AO2_ALLOC_OPT_LOCK_NOLOCK, BUCKETS, sccp_device_hash, sccp_device_cmp);
+	registry->devices = ao2_container_alloc_options(AO2_ALLOC_OPT_LOCK_NOLOCK, SCCP_BUCKETS, sccp_device_hash, sccp_device_cmp);
 	if (!registry->devices) {
 		ast_free(registry);
 		return NULL;
 	}
 
-	registry->lines = ao2_container_alloc_options(AO2_ALLOC_OPT_LOCK_NOLOCK, BUCKETS, sccp_line_hash, sccp_line_cmp);
+	registry->lines = ao2_container_alloc_options(AO2_ALLOC_OPT_LOCK_NOLOCK, SCCP_BUCKETS, sccp_line_hash, sccp_line_cmp);
 	if (!registry->lines) {
 		ao2_ref(registry->devices, -1);
 		ast_free(registry);

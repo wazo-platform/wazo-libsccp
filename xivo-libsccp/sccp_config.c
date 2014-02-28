@@ -5,10 +5,10 @@
 #include <asterisk/linkedlists.h>
 #include <asterisk/strings.h>
 
+#include "sccp.h"
 #include "sccp_config.h"
 
 #define DEVICE_CFG_NAME_GUEST "guest"
-#define ITEMS_CFG_BUCKETS 7
 
 static void sccp_device_cfg_free_internal(struct sccp_device_cfg *device_cfg);
 static void sccp_device_cfg_free_speeddials(struct sccp_device_cfg *device_cfg);
@@ -431,17 +431,17 @@ static void *sccp_cfg_alloc(void)
 		goto error;
 	}
 
-	devices_cfg = ao2_container_alloc(ITEMS_CFG_BUCKETS, sccp_device_cfg_hash, sccp_device_cfg_cmp);
+	devices_cfg = ao2_container_alloc(SCCP_BUCKETS, sccp_device_cfg_hash, sccp_device_cfg_cmp);
 	if (!devices_cfg) {
 		goto error;
 	}
 
-	lines_cfg = ao2_container_alloc(ITEMS_CFG_BUCKETS, sccp_line_cfg_hash, sccp_line_cfg_cmp);
+	lines_cfg = ao2_container_alloc(SCCP_BUCKETS, sccp_line_cfg_hash, sccp_line_cfg_cmp);
 	if (!lines_cfg) {
 		goto error;
 	}
 
-	speeddials_cfg = ao2_container_alloc(ITEMS_CFG_BUCKETS, sccp_speeddial_cfg_hash, sccp_speeddial_cfg_cmp);
+	speeddials_cfg = ao2_container_alloc(SCCP_BUCKETS, sccp_speeddial_cfg_hash, sccp_speeddial_cfg_cmp);
 	if (!speeddials_cfg) {
 		goto error;
 	}
