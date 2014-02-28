@@ -694,6 +694,49 @@ void sccp_msg_builder_callinfo(struct sccp_msg_builder *builder, struct sccp_msg
 void sccp_msg_builder_line_status_res(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *cid_name, const char *cid_num, uint32_t line_instance);
 void sccp_msg_builder_register_ack(struct sccp_msg_builder *builder, struct sccp_msg *msg, const char *datefmt, uint32_t keepalive);
 
+#define SCCP_DESERIALIZER_NOMSG 1
+#define SCCP_DESERIALIZER_FULL 2
+#define SCCP_DESERIALIZER_EOF 3
+#define SCCP_DESERIALIZER_MALFORMED 4
+
+struct sccp_deserializer {
+	struct sccp_msg msg;
+	size_t start;
+	size_t end;
+	int fd;
+	char buf[2048];
+};
+
+/*!
+ * \brief Initialize the deserializer.
+ *
+ * \param fd the file descriptor to read data from
+ */
+void sccp_deserializer_init(struct sccp_deserializer *dzer, int fd);
+
+/*!
+ * \brief Read data into the deserializer buffer.
+ *
+ * \retval 0 on success
+ * \retval SCCP_DESERIALIZER_FULL if the buffer is full
+ * \retval SCCP_DESERIALIZER_EOF if the end of file is reached
+ * \retval -1 on other failure
+ */
+int sccp_deserializer_read(struct sccp_deserializer *dzer);
+
+/*!
+ * \brief Get the next message from the deserializer.
+ *
+ * \param msg output parameter used to store the address of the parsed message
+ *
+ * \note The message stored in *msg is only valid between calls to this function.
+ *
+ * \retval 0 on success
+ * \retval SCCP_DESERIALIZER_NOMSG if no message are available
+ * \retval SCCP_DESERIALIZER_MALFORMED if next message is malformed
+ */
+int sccp_deserializer_pop(struct sccp_deserializer *dzer, struct sccp_msg **msg);
+
 const char *sccp_msg_id_str(uint32_t msg_id);
 const char *sccp_device_type_str(enum sccp_device_type device_type);
 const char *sccp_state_str(enum sccp_state state);

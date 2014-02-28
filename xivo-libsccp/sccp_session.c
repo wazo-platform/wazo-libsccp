@@ -11,7 +11,6 @@
 #include "sccp_device_registry.h"
 #include "sccp_msg.h"
 #include "sccp_queue.h"
-#include "sccp_serializer.h"
 #include "sccp_session.h"
 #include "sccp_task.h"
 #include "sccp_utils.h"

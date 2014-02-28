@@ -23,7 +23,6 @@
 #include "sccp_session.h"
 #include "sccp_msg.h"
 #include "sccp_queue.h"
-#include "sccp_serializer.h"
 #include "sccp_utils.h"
 
 #define LINE_INSTANCE_START 1
