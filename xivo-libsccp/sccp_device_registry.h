@@ -10,7 +10,7 @@ struct sccp_device_snapshot;
 /*!
  * \brief Create a new device registry.
  *
- * \note The device registry is a thread safe container for devices.
+ * The device registry is a thread safe container for devices.
  *
  * \retval non-NULL on success
  * \retval NULL on failure
@@ -26,7 +26,7 @@ void sccp_device_registry_destroy(struct sccp_device_registry *registry);
  * \brief Add a device to the registry.
  *
  * \retval 0 on success
- * \retval SCCP_DEVICE_REGISTRY_ALREADY if a device with the same same has already been added
+ * \retval SCCP_DEVICE_REGISTRY_ALREADY if a device with the same name is already in the container
  * \retval -1 on other failure
  */
 int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_device *device);
@@ -62,7 +62,12 @@ char *sccp_device_registry_complete(struct sccp_device_registry *registry, const
 /*!
  * \brief Take a snapshot of all the devices in the registry.
  *
- * XXX on success, *snapshots, must be freed, else you'll leak memory
+ * \param[out] snapshots address where to store the dynamically allocated snapshots array
+ * \param[out] n length of the snapshots array
+ *
+ * On success, this function allocates memory to hold all the device snapshots and store this
+ * address in *snapshots; it is the caller responsibility to eventually call ast_free on *snapshots, else
+ * memory will be leaked.
  *
  * \retval 0 on success
  * \retval non-zero on failure

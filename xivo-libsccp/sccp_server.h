@@ -15,7 +15,7 @@ struct sccp_server;
 struct sccp_server *sccp_server_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry);
 
 /*!
- * \brief Destroy the server..
+ * \brief Destroy the server.
  *
  * \note If the server is running, it will be stopped.
  */
@@ -30,7 +30,9 @@ void sccp_server_destroy(struct sccp_server *server);
 int sccp_server_start(struct sccp_server *server);
 
 /*!
- * \note This both reload the server configuration and the sessions configuration.
+ * \brief Reload the server configuration.
+ *
+ * This also reload all the sessions.
  *
  * \retval 0 on success
  * \retval non-zero on failure

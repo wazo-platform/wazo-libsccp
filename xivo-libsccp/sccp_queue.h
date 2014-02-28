@@ -104,7 +104,7 @@ void sccp_sync_queue_close(struct sccp_sync_queue *sync_q);
  *
  * \retval 0 on success
  * \retval SCCP_QUEUE_CLOSED if the queue is closed
- * \retval SCCP_QUEUE_ERROR on other failure
+ * \retval -1 on other failure
  */
 int sccp_sync_queue_put(struct sccp_sync_queue *sync_q, void *item);
 

@@ -41,11 +41,11 @@ int sccp_deserializer_read(struct sccp_deserializer *dzer);
  *
  * \param msg output parameter used to store the address of the parsed message
  *
+ * \note The message stored in *msg is only valid between calls to this function.
+ *
  * \retval 0 on success
  * \retval SCCP_DESERIALIZER_NOMSG if no message are available
  * \retval SCCP_DESERIALIZER_MALFORMED if next message is malformed
- *
- * \note The message stored in *msg is only valid between calls to this function.
  */
 int sccp_deserializer_pop(struct sccp_deserializer *dzer, struct sccp_msg **msg);
 

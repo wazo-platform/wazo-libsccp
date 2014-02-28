@@ -49,7 +49,7 @@ struct sccp_line_cfg {
 	unsigned int tos_audio;
 
 	struct ast_codec_pref codec_pref;
-	struct ast_format_cap *caps;	/* Allowed capabilities */
+	struct ast_format_cap *caps;
 
 	struct ast_variable *chanvars;
 

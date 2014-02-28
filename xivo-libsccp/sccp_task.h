@@ -50,11 +50,11 @@ void sccp_task_runner_remove(struct sccp_task_runner *runner, sccp_task_cb callb
 void sccp_task_runner_run(struct sccp_task_runner *runner, struct sccp_session *session);
 
 /*!
- * Return the number of milliseconds before the next task.
+ * \brief Return the number of milliseconds before the next task.
  *
- * If the task is in the future, returns 0.
- *
- * If no task, return -1.
+ * \retval -1 if there is no task
+ * \retval 0 if the next task is in the past
+ * \retval the number of milliseconds before the next task
  */
 int sccp_task_runner_next_ms(struct sccp_task_runner *runner);
 

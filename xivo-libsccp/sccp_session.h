@@ -19,7 +19,7 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 /*!
  * \brief Run the session.
  *
- * \note This function exit only when the session stops, either "naturally"
+ * \note This function returns only when the session stops, either "naturally"
  *       or after a call to sccp_session_stop.
  */
 void sccp_session_run(struct sccp_session *session);
@@ -33,7 +33,9 @@ void sccp_session_run(struct sccp_session *session);
 int sccp_session_stop(struct sccp_session *session);
 
 /*!
- * \brief Reload the session and the associated device.
+ * \brief Reload the session.
+ *
+ * If a device is associated to the device, also reload the device.
  *
  * \retval 0 on success
  * \retval non-zero on failure
@@ -75,7 +77,7 @@ void sccp_session_remove_device_task(struct sccp_session *session, sccp_device_t
 void sccp_session_progress(struct sccp_session *session);
 
 /*!
- * \brief Transmit a message over the session.
+ * \brief Transmit a message on the session socket.
  *
  * \note Part of the device API.
  *
