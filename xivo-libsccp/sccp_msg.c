@@ -139,27 +139,12 @@ void sccp_msg_callinfo(struct sccp_msg *msg, const char *from_name, const char *
 {
 	prepare_msg(msg, sizeof(struct call_info_message), CALL_INFO_MESSAGE);
 
-	/* XXX the check should be done in caller function, not here, so that every sccp_msg_* function does
-	 *     the same thing, i.e. no check
-	 */
-	if (from_name) {
-		ast_copy_string(msg->data.callinfo.callingPartyName, from_name, sizeof(msg->data.callinfo.callingPartyName));
-	}
-
-	if (from_num) {
-		ast_copy_string(msg->data.callinfo.callingParty, from_num, sizeof(msg->data.callinfo.callingParty));
-	}
-
-	if (to_name) {
-		ast_copy_string(msg->data.callinfo.calledPartyName, to_name, sizeof(msg->data.callinfo.calledPartyName));
-		ast_copy_string(msg->data.callinfo.originalCalledPartyName, to_name, sizeof(msg->data.callinfo.originalCalledPartyName));
-	}
-
-	if (to_num) {
-		ast_copy_string(msg->data.callinfo.calledParty, to_num, sizeof(msg->data.callinfo.calledParty));
-		ast_copy_string(msg->data.callinfo.originalCalledParty, to_num, sizeof(msg->data.callinfo.originalCalledParty));
-	}
-
+	ast_copy_string(msg->data.callinfo.callingPartyName, from_name, sizeof(msg->data.callinfo.callingPartyName));
+	ast_copy_string(msg->data.callinfo.callingParty, from_num, sizeof(msg->data.callinfo.callingParty));
+	ast_copy_string(msg->data.callinfo.calledPartyName, to_name, sizeof(msg->data.callinfo.calledPartyName));
+	ast_copy_string(msg->data.callinfo.originalCalledPartyName, to_name, sizeof(msg->data.callinfo.originalCalledPartyName));
+	ast_copy_string(msg->data.callinfo.calledParty, to_num, sizeof(msg->data.callinfo.calledParty));
+	ast_copy_string(msg->data.callinfo.originalCalledParty, to_num, sizeof(msg->data.callinfo.originalCalledParty));
 	msg->data.callinfo.lineInstance = htolel(line_instance);
 	msg->data.callinfo.callInstance = htolel(callid);
 	msg->data.callinfo.type = htolel(direction);

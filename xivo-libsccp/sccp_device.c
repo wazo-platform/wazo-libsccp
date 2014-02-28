@@ -3141,14 +3141,20 @@ static void format_party_name(struct ast_channel *channel, char *name, size_t n)
 		snprintf(name, n, "%s -> %s", redirect->from.name.str, connected->id.name.str);
 	} else if (redirect->from.number.valid) {
 		snprintf(name, n, "%s -> %s", redirect->from.number.str, connected->id.name.str);
-	} else {
+	} else if (connected->id.name.str) {
 		snprintf(name, n, "%s", connected->id.name.str);
+	} else {
+		ast_copy_string(name, "unknown", n);
 	}
 }
 
 static void format_party_number(struct ast_channel *channel, char **number)
 {
-	*number = ast_channel_connected(channel)->id.number.str;
+	if (ast_channel_connected(channel)->id.number.str) {
+		*number = ast_channel_connected(channel)->id.number.str;
+	} else {
+		*number = "";
+	}
 }
 
 int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int timeout)
