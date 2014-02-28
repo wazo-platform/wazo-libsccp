@@ -5,7 +5,6 @@
 
 /* XXX rename file ? move to sccp_msg ? */
 
-#define SCCP_DESERIALIZER_ERROR -1
 #define SCCP_DESERIALIZER_NOMSG 1
 #define SCCP_DESERIALIZER_FULL 2
 #define SCCP_DESERIALIZER_EOF 3
@@ -32,7 +31,7 @@ void sccp_deserializer_init(struct sccp_deserializer *dzer, int fd);
  * \retval 0 on success
  * \retval SCCP_DESERIALIZER_FULL if the buffer is full
  * \retval SCCP_DESERIALIZER_EOF if the end of file is reached
- * \retval SCCP_DESERIALIZER_ERROR on other failure
+ * \retval -1 on other failure
  */
 int sccp_deserializer_read(struct sccp_deserializer *dzer);
 

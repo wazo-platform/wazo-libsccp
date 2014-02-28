@@ -27,7 +27,7 @@ int sccp_deserializer_read(struct sccp_deserializer *deserializer)
 	n = read(deserializer->fd, &deserializer->buf[deserializer->end], bytes_left);
 	if (n == -1) {
 		ast_log(LOG_ERROR, "sccp deserializer read failed: read: %s\n", strerror(errno));
-		return SCCP_DESERIALIZER_ERROR;
+		return -1;
 	} else if (n == 0) {
 		return SCCP_DESERIALIZER_EOF;
 	}
