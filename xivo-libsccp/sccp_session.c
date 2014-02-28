@@ -268,23 +268,6 @@ static int sccp_session_queue_msg_reload(struct sccp_session *session, struct sc
 	return sccp_session_queue_msg(session, &msg);
 }
 
-/*
- * XXX move into sccp_config ?
- *
- * \note reference count IS incremented
- */
-static struct sccp_device_cfg *find_device_cfg(struct sccp_cfg *cfg, const char *name)
-{
-	struct sccp_device_cfg *device_cfg;
-
-	device_cfg = sccp_cfg_find_device(cfg, name);
-	if (!device_cfg) {
-		device_cfg = sccp_cfg_guest_device(cfg);
-	}
-
-	return device_cfg;
-}
-
 static void on_auth_timeout(struct sccp_session *session, void __attribute__((unused)) *data)
 {
 	ast_log(LOG_WARNING, "Device authentication timed out\n");
@@ -322,7 +305,7 @@ static void process_reload(struct sccp_session *session, struct sccp_cfg *cfg)
 		return;
 	}
 
-	device_cfg = find_device_cfg(cfg, sccp_device_name(session->device));
+	device_cfg = sccp_cfg_find_device_or_guest(cfg, sccp_device_name(session->device));
 	if (!device_cfg) {
 		session->stop = 1;
 	} else {
@@ -418,7 +401,7 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 	name = msg->data.reg.name;
 	name[sizeof(msg->data.reg.name)] = '\0';
 
-	device_cfg = find_device_cfg(session->cfg, name);
+	device_cfg = sccp_cfg_find_device_or_guest(session->cfg, name);
 	if (!device_cfg) {
 		ast_log(LOG_WARNING, "Device is not configured [%s]\n", name);
 		sccp_session_transmit_register_rej(session);

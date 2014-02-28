@@ -105,13 +105,6 @@ int sccp_config_reload(void);
 struct sccp_cfg *sccp_config_get(void);
 
 /*!
- * \brief Get the guest device config.
- *
- * \note The returned object has its reference count incremented by one.
- */
-struct sccp_device_cfg *sccp_cfg_guest_device(struct sccp_cfg *cfg);
-
-/*!
  * \brief Find the device config with the given name.
  *
  * \note The returned object has its reference count incremented by one.
@@ -120,6 +113,16 @@ struct sccp_device_cfg *sccp_cfg_guest_device(struct sccp_cfg *cfg);
  * \retval NULL on failure
  */
 struct sccp_device_cfg *sccp_cfg_find_device(struct sccp_cfg *cfg, const char *name);
+
+/*!
+ * \brief Find the device config with the given name, or the guest device config.
+ *
+ * \note The returned object has its reference count incremented by one
+ *
+ * \retval non-NULL on success
+ * \retval NULL on failure
+ */
+struct sccp_device_cfg *sccp_cfg_find_device_or_guest(struct sccp_cfg *cfg, const char *name);
 
 /*!
  * \brief Find the line config with the given name.
