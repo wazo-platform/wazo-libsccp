@@ -34,8 +34,8 @@ struct sccp_session {
 };
 
 enum session_msg_id {
+	MSG_NOOP,
 	MSG_RELOAD,
-	MSG_STOP,
 };
 
 struct session_msg_reload {
@@ -60,6 +60,11 @@ union session_task_data {
 	struct session_task_data_device device;
 };
 
+static void session_msg_init_noop(struct session_msg *msg)
+{
+	msg->id = MSG_NOOP;
+}
+
 static void session_msg_init_reload(struct session_msg *msg, struct sccp_cfg *cfg)
 {
 	msg->id = MSG_RELOAD;
@@ -67,18 +72,13 @@ static void session_msg_init_reload(struct session_msg *msg, struct sccp_cfg *cf
 	ao2_ref(cfg, +1);
 }
 
-static void session_msg_init_stop(struct session_msg *msg)
-{
-	msg->id = MSG_STOP;
-}
-
 static void session_msg_destroy(struct session_msg *msg)
 {
 	switch (msg->id) {
+	case MSG_NOOP:
+		break;
 	case MSG_RELOAD:
 		ao2_ref(msg->data.reload.cfg, -1);
-		break;
-	case MSG_STOP:
 		break;
 	}
 }
@@ -250,20 +250,20 @@ static int sccp_session_queue_msg(struct sccp_session *session, struct session_m
 	return ret;
 }
 
+static int sccp_session_queue_msg_noop(struct sccp_session *session)
+{
+	struct session_msg msg;
+
+	session_msg_init_noop(&msg);
+
+	return sccp_session_queue_msg(session, &msg);
+}
+
 static int sccp_session_queue_msg_reload(struct sccp_session *session, struct sccp_cfg *cfg)
 {
 	struct session_msg msg;
 
 	session_msg_init_reload(&msg, cfg);
-
-	return sccp_session_queue_msg(session, &msg);
-}
-
-static int sccp_session_queue_msg_stop(struct sccp_session *session)
-{
-	struct session_msg msg;
-
-	session_msg_init_stop(&msg);
 
 	return sccp_session_queue_msg(session, &msg);
 }
@@ -337,11 +337,10 @@ static void process_reload(struct sccp_session *session, struct sccp_cfg *cfg)
 static void sccp_session_process_msg(struct sccp_session *session, struct session_msg *msg)
 {
 	switch (msg->id) {
+	case MSG_NOOP:
+		break;
 	case MSG_RELOAD:
 		process_reload(session, msg->data.reload.cfg);
-		break;
-	case MSG_STOP:
-		session->stop = 1;
 		break;
 	}
 
@@ -586,8 +585,7 @@ int sccp_session_stop(struct sccp_session *session)
 	 */
 	session->stop = 1;
 
-	/* XXX we could queue a generic "progress" msg now that session->stop is set here*/
-	return sccp_session_queue_msg_stop(session);
+	return sccp_session_queue_msg_noop(session);
 }
 
 int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg)
