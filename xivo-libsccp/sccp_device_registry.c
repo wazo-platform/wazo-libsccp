@@ -226,9 +226,6 @@ struct sccp_line *sccp_device_registry_find_line(struct sccp_device_registry *re
 	return line;
 }
 
-/* XXX this make me thinking, with a large number of device, this must be
- *     like, really slow, since it will be called quite a few time
- */
 char *sccp_device_registry_complete(struct sccp_device_registry *registry, const char *word, int state)
 {
 	struct ao2_iterator iter;
