@@ -343,69 +343,66 @@ static void unregister_sccp_tech(void)
 
 static int load_module(void)
 {
-	RAII_VAR(struct sccp_cfg *, cfg, NULL, ao2_cleanup);
+	struct sccp_cfg *cfg;
 
 	sccp_module_info = ast_module_info;
 
 	if (sccp_config_init()) {
-		return AST_MODULE_LOAD_DECLINE;
+		goto fail1;
 	}
 
 	if (sccp_config_load()) {
-		sccp_config_destroy();
-		return AST_MODULE_LOAD_DECLINE;
+		goto fail2;
 	}
 
 	global_registry = sccp_device_registry_create();
 	if (!global_registry) {
-		sccp_config_destroy();
-		return AST_MODULE_LOAD_DECLINE;
+		goto fail2;
 	}
 
 	sccp_sched = ast_sched_context_create();
 	if (!sccp_sched) {
-		sccp_device_registry_destroy(global_registry);
-		sccp_config_destroy();
-		return AST_MODULE_LOAD_DECLINE;
+		goto fail3;
 	}
 
 	cfg = sccp_config_get();
 	global_server = sccp_server_create(cfg, global_registry);
+	ao2_ref(cfg, -1);
 	if (!global_server) {
-		ast_sched_context_destroy(sccp_sched);
-		sccp_device_registry_destroy(global_registry);
-		sccp_config_destroy();
-		return AST_MODULE_LOAD_DECLINE;
-	}
-
-	if (sccp_server_start(global_server)) {
-		sccp_server_destroy(global_server);
-		ast_sched_context_destroy(sccp_sched);
-		sccp_device_registry_destroy(global_registry);
-		sccp_config_destroy();
-		return AST_MODULE_LOAD_DECLINE;
+		goto fail4;
 	}
 
 	if (register_sccp_tech()) {
-		sccp_server_destroy(global_server);
-		ast_sched_context_destroy(sccp_sched);
-		sccp_device_registry_destroy(global_registry);
-		sccp_config_destroy();
-		return AST_MODULE_LOAD_DECLINE;
+		goto fail5;
 	}
 
 	if (ast_rtp_glue_register(&sccp_rtp_glue)) {
-		unregister_sccp_tech();
-		sccp_server_destroy(global_server);
-		ast_sched_context_destroy(sccp_sched);
-		sccp_device_registry_destroy(global_registry);
-		sccp_config_destroy();
-		return AST_MODULE_LOAD_DECLINE;
+		goto fail6;
+	}
+
+	if (sccp_server_start(global_server)) {
+		goto fail7;
 	}
 
 	ast_cli_register_multiple(cli_entries, ARRAY_LEN(cli_entries));
 
 	return AST_MODULE_LOAD_SUCCESS;
+
+fail7:
+	ast_rtp_glue_unregister(&sccp_rtp_glue);
+fail6:
+	unregister_sccp_tech();
+fail5:
+	sccp_server_destroy(global_server);
+fail4:
+	ast_sched_context_destroy(sccp_sched);
+fail3:
+	sccp_device_registry_destroy(global_registry);
+fail2:
+	sccp_config_destroy();
+fail1:
+
+	return AST_MODULE_LOAD_DECLINE;
 }
 
 static int unload_module(void)
@@ -424,18 +421,18 @@ static int unload_module(void)
 
 static int reload(void)
 {
-	RAII_VAR(struct sccp_cfg *, cfg, NULL, ao2_cleanup);
+	struct sccp_cfg *cfg;
+	int ret;
 
 	if (sccp_config_reload()) {
 		return -1;
 	}
 
 	cfg = sccp_config_get();
-	if (sccp_server_reload_config(global_server, cfg)) {
-		return -1;
-	}
+	ret = sccp_server_reload_config(global_server, cfg);
+	ao2_ref(cfg, -1);
 
-	return 0;
+	return ret ? -1 : 0;
 }
 
 AST_MODULE_INFO(ASTERISK_GPL_KEY, AST_MODFLAG_LOAD_ORDER, "SCCP Channel Driver",
