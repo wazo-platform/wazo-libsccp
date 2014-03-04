@@ -1,7 +1,7 @@
 Source: xivo-libsccp
 Priority: extra
 Maintainer: XiVO Dev Team <dev@avencall.com>
-Build-Depends: debhelper (>= 7.0.50~), dh-autoreconf, asterisk-dev (>= 1.8)
+Build-Depends: debhelper (>= 7.0.50~), asterisk-dev (>= 11.6.0)
 Standards-Version: 3.8.4
 Section: comm
 Homepage: http://documentation.xivo.fr/production/developers/sccp.html

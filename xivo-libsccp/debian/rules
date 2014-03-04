@@ -1,20 +1,7 @@
 #!/usr/bin/make -f
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
-DESTDIR=$(CURDIR)/debian/tmp
-
-override_dh_auto_install:
-	$(MAKE) install DESTDIR=$(DESTDIR)
-	mv $(DESTDIR)/usr/lib/libsccp.so $(DESTDIR)/chan_sccp.so
-
-override_dh_fixperms:
-	dh_fixperms
-	chmod +x $(CURDIR)/debian/xivo-libsccp/usr/lib/asterisk/modules/chan_sccp.so
-
 %:
-	dh $@ --with autoreconf
+	dh $@
 
-.PHONY: override_dh_strip
 override_dh_strip:
 	dh_strip --dbg-package=xivo-libsccp-dbg

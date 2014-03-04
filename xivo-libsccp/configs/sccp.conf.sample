@@ -1,42 +1,39 @@
 [general]
-bindaddr = 0.0.0.0
+authtimeout = 5
+guest = no
+
+[SEP0015C66BFD16]
+type = device
 dateformat = D/M/Y
+voicemail = 1002
+vmexten = *98
+keepalive = 10
+dialtimeout = 5
+line = 1001
+speeddial = 1-1
+speeddial = 1-2
+
+[1001]
+type = line
+cid_name = Alice
+cid_num = 1001
+setvar = XIVO_USERID=1
+setvar = PICKUPMARK=1001%default
 context = default
 language = en_US
-vmexten = *98
-
-keepalive = 10
-authtimeout = 5
-dialtimeout = 5
-directmedia = 1
-
+directmedia = yes
+tos_audio = EF
 disallow = all
 allow = alaw,ulaw
 
-tos_audio = EF
+[1-1]
+type = speeddial
+label = Bob
+extension = 1002
+blf = yes
 
-
-[lines]
-[1001]
-cid_name = Alìce
-cid_num = 1001
-setvar = XIVO_USERID=1
-setvar = PICKUPMARK=1001%pcmdev
-context = pcmdev
-language = fr_FR
-disallow = all
-allow = g729,ulaw
-
-
-[speeddials]
-[2-1]
-extension = 1001
-label = Alice
-blf = 1
-
-
-[devices]
-[SEP0015C66BFD16]
-line = 1001
-speeddial = 2-1
-voicemail = 1002
+[1-2]
+type = speeddial
+label = Carlos
+extension = 1003
+blf = yes
