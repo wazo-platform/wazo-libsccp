@@ -3310,7 +3310,7 @@ struct ast_frame *sccp_channel_tech_read(struct ast_channel *channel)
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
 	struct ast_frame *frame;
-	struct ast_rtp_instance *rtp;
+	struct ast_rtp_instance *rtp = NULL;
 
 	sccp_device_lock(device);
 
