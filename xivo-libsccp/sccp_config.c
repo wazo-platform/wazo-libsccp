@@ -88,6 +88,7 @@ static void sccp_line_cfg_destructor(void *obj)
 	struct sccp_line_cfg *line_cfg = obj;
 
 	sccp_line_cfg_free_internal(line_cfg);
+	ast_variables_destroy(line_cfg->chanvars);
 	ast_format_cap_destroy(line_cfg->caps);
 }
 
