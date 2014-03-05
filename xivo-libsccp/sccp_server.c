@@ -235,7 +235,7 @@ static void *session_run(void *data)
 	return NULL;
 }
 
-static int server_start_session(struct sccp_server *server, struct server_session *srv_session)
+static int start_session(struct server_session *srv_session)
 {
 	int ret;
 
@@ -266,7 +266,7 @@ static void server_join_sessions(struct sccp_server *server)
 	AST_LIST_TRAVERSE_SAFE_END;
 }
 
-static int new_server_socket(struct sccp_cfg *cfg)
+static int new_server_socket(void)
 {
 	struct sockaddr_in addr;
 	int sockfd;
@@ -301,7 +301,7 @@ static int server_start(struct sccp_server *server)
 {
 	int ret;
 
-	server->sockfd = new_server_socket(server->cfg);
+	server->sockfd = new_server_socket();
 	if (server->sockfd == -1) {
 		return -1;
 	}
@@ -405,7 +405,7 @@ static void server_on_sock_events(struct sccp_server *server, int events)
 		}
 
 		server_add_srv_session(server, srv_session);
-		if (server_start_session(server, srv_session)) {
+		if (start_session(srv_session)) {
 			server_remove_srv_session(server, srv_session);
 			server_session_destroy(srv_session);
 			return;
