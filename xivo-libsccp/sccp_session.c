@@ -130,7 +130,7 @@ static int get_sock_local_addr(int sockfd, struct sockaddr_in *addr)
 
 static int set_sock_options(int sockfd)
 {
-	int flag_nodelay;
+	int flag_nodelay = 1;
 	struct timeval flag_timeout;
 
 	if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay)) == -1) {
