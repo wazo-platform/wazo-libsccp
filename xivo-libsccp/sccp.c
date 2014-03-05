@@ -1,4 +1,5 @@
 #include <asterisk.h>
+#include <asterisk/astobj2.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
 #include <asterisk/cli.h>
