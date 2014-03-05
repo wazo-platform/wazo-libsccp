@@ -804,7 +804,7 @@ static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct a
 	return 0;
 }
 
-void sccp_subchannel_set_rtp_remote_address(struct sccp_subchannel *subchan)
+static void sccp_subchannel_set_rtp_remote_address(struct sccp_subchannel *subchan)
 {
 	struct ast_sockaddr remote_tmp;
 
@@ -812,7 +812,7 @@ void sccp_subchannel_set_rtp_remote_address(struct sccp_subchannel *subchan)
 	ast_rtp_instance_set_remote_address(subchan->rtp, &remote_tmp);
 }
 
-void sccp_subchannel_get_rtp_local_address(struct sccp_subchannel *subchan, struct sockaddr_in *local)
+static void sccp_subchannel_get_rtp_local_address(struct sccp_subchannel *subchan, struct sockaddr_in *local)
 {
 	struct ast_sockaddr local_tmp;
 
