@@ -264,8 +264,8 @@ void sccp_msg_open_receive_channel(struct sccp_msg *msg, uint32_t callid, uint32
 	msg->data.openreceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
 	msg->data.openreceivechannel.packets = packets;
 	msg->data.openreceivechannel.capability = capability;
-	msg->data.openreceivechannel.echo = htolel(0);
-	msg->data.openreceivechannel.bitrate = htolel(0);
+	msg->data.openreceivechannel.echo = 0;
+	msg->data.openreceivechannel.bitrate = 0;
 	msg->data.openreceivechannel.conferenceId1 = htolel(callid);
 	msg->data.openreceivechannel.rtpTimeout = htolel(10);
 }
@@ -318,7 +318,7 @@ void sccp_msg_softkey_set_res(struct sccp_msg *msg)
 
 	prepare_msg(msg, sizeof(struct softkey_set_res_message), SOFTKEY_SET_RES_MESSAGE);
 
-	msg->data.softkeysets.softKeySetOffset = htolel(0);
+	msg->data.softkeysets.softKeySetOffset = 0;
 	msg->data.softkeysets.softKeySetCount = htolel(keyset_count);
 	msg->data.softkeysets.totalSoftKeySetCount = htolel(keyset_count);
 
@@ -333,11 +333,12 @@ void sccp_msg_softkey_set_res(struct sccp_msg *msg)
 		}
 	}
 }
+
 void sccp_msg_softkey_template_res(struct sccp_msg *msg)
 {
 	prepare_msg(msg, sizeof(struct softkey_template_res_message), SOFTKEY_TEMPLATE_RES_MESSAGE);
 
-	msg->data.softkeytemplate.softKeyOffset = htolel(0);
+	msg->data.softkeytemplate.softKeyOffset = 0;
 	msg->data.softkeytemplate.softKeyCount = htolel(ARRAY_LEN(softkey_template_default));
 	msg->data.softkeytemplate.totalSoftKeyCount = htolel(ARRAY_LEN(softkey_template_default));
 	memcpy(msg->data.softkeytemplate.softKeyTemplateDefinition, softkey_template_default, sizeof(softkey_template_default));
@@ -370,9 +371,9 @@ void sccp_msg_start_media_transmission(struct sccp_msg *msg, uint32_t callid, ui
 	msg->data.startmedia.packetSize = htolel(packet_size);
 	msg->data.startmedia.payloadType = htolel(payload_type);
 	msg->data.startmedia.qualifier.precedence = htolel(precedence);
-	msg->data.startmedia.qualifier.vad = htolel(0);
-	msg->data.startmedia.qualifier.packets = htolel(0);
-	msg->data.startmedia.qualifier.bitRate = htolel(0);
+	msg->data.startmedia.qualifier.vad = 0;
+	msg->data.startmedia.qualifier.packets = 0;
+	msg->data.startmedia.qualifier.bitRate = 0;
 	msg->data.startmedia.conferenceId1 = htolel(callid);
 	msg->data.startmedia.rtpTimeout = htolel(10);
 }
@@ -411,7 +412,7 @@ void sccp_msg_time_date_res(struct sccp_msg *msg)
 	msg->data.timedate.hour = htolel(cmtime.tm_hour);
 	msg->data.timedate.minute = htolel(cmtime.tm_min);
 	msg->data.timedate.seconds = htolel(cmtime.tm_sec);
-	msg->data.timedate.milliseconds = htolel(0);
+	msg->data.timedate.milliseconds = 0;
 	msg->data.timedate.systemTime = htolel(now.tv_sec);
 }
 
