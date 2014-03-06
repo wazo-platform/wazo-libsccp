@@ -232,8 +232,6 @@ static void sccp_speeddial_destructor(void *data)
 {
 	struct sccp_speeddial *sd = data;
 
-	ast_log(LOG_DEBUG, "in destructor for speeddial %p\n", sd);
-
 	ao2_ref(sd->device, -1);
 	ao2_ref(sd->cfg, -1);
 }
@@ -503,8 +501,6 @@ static void sccp_subchannel_destructor(void *data)
 {
 	struct sccp_subchannel *subchan = data;
 
-	ast_log(LOG_DEBUG, "in destructor for subchannel %u\n", subchan->id);
-
 	if (subchan->channel) {
 		/*
 		 * This should not happen.
@@ -542,8 +538,6 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 
 static void sccp_subchannel_destroy(struct sccp_subchannel *subchan)
 {
-	ast_log(LOG_DEBUG, "destroying subchannel %u\n", subchan->id);
-
 	if (subchan->channel) {
 		add_ast_queue_hangup_task(subchan->line->device, subchan->channel);
 	} else {
@@ -837,8 +831,6 @@ static void sccp_line_destructor(void *data)
 {
 	struct sccp_line *line = data;
 
-	ast_log(LOG_DEBUG, "in destructor for line %s\n", line->name);
-
 	ao2_ref(line->device, -1);
 	ao2_ref(line->cfg, -1);
 }
@@ -867,8 +859,6 @@ static struct sccp_line *sccp_line_alloc(struct sccp_line_cfg *cfg, struct sccp_
 static void sccp_line_destroy(struct sccp_line *line)
 {
 	struct sccp_subchannel *subchan;
-
-	ast_log(LOG_DEBUG, "destroying line %s\n", line->name);
 
 	/* destroy the subchans */
 	AST_LIST_TRAVERSE(&line->subchans, subchan, list) {
@@ -1054,8 +1044,6 @@ static void sccp_device_destructor(void *data)
 {
 	struct sccp_device *device = data;
 
-	ast_log(LOG_DEBUG, "in destructor for device %s\n", device->name);
-
 	/* no, it is NOT missing an sccp_lines_deinit(&device->line) nor a
 	 * sccp_speeddials_deinit(&device->group). Only completely created
 	 * device object have these field initialized, and completely created
@@ -1189,8 +1177,6 @@ struct sccp_device *sccp_device_create(struct sccp_device_cfg *device_cfg, struc
 
 void sccp_device_destroy(struct sccp_device *device)
 {
-	ast_log(LOG_DEBUG, "destroying device %s\n", device->name);
-
 	sccp_speeddials_destroy(&device->speeddials);
 	unsubscribe_mwi(device);
 
@@ -1797,7 +1783,7 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device)
 
 	subchan = sccp_lines_get_next_offhook_subchan(&device->lines);
 	if (subchan) {
-		ast_log(LOG_DEBUG, "Found an already offhook subchan\n");
+		ast_debug(1, "Found an already offhook subchan\n");
 		return subchan;
 	}
 
@@ -2066,7 +2052,7 @@ static void handle_msg_feature_status_req(struct sccp_device *device, struct scc
 
 	sd = sccp_speeddials_get_by_instance(&device->speeddials, instance);
 	if (!sd) {
-		ast_log(LOG_DEBUG, "No speeddial [%d] on device [%s]\n", instance, device->name);
+		ast_log(LOG_NOTICE, "No speeddial [%d] on device [%s]\n", instance, device->name);
 		sccp_session_stop(device->session);
 		return;
 	}
@@ -2103,7 +2089,7 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 	}
 
 	if (!line) {
-		ast_log(LOG_DEBUG, "Device [%s] has no line instance [%d]\n", device->name, instance);
+		ast_debug(1, "Device [%s] has no line instance [%d]\n", device->name, instance);
 		return;
 	}
 
@@ -2167,7 +2153,7 @@ static void handle_msg_line_status_req(struct sccp_device *device, struct sccp_m
 
 	line = sccp_lines_get_by_instance(&device->lines, instance);
 	if (!line) {
-		ast_log(LOG_DEBUG, "Line instance [%d] is not attached to device [%s]\n", instance, device->name);
+		ast_log(LOG_NOTICE, "Line instance [%d] is not attached to device [%s]\n", instance, device->name);
 		sccp_session_stop(device->session);
 		return;
 	}
@@ -2191,7 +2177,7 @@ static void handle_msg_onhook(struct sccp_device *device, struct sccp_msg *msg)
 	} else {
 		subchan = device->active_subchan;
 		if (!subchan) {
-			ast_log(LOG_NOTICE, "handle msg onhook failed: no active subchan\n");
+			ast_debug(1, "handle msg onhook failed: no active subchan\n");
 			return;
 		}
 	}
@@ -2276,7 +2262,6 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 	uint32_t port = letohl(msg->data.openreceivechannelack.port);
 
 	if (!device->active_subchan) {
-		ast_log(LOG_DEBUG, "active_subchan is NULL\n");
 		return;
 	}
 
@@ -2440,8 +2425,6 @@ static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_in
 	struct sccp_subchannel *subchan;
 	struct sccp_subchannel *xfer_subchan;
 
-	ast_log(LOG_DEBUG, "handle_softkey_transfer: line_instance(%u)\n", line_instance);
-
 	if (!line) {
 		ast_log(LOG_NOTICE, "handle softkey transfer failed: no line %u\n", line_instance);
 		return;
@@ -2498,7 +2481,6 @@ static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_in
 
 		if (ast_channel_state(active_channel) == AST_STATE_DOWN
 			|| ast_channel_state(related_channel) == AST_STATE_DOWN) {
-			ast_log(LOG_DEBUG, "channel state AST_STATE_DOWN\n");
 			return;
 		}
 
@@ -2858,7 +2840,7 @@ void sccp_device_on_connection_lost(struct sccp_device *device)
  */
 static void on_keepalive_timeout(struct sccp_device *device, void __attribute__((unused)) *data)
 {
-	ast_log(LOG_WARNING, "Device %s has timed out\n", device->name);
+	ast_log(LOG_NOTICE, "Device %s has timed out\n", device->name);
 
 	sccp_session_stop(device->session);
 }
@@ -3075,7 +3057,7 @@ static int channel_tech_requester_locked(struct sccp_device *device, struct sccp
 	}
 
 	if (device->callfwd == SCCP_CFWD_ACTIVE) {
-		ast_log(LOG_DEBUG, "setting call forward to %s\n", device->callfwd_exten);
+		ast_debug(1, "setting call forward to %s\n", device->callfwd_exten);
 		ast_channel_call_forward_set(channel, device->callfwd_exten);
 	}
 
@@ -3327,7 +3309,6 @@ unlock:
 	sccp_device_unlock(device);
 
 	if (!rtp) {
-		ast_log(LOG_DEBUG, "rtp is NULL\n");
 		return &ast_null_frame;
 	}
 
@@ -3464,7 +3445,6 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 		break;
 
 	case AST_CONTROL_SRCUPDATE:
-		ast_log(LOG_DEBUG, "src update\n");
 		if (subchan->rtp) {
 			ast_rtp_instance_update_source(subchan->rtp);
 		}
@@ -3472,7 +3452,6 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 		break;
 
 	case AST_CONTROL_SRCCHANGE:
-		ast_log(LOG_DEBUG, "src change\n");
 		if (subchan->rtp) {
 			ast_rtp_instance_change_source(subchan->rtp);
 		}
@@ -3512,13 +3491,11 @@ int sccp_channel_tech_fixup(struct ast_channel *oldchannel, struct ast_channel *
 
 int sccp_channel_tech_send_digit_begin(struct ast_channel *channel, char digit)
 {
-	ast_log(LOG_DEBUG, "senddigit begin %c\n", digit);
 	return 0;
 }
 
 int sccp_channel_tech_send_digit_end(struct ast_channel *channel, char digit, unsigned int duration)
 {
-	ast_log(LOG_DEBUG, "senddigit end %c\n", digit);
 	return 0;
 }
 
@@ -3532,7 +3509,7 @@ enum ast_rtp_glue_result sccp_rtp_glue_get_rtp_info(struct ast_channel *channel,
 	sccp_device_lock(device);
 
 	if (!subchan->rtp) {
-		ast_log(LOG_DEBUG, "rtp is NULL\n");
+		ast_debug(1, "rtp is NULL\n");
 		res = AST_RTP_GLUE_RESULT_FORBID;
 		goto unlock;
 	}

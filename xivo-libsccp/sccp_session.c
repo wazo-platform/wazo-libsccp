@@ -540,8 +540,6 @@ void sccp_session_run(struct sccp_session *session)
 	}
 
 end:
-	ast_log(LOG_DEBUG, "leaving session %d thread\n", session->sockfd);
-
 	sccp_session_close_queue(session);
 	sccp_session_empty_queue(session);
 

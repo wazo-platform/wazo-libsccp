@@ -610,7 +610,6 @@ int sccp_deserializer_pop(struct sccp_deserializer *deserializer, struct sccp_ms
 	} else if (total_length > SCCP_MSG_MAX_TOTAL_LEN) {
 		 if (total_length <= sizeof(deserializer->buf)) {
 			 copy_length = SCCP_MSG_MAX_TOTAL_LEN;
-			 ast_log(LOG_DEBUG, "truncating %u bytes from message\n", total_length - copy_length);
 		 } else {
 			 ast_log(LOG_WARNING, "invalid message: total length (%u) is too large\n", total_length);
 			 return SCCP_DESERIALIZER_MALFORMED;
