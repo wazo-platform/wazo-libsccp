@@ -5,6 +5,7 @@
 
 import argparse
 import jinja2
+import random
 import sys
 
 TPL = '''\
@@ -14,14 +15,12 @@ type = device
 line = {{ i }}
 {% endfor %}
 
-
 {% for i in range(base, base + n) %}
 [{{ i }}]
 type = line
 cid_name = John
 cid_num = {{ i }}
 {% endfor %}
-
 
 '''
 
@@ -36,9 +35,17 @@ def _parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--base', default=0, type=int,
                         help='base number for device/line')
-    parser.add_argument('n', type=int,
+    parser.add_argument('n', type=_int_or_random_range,
                         help='number of devices/lines to create')
     return parser.parse_args()
+
+
+def _int_or_random_range(string):
+    head, sep, tail = string.partition('-')
+    if sep:
+	return random.randint(int(head), int(tail))
+    else:
+	return int(head)
 
 
 main()
