@@ -1128,7 +1128,12 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	device->caps = caps;
 	device->mwi_event_sub = NULL;
 	device->active_subchan = NULL;
-	device->serial_callid = 1;
+	/* The callid is not initialized to 1 since the 7940 needs a power cycle
+	   to track calls with a callid lower than the last callid in it's outgoing
+	   call history. ie after an asterisk restart
+	   A power cycle will be required when the variable overflows...
+	 */
+	device->serial_callid = time(NULL);
 	device->open_receive_channel_pending = 0;
 	device->reset_on_idle = 0;
 	device->dnd = 0;
