@@ -1616,13 +1616,12 @@ static void update_displaymessage(struct sccp_device *device)
 	transmit_display_message(device, text);
 }
 
-static void set_callforward(struct sccp_device *device)
+static void set_callforward(struct sccp_device *device, const char *exten)
 {
 	struct sccp_line *line = sccp_lines_get_default(&device->lines);
 
 	device->callfwd = SCCP_CFWD_ACTIVE;
-	ast_copy_string(device->callfwd_exten, device->exten, sizeof(device->callfwd_exten));
-	device->exten[0] = '\0';
+	ast_copy_string(device->callfwd_exten, exten, sizeof(device->callfwd_exten));
 	line->state = SCCP_ONHOOK;
 
 	remove_fwdtimeout_task(device);
@@ -1632,6 +1631,12 @@ static void set_callforward(struct sccp_device *device)
 	transmit_line_forward_status_res(device, line);
 	transmit_speaker_mode(device, SCCP_SPEAKEROFF);
 	update_displaymessage(device);
+}
+
+static void set_callforward_from_device_exten(struct sccp_device *device)
+{
+	set_callforward(device, device->exten);
+	device->exten[0] = '\0';
 }
 
 static void clear_callforward(struct sccp_device *device)
@@ -1982,8 +1987,7 @@ static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddia
 	struct sccp_subchannel *subchan;
 
 	if (device->callfwd == SCCP_CFWD_INPUTEXTEN) {
-		ast_copy_string(device->exten, sd->cfg->extension, sizeof(device->exten));
-		set_callforward(device);
+		set_callforward(device, sd->cfg->extension);
 	} else {
 		/* XXX this 3 steps stuff should be simplified into one function */
 		subchan = do_newcall(device);
@@ -2118,7 +2122,7 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 
 		if (device->callfwd == SCCP_CFWD_INPUTEXTEN) {
 			if (digit == '#') {
-				set_callforward(device);
+				set_callforward_from_device_exten(device);
 			} else {
 				add_fwdtimeout_task(device);
 			}
@@ -2324,7 +2328,7 @@ static void handle_softkey_cfwdall(struct sccp_device *device)
 		if (ast_strlen_zero(device->exten)) {
 			cancel_callforward_input(device);
 		} else {
-			set_callforward(device);
+			set_callforward_from_device_exten(device);
 		}
 
 		break;
@@ -2890,7 +2894,7 @@ static void remove_dialtimeout_task(struct sccp_device *device, struct sccp_subc
 static void on_fwd_timeout(struct sccp_device *device, void __attribute__((unused)) *data)
 {
 	sccp_device_lock(device);
-	set_callforward(device);
+	set_callforward_from_device_exten(device);
 	sccp_device_unlock(device);
 }
 
@@ -2948,8 +2952,17 @@ static void init_callfwd(struct sccp_device *device)
 	char exten[AST_MAX_EXTENSION];
 
 	if (!ast_db_get("sccp/cfwdall", device->name, exten, sizeof(exten))) {
-		ast_copy_string(device->exten, exten, sizeof(device->exten));
-		set_callforward(device);
+		set_callforward(device, exten);
+	} else {
+		struct sccp_line *line = sccp_lines_get_default(&device->lines);
+
+		/* callforward was set on the default line previously, so also check
+		 * if the default line has an entry in the ast_db
+		 */
+		if (!ast_db_get("sccp/cfwdall", line->name, exten, sizeof(exten))) {
+			set_callforward(device, exten);
+			ast_db_del("sccp/cfwdall", line->name);
+		}
 	}
 }
 
