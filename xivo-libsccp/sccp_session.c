@@ -130,8 +130,8 @@ static int get_sock_local_addr(int sockfd, struct sockaddr_in *addr)
 
 static int set_sock_options(int sockfd)
 {
-	int flag_nodelay;
-	struct timeval flag_timeout;
+	int flag_nodelay = 1;
+	struct timeval flag_timeout = { .tv_sec = 10, .tv_usec = 0 };
 
 	if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag_nodelay, sizeof(flag_nodelay)) == -1) {
 		ast_log(LOG_ERROR, "set session sock option failed: setsockopt: %s\n", strerror(errno));
@@ -146,8 +146,6 @@ static int set_sock_options(int sockfd)
 	 * a session to stop and the session thread exiting, which would then create some partial deadlock
 	 * condition when closing all sessions, etc.
 	 */
-	flag_timeout.tv_sec = 10;
-	flag_timeout.tv_usec = 0;
 	if (setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &flag_timeout, sizeof(flag_timeout)) == -1) {
 		ast_log(LOG_ERROR, "set session sock option failed: setsockopt: %s\n", strerror(errno));
 		return -1;
@@ -542,8 +540,6 @@ void sccp_session_run(struct sccp_session *session)
 	}
 
 end:
-	ast_log(LOG_DEBUG, "leaving session %d thread\n", session->sockfd);
-
 	sccp_session_close_queue(session);
 	sccp_session_empty_queue(session);
 

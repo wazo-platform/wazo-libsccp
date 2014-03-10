@@ -1,4 +1,5 @@
 #include <asterisk.h>
+#include <asterisk/astobj2.h>
 #include <asterisk/causes.h>
 #include <asterisk/channel.h>
 #include <asterisk/cli.h>
@@ -94,7 +95,7 @@ static int channel_tech_devicestate(const char *data)
 	struct sccp_line *line;
 	char *name = ast_strdupa(data);
 	char *ptr;
-	int state = AST_DEVICE_UNKNOWN;
+	int state;
 
 	ptr = strchr(name, '/');
 	if (ptr) {
@@ -152,9 +153,8 @@ static char *cli_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 		e->command = "sccp reset";
 		e->usage =
 			"Usage: sccp reset <device> [restart]\n"
-			"       Resets an SCCP device, optionally with a full restart.\n";
+			"       Reset an SCCP device, optionally with a full restart.\n";
 		return NULL;
-
 	case CLI_GENERATE:
 		if (a->pos == 2) {
 			return sccp_device_registry_complete(global_registry, a->word, a->n);
@@ -163,6 +163,10 @@ static char *cli_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 		}
 
 		return NULL;
+	}
+
+	if (a->argc < 3) {
+		return CLI_SHOWUSAGE;
 	}
 
 	device = sccp_device_registry_find(global_registry, a->argv[2]);
@@ -192,7 +196,6 @@ static char *cli_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args
 			"Usage: sccp set debug {on|off|ip addr}\n"
 			"       Enable/disable dumping of SCCP packets.\n";
 		return NULL;
-
 	case CLI_GENERATE:
 		return NULL;
 	}
@@ -273,8 +276,8 @@ static char *cli_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	case CLI_INIT:
 		e->command = "sccp show devices";
 		e->usage =
-				"Usage: sccp show devices\n"
-				"       Show the connected devices.\n";
+			"Usage: sccp show devices\n"
+			"       Show the connected devices.\n";
 		return NULL;
 	case CLI_GENERATE:
 		return NULL;
