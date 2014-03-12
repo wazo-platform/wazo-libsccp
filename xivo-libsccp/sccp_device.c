@@ -296,26 +296,33 @@ static void sccp_speeddial_del_extension_state_cb(struct sccp_speeddial *sd)
 	}
 }
 
-static enum sccp_blf_status extstate_ast2sccp(int state)
+static enum sccp_blf_status extstate_ast2sccp(const struct sccp_device *device, int state)
 {
 	switch (state) {
 	case AST_EXTENSION_DEACTIVATED:
-		return SCCP_BLF_STATUS_UNKNOWN;
 	case AST_EXTENSION_REMOVED:
 		return SCCP_BLF_STATUS_UNKNOWN;
-	case AST_EXTENSION_RINGING:
-		return SCCP_BLF_STATUS_ALERTING;
-	case AST_EXTENSION_INUSE | AST_EXTENSION_RINGING:
+	}
+
+	if (state & AST_EXTENSION_INUSE) {
 		return SCCP_BLF_STATUS_INUSE;
+	}
+
+	switch (state) {
+	case AST_EXTENSION_RINGING:
+		switch (device->type) {
+		case SCCP_DEVICE_7940:
+		case SCCP_DEVICE_7960:
+			return SCCP_BLF_STATUS_INUSE;
+		default:
+			return SCCP_BLF_STATUS_ALERTING;
+		}
+
 	case AST_EXTENSION_UNAVAILABLE:
 		return SCCP_BLF_STATUS_UNKNOWN;
 	case AST_EXTENSION_BUSY:
 		return SCCP_BLF_STATUS_INUSE;
-	case AST_EXTENSION_INUSE:
-		return SCCP_BLF_STATUS_INUSE;
 	case AST_EXTENSION_ONHOLD:
-		return SCCP_BLF_STATUS_INUSE;
-	case AST_EXTENSION_INUSE | AST_EXTENSION_ONHOLD:
 		return SCCP_BLF_STATUS_INUSE;
 	case AST_EXTENSION_NOT_INUSE:
 		return SCCP_BLF_STATUS_IDLE;
@@ -324,9 +331,9 @@ static enum sccp_blf_status extstate_ast2sccp(int state)
 	}
 }
 
-static enum sccp_blf_status sccp_speeddial_status(const struct sccp_speeddial *sd) {
+static enum sccp_blf_status sccp_speeddial_status(const struct sccp_device *device, const struct sccp_speeddial *sd) {
 	if (sd->cfg->blf) {
-		return extstate_ast2sccp(sd->exten_state);
+		return extstate_ast2sccp(device, sd->exten_state);
 	} else {
 		return SCCP_BLF_STATUS_UNKNOWN;
 	}
@@ -1371,7 +1378,7 @@ static void transmit_feature_status(struct sccp_device *device, struct sccp_spee
 {
 	struct sccp_msg msg;
 
-	sccp_msg_feature_status(&msg, sd->instance, BT_FEATUREBUTTON, sccp_speeddial_status(sd), sd->cfg->label);
+	sccp_msg_feature_status(&msg, sd->instance, BT_FEATUREBUTTON, sccp_speeddial_status(device, sd), sd->cfg->label);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 

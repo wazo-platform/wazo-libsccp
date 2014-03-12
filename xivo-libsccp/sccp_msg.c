@@ -654,7 +654,7 @@ const char *sccp_msg_id_str(uint32_t msg_id) {
 	case FORWARD_STATUS_REQ_MESSAGE:
 		return "forward status req";
 	case SPEEDDIAL_STAT_REQ_MESSAGE:
-		return "speeddial stat req";
+		return "speeddial status req";
 	case LINE_STATUS_REQ_MESSAGE:
 		return "line status req";
 	case CONFIG_STATUS_REQ_MESSAGE:
@@ -706,7 +706,7 @@ const char *sccp_msg_id_str(uint32_t msg_id) {
 	case FORWARD_STATUS_RES_MESSAGE:
 		return "forward status res";
 	case SPEEDDIAL_STAT_RES_MESSAGE:
-		return "speeddial stat res";
+		return "speeddial status res";
 	case LINE_STATUS_RES_MESSAGE:
 		return "line status res";
 	case CONFIG_STATUS_RES_MESSAGE:
@@ -746,7 +746,7 @@ const char *sccp_msg_id_str(uint32_t msg_id) {
 	case DIALED_NUMBER_MESSAGE:
 		return "dialed number";
 	case FEATURE_STAT_MESSAGE:
-		return "feature stat";
+		return "feature status";
 	case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
 		return "start media transmission ack";
 	}
