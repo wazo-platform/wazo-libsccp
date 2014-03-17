@@ -11,7 +11,7 @@ Vcs-Browser: http://git.proformatique.com/?p=official/xivo-libsccp.git;a=summary
 Package: xivo-libsccp
 Section: comm
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 11.6.0) | asterisk12
+Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 11.6.0)
 Conflicts: asterisk-chan-sccp
 Replaces: asterisk-chan-sccp
 Provides: asterisk-chan-sccp
