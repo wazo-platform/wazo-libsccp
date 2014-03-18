@@ -3562,14 +3562,18 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 	struct sccp_device *device = line->device;
 	int changed;
 
-	if (!rtp) {
-		ast_debug(1, "not updating peer: rtp is NULL\n");
-		return 0;
-	}
-
 	sccp_device_lock(device);
 
 	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		goto unlock;
+	}
+
+	sccp_subchannel_get_rtp_local_address(subchan, &local);
+
+	if (!rtp) {
+		transmit_stop_media_transmission(device, subchan->id);
+		transmit_subchan_start_media_transmission(device, subchan, &local);
+		ast_sockaddr_setnull(&subchan->direct_media_addr);
 		goto unlock;
 	}
 
