@@ -1863,8 +1863,10 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 	/* XXX hum, that's a bit ugly */
 
 	if (subchan->rtp) {
-		transmit_close_receive_channel(device, subchan->id);
-		transmit_stop_media_transmission(device, subchan->id);
+		if (subchan == device->active_subchan) {
+			transmit_close_receive_channel(device, subchan->id);
+			transmit_stop_media_transmission(device, subchan->id);
+		}
 
 		ast_rtp_instance_stop(subchan->rtp);
 		ast_rtp_instance_destroy(subchan->rtp);
