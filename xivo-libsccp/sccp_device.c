@@ -74,7 +74,6 @@ struct sccp_subchannel {
 	/* (static) */
 	enum sccp_direction direction;
 
-	uint8_t on_hold;
 	uint8_t resuming;
 	uint8_t autoanswer;
 	uint8_t transferring;
@@ -535,7 +534,6 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->id = id;
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
-	subchan->on_hold = 0;
 	subchan->resuming = 0;
 	subchan->autoanswer = 0;
 	subchan->transferring = 0;
@@ -1753,8 +1751,6 @@ static int do_hold(struct sccp_device *device)
 	transmit_close_receive_channel(device, subchan->id);
 	transmit_stop_media_transmission(device, subchan->id);
 
-	subchan->on_hold = 1;
-
 	device->active_subchan = NULL;
 
 	return 0;
@@ -1785,8 +1781,6 @@ static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan
 		subchan->resuming = 1;
 		transmit_subchan_open_receive_channel(device, subchan);
 	}
-
-	subchan->on_hold = 0;
 
 	device->active_subchan = subchan;
 
@@ -3282,7 +3276,7 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 		wait_subchan_rtp = 1;
 	}
 
-	if (subchan->on_hold) {
+	if (subchan != device->active_subchan) {
 		sccp_device_unlock(device);
 		return 0;
 	}
@@ -3563,17 +3557,17 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 		goto unlock;
 	}
 
+	if (subchan != device->active_subchan) {
+		ast_debug(1, "not updating peer: subchan is not active\n");
+		goto unlock;
+	}
+
 	sccp_subchannel_get_rtp_local_address(subchan, &local);
 
 	if (!rtp) {
 		transmit_stop_media_transmission(device, subchan->id);
 		transmit_subchan_start_media_transmission(device, subchan, &local);
 		ast_sockaddr_setnull(&subchan->direct_media_addr);
-		goto unlock;
-	}
-
-	if (subchan->on_hold) {
-		ast_debug(1, "not updating peer: subchan is on hold\n");
 		goto unlock;
 	}
 
