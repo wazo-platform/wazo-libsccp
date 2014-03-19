@@ -60,11 +60,6 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 int sccp_channel_tech_fixup(struct ast_channel *oldchannel, struct ast_channel *newchannel);
 
 /*!
- * \brief Implementation of ast_channel_tech::send_digit_begin.
- */
-int sccp_channel_tech_send_digit_begin(struct ast_channel *channel, char digit);
-
-/*!
  * \brief Implementation of ast_channel_tech::send_digit_end.
  */
 int sccp_channel_tech_send_digit_end(struct ast_channel *channel, char digit, unsigned int duration);

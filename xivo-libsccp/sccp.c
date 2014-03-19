@@ -131,7 +131,6 @@ struct ast_channel_tech sccp_tech = {
 	.write = sccp_channel_tech_write,
 	.indicate = sccp_channel_tech_indicate,
 	.fixup = sccp_channel_tech_fixup,
-	.send_digit_begin = sccp_channel_tech_send_digit_begin,
 	.send_digit_end = sccp_channel_tech_send_digit_end,
 	.bridge = ast_rtp_instance_bridge,
 };

@@ -3514,11 +3514,6 @@ int sccp_channel_tech_fixup(struct ast_channel *oldchannel, struct ast_channel *
 	return 0;
 }
 
-int sccp_channel_tech_send_digit_begin(struct ast_channel *channel, char digit)
-{
-	return 0;
-}
-
 int sccp_channel_tech_send_digit_end(struct ast_channel *channel, char digit, unsigned int duration)
 {
 	return 0;
