@@ -3579,8 +3579,6 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 		goto unlock;
 	}
 
-	sccp_subchannel_get_rtp_local_address(subchan, &local);
-
 	ast_rtp_instance_get_remote_address(rtp, &endpoint_tmp);
 	ast_debug(1, "remote address %s\n", ast_sockaddr_stringify(&endpoint_tmp));
 
