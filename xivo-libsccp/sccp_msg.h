@@ -433,7 +433,7 @@ struct config_status_res_message {
 	uint32_t numberSpeedDials;
 };
 
-#define DATE_TIME_RES_MESSAGE 0x0094
+#define TIME_DATE_RES_MESSAGE 0x0094
 struct time_date_res_message {
 	uint32_t year;
 	uint32_t month;

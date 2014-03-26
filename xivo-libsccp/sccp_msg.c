@@ -400,7 +400,7 @@ void sccp_msg_time_date_res(struct sccp_msg *msg)
 	struct timeval now;
 	struct ast_tm cmtime;
 
-	prepare_msg(msg, sizeof(struct time_date_res_message), DATE_TIME_RES_MESSAGE);
+	prepare_msg(msg, sizeof(struct time_date_res_message), TIME_DATE_RES_MESSAGE);
 
 	now = ast_tvnow();
 	ast_localtime(&now, &cmtime, NULL);
@@ -711,7 +711,7 @@ const char *sccp_msg_id_str(uint32_t msg_id) {
 		return "line status res";
 	case CONFIG_STATUS_RES_MESSAGE:
 		return "config status res";
-	case DATE_TIME_RES_MESSAGE:
+	case TIME_DATE_RES_MESSAGE:
 		return "date time res";
 	case BUTTON_TEMPLATE_RES_MESSAGE:
 		return "button template res";
