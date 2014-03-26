@@ -307,7 +307,7 @@ struct register_ack_message {
 	uint8_t unknown3;
 };
 
-#define START_TONE_MESSAGE 0x00082
+#define START_TONE_MESSAGE 0x0082
 struct start_tone_message {
 	uint32_t tone;
 	uint32_t space;
@@ -564,7 +564,7 @@ struct activate_call_plane_message {
 	uint32_t lineInstance;
 };
 
-#define DIALED_NUMBER_MESSAGE 0x011d
+#define DIALED_NUMBER_MESSAGE 0x011D
 struct dialed_number_message {
 	char calledParty[24];
 	uint32_t lineInstance;
