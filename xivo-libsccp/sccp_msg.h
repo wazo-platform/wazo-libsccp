@@ -527,10 +527,25 @@ struct softkey_template_definition {
 	uint32_t softKeyEvent;
 };
 
+struct softkey_template_res_message {
+	uint32_t softKeyOffset;
+	uint32_t softKeyCount;
+	uint32_t totalSoftKeyCount;
+	struct softkey_template_definition softKeyTemplateDefinition[32];
+};
+
 #define SOFTKEY_SET_RES_MESSAGE 0x0109
 struct softkey_set_definition {
 	uint8_t softKeyTemplateIndex[16];
 	uint16_t softKeyInfoIndex[16];
+};
+
+struct softkey_set_res_message {
+	uint32_t softKeySetOffset;
+	uint32_t softKeySetCount;
+	uint32_t totalSoftKeySetCount;
+	struct softkey_set_definition softKeySetDefinition[16];
+	uint32_t res;
 };
 
 #define SELECT_SOFT_KEYS_MESSAGE 0x0110
@@ -580,21 +595,6 @@ struct feature_stat_message {
 };
 
 #define START_MEDIA_TRANSMISSION_ACK_MESSAGE 0x0159
-
-struct softkey_set_res_message {
-	uint32_t softKeySetOffset;
-	uint32_t softKeySetCount;
-	uint32_t totalSoftKeySetCount;
-	struct softkey_set_definition softKeySetDefinition[16];
-	uint32_t res;
-};
-
-struct softkey_template_res_message {
-	uint32_t softKeyOffset;
-	uint32_t softKeyCount;
-	uint32_t totalSoftKeyCount;
-	struct softkey_template_definition softKeyTemplateDefinition[32];
-};
 
 union sccp_data {
 	struct activate_call_plane_message activatecallplane;
