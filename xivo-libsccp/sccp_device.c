@@ -866,12 +866,12 @@ static void sccp_line_destroy(struct sccp_line *line)
 	struct sccp_subchannel *subchan;
 
 	/* destroy the subchans */
-	AST_LIST_TRAVERSE(&line->subchans, subchan, list) {
+	AST_LIST_TRAVERSE_SAFE_BEGIN(&line->subchans, subchan, list) {
 		sccp_subchannel_destroy(subchan);
+		AST_LIST_REMOVE_CURRENT(list);
 		ao2_ref(subchan, -1);
 	}
-
-	AST_LIST_HEAD_INIT_NOLOCK(&line->subchans);
+	AST_LIST_TRAVERSE_SAFE_END;
 
 	/* update the line devstate */
 	sccp_line_update_devstate(line, AST_DEVICE_UNAVAILABLE);
