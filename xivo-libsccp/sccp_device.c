@@ -114,6 +114,12 @@ enum call_forward_status {
 	SCCP_CFWD_ACTIVE,
 };
 
+enum receive_channel_status {
+	SCCP_RECV_CHAN_CLOSED,
+	SCCP_RECV_CHAN_OPENING,
+	SCCP_RECV_CHAN_OPENED,
+};
+
 enum sccp_device_state {
 	STATE_NEW,
 	STATE_WORKING,
@@ -154,8 +160,8 @@ struct sccp_device {
 	uint32_t serial_callid;
 	uint32_t callfwd_id;
 	enum call_forward_status callfwd;
+	enum receive_channel_status recv_chan_status;
 	enum sccp_device_state state;
-	int open_receive_channel_pending;
 	int reset_on_idle;
 	int dnd;
 	unsigned int flags;
@@ -1127,7 +1133,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	   A power cycle will be required when the variable overflows...
 	 */
 	device->serial_callid = time(NULL);
-	device->open_receive_channel_pending = 0;
+	device->recv_chan_status = SCCP_RECV_CHAN_CLOSED;
 	device->reset_on_idle = 0;
 	device->dnd = 0;
 	device->callfwd = SCCP_CFWD_INACTIVE;
@@ -1336,6 +1342,8 @@ static void transmit_close_receive_channel(struct sccp_device *device, uint32_t 
 {
 	struct sccp_msg msg;
 
+	device->recv_chan_status = SCCP_RECV_CHAN_CLOSED;
+
 	sccp_msg_close_receive_channel(&msg, callid);
 	sccp_session_transmit_msg(device->session, &msg);
 }
@@ -1541,12 +1549,16 @@ static void transmit_subchan_open_receive_channel(struct sccp_device *device, st
 	struct sccp_msg msg;
 	struct ast_format_list fmt;
 
-	if (device->open_receive_channel_pending) {
-		ast_debug(1, "open_receive_channel already sent\n");
+	switch (device->recv_chan_status) {
+	case SCCP_RECV_CHAN_CLOSED:
+		break;
+	case SCCP_RECV_CHAN_OPENING:
+	case SCCP_RECV_CHAN_OPENED:
+		ast_debug(1, "%s: receive channel already opening/opened (%d)\n", device->name, device->recv_chan_status);
 		return;
 	}
 
-	device->open_receive_channel_pending = 1;
+	device->recv_chan_status = SCCP_RECV_CHAN_OPENING;
 
 	fmt = ast_codec_pref_getsize(&subchan->line->cfg->codec_pref, &subchan->fmt);
 	sccp_msg_open_receive_channel(&msg, subchan->id, fmt.cur_ms, codec_ast2sccp(&fmt.format));
@@ -1871,6 +1883,10 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 		ast_rtp_instance_stop(subchan->rtp);
 		ast_rtp_instance_destroy(subchan->rtp);
 		subchan->rtp = NULL;
+	} else {
+		if (subchan == device->active_subchan && device->recv_chan_status == SCCP_RECV_CHAN_OPENING) {
+			transmit_close_receive_channel(device, subchan->id);
+		}
 	}
 
 	transmit_ringer_mode(device, SCCP_RING_OFF);
@@ -2273,11 +2289,14 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 	uint32_t addr = msg->data.openreceivechannelack.ipAddr;
 	uint32_t port = letohl(msg->data.openreceivechannelack.port);
 
+	if (device->recv_chan_status == SCCP_RECV_CHAN_OPENING) {
+		device->recv_chan_status = SCCP_RECV_CHAN_OPENED;
+	}
+
 	if (!device->active_subchan) {
 		return;
 	}
 
-	device->open_receive_channel_pending = 0;
 	device->remote.sin_family = AF_INET;
 	device->remote.sin_addr.s_addr = addr;
 	device->remote.sin_port = htons(port);
