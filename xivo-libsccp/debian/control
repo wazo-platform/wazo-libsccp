@@ -4,9 +4,9 @@ Maintainer: XiVO Dev Team <dev@avencall.com>
 Build-Depends: debhelper (>= 7.0.50~), asterisk-dev (>= 11.6.0)
 Standards-Version: 3.8.4
 Section: comm
-Homepage: http://documentation.xivo.fr/production/developers/sccp.html
-Vcs-Git: git://git.xivo.fr/official/xivo-libsccp.git
-Vcs-Browser: http://git.proformatique.com/?p=official/xivo-libsccp.git;a=summary
+Homepage: http://documentation.xivo.io/production/developers/sccp.html
+Vcs-Git: git://github.com/xivo-pbx/xivo-libsccp.git
+Vcs-Browser: https://github.com/xivo-pbx/xivo-libsccp
 
 Package: xivo-libsccp
 Section: comm

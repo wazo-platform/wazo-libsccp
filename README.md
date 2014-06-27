@@ -13,7 +13,7 @@ AUTHOR:
 
 GETTING STARTED:
 
- http://documentation.xivo.fr/production/developers/sccp.html
+ http://documentation.xivo.io/production/developers/sccp.html
  git://github.com/xivo-pbx/xivo-libsccp.git
 
 LICENSE: GPLv2/GPLv3
