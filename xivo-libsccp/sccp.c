@@ -142,10 +142,41 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.get_codec = sccp_rtp_glue_get_codec,
 };
 
+static int reset_device(const char *name, enum sccp_reset_type type)
+{
+	struct sccp_device *device;
+
+	device = sccp_device_registry_find(global_registry, name);
+	if (!device) {
+		return -1;
+	}
+
+	sccp_device_reset(device, type);
+	ao2_ref(device, -1);
+
+	return 0;
+}
+
+static void reset_registry_callback(struct sccp_device *device, void *data)
+{
+	enum sccp_reset_type type = *((enum sccp_reset_type *) data);
+
+	sccp_device_reset(device, type);
+}
+
+static int reset_all_devices(enum sccp_reset_type type)
+{
+	sccp_device_registry_do(global_registry, reset_registry_callback, &type);
+
+	return 0;
+}
+
 static char *cli_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
 	static const char * const choices[] = { "restart", NULL };
-	struct sccp_device *device;
+	const char *name;
+	enum sccp_reset_type type;
+	int ret;
 
 	switch (cmd) {
 	case CLI_INIT:
@@ -168,20 +199,21 @@ static char *cli_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 		return CLI_SHOWUSAGE;
 	}
 
-	device = sccp_device_registry_find(global_registry, a->argv[2]);
-	if (!device) {
-		return CLI_FAILURE;
-	}
+	name = a->argv[2];
 
 	if (a->argc == 4 && !strcasecmp(a->argv[3], "restart")) {
-		sccp_device_reset(device, SCCP_RESET_HARD_RESTART);
+		type = SCCP_RESET_HARD_RESTART;
 	} else {
-		sccp_device_reset(device, SCCP_RESET_SOFT);
+		type = SCCP_RESET_SOFT;
 	}
 
-	ao2_ref(device, -1);
+	if (!strcasecmp(name, "all")) {
+		ret = reset_all_devices(type);
+	} else {
+		ret = reset_device(name, type);
+	}
 
-	return CLI_SUCCESS;
+	return ret ? CLI_FAILURE : CLI_SUCCESS;
 }
 
 static char *cli_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
