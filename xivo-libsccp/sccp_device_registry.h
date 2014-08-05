@@ -58,8 +58,21 @@ struct sccp_device *sccp_device_registry_find(struct sccp_device_registry *regis
  */
 struct sccp_line *sccp_device_registry_find_line(struct sccp_device_registry *registry, const char *name);
 
+/*!
+ * \brief Function type for the sccp_device_registry_do function.
+ */
 typedef void (sccp_device_registry_cb)(struct sccp_device *device, void *data);
 
+/*!
+ * \brief Call a function for all devices in the registry.
+ *
+ * The reference count on the device is automatically handled, i.e. you must not decrease
+ * it inside the callback function.
+ *
+ * The callback is called with the registry lock held. Be careful with what you do inside the
+ * callback function, or a deadlock could arise. That said, inside the callback, it is safe to
+ * call a function that acquire the device lock.
+ */
 void sccp_device_registry_do(struct sccp_device_registry *registry, sccp_device_registry_cb callback, void *data);
 
 /*!

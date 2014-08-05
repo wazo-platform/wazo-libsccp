@@ -142,7 +142,7 @@ static struct ast_rtp_glue sccp_rtp_glue = {
 	.get_codec = sccp_rtp_glue_get_codec,
 };
 
-static int reset_device(const char *name, enum sccp_reset_type type)
+static int reset_one_device(const char *name, enum sccp_reset_type type)
 {
 	struct sccp_device *device;
 
@@ -182,8 +182,8 @@ static char *cli_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	case CLI_INIT:
 		e->command = "sccp reset";
 		e->usage =
-			"Usage: sccp reset <device> [restart]\n"
-			"       Reset an SCCP device, optionally with a full restart.\n";
+			"Usage: sccp reset <device|all> [restart]\n"
+			"       Reset one or all SCCP device, optionally with a full restart.\n";
 		return NULL;
 	case CLI_GENERATE:
 		if (a->pos == 2) {
@@ -210,7 +210,7 @@ static char *cli_reset_device(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	if (!strcasecmp(name, "all")) {
 		ret = reset_all_devices(type);
 	} else {
-		ret = reset_device(name, type);
+		ret = reset_one_device(name, type);
 	}
 
 	return ret ? CLI_FAILURE : CLI_SUCCESS;
