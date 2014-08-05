@@ -30,6 +30,7 @@ struct sccp_device_cfg {
 	char vmexten[AST_MAX_EXTENSION];
 	int keepalive;
 	int dialtimeout;
+	int tzoffset;		/*!< Offset from local time in minutes */
 
 	size_t speeddial_count;
 	struct sccp_line_cfg *line_cfg;

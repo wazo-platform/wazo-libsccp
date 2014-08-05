@@ -9,6 +9,7 @@ voicemail = 1002
 vmexten = *98
 keepalive = 10
 dialtimeout = 5
+tzoffset = -60
 line = 1001
 speeddial = 1-1
 speeddial = 1-2
