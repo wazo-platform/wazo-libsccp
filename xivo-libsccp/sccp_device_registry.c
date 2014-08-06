@@ -226,6 +226,23 @@ struct sccp_line *sccp_device_registry_find_line(struct sccp_device_registry *re
 	return line;
 }
 
+void sccp_device_registry_do(struct sccp_device_registry *registry, sccp_device_registry_cb callback, void *data)
+{
+	struct ao2_iterator iter;
+	struct sccp_device *device;
+
+	ast_mutex_lock(&registry->lock);
+
+	iter = ao2_iterator_init(registry->devices, 0);
+	while ((device = ao2_iterator_next(&iter))) {
+		callback(device, data);
+		ao2_ref(device, -1);
+	}
+	ao2_iterator_destroy(&iter);
+
+	ast_mutex_unlock(&registry->lock);
+}
+
 char *sccp_device_registry_complete(struct sccp_device_registry *registry, const char *word, int state)
 {
 	struct ao2_iterator iter;

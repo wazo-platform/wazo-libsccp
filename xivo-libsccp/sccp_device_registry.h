@@ -25,6 +25,8 @@ void sccp_device_registry_destroy(struct sccp_device_registry *registry);
 /*!
  * \brief Add a device to the registry.
  *
+ * \note You must not call this function with the device locked.
+ *
  * \retval 0 on success
  * \retval SCCP_DEVICE_REGISTRY_ALREADY if a device with the same name is already in the container
  * \retval -1 on other failure
@@ -33,6 +35,8 @@ int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_
 
 /*!
  * \brief Remove a device from the registry.
+ *
+ * \note You must not call this function with the device locked.
  */
 void sccp_device_registry_remove(struct sccp_device_registry *registry, struct sccp_device *device);
 
@@ -53,6 +57,23 @@ struct sccp_device *sccp_device_registry_find(struct sccp_device_registry *regis
  * \retval the line with the given name, or NULL if no such line exist
  */
 struct sccp_line *sccp_device_registry_find_line(struct sccp_device_registry *registry, const char *name);
+
+/*!
+ * \brief Function type for the sccp_device_registry_do function.
+ */
+typedef void (sccp_device_registry_cb)(struct sccp_device *device, void *data);
+
+/*!
+ * \brief Call a function for all devices in the registry.
+ *
+ * The reference count on the device is automatically handled, i.e. you must not decrease
+ * it inside the callback function.
+ *
+ * The callback is called with the registry lock held. Be careful with what you do inside the
+ * callback function, or a deadlock could arise. That said, inside the callback, it is safe to
+ * call a function that acquire the device lock.
+ */
+void sccp_device_registry_do(struct sccp_device_registry *registry, sccp_device_registry_cb callback, void *data);
 
 /*!
  * \brief Completion function for CLI.

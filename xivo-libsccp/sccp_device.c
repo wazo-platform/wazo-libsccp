@@ -1506,7 +1506,7 @@ static void transmit_time_date_res(struct sccp_device *device)
 {
 	struct sccp_msg msg;
 
-	sccp_msg_time_date_res(&msg);
+	sccp_msg_time_date_res(&msg, device->cfg->tzoffset);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -2810,6 +2810,10 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 	}
 
 	if (old_device_cfg->keepalive != new_device_cfg->keepalive) {
+		return 0;
+	}
+
+	if (old_device_cfg->tzoffset != new_device_cfg->tzoffset) {
 		return 0;
 	}
 
