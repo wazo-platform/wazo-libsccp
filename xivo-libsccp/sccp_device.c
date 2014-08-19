@@ -3105,6 +3105,12 @@ static int channel_tech_requester_locked(struct sccp_device *device, struct sccp
 		ast_channel_call_forward_set(channel, device->callfwd_exten);
 	}
 
+	ast_channel_callgroup_set(channel, line->cfg->callgroups);
+	ast_channel_pickupgroup_set(channel, line->cfg->pickupgroups);
+
+	ast_channel_named_callgroups_set(channel, line->cfg->named_callgroups);
+	ast_channel_named_pickupgroups_set(channel, line->cfg->named_pickupgroups);
+
 	return 0;
 }
 
