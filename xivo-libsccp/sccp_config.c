@@ -89,6 +89,8 @@ static void sccp_line_cfg_destructor(void *obj)
 
 	sccp_line_cfg_free_internal(line_cfg);
 	ast_variables_destroy(line_cfg->chanvars);
+	ast_unref_namedgroups(line_cfg->named_callgroups);
+	ast_unref_namedgroups(line_cfg->named_pickupgroups);
 	ast_format_cap_destroy(line_cfg->caps);
 }
 
@@ -119,6 +121,10 @@ static void *sccp_line_cfg_alloc(const char *category)
 	ast_copy_string(line_cfg->name, category, sizeof(line_cfg->name));
 	line_cfg->caps = caps;
 	line_cfg->chanvars = NULL;
+	line_cfg->callgroups = 0;
+	line_cfg->pickupgroups = 0;
+	line_cfg->named_callgroups = NULL;
+	line_cfg->named_pickupgroups = NULL;
 	line_cfg->internal = internal;
 	line_cfg->internal->associated = 0;
 
@@ -659,6 +665,41 @@ static int line_cfg_setvar_handler(const struct aco_option *opt, struct ast_vari
 	return 0;
 }
 
+static int line_cfg_callgroup_handler(const struct aco_option *opt, struct ast_variable *var, void *obj)
+{
+	struct sccp_line_cfg *line_cfg = obj;
+
+	line_cfg->callgroups = ast_get_group(var->value);
+
+	return 0;
+}
+
+static int line_cfg_pickupgroup_handler(const struct aco_option *opt, struct ast_variable *var, void *obj)
+{
+	struct sccp_line_cfg *line_cfg = obj;
+
+	line_cfg->pickupgroups = ast_get_group(var->value);
+
+	return 0;
+}
+static int line_cfg_namedcallgroup_handler(const struct aco_option *opt, struct ast_variable *var, void *obj)
+{
+	struct sccp_line_cfg *line_cfg = obj;
+
+	line_cfg->named_callgroups = ast_get_namedgroups(var->value);
+
+	return 0;
+}
+
+static int line_cfg_namedpickupgroup_handler(const struct aco_option *opt, struct ast_variable *var, void *obj)
+{
+	struct sccp_line_cfg *line_cfg = obj;
+
+	line_cfg->named_pickupgroups = ast_get_namedgroups(var->value);
+
+	return 0;
+}
+
 static int line_cfg_tos_audio_handler(const struct aco_option *opt, struct ast_variable *var, void *obj)
 {
 	struct sccp_line_cfg *line_cfg = obj;
@@ -698,6 +739,10 @@ int sccp_config_init(void)
 	aco_option_register_custom(&cfg_info, "tos_audio", ACO_EXACT, line_types, "EF", line_cfg_tos_audio_handler, 0);
 	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, NULL, OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, codec_pref, caps));
 	aco_option_register(&cfg_info, "allow", ACO_EXACT, line_types, "ulaw,alaw", OPT_CODEC_T, 1, FLDSET(struct sccp_line_cfg, codec_pref, caps));
+	aco_option_register_custom(&cfg_info, "callgroup", ACO_EXACT, line_types, NULL, line_cfg_callgroup_handler, 0);
+	aco_option_register_custom(&cfg_info, "pickupgroup", ACO_EXACT, line_types, NULL, line_cfg_pickupgroup_handler, 0);
+	aco_option_register_custom(&cfg_info, "namedcallgroup", ACO_EXACT, line_types, NULL, line_cfg_namedcallgroup_handler, 0);
+	aco_option_register_custom(&cfg_info, "namedpickupgroup", ACO_EXACT, line_types, NULL, line_cfg_namedpickupgroup_handler, 0);
 
 	/* speeddial options */
 	aco_option_register(&cfg_info, "type", ACO_EXACT, speeddial_types, NULL, OPT_NOOP_T, 0, 0);

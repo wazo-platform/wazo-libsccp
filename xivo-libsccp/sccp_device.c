@@ -6,6 +6,7 @@
 #include <asterisk/causes.h>
 #include <asterisk/channelstate.h>
 #include <asterisk/event.h>
+#include <asterisk/features.h>
 #include <asterisk/format.h>
 #include <asterisk/lock.h>
 #include <asterisk/module.h>
@@ -196,6 +197,10 @@ struct nolock_task_ast_queue_hangup {
 	struct ast_channel *channel;
 };
 
+struct nolock_task_pickup_channel {
+	struct ast_channel *channel;
+};
+
 struct nolock_task_start_channel {
 	struct ast_channel *channel;
 	struct sccp_line_cfg *line_cfg;
@@ -206,6 +211,7 @@ union nolock_task_data {
 	struct nolock_task_ast_queue_control queue_control;
 	struct nolock_task_ast_queue_frame_dtmf queue_frame_dtmf;
 	struct nolock_task_ast_queue_hangup queue_hangup;
+	struct nolock_task_pickup_channel pickup_channel;
 	struct nolock_task_start_channel start_channel;
 };
 
@@ -701,6 +707,36 @@ static int add_ast_queue_hangup_task(struct sccp_device *device, struct ast_chan
 	return 0;
 }
 
+static void exec_pickup_channel(union nolock_task_data *data)
+{
+	struct ast_channel *channel = data->pickup_channel.channel;
+
+	if (ast_pickup_call(channel)) {
+		ast_channel_hangupcause_set(channel, AST_CAUSE_CALL_REJECTED);
+	} else {
+		ast_channel_hangupcause_set(channel, AST_CAUSE_NORMAL_CLEARING);
+	}
+
+	ast_hangup(channel);
+	ast_channel_unref(channel);
+}
+
+static int add_pickup_channel_task(struct sccp_device *device, struct ast_channel *channel)
+{
+	struct nolock_task task;
+
+	task.exec = exec_pickup_channel;
+	task.data.pickup_channel.channel = channel;
+
+	if (add_nolock_task(device, &task)) {
+		return -1;
+	}
+
+	ast_channel_ref(channel);
+
+	return 0;
+}
+
 static void exec_start_channel(union nolock_task_data *data)
 {
 	struct ast_channel *channel = data->start_channel.channel;
@@ -758,6 +794,12 @@ static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const c
 	if (!ast_strlen_zero(line_cfg->language)) {
 		ast_channel_language_set(channel, line_cfg->language);
 	}
+
+	ast_channel_callgroup_set(channel, line_cfg->callgroups);
+	ast_channel_pickupgroup_set(channel, line_cfg->pickupgroups);
+
+	ast_channel_named_callgroups_set(channel, line_cfg->named_callgroups);
+	ast_channel_named_pickupgroups_set(channel, line_cfg->named_pickupgroups);
 
 	return channel;
 }
@@ -1994,7 +2036,11 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	memcpy(device->last_exten, device->exten, AST_MAX_EXTENSION);
 	line->device->exten[0] = '\0';
 
-	add_start_channel_task(device, subchan->channel, line->cfg);
+	if (!strcmp(device->last_exten, ast_pickup_ext())) {
+		add_pickup_channel_task(device, subchan->channel);
+	} else {
+		add_start_channel_task(device, subchan->channel, line->cfg);
+	}
 
 	return 0;
 

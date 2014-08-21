@@ -48,6 +48,12 @@ struct sccp_line_cfg {
 	int directmedia;
 	unsigned int tos_audio;
 
+	ast_group_t callgroups;
+	ast_group_t pickupgroups;
+
+	struct ast_namedgroups *named_callgroups;
+	struct ast_namedgroups *named_pickupgroups;
+
 	struct ast_codec_pref codec_pref;
 	struct ast_format_cap *caps;
 
