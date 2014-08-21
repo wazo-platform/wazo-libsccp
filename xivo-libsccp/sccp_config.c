@@ -89,8 +89,8 @@ static void sccp_line_cfg_destructor(void *obj)
 
 	sccp_line_cfg_free_internal(line_cfg);
 	ast_variables_destroy(line_cfg->chanvars);
-	line_cfg->named_callgroups = ast_unref_namedgroups(line_cfg->named_callgroups);
-	line_cfg->named_pickupgroups = ast_unref_namedgroups(line_cfg->named_pickupgroups);
+	ast_unref_namedgroups(line_cfg->named_callgroups);
+	ast_unref_namedgroups(line_cfg->named_pickupgroups);
 	ast_format_cap_destroy(line_cfg->caps);
 }
 
@@ -121,14 +121,12 @@ static void *sccp_line_cfg_alloc(const char *category)
 	ast_copy_string(line_cfg->name, category, sizeof(line_cfg->name));
 	line_cfg->caps = caps;
 	line_cfg->chanvars = NULL;
-	line_cfg->internal = internal;
-	line_cfg->internal->associated = 0;
-
 	line_cfg->callgroups = 0;
 	line_cfg->pickupgroups = 0;
-
-	line_cfg->named_callgroups = ast_unref_namedgroups(line_cfg->named_callgroups);
-	line_cfg->named_pickupgroups = ast_unref_namedgroups(line_cfg->named_pickupgroups);
+	line_cfg->named_callgroups = NULL;
+	line_cfg->named_pickupgroups = NULL;
+	line_cfg->internal = internal;
+	line_cfg->internal->associated = 0;
 
 	return line_cfg;
 }

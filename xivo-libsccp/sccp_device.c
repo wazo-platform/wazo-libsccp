@@ -236,7 +236,6 @@ static int add_dialtimeout_task(struct sccp_device *device, struct sccp_subchann
 static void remove_dialtimeout_task(struct sccp_device *device, struct sccp_subchannel *subchan);
 static int add_fwdtimeout_task(struct sccp_device *device);
 static void remove_fwdtimeout_task(struct sccp_device *device);
-static int add_pickup_channel_task(struct sccp_device *device, struct ast_channel *channel);
 
 static unsigned int chan_idx = 0;
 
@@ -734,6 +733,7 @@ static int add_pickup_channel_task(struct sccp_device *device, struct ast_channe
 	}
 
 	ast_channel_ref(channel);
+
 	return 0;
 }
 
