@@ -680,7 +680,7 @@ void sccp_msg_speeddial_stat_res(struct sccp_msg *msg, uint32_t index, const cha
 void sccp_msg_start_media_transmission(struct sccp_msg *msg, uint32_t callid, uint32_t packet_size, uint32_t payload_type, uint32_t precedence, struct sockaddr_in *endpoint);
 void sccp_msg_stop_media_transmission(struct sccp_msg *msg, uint32_t callid);
 void sccp_msg_stop_tone(struct sccp_msg *msg, uint32_t line_instance, uint32_t callid);
-void sccp_msg_time_date_res(struct sccp_msg *msg, int tzoffset);
+void sccp_msg_time_date_res(struct sccp_msg *msg, const char *timezone);
 void sccp_msg_tone(struct sccp_msg *msg, enum sccp_tone tone, uint32_t line_instance, uint32_t callid);
 void sccp_msg_reset(struct sccp_msg *msg, enum sccp_reset_type type);
 void sccp_msg_version_res(struct sccp_msg *msg, const char *version);

@@ -724,7 +724,7 @@ int sccp_config_init(void)
 	aco_option_register(&cfg_info, "vmexten", ACO_EXACT, device_types, "*98", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_device_cfg, vmexten));
 	aco_option_register(&cfg_info, "keepalive", ACO_EXACT, device_types, "10", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_device_cfg, keepalive), 1, 600);
 	aco_option_register(&cfg_info, "dialtimeout", ACO_EXACT, device_types, "2", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_device_cfg, dialtimeout), 1, 60);
-	aco_option_register(&cfg_info, "tzoffset", ACO_EXACT, device_types, "0", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_device_cfg, tzoffset), -1500, 1500);
+	aco_option_register(&cfg_info, "timezone", ACO_EXACT, device_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_device_cfg, timezone));
 	aco_option_register_custom(&cfg_info, "line", ACO_EXACT, device_types, NULL, device_cfg_line_handler, 0);
 	aco_option_register_custom(&cfg_info, "speeddial", ACO_EXACT, device_types, NULL, device_cfg_speeddial_handler, 0);
 

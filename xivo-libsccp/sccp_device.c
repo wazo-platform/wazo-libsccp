@@ -1548,7 +1548,7 @@ static void transmit_time_date_res(struct sccp_device *device)
 {
 	struct sccp_msg msg;
 
-	sccp_msg_time_date_res(&msg, device->cfg->tzoffset);
+	sccp_msg_time_date_res(&msg, device->cfg->timezone);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -2855,11 +2855,11 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 		return 0;
 	}
 
-	if (old_device_cfg->keepalive != new_device_cfg->keepalive) {
+	if (strcmp(old_device_cfg->timezone, new_device_cfg->timezone)) {
 		return 0;
 	}
 
-	if (old_device_cfg->tzoffset != new_device_cfg->tzoffset) {
+	if (old_device_cfg->keepalive != new_device_cfg->keepalive) {
 		return 0;
 	}
 

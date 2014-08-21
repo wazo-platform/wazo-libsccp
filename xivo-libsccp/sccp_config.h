@@ -28,9 +28,9 @@ struct sccp_device_cfg {
 	char dateformat[6];
 	char voicemail[AST_MAX_EXTENSION];
 	char vmexten[AST_MAX_EXTENSION];
+	char timezone[40];
 	int keepalive;
 	int dialtimeout;
-	int tzoffset;		/*!< Offset from local time in minutes */
 
 	size_t speeddial_count;
 	struct sccp_line_cfg *line_cfg;
