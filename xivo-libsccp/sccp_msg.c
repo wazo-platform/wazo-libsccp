@@ -395,18 +395,15 @@ void sccp_msg_stop_tone(struct sccp_msg *msg, uint32_t line_instance, uint32_t c
 	msg->data.stop_tone.callInstance = htolel(callid);
 }
 
-void sccp_msg_time_date_res(struct sccp_msg *msg, int tzoffset)
+void sccp_msg_time_date_res(struct sccp_msg *msg, const char *timezone)
 {
 	struct timeval now;
 	struct ast_tm cmtime;
-	uint32_t system_time;
 
 	prepare_msg(msg, sizeof(struct time_date_res_message), TIME_DATE_RES_MESSAGE);
 
 	now = ast_tvnow();
-	system_time = now.tv_sec;
-	now.tv_sec += tzoffset * 60;
-	ast_localtime(&now, &cmtime, NULL);
+	ast_localtime(&now, &cmtime, timezone);
 
 	msg->data.timedate.year = htolel(cmtime.tm_year + 1900);
 	msg->data.timedate.month = htolel(cmtime.tm_mon + 1);
@@ -416,7 +413,7 @@ void sccp_msg_time_date_res(struct sccp_msg *msg, int tzoffset)
 	msg->data.timedate.minute = htolel(cmtime.tm_min);
 	msg->data.timedate.seconds = htolel(cmtime.tm_sec);
 	msg->data.timedate.milliseconds = 0;
-	msg->data.timedate.systemTime = htolel(system_time);
+	msg->data.timedate.systemTime = htolel(now.tv_sec);
 }
 
 void sccp_msg_tone(struct sccp_msg *msg, enum sccp_tone tone, uint32_t line_instance, uint32_t callid)
