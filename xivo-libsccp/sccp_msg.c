@@ -112,12 +112,14 @@ static void dump_select_soft_keys(char *str, size_t size, const struct select_so
 static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m);
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m);
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m);
+static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m);
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
 
 static const char *sccp_ringer_mode_str(enum sccp_ringer_mode v);
 static const char *sccp_softkey_str(enum sccp_softkey_type v);
 static const char *sccp_softkey_status_str(enum sccp_softkey_status v);
 static const char *sccp_state_str(enum sccp_state state);
+static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type);
 
 /*
  * rule on usage of htolel and similar functions:
@@ -697,6 +699,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case START_MEDIA_TRANSMISSION_MESSAGE:
 		dump_start_media_transmission(str, size, &msg->data.startmedia);
 		break;
+	case STIMULUS_MESSAGE:
+		dump_stimulus(str, size, &msg->data.stimulus);
+		break;
 	case STOP_MEDIA_TRANSMISSION_MESSAGE:
 		dump_stop_media_transmission(str, size, &msg->data.stopmedia);
 		break;
@@ -848,6 +853,14 @@ static void dump_start_media_transmission(char *str, size_t size, const struct s
 			"Port: %u\n"
 			"Packet size: %u\n",
 			letohl(m->conferenceId), buf, letohl(m->remotePort), letohl(m->packetSize));
+}
+
+static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m)
+{
+	snprintf(str, size,
+			"Stimulus: %s\n"
+			"Line instance: %u\n",
+			sccp_stimulus_type_str(letohl(m->stimulus)), letohl(m->lineInstance));
 }
 
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m)
@@ -1142,4 +1155,46 @@ static const char *sccp_state_str(enum sccp_state state)
 	}
 
 	return "Unknown";
+}
+
+static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type)
+{
+	switch (stimulus_type) {
+	case STIMULUS_REDIAL:
+		return "redial";
+	case STIMULUS_SPEEDDIAL:
+		return "speeddial";
+	case STIMULUS_HOLD:
+		return "hold";
+	case STIMULUS_TRANSFER:
+		return "transfer";
+	case STIMULUS_FORWARDALL:
+		return "forward all";
+	case STIMULUS_FORWARDBUSY:
+		return "forward busy";
+	case STIMULUS_FORWARDNOANSWER:
+		return "forward no answer";
+	case STIMULUS_DISPLAY:
+		return "display";
+	case STIMULUS_LINE:
+		return "line";
+	case STIMULUS_VOICEMAIL:
+		return "voicemail";
+	case STIMULUS_AUTOANSWER:
+		return "autoanswer";
+	case STIMULUS_DND:
+		return "dnd";
+	case STIMULUS_FEATUREBUTTON:
+		return "feature button";
+	case STIMULUS_CONFERENCE:
+		return "conference";
+	case STIMULUS_CALLPARK:
+		return "call park";
+	case STIMULUS_CALLPICKUP:
+		return "call pickup";
+	case STIMULUS_NONE:
+		return "none";
+	}
+
+	return "unknown";
 }
