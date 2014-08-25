@@ -108,6 +108,7 @@ static void dump_forward_status_res(char *str, size_t size, const struct forward
 static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m);
 static void dump_offhook(char *str, size_t size, const struct offhook_message *m);
 static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
+static void dump_open_receive_channel(char *str, size_t size, const struct open_receive_channel_message *m);
 static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m);
 static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m);
 static void dump_set_lamp(char *str, size_t size, const struct set_lamp_message *m);
@@ -120,6 +121,7 @@ static void dump_stimulus(char *str, size_t size, const struct stimulus_message 
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
 static void dump_stop_tone(char *str, size_t size, const struct stop_tone_message *m);
 
+static const char *sccp_codecs_str(enum sccp_codecs v);
 static const char *sccp_lamp_state_str(enum sccp_lamp_state state);
 static const char *sccp_ringer_mode_str(enum sccp_ringer_mode v);
 static const char *sccp_softkey_str(enum sccp_softkey_type v);
@@ -695,6 +697,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case ONHOOK_MESSAGE:
 		dump_onhook(str, size, &msg->data.onhook);
 		break;
+	case OPEN_RECEIVE_CHANNEL_MESSAGE:
+		dump_open_receive_channel(str, size, &msg->data.openreceivechannel);
+		break;
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
 		dump_open_receive_channel_ack(str, size, &msg->data.openreceivechannelack);
 		break;
@@ -825,6 +830,16 @@ static void dump_onhook(char *str, size_t size, const struct onhook_message *m)
 			letohl(m->lineInstance), letohl(m->callInstance));
 }
 
+static void dump_open_receive_channel(char *str, size_t size, const struct open_receive_channel_message *m)
+{
+	snprintf(str, size,
+			"Call ID: %u\n"
+			"Party ID: %u\n"
+			"Packets: %u\n"
+			"Capability: %s\n",
+			letohl(m->conferenceId), letohl(m->partyId), letohl(m->packets), sccp_codecs_str(letohl(m->capability)));
+}
+
 static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m)
 {
 	char buf[INET_ADDRSTRLEN];
@@ -839,8 +854,9 @@ static void dump_open_receive_channel_ack(char *str, size_t size, const struct o
 	snprintf(str, size,
 			"Status: %u\n"
 			"IP: %s\n"
-			"Port: %u\n",
-			letohl(m->status), buf, letohl(m->port));
+			"Port: %u\n"
+			"PassThru ID: %u\n",
+			letohl(m->status), buf, letohl(m->port), letohl(m->passThruId));
 }
 
 static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m)
@@ -933,6 +949,28 @@ static void dump_stop_tone(char *str, size_t size, const struct stop_tone_messag
 			"Line instance: %u\n"
 			"Call ID: %u\n",
 			letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static const char *sccp_codecs_str(enum sccp_codecs v)
+{
+	switch (v) {
+	case SCCP_CODEC_G711_ALAW:
+		return "G.711 a-law";
+	case SCCP_CODEC_G711_ULAW:
+		return "G.711 u-law";
+	case SCCP_CODEC_G723_1:
+		return "G723.1";
+	case SCCP_CODEC_G729A:
+		return "G729A";
+	case SCCP_CODEC_G726_32:
+		return "G726 32";
+	case SCCP_CODEC_H261:
+		return "H261";
+	case SCCP_CODEC_H263:
+		return "H263";
+	}
+
+	return "unknown";
 }
 
 const char *sccp_device_type_str(enum sccp_device_type device_type)
