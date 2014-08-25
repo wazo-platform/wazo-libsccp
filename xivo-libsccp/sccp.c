@@ -16,6 +16,7 @@
 #include "sccp_device_registry.h"
 #include "sccp_msg.h"
 #include "sccp_server.h"
+#include "sccp_utils.h"
 
 #ifndef VERSION
 #define VERSION "unknown"
@@ -360,11 +361,53 @@ static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 	return CLI_SUCCESS;
 }
 
+static char *cli_show_stats(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct sccp_stat stat;
+	struct timeval tmp_tv = {.tv_usec = 0};
+	struct ast_tm tm;
+	char device_fault_last[64] = "-";
+	char device_panic_last[64] = "-";
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "sccp show stats";
+		e->usage = "Usage: sccp show stats\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	sccp_stat_take_snapshot(&stat);
+
+	if (stat.device_fault_count) {
+		tmp_tv.tv_sec = stat.device_fault_last;
+		ast_localtime(&tmp_tv, &tm, NULL);
+		ast_strftime(device_fault_last, sizeof(device_fault_last), "%Y-%m-%d %H:%M:%S", &tm);
+	}
+
+	if (stat.device_panic_count) {
+		tmp_tv.tv_sec = stat.device_panic_last;
+		ast_localtime(&tmp_tv, &tm, NULL);
+		ast_strftime(device_panic_last, sizeof(device_panic_last), "%Y-%m-%d %H:%M:%S", &tm);
+	}
+
+	ast_cli(a->fd,
+			"Device fault:          %d\n"
+			"Last device fault:     %s\n"
+			"Device panic:          %d\n"
+			"Last device panic:     %s\n",
+			stat.device_fault_count, device_fault_last, stat.device_panic_count, device_panic_last);
+
+	return CLI_SUCCESS;
+}
+
 static struct ast_cli_entry cli_entries[] = {
 	AST_CLI_DEFINE(cli_reset_device, "Reset SCCP device"),
 	AST_CLI_DEFINE(cli_set_debug, "Enable/Disable SCCP debugging"),
 	AST_CLI_DEFINE(cli_show_config, "Show the module configuration"),
 	AST_CLI_DEFINE(cli_show_devices, "Show the connected devices"),
+	AST_CLI_DEFINE(cli_show_stats, "Show the module stats"),
 	AST_CLI_DEFINE(cli_show_version, "Show the module version"),
 };
 

@@ -130,6 +130,7 @@ enum sccp_device_state {
 enum {
 	DEVICE_DESTROYED = (1 << 0),
 	DEVICE_RESET_ON_IDLE = (1 << 1),
+	DEVICE_FAULT = (1 << 2),
 };
 
 struct sccp_device {
@@ -1648,15 +1649,26 @@ static void handle_msg_button_template_req(struct sccp_device *device)
 static void sccp_device_panic(struct sccp_device *device)
 {
 	ast_log(LOG_WARNING, "panic for device %s\n", device->name);
+	sccp_stat_on_device_panic();
 
 	transmit_reset(device, SCCP_RESET_HARD_RESTART);
 	sccp_session_stop(device->session);
 	device->state = STATE_CONNLOST;
 }
 
+static void sccp_device_set_fault(struct sccp_device *device, const char *reason)
+{
+	ast_log(LOG_WARNING, "fault detected on device %s: %s\n", device->name, reason);
+	ast_set_flag(device, DEVICE_FAULT);
+	sccp_stat_on_device_fault();
+}
+
 static void sccp_device_on_idle(struct sccp_device *device)
 {
-	if (ast_test_flag(device, DEVICE_RESET_ON_IDLE)) {
+	if (ast_test_flag(device, DEVICE_FAULT)) {
+		ast_log(LOG_NOTICE, "asking idle device %s to restart: in fault condition\n", device->name);
+		transmit_reset(device, SCCP_RESET_HARD_RESTART);
+	} else if (ast_test_flag(device, DEVICE_RESET_ON_IDLE)) {
 		transmit_reset(device, SCCP_RESET_SOFT);
 	}
 }
@@ -1961,6 +1973,10 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 	}
 
 	if (sccp_device_is_idle(device)) {
+		if (device->recv_chan_status != SCCP_RECV_CHAN_CLOSED) {
+			sccp_device_set_fault(device, "no subchan but recv chan status not closed");
+		}
+
 		sccp_device_on_idle(device);
 	}
 
@@ -2340,6 +2356,11 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 {
 	uint32_t addr = msg->data.openreceivechannelack.ipAddr;
 	uint32_t port = letohl(msg->data.openreceivechannelack.port);
+
+	if (!port) {
+		/* XXX hum, should do something else, like clearing the subchan */
+		sccp_device_set_fault(device, "received open receive channel ack with port set to 0");
+	}
 
 	if (device->recv_chan_status == SCCP_RECV_CHAN_OPENING) {
 		device->recv_chan_status = SCCP_RECV_CHAN_OPENED;
