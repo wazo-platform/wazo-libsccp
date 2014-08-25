@@ -18,7 +18,6 @@ struct queue_item_container {
 /* not to be used directly */
 struct sccp_queue {
 	AST_LIST_HEAD_NOLOCK(, queue_item_container) containers;
-	AST_LIST_HEAD_NOLOCK(, queue_item_container) reserved;
 	size_t item_size;
 };
 
