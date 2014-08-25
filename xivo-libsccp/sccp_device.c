@@ -1917,10 +1917,8 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 		ast_rtp_instance_stop(subchan->rtp);
 		ast_rtp_instance_destroy(subchan->rtp);
 		subchan->rtp = NULL;
-	} else {
-		if (subchan == device->active_subchan && device->recv_chan_status == SCCP_RECV_CHAN_OPENING) {
-			transmit_close_receive_channel(device, subchan->id);
-		}
+	} else if (subchan == device->active_subchan && device->recv_chan_status != SCCP_RECV_CHAN_CLOSED) {
+		transmit_close_receive_channel(device, subchan->id);
 	}
 
 	transmit_ringer_mode(device, SCCP_RING_OFF);
