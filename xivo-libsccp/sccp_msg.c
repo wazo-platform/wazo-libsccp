@@ -111,6 +111,7 @@ static void dump_open_receive_channel_ack(char *str, size_t size, const struct o
 static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m);
 static void dump_set_lamp(char *str, size_t size, const struct set_lamp_message *m);
 static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m);
+static void dump_set_speaker(char *str, size_t size, const struct set_speaker_message *m);
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m);
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m);
 static void dump_start_tone(char *str, size_t size, const struct start_tone_message *m);
@@ -121,6 +122,7 @@ static const char *sccp_lamp_state_str(enum sccp_lamp_state state);
 static const char *sccp_ringer_mode_str(enum sccp_ringer_mode v);
 static const char *sccp_softkey_str(enum sccp_softkey_type v);
 static const char *sccp_softkey_status_str(enum sccp_softkey_status v);
+static const char *sccp_speaker_mode_str(enum sccp_speaker_mode v);
 static const char *sccp_state_str(enum sccp_state state);
 static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type);
 static const char *sccp_tone_str(enum sccp_tone v);
@@ -700,6 +702,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case SET_RINGER_MESSAGE:
 		dump_set_ringer(str, size, &msg->data.setringer);
 		break;
+	case SET_SPEAKER_MESSAGE:
+		dump_set_speaker(str, size, &msg->data.setspeaker);
+		break;
 	case SOFTKEY_EVENT_MESSAGE:
 		dump_softkey_event(str, size, &msg->data.softkeyevent);
 		break;
@@ -844,6 +849,13 @@ static void dump_set_ringer(char *str, size_t size, const struct set_ringer_mess
 	snprintf(str, size,
 			"Mode: %s\n",
 			sccp_ringer_mode_str(letohl(m->ringerMode)));
+}
+
+static void dump_set_speaker(char *str, size_t size, const struct set_speaker_message *m)
+{
+	snprintf(str, size,
+			"Mode: %s\n",
+			sccp_speaker_mode_str(letohl(m->mode)));
 }
 
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m)
@@ -1164,6 +1176,18 @@ static const char *sccp_softkey_status_str(enum sccp_softkey_status v)
 		return "dialintransfer";
 	case KEYDEF_RINGOUT:
 		return "ringout";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_speaker_mode_str(enum sccp_speaker_mode v)
+{
+	switch (v) {
+	case SCCP_SPEAKERON:
+		return "on";
+	case SCCP_SPEAKEROFF:
+		return "off";
 	}
 
 	return "unknown";
