@@ -118,6 +118,7 @@ static void dump_start_media_transmission(char *str, size_t size, const struct s
 static void dump_start_tone(char *str, size_t size, const struct start_tone_message *m);
 static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m);
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
+static void dump_stop_tone(char *str, size_t size, const struct stop_tone_message *m);
 
 static const char *sccp_lamp_state_str(enum sccp_lamp_state state);
 static const char *sccp_ringer_mode_str(enum sccp_ringer_mode v);
@@ -724,6 +725,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case STOP_MEDIA_TRANSMISSION_MESSAGE:
 		dump_stop_media_transmission(str, size, &msg->data.stopmedia);
 		break;
+	case STOP_TONE_MESSAGE:
+		dump_stop_tone(str, size, &msg->data.stop_tone);
+		break;
 	default:
 		return -1;
 	}
@@ -921,6 +925,14 @@ static void dump_stop_media_transmission(char *str, size_t size, const struct st
 	snprintf(str, size,
 			"Conference ID: %u\n",
 			letohl(m->conferenceId));
+}
+
+static void dump_stop_tone(char *str, size_t size, const struct stop_tone_message *m)
+{
+	snprintf(str, size,
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			letohl(m->lineInstance), letohl(m->callInstance));
 }
 
 const char *sccp_device_type_str(enum sccp_device_type device_type)
