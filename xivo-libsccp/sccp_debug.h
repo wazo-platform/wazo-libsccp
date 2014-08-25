@@ -3,16 +3,15 @@
 
 struct sccp_msg;
 
-extern int sccp_debug;
-extern char sccp_debug_addr[16];
+void sccp_debug_enable(void);
 
-#define sccp_debug_enabled(ipaddr) (sccp_debug && (*sccp_debug_addr == '\0' || !strcmp(sccp_debug_addr, ipaddr)))
+void sccp_debug_enable_device_name(const char *name);
 
-void sccp_enable_debug(void);
+void sccp_debug_enable_ip(const char *ip);
 
-void sccp_enable_debug_ip(const char *ip);
+void sccp_debug_disable(void);
 
-void sccp_disable_debug(void);
+int sccp_debug_enabled(const char *device_name, const char *ip);
 
 void sccp_dump_message_received(const struct sccp_msg *msg, const char *ipaddr, int port);
 

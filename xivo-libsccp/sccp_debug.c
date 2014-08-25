@@ -1,12 +1,14 @@
 #include <asterisk.h>
 #include <asterisk/strings.h>
 
+#include "sccp.h"
 #include "sccp_debug.h"
 #include "sccp_msg.h"
 #include "sccp_utils.h"
 
-int sccp_debug;
-char sccp_debug_addr[16];
+static int sccp_debug;
+static char sccp_debug_device_name[SCCP_DEVICE_NAME_MAX];
+static char sccp_debug_ip[INET_ADDRSTRLEN];
 
 static void dump_message(const struct sccp_msg *msg, const char *head1, const char *head2, const char *ipaddr, int port);
 
@@ -29,21 +31,36 @@ static const char *ringer_mode_str(enum sccp_ringer_mode v);
 static const char *softkey_status_str(enum sccp_softkey_status v);
 static const char *softkey_str(enum sccp_softkey_type v);
 
-void sccp_enable_debug(void)
+void sccp_debug_enable(void)
 {
+	sccp_debug_disable();
 	sccp_debug = 1;
-	*sccp_debug_addr = '\0';
 }
 
-void sccp_enable_debug_ip(const char *ip)
+void sccp_debug_enable_device_name(const char *name)
 {
-	sccp_debug = 1;
-	ast_copy_string(sccp_debug_addr, ip, sizeof(sccp_debug_addr));
+	sccp_debug_disable();
+	ast_copy_string(sccp_debug_device_name, name, sizeof(sccp_debug_device_name));
 }
 
-void sccp_disable_debug(void)
+void sccp_debug_enable_ip(const char *ip)
+{
+	sccp_debug_disable();
+	ast_copy_string(sccp_debug_ip, ip, sizeof(sccp_debug_ip));
+}
+
+void sccp_debug_disable(void)
 {
 	sccp_debug = 0;
+	*sccp_debug_device_name = '\0';
+	*sccp_debug_ip = '\0';
+}
+
+int sccp_debug_enabled(const char *device_name, const char *ip)
+{
+	return sccp_debug ||
+		(device_name && !strcmp(device_name, sccp_debug_device_name)) ||
+		(ip && !strcmp(ip, sccp_debug_ip));
 }
 
 void sccp_dump_message_received(const struct sccp_msg *msg, const char *ipaddr, int port)

@@ -23,6 +23,7 @@ struct sccp_session {
 	int sockfd;
 	int stop;
 	int remote_port;
+	int debug;
 
 	struct sccp_cfg *cfg;
 	struct sccp_device_registry *registry;
@@ -35,7 +36,8 @@ struct sccp_session {
 
 enum session_msg_id {
 	MSG_NOOP,
-	MSG_RELOAD,
+	MSG_RELOAD_CONFIG,
+	MSG_RELOAD_DEBUG,
 };
 
 struct session_msg_reload {
@@ -65,20 +67,26 @@ static void session_msg_init_noop(struct session_msg *msg)
 	msg->id = MSG_NOOP;
 }
 
-static void session_msg_init_reload(struct session_msg *msg, struct sccp_cfg *cfg)
+static void session_msg_init_reload_config(struct session_msg *msg, struct sccp_cfg *cfg)
 {
-	msg->id = MSG_RELOAD;
+	msg->id = MSG_RELOAD_CONFIG;
 	msg->data.reload.cfg = cfg;
 	ao2_ref(cfg, +1);
+}
+
+static void session_msg_init_reload_debug(struct session_msg *msg)
+{
+	msg->id = MSG_RELOAD_DEBUG;
 }
 
 static void session_msg_destroy(struct session_msg *msg)
 {
 	switch (msg->id) {
-	case MSG_NOOP:
-		break;
-	case MSG_RELOAD:
+	case MSG_RELOAD_CONFIG:
 		ao2_ref(msg->data.reload.cfg, -1);
+		break;
+	case MSG_RELOAD_DEBUG:
+	case MSG_NOOP:
 		break;
 	}
 }
@@ -154,6 +162,17 @@ static int set_sock_options(int sockfd)
 	return 0;
 }
 
+static void sccp_session_update_debug(struct sccp_session *session)
+{
+	const char *device_name = NULL;
+
+	if (session->device) {
+		device_name = sccp_device_name(session->device);
+	}
+
+	session->debug = sccp_debug_enabled(device_name, session->remote_addr_ch);
+}
+
 struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_device_registry *registry, struct sockaddr_in *addr, int sockfd)
 {
 	struct sockaddr_in local_addr;
@@ -208,12 +227,15 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 	session->sync_q = sync_q;
 	session->task_runner = task_runner;
 	session->stop = 0;
+	session->debug = 0;
 	session->device = NULL;
 	session->cfg = cfg;
 	ao2_ref(cfg, +1);
 	session->registry = registry;
 	session->remote_port = ntohs(addr->sin_port);
 	ast_copy_string(session->remote_addr_ch, ast_inet_ntoa(addr->sin_addr), sizeof(session->remote_addr_ch));
+
+	sccp_session_update_debug(session);
 
 	return session;
 }
@@ -257,11 +279,20 @@ static int sccp_session_queue_msg_noop(struct sccp_session *session)
 	return sccp_session_queue_msg(session, &msg);
 }
 
-static int sccp_session_queue_msg_reload(struct sccp_session *session, struct sccp_cfg *cfg)
+static int sccp_session_queue_msg_reload_config(struct sccp_session *session, struct sccp_cfg *cfg)
 {
 	struct session_msg msg;
 
-	session_msg_init_reload(&msg, cfg);
+	session_msg_init_reload_config(&msg, cfg);
+
+	return sccp_session_queue_msg(session, &msg);
+}
+
+static int sccp_session_queue_msg_reload_debug(struct sccp_session *session)
+{
+	struct session_msg msg;
+
+	session_msg_init_reload_debug(&msg);
 
 	return sccp_session_queue_msg(session, &msg);
 }
@@ -291,7 +322,7 @@ static void remove_auth_timeout_task(struct sccp_session *session)
 	sccp_task_runner_remove(session->task_runner, on_auth_timeout, &task_data);
 }
 
-static void process_reload(struct sccp_session *session, struct sccp_cfg *cfg)
+static void process_reload_config(struct sccp_session *session, struct sccp_cfg *cfg)
 {
 	struct sccp_device_cfg *device_cfg;
 
@@ -320,8 +351,11 @@ static void sccp_session_process_msg(struct sccp_session *session, struct sessio
 	switch (msg->id) {
 	case MSG_NOOP:
 		break;
-	case MSG_RELOAD:
-		process_reload(session, msg->data.reload.cfg);
+	case MSG_RELOAD_CONFIG:
+		process_reload_config(session, msg->data.reload.cfg);
+		break;
+	case MSG_RELOAD_DEBUG:
+		sccp_session_update_debug(session);
 		break;
 	}
 
@@ -430,18 +464,19 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 
 	ast_verb(3, "Registered SCCP(%d) '%s' at %s:%d\n", device_info.proto_version, name, session->remote_addr_ch, session->remote_port);
 
-	remove_auth_timeout_task(session);
-	sccp_device_on_registration_success(device);
-
 	/* steal the reference ownership */
 	session->device = device;
+
+	remove_auth_timeout_task(session);
+	sccp_session_update_debug(session);
+	sccp_device_on_registration_success(device);
 }
 
 static void sccp_session_handle_msg(struct sccp_session *session, struct sccp_msg *msg)
 {
 	uint32_t msg_id = letohl(msg->id);
 
-	if (sccp_debug_enabled(session->remote_addr_ch)) {
+	if (session->debug) {
 		sccp_dump_message_received(msg, session->remote_addr_ch, session->remote_port);
 	}
 
@@ -581,7 +616,12 @@ int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cf
 		return -1;
 	}
 
-	return sccp_session_queue_msg_reload(session, cfg);
+	return sccp_session_queue_msg_reload_config(session, cfg);
+}
+
+int sccp_session_reload_debug(struct sccp_session *session)
+{
+	return sccp_session_queue_msg_reload_debug(session);
 }
 
 static void on_device_task_timeout(struct sccp_session *session, void *data)
@@ -623,7 +663,7 @@ int sccp_session_transmit_msg(struct sccp_session *session, struct sccp_msg *msg
 	size_t count = SCCP_MSG_TOTAL_LEN_FROM_LEN(letohl(msg->length));
 	ssize_t n;
 
-	if (sccp_debug_enabled(session->remote_addr_ch)) {
+	if (session->debug) {
 		sccp_dump_message_transmitting(msg, session->remote_addr_ch, session->remote_port);
 	}
 

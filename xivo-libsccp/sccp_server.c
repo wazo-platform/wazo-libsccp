@@ -41,12 +41,13 @@ struct server_session {
 };
 
 enum server_msg_id {
-	MSG_RELOAD,
+	MSG_RELOAD_CONFIG,
+	MSG_RELOAD_DEBUG,
 	MSG_SESSION_END,
 	MSG_STOP,
 };
 
-struct server_msg_reload {
+struct server_msg_reload_config {
 	struct sccp_cfg *cfg;
 };
 
@@ -55,7 +56,7 @@ struct server_msg_session_end {
 };
 
 union server_msg_data {
-	struct server_msg_reload reload;
+	struct server_msg_reload_config reload_config;
 	struct server_msg_session_end session_end;
 };
 
@@ -88,11 +89,16 @@ static void server_session_destroy(struct server_session *srv_session)
 	ast_free(srv_session);
 }
 
-static void server_msg_init_reload(struct server_msg *msg, struct sccp_cfg *cfg)
+static void server_msg_init_reload_config(struct server_msg *msg, struct sccp_cfg *cfg)
 {
-	msg->id = MSG_RELOAD;
-	msg->data.reload.cfg = cfg;
+	msg->id = MSG_RELOAD_CONFIG;
+	msg->data.reload_config.cfg = cfg;
 	ao2_ref(cfg, +1);
+}
+
+static void server_msg_init_reload_debug(struct server_msg *msg)
+{
+	msg->id = MSG_RELOAD_DEBUG;
 }
 
 static void server_msg_init_session_end(struct server_msg *msg, struct server_session *srv_session)
@@ -109,9 +115,10 @@ static void server_msg_init_stop(struct server_msg *msg)
 static void server_msg_destroy(struct server_msg *msg)
 {
 	switch (msg->id) {
-	case MSG_RELOAD:
-		ao2_ref(msg->data.reload.cfg, -1);
+	case MSG_RELOAD_CONFIG:
+		ao2_ref(msg->data.reload_config.cfg, -1);
 		break;
+	case MSG_RELOAD_DEBUG:
 	case MSG_SESSION_END:
 	case MSG_STOP:
 		break;
@@ -148,11 +155,20 @@ static int server_queue_msg(struct sccp_server *server, struct server_msg *msg)
 	return ret;
 }
 
-static int server_queue_msg_reload(struct sccp_server *server, struct sccp_cfg *cfg)
+static int server_queue_msg_reload_config(struct sccp_server *server, struct sccp_cfg *cfg)
 {
 	struct server_msg msg;
 
-	server_msg_init_reload(&msg, cfg);
+	server_msg_init_reload_config(&msg, cfg);
+
+	return server_queue_msg(server, &msg);
+}
+
+static int server_queue_msg_reload_debug(struct sccp_server *server)
+{
+	struct server_msg msg;
+
+	server_msg_init_reload_debug(&msg);
 
 	return server_queue_msg(server, &msg);
 }
@@ -202,12 +218,25 @@ static void server_stop_sessions(struct sccp_server *server)
 	}
 }
 
-static void server_reload_sessions(struct sccp_server *server, struct sccp_cfg *cfg)
+static void server_reload_config(struct sccp_server *server, struct sccp_cfg *cfg)
+{
+	struct server_session *srv_session;
+
+	ao2_ref(server->cfg, -1);
+	server->cfg = cfg;
+	ao2_ref(cfg, +1);
+
+	AST_LIST_TRAVERSE(&server->srv_sessions, srv_session, list) {
+		sccp_session_reload_config(srv_session->session, cfg);
+	}
+}
+
+static void server_reload_debug(struct sccp_server *server)
 {
 	struct server_session *srv_session;
 
 	AST_LIST_TRAVERSE(&server->srv_sessions, srv_session, list) {
-		sccp_session_reload_config(srv_session->session, cfg);
+		sccp_session_reload_debug(srv_session->session);
 	}
 }
 
@@ -334,12 +363,11 @@ static void server_on_session_end(struct sccp_server *server, struct server_sess
 static void server_process_msg(struct sccp_server *server, struct server_msg *msg)
 {
 	switch (msg->id) {
-	case MSG_RELOAD:
-		ao2_ref(server->cfg, -1);
-		server->cfg = msg->data.reload.cfg;
-		ao2_ref(server->cfg, +1);
-
-		server_reload_sessions(server, msg->data.reload.cfg);
+	case MSG_RELOAD_CONFIG:
+		server_reload_config(server, msg->data.reload_config.cfg);
+		break;
+	case MSG_RELOAD_DEBUG:
+		server_reload_debug(server);
 		break;
 	case MSG_SESSION_END:
 		server_on_session_end(server, msg->data.session_end.srv_session);
@@ -540,8 +568,23 @@ int sccp_server_reload_config(struct sccp_server *server, struct sccp_cfg *cfg)
 		return -1;
 	}
 
-	if (server_queue_msg_reload(server, cfg)) {
+	if (server_queue_msg_reload_config(server, cfg)) {
 		ast_log(LOG_WARNING, "sccp server reload config failed: could not ask server to reload config\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int sccp_server_reload_debug(struct sccp_server *server)
+{
+	if (server->state != STATE_STARTED) {
+		ast_log(LOG_ERROR, "sccp server reload debug failed: server not in started state\n");
+		return -1;
+	}
+
+	if (server_queue_msg_reload_debug(server)) {
+		ast_log(LOG_WARNING, "sccp server reload debug failed: could not ask server to reload debug\n");
 		return -1;
 	}
 

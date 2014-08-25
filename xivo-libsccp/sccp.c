@@ -222,29 +222,40 @@ static char *cli_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args
 
 	switch (cmd) {
 	case CLI_INIT:
-		e->command = "sccp set debug {on|off|ip}";
+		e->command = "sccp set debug {off|on|ip|device}";
 		e->usage =
-			"Usage: sccp set debug {on|off|ip addr}\n"
-			"       Enable/disable dumping of SCCP packets.\n";
+			"Usage: sccp set debug {off|on|ip addr|device name}\n"
+			"       Globally disables dumping of SCCP packets,\n"
+			"       or enables it either globally or for a (single)\n"
+			"       IP address or device name.\n";
 		return NULL;
 	case CLI_GENERATE:
+		if (a->pos == 4 && !strcasecmp(a->argv[3], "device")) {
+			return sccp_device_registry_complete(global_registry, a->word, a->n);
+		}
+
 		return NULL;
 	}
 
 	what = a->argv[e->args - 1];
 
 	if (!strcasecmp(what, "on")) {
-		sccp_enable_debug();
+		sccp_debug_enable();
 		ast_cli(a->fd, "SCCP debugging enabled\n");
 	} else if (!strcasecmp(what, "off")) {
-		sccp_disable_debug();
+		sccp_debug_disable();
 		ast_cli(a->fd, "SCCP debugging disabled\n");
-	}  else if (!strcasecmp(what, "ip") && a->argc == e->args + 1) {
-		sccp_enable_debug_ip(a->argv[e->args]);
-		ast_cli(a->fd, "SCCP debugging enabled for IP: %s\n", sccp_debug_addr);
+	} else if (!strcasecmp(what, "device") && a->argc == e->args + 1) {
+		sccp_debug_enable_device_name(a->argv[e->args]);
+		ast_cli(a->fd, "SCCP debugging enabled for device: %s\n", a->argv[e->args]);
+	} else if (!strcasecmp(what, "ip") && a->argc == e->args + 1) {
+		sccp_debug_enable_ip(a->argv[e->args]);
+		ast_cli(a->fd, "SCCP debugging enabled for IP: %s\n", a->argv[e->args]);
 	} else {
 		return CLI_SHOWUSAGE;
 	}
+
+	sccp_server_reload_debug(global_server);
 
 	return CLI_SUCCESS;
 }

@@ -45,6 +45,14 @@ int sccp_session_stop(struct sccp_session *session);
 int sccp_session_reload_config(struct sccp_session *session, struct sccp_cfg *cfg);
 
 /*!
+ * \brief Reload the debug status.
+ *
+ * \retval 0 on success
+ * \retval non-zero on failure
+ */
+int sccp_session_reload_debug(struct sccp_session *session);
+
+/*!
  * \brief Function type for device task callback
  *
  * \note Part of the device API.
