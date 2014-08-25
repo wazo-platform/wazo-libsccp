@@ -740,8 +740,8 @@ int sccp_deserializer_pop(struct sccp_deserializer *dzer, struct sccp_msg **msg)
 /*!
  * \brief Dump message to string.
  *
- * In the case this function does not know how to dump the given message, a
- * non-zero value is returned.
+ * In the case this function does not know how to dump the given message or the
+ * given message doesn't have a body, a non-zero value is returned.
  *
  * \retval 0 on success
  * \retval non-zero if the message could not be dumped

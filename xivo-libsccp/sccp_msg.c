@@ -113,6 +113,7 @@ static void dump_set_lamp(char *str, size_t size, const struct set_lamp_message 
 static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m);
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m);
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m);
+static void dump_start_tone(char *str, size_t size, const struct start_tone_message *m);
 static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m);
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
 
@@ -122,6 +123,7 @@ static const char *sccp_softkey_str(enum sccp_softkey_type v);
 static const char *sccp_softkey_status_str(enum sccp_softkey_status v);
 static const char *sccp_state_str(enum sccp_state state);
 static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type);
+static const char *sccp_tone_str(enum sccp_tone v);
 
 /*
  * rule on usage of htolel and similar functions:
@@ -704,6 +706,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case START_MEDIA_TRANSMISSION_MESSAGE:
 		dump_start_media_transmission(str, size, &msg->data.startmedia);
 		break;
+	case START_TONE_MESSAGE:
+		dump_start_tone(str, size, &msg->data.starttone);
+		break;
 	case STIMULUS_MESSAGE:
 		dump_stimulus(str, size, &msg->data.stimulus);
 		break;
@@ -867,6 +872,15 @@ static void dump_start_media_transmission(char *str, size_t size, const struct s
 			"Port: %u\n"
 			"Packet size: %u\n",
 			letohl(m->conferenceId), buf, letohl(m->remotePort), letohl(m->packetSize));
+}
+
+static void dump_start_tone(char *str, size_t size, const struct start_tone_message *m)
+{
+	snprintf(str, size,
+			"Tone: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			sccp_tone_str(letohl(m->tone)), letohl(m->lineInstance), letohl(m->callInstance));
 }
 
 static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m)
@@ -1225,6 +1239,28 @@ static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type)
 	case STIMULUS_CALLPICKUP:
 		return "call pickup";
 	case STIMULUS_NONE:
+		return "none";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_tone_str(enum sccp_tone v)
+{
+	switch (v) {
+	case SCCP_TONE_SILENCE:
+		return "silence";
+	case SCCP_TONE_DIAL:
+		return "dial";
+	case SCCP_TONE_BUSY:
+		return "busy";
+	case SCCP_TONE_ALERT:
+		return "alert";
+	case SCCP_TONE_REORDER:
+		return "reorder";
+	case SCCP_TONE_CALLWAIT:
+		return "call wait";
+	case SCCP_TONE_NONE:
 		return "none";
 	}
 
