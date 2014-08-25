@@ -737,8 +737,18 @@ int sccp_deserializer_read(struct sccp_deserializer *dzer);
  */
 int sccp_deserializer_pop(struct sccp_deserializer *dzer, struct sccp_msg **msg);
 
+/*!
+ * \brief Dump message to string.
+ *
+ * In the case this function does not know how to dump the given message, a
+ * non-zero value is returned.
+ *
+ * \retval 0 on success
+ * \retval non-zero if the message could not be dumped
+ */
+int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg);
+
 const char *sccp_msg_id_str(uint32_t msg_id);
 const char *sccp_device_type_str(enum sccp_device_type device_type);
-const char *sccp_state_str(enum sccp_state state);
 
 #endif /* SCCP_MSG_H_ */
