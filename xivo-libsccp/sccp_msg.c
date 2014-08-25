@@ -110,6 +110,7 @@ static void dump_offhook(char *str, size_t size, const struct offhook_message *m
 static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
 static void dump_open_receive_channel(char *str, size_t size, const struct open_receive_channel_message *m);
 static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m);
+static void dump_reset(char *str, size_t size, const struct reset_message *m);
 static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m);
 static void dump_set_lamp(char *str, size_t size, const struct set_lamp_message *m);
 static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m);
@@ -123,6 +124,7 @@ static void dump_stop_tone(char *str, size_t size, const struct stop_tone_messag
 
 static const char *sccp_codecs_str(enum sccp_codecs v);
 static const char *sccp_lamp_state_str(enum sccp_lamp_state state);
+static const char *sccp_reset_type_str(enum sccp_reset_type v);
 static const char *sccp_ringer_mode_str(enum sccp_ringer_mode v);
 static const char *sccp_softkey_str(enum sccp_softkey_type v);
 static const char *sccp_softkey_status_str(enum sccp_softkey_status v);
@@ -703,6 +705,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
 		dump_open_receive_channel_ack(str, size, &msg->data.openreceivechannelack);
 		break;
+	case RESET_MESSAGE:
+		dump_reset(str, size, &msg->data.reset);
+		break;
 	case SELECT_SOFT_KEYS_MESSAGE:
 		dump_select_soft_keys(str, size, &msg->data.selectsoftkey);
 		break;
@@ -857,6 +862,13 @@ static void dump_open_receive_channel_ack(char *str, size_t size, const struct o
 			"Port: %u\n"
 			"PassThru ID: %u\n",
 			letohl(m->status), buf, letohl(m->port), letohl(m->passThruId));
+}
+
+static void dump_reset(char *str, size_t size, const struct reset_message *m)
+{
+	snprintf(str, size,
+			"Type: %s\n",
+			sccp_reset_type_str(letohl(m->type)));
 }
 
 static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m)
@@ -1149,6 +1161,18 @@ const char *sccp_msg_id_str(uint32_t msg_id) {
 		return "feature status";
 	case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
 		return "start media transmission ack";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_reset_type_str(enum sccp_reset_type v)
+{
+	switch (v) {
+	case SCCP_RESET_HARD_RESTART:
+		return "hard restart";
+	case SCCP_RESET_SOFT:
+		return "soft";
 	}
 
 	return "unknown";
