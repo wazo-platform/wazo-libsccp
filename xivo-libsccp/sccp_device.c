@@ -1902,39 +1902,6 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device, int open_s
 	return subchan;
 }
 
-static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan)
-{
-	struct sccp_line *line = subchan->line;
-
-	if (!subchan->channel) {
-		ast_log(LOG_NOTICE, "do answer failed: subchan has no channel\n");
-		return -1;
-	}
-
-	if (device->active_subchan) {
-		if (do_hold(device)) {
-			ast_log(LOG_NOTICE, "do answer failed: could not put active subchan on hold\n");
-			return -1;
-		}
-	}
-
-	device->active_subchan = subchan;
-
-	transmit_ringer_mode(device, SCCP_RING_OFF);
-	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
-	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
-	transmit_subchan_stop_tone(device, subchan);
-	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
-	transmit_subchan_open_receive_channel(device, subchan);
-
-	line->state = SCCP_CONNECTED;
-	subchan->state = SCCP_CONNECTED;
-
-	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
-
-	return 0;
-}
-
 static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
 	struct sccp_line *line = subchan->line;
@@ -2008,6 +1975,41 @@ static int do_hangup(struct sccp_device *device, struct sccp_subchannel *subchan
 		do_clear_subchannel(device, subchan);
 		/* XXX subchan is now invalid here if the caller had no reference */
 	}
+
+	return 0;
+}
+
+static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan)
+{
+	struct sccp_line *line = subchan->line;
+
+	if (!subchan->channel) {
+		ast_log(LOG_NOTICE, "do answer failed: subchan has no channel\n");
+		return -1;
+	}
+
+	if (device->active_subchan) {
+		if (device->active_subchan->state == SCCP_RINGOUT) {
+			do_hangup(device, device->active_subchan);
+		} else if (do_hold(device)) {
+			ast_log(LOG_NOTICE, "do answer failed: could not put active subchan on hold\n");
+			return -1;
+		}
+	}
+
+	device->active_subchan = subchan;
+
+	transmit_ringer_mode(device, SCCP_RING_OFF);
+	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
+	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
+	transmit_subchan_stop_tone(device, subchan);
+	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
+	transmit_subchan_open_receive_channel(device, subchan);
+
+	line->state = SCCP_CONNECTED;
+	subchan->state = SCCP_CONNECTED;
+
+	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
 
 	return 0;
 }
