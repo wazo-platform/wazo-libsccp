@@ -109,12 +109,14 @@ static void dump_offhook(char *str, size_t size, const struct offhook_message *m
 static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
 static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m);
 static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m);
+static void dump_set_lamp(char *str, size_t size, const struct set_lamp_message *m);
 static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m);
 static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m);
 static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m);
 static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m);
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
 
+static const char *sccp_lamp_state_str(enum sccp_lamp_state state);
 static const char *sccp_ringer_mode_str(enum sccp_ringer_mode v);
 static const char *sccp_softkey_str(enum sccp_softkey_type v);
 static const char *sccp_softkey_status_str(enum sccp_softkey_status v);
@@ -690,6 +692,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case SELECT_SOFT_KEYS_MESSAGE:
 		dump_select_soft_keys(str, size, &msg->data.selectsoftkey);
 		break;
+	case SET_LAMP_MESSAGE:
+		dump_set_lamp(str, size, &msg->data.setlamp);
+		break;
 	case SET_RINGER_MESSAGE:
 		dump_set_ringer(str, size, &msg->data.setringer);
 		break;
@@ -820,6 +825,15 @@ static void dump_select_soft_keys(char *str, size_t size, const struct select_so
 			sccp_softkey_status_str(letohl(m->softKeySetIndex)), letohl(m->lineInstance), letohl(m->callInstance));
 }
 
+static void dump_set_lamp(char *str, size_t size, const struct set_lamp_message *m)
+{
+	snprintf(str, size,
+			"Stimulus: %s\n"
+			"Line instance: %u\n"
+			"State: %s\n",
+			sccp_stimulus_type_str(letohl(m->stimulus)), letohl(m->lineInstance), sccp_lamp_state_str(letohl(m->state)));
+}
+
 static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m)
 {
 	snprintf(str, size,
@@ -907,6 +921,24 @@ const char *sccp_device_type_str(enum sccp_device_type device_type)
 		return "7970";
 	case SCCP_DEVICE_CIPC:
 		return "CIPC";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_lamp_state_str(enum sccp_lamp_state state)
+{
+	switch (state) {
+	case SCCP_LAMP_OFF:
+		return "off";
+	case SCCP_LAMP_ON:
+		return "on";
+	case SCCP_LAMP_WINK:
+		return "wink";
+	case SCCP_LAMP_FLASH:
+		return "flash";
+	case SCCP_LAMP_BLINK:
+		return "blink";
 	}
 
 	return "unknown";
