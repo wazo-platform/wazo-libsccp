@@ -292,8 +292,8 @@ void sccp_msg_open_receive_channel(struct sccp_msg *msg, uint32_t callid, uint32
 
 	msg->data.openreceivechannel.conferenceId = htolel(callid);
 	msg->data.openreceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
-	msg->data.openreceivechannel.packets = packets;
-	msg->data.openreceivechannel.capability = capability;
+	msg->data.openreceivechannel.packets = htolel(packets);
+	msg->data.openreceivechannel.capability = htolel(capability);
 	msg->data.openreceivechannel.echo = 0;
 	msg->data.openreceivechannel.bitrate = 0;
 	msg->data.openreceivechannel.conferenceId1 = htolel(callid);
