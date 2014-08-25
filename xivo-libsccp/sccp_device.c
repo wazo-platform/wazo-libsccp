@@ -1026,12 +1026,12 @@ static struct sccp_subchannel *sccp_lines_get_subchan(struct sccp_lines *lines, 
 /*
  * \note reference count is NOT incremented
  */
-static struct sccp_subchannel *sccp_lines_get_next_ringin_subchan(struct sccp_lines *lines)
+static struct sccp_subchannel *sccp_lines_get_next_subchan(struct sccp_lines *lines, enum sccp_state state)
 {
 	struct sccp_subchannel *subchan;
 
 	AST_LIST_TRAVERSE(&lines->line->subchans, subchan, list) {
-		if (subchan->state == SCCP_RINGIN) {
+		if (subchan->state == state) {
 			return subchan;
 		}
 	}
@@ -1039,20 +1039,19 @@ static struct sccp_subchannel *sccp_lines_get_next_ringin_subchan(struct sccp_li
 	return NULL;
 }
 
-/*
- * \note reference count is NOT incremented
- */
+static struct sccp_subchannel *sccp_lines_get_next_ringin_subchan(struct sccp_lines *lines)
+{
+	return sccp_lines_get_next_subchan(lines, SCCP_RINGIN);
+}
+
+static struct sccp_subchannel *sccp_lines_get_next_ringout_subchan(struct sccp_lines *lines)
+{
+	return sccp_lines_get_next_subchan(lines, SCCP_RINGOUT);
+}
+
 static struct sccp_subchannel *sccp_lines_get_next_offhook_subchan(struct sccp_lines *lines)
 {
-	struct sccp_subchannel *subchan;
-
-	AST_LIST_TRAVERSE(&lines->line->subchans, subchan, list) {
-		if (subchan->state == SCCP_OFFHOOK) {
-			return subchan;
-		}
-	}
-
-	return NULL;
+	return sccp_lines_get_next_subchan(lines, SCCP_OFFHOOK);
 }
 
 static int sccp_lines_has_subchans(struct sccp_lines *lines)
@@ -1864,9 +1863,14 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device, int open_s
 	struct sccp_line *line = sccp_lines_get_default(&device->lines);
 	struct sccp_subchannel *subchan;
 
+	if (sccp_lines_get_next_ringout_subchan(&device->lines)) {
+		ast_debug(1, "Found an already ringout subchan; ignoring newcall request\n");
+		return NULL;
+	}
+
 	subchan = sccp_lines_get_next_offhook_subchan(&device->lines);
 	if (subchan) {
-		ast_debug(1, "Found an already offhook subchan\n");
+		ast_debug(1, "Found an already offhook subchan; reusing it\n");
 		return subchan;
 	}
 
@@ -3361,6 +3365,8 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 		sccp_device_unlock(device);
 		return -1;
 	}
+
+	subchan->state = SCCP_CONNECTED;
 
 	if (!subchan->rtp) {
 		transmit_subchan_open_receive_channel(device, subchan);
