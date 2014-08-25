@@ -102,6 +102,7 @@ static struct softkey_template_definition softkey_template_default[] = {
 static void dump_call_info(char *str, size_t size, const struct call_info_message *m);
 static void dump_call_state(char *str, size_t size, const struct call_state_message *m);
 static void dump_close_receive_channel(char *str, size_t size, const struct close_receive_channel_message *m);
+static void dump_dialed_number(char *str, size_t size, const struct dialed_number_message *m);
 static void dump_feature_stat(char *str, size_t size, const struct feature_stat_message *m);
 static void dump_forward_status_res(char *str, size_t size, const struct forward_status_res_message *m);
 static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m);
@@ -675,6 +676,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case CLOSE_RECEIVE_CHANNEL_MESSAGE:
 		dump_close_receive_channel(str, size, &msg->data.closereceivechannel);
 		break;
+	case DIALED_NUMBER_MESSAGE:
+		dump_dialed_number(str, size, &msg->data.dialednumber);
+		break;
 	case FEATURE_STAT_MESSAGE:
 		dump_feature_stat(str, size, &msg->data.featurestatus);
 		break;
@@ -755,6 +759,15 @@ static void dump_close_receive_channel(char *str, size_t size, const struct clos
 	snprintf(str, size,
 			"Conference ID: %u\n",
 			letohl(m->conferenceId));
+}
+
+static void dump_dialed_number(char *str, size_t size, const struct dialed_number_message *m)
+{
+	snprintf(str, size,
+			"Called: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			m->calledParty, letohl(m->lineInstance), letohl(m->callInstance));
 }
 
 static void dump_feature_stat(char *str, size_t size, const struct feature_stat_message *m)
