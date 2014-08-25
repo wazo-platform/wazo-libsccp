@@ -129,6 +129,7 @@ enum sccp_device_state {
 
 enum {
 	DEVICE_DESTROYED = (1 << 0),
+	DEVICE_RESET_ON_IDLE = (1 << 1),
 };
 
 struct sccp_device {
@@ -163,7 +164,6 @@ struct sccp_device {
 	enum call_forward_status callfwd;
 	enum receive_channel_status recv_chan_status;
 	enum sccp_device_state state;
-	int reset_on_idle;
 	int dnd;
 	unsigned int flags;
 	enum sccp_device_type type;
@@ -1176,7 +1176,6 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	 */
 	device->serial_callid = time(NULL);
 	device->recv_chan_status = SCCP_RECV_CHAN_CLOSED;
-	device->reset_on_idle = 0;
 	device->dnd = 0;
 	device->callfwd = SCCP_CFWD_INACTIVE;
 	device->flags = 0;
@@ -1655,6 +1654,13 @@ static void sccp_device_panic(struct sccp_device *device)
 	device->state = STATE_CONNLOST;
 }
 
+static void sccp_device_on_idle(struct sccp_device *device)
+{
+	if (ast_test_flag(device, DEVICE_RESET_ON_IDLE)) {
+		transmit_reset(device, SCCP_RESET_SOFT);
+	}
+}
+
 static void update_displaymessage(struct sccp_device *device)
 {
 	char text[AST_MAX_EXTENSION + 21];
@@ -1954,8 +1960,8 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 		device->active_subchan = NULL;
 	}
 
-	if (device->reset_on_idle && sccp_device_is_idle(device)) {
-		transmit_reset(device, SCCP_RESET_SOFT);
+	if (sccp_device_is_idle(device)) {
+		sccp_device_on_idle(device);
 	}
 
 	ao2_ref(subchan, -1);
@@ -2886,7 +2892,7 @@ int sccp_device_reload_config(struct sccp_device *device, struct sccp_device_cfg
 		if (sccp_device_is_idle(device)) {
 			transmit_reset(device, SCCP_RESET_SOFT);
 		} else {
-			device->reset_on_idle = 1;
+			ast_set_flag(device, DEVICE_RESET_ON_IDLE);
 		}
 
 		sccp_device_unlock(device);
