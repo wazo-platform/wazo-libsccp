@@ -99,6 +99,40 @@ static struct softkey_template_definition softkey_template_default[] = {
 	{"\200\77", SOFTKEY_DND},
 };
 
+static void dump_call_info(char *str, size_t size, const struct call_info_message *m);
+static void dump_call_state(char *str, size_t size, const struct call_state_message *m);
+static void dump_close_receive_channel(char *str, size_t size, const struct close_receive_channel_message *m);
+static void dump_dialed_number(char *str, size_t size, const struct dialed_number_message *m);
+static void dump_feature_stat(char *str, size_t size, const struct feature_stat_message *m);
+static void dump_forward_status_res(char *str, size_t size, const struct forward_status_res_message *m);
+static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m);
+static void dump_offhook(char *str, size_t size, const struct offhook_message *m);
+static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
+static void dump_open_receive_channel(char *str, size_t size, const struct open_receive_channel_message *m);
+static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m);
+static void dump_reset(char *str, size_t size, const struct reset_message *m);
+static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m);
+static void dump_set_lamp(char *str, size_t size, const struct set_lamp_message *m);
+static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m);
+static void dump_set_speaker(char *str, size_t size, const struct set_speaker_message *m);
+static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m);
+static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m);
+static void dump_start_tone(char *str, size_t size, const struct start_tone_message *m);
+static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m);
+static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
+static void dump_stop_tone(char *str, size_t size, const struct stop_tone_message *m);
+
+static const char *sccp_codecs_str(enum sccp_codecs v);
+static const char *sccp_lamp_state_str(enum sccp_lamp_state state);
+static const char *sccp_reset_type_str(enum sccp_reset_type v);
+static const char *sccp_ringer_mode_str(enum sccp_ringer_mode v);
+static const char *sccp_softkey_str(enum sccp_softkey_type v);
+static const char *sccp_softkey_status_str(enum sccp_softkey_status v);
+static const char *sccp_speaker_mode_str(enum sccp_speaker_mode v);
+static const char *sccp_state_str(enum sccp_state state);
+static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type);
+static const char *sccp_tone_str(enum sccp_tone v);
+
 /*
  * rule on usage of htolel and similar functions:
  *
@@ -262,8 +296,8 @@ void sccp_msg_open_receive_channel(struct sccp_msg *msg, uint32_t callid, uint32
 
 	msg->data.openreceivechannel.conferenceId = htolel(callid);
 	msg->data.openreceivechannel.partyId = htolel(callid ^ 0xFFFFFFFF);
-	msg->data.openreceivechannel.packets = packets;
-	msg->data.openreceivechannel.capability = capability;
+	msg->data.openreceivechannel.packets = htolel(packets);
+	msg->data.openreceivechannel.capability = htolel(capability);
 	msg->data.openreceivechannel.echo = 0;
 	msg->data.openreceivechannel.bitrate = 0;
 	msg->data.openreceivechannel.conferenceId1 = htolel(callid);
@@ -633,6 +667,384 @@ int sccp_deserializer_pop(struct sccp_deserializer *deserializer, struct sccp_ms
 	return 0;
 }
 
+int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
+{
+	uint32_t msg_id = letohl(msg->id);
+
+	switch (msg_id) {
+	case CALL_INFO_MESSAGE:
+		dump_call_info(str, size, &msg->data.callinfo);
+		break;
+	case CALL_STATE_MESSAGE:
+		dump_call_state(str, size, &msg->data.callstate);
+		break;
+	case CLOSE_RECEIVE_CHANNEL_MESSAGE:
+		dump_close_receive_channel(str, size, &msg->data.closereceivechannel);
+		break;
+	case DIALED_NUMBER_MESSAGE:
+		dump_dialed_number(str, size, &msg->data.dialednumber);
+		break;
+	case FEATURE_STAT_MESSAGE:
+		dump_feature_stat(str, size, &msg->data.featurestatus);
+		break;
+	case FORWARD_STATUS_RES_MESSAGE:
+		dump_forward_status_res(str, size, &msg->data.forwardstatus);
+		break;
+	case KEYPAD_BUTTON_MESSAGE:
+		dump_keypad_button(str, size, &msg->data.keypad);
+		break;
+	case OFFHOOK_MESSAGE:
+		dump_offhook(str, size, &msg->data.offhook);
+		break;
+	case ONHOOK_MESSAGE:
+		dump_onhook(str, size, &msg->data.onhook);
+		break;
+	case OPEN_RECEIVE_CHANNEL_MESSAGE:
+		dump_open_receive_channel(str, size, &msg->data.openreceivechannel);
+		break;
+	case OPEN_RECEIVE_CHANNEL_ACK_MESSAGE:
+		dump_open_receive_channel_ack(str, size, &msg->data.openreceivechannelack);
+		break;
+	case RESET_MESSAGE:
+		dump_reset(str, size, &msg->data.reset);
+		break;
+	case SELECT_SOFT_KEYS_MESSAGE:
+		dump_select_soft_keys(str, size, &msg->data.selectsoftkey);
+		break;
+	case SET_LAMP_MESSAGE:
+		dump_set_lamp(str, size, &msg->data.setlamp);
+		break;
+	case SET_RINGER_MESSAGE:
+		dump_set_ringer(str, size, &msg->data.setringer);
+		break;
+	case SET_SPEAKER_MESSAGE:
+		dump_set_speaker(str, size, &msg->data.setspeaker);
+		break;
+	case SOFTKEY_EVENT_MESSAGE:
+		dump_softkey_event(str, size, &msg->data.softkeyevent);
+		break;
+	case START_MEDIA_TRANSMISSION_MESSAGE:
+		dump_start_media_transmission(str, size, &msg->data.startmedia);
+		break;
+	case START_TONE_MESSAGE:
+		dump_start_tone(str, size, &msg->data.starttone);
+		break;
+	case STIMULUS_MESSAGE:
+		dump_stimulus(str, size, &msg->data.stimulus);
+		break;
+	case STOP_MEDIA_TRANSMISSION_MESSAGE:
+		dump_stop_media_transmission(str, size, &msg->data.stopmedia);
+		break;
+	case STOP_TONE_MESSAGE:
+		dump_stop_tone(str, size, &msg->data.stop_tone);
+		break;
+	default:
+		return -1;
+	}
+
+	return 0;
+}
+
+static void dump_call_info(char *str, size_t size, const struct call_info_message *m)
+{
+	snprintf(str, size,
+			"Calling name: %s\n"
+			"Calling: %s\n"
+			"Called name: %s\n"
+			"Called: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n"
+			"Type: %u\n",
+			m->callingPartyName, m->callingParty, m->calledPartyName, m->calledParty,
+			letohl(m->lineInstance), letohl(m->callInstance), letohl(m->type));
+}
+
+static void dump_call_state(char *str, size_t size, const struct call_state_message *m)
+{
+	snprintf(str, size,
+			"State: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			sccp_state_str(letohl(m->callState)), letohl(m->lineInstance), letohl(m->callReference));
+}
+
+static void dump_close_receive_channel(char *str, size_t size, const struct close_receive_channel_message *m)
+{
+	snprintf(str, size,
+			"Conference ID: %u\n",
+			letohl(m->conferenceId));
+}
+
+static void dump_dialed_number(char *str, size_t size, const struct dialed_number_message *m)
+{
+	snprintf(str, size,
+			"Called: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			m->calledParty, letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_feature_stat(char *str, size_t size, const struct feature_stat_message *m)
+{
+	snprintf(str, size,
+			"Instance: %u\n"
+			"Type: %u\n"
+			"Status: %u\n"
+			"Label: %s\n",
+			letohl(m->bt_instance),
+			letohl(m->type),
+			letohl(m->status),
+			m->label);
+}
+
+static void dump_forward_status_res(char *str, size_t size, const struct forward_status_res_message *m)
+{
+	snprintf(str, size,
+			"Status: %u\n"
+			"Line instance: %u\n"
+			"CfwdAll status: %u\n"
+			"CfwdAll number: %s\n",
+			letohl(m->status),
+			letohl(m->lineInstance),
+			letohl(m->cfwdAllStatus),
+			m->cfwdAllNumber);
+}
+
+static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m)
+{
+	snprintf(str, size,
+			"Button: %u\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			letohl(m->button), letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_offhook(char *str, size_t size, const struct offhook_message *m)
+{
+	snprintf(str, size,
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_onhook(char *str, size_t size, const struct onhook_message *m)
+{
+	snprintf(str, size,
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_open_receive_channel(char *str, size_t size, const struct open_receive_channel_message *m)
+{
+	snprintf(str, size,
+			"Call ID: %u\n"
+			"Party ID: %u\n"
+			"Packets: %u\n"
+			"Capability: %s\n",
+			letohl(m->conferenceId), letohl(m->partyId), letohl(m->packets), sccp_codecs_str(letohl(m->capability)));
+}
+
+static void dump_open_receive_channel_ack(char *str, size_t size, const struct open_receive_channel_ack_message *m)
+{
+	char buf[INET_ADDRSTRLEN];
+	struct in_addr addr;
+
+	addr.s_addr = m->ipAddr;
+
+	if (!inet_ntop(AF_INET, &addr, buf, sizeof(buf))) {
+		return;
+	}
+
+	snprintf(str, size,
+			"Status: %u\n"
+			"IP: %s\n"
+			"Port: %u\n"
+			"PassThru ID: %u\n",
+			letohl(m->status), buf, letohl(m->port), letohl(m->passThruId));
+}
+
+static void dump_reset(char *str, size_t size, const struct reset_message *m)
+{
+	snprintf(str, size,
+			"Type: %s\n",
+			sccp_reset_type_str(letohl(m->type)));
+}
+
+static void dump_select_soft_keys(char *str, size_t size, const struct select_soft_keys_message *m)
+{
+	snprintf(str, size,
+			"Softkey status: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			sccp_softkey_status_str(letohl(m->softKeySetIndex)), letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_set_lamp(char *str, size_t size, const struct set_lamp_message *m)
+{
+	snprintf(str, size,
+			"Stimulus: %s\n"
+			"Line instance: %u\n"
+			"State: %s\n",
+			sccp_stimulus_type_str(letohl(m->stimulus)), letohl(m->lineInstance), sccp_lamp_state_str(letohl(m->state)));
+}
+
+static void dump_set_ringer(char *str, size_t size, const struct set_ringer_message *m)
+{
+	snprintf(str, size,
+			"Mode: %s\n",
+			sccp_ringer_mode_str(letohl(m->ringerMode)));
+}
+
+static void dump_set_speaker(char *str, size_t size, const struct set_speaker_message *m)
+{
+	snprintf(str, size,
+			"Mode: %s\n",
+			sccp_speaker_mode_str(letohl(m->mode)));
+}
+
+static void dump_softkey_event(char *str, size_t size, const struct softkey_event_message *m)
+{
+	snprintf(str, size,
+			"Event: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			sccp_softkey_str(letohl(m->softKeyEvent)), letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_start_media_transmission(char *str, size_t size, const struct start_media_transmission_message *m)
+{
+	char buf[INET_ADDRSTRLEN];
+	struct in_addr addr;
+
+	addr.s_addr = m->remoteIp;
+
+	if (!inet_ntop(AF_INET, &addr, buf, sizeof(buf))) {
+		return;
+	}
+
+	snprintf(str, size,
+			"Call ID: %u\n"
+			"IP: %s\n"
+			"Port: %u\n"
+			"Packet size: %u\n",
+			letohl(m->conferenceId), buf, letohl(m->remotePort), letohl(m->packetSize));
+}
+
+static void dump_start_tone(char *str, size_t size, const struct start_tone_message *m)
+{
+	snprintf(str, size,
+			"Tone: %s\n"
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			sccp_tone_str(letohl(m->tone)), letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m)
+{
+	snprintf(str, size,
+			"Stimulus: %s\n"
+			"Line instance: %u\n",
+			sccp_stimulus_type_str(letohl(m->stimulus)), letohl(m->lineInstance));
+}
+
+static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m)
+{
+	snprintf(str, size,
+			"Conference ID: %u\n",
+			letohl(m->conferenceId));
+}
+
+static void dump_stop_tone(char *str, size_t size, const struct stop_tone_message *m)
+{
+	snprintf(str, size,
+			"Line instance: %u\n"
+			"Call ID: %u\n",
+			letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static const char *sccp_codecs_str(enum sccp_codecs v)
+{
+	switch (v) {
+	case SCCP_CODEC_G711_ALAW:
+		return "G.711 a-law";
+	case SCCP_CODEC_G711_ULAW:
+		return "G.711 u-law";
+	case SCCP_CODEC_G723_1:
+		return "G723.1";
+	case SCCP_CODEC_G729A:
+		return "G729A";
+	case SCCP_CODEC_G726_32:
+		return "G726 32";
+	case SCCP_CODEC_H261:
+		return "H261";
+	case SCCP_CODEC_H263:
+		return "H263";
+	}
+
+	return "unknown";
+}
+
+const char *sccp_device_type_str(enum sccp_device_type device_type)
+{
+	switch (device_type) {
+	case SCCP_DEVICE_7905:
+		return "7905";
+	case SCCP_DEVICE_7906:
+		return "7906";
+	case SCCP_DEVICE_7911:
+		return "7911";
+	case SCCP_DEVICE_7912:
+		return "7912";
+	case SCCP_DEVICE_7920:
+		return "7920";
+	case SCCP_DEVICE_7921:
+		return "7921";
+	case SCCP_DEVICE_7931:
+		return "7931";
+	case SCCP_DEVICE_7937:
+		return "7937";
+	case SCCP_DEVICE_7940:
+		return "7940";
+	case SCCP_DEVICE_7941:
+		return "7941";
+	case SCCP_DEVICE_7941GE:
+		return "7941GE";
+	case SCCP_DEVICE_7942:
+		return "7942";
+	case SCCP_DEVICE_7960:
+		return "7960";
+	case SCCP_DEVICE_7961:
+		return "7961";
+	case SCCP_DEVICE_7962:
+		return "7962";
+	case SCCP_DEVICE_7970:
+		return "7970";
+	case SCCP_DEVICE_CIPC:
+		return "CIPC";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_lamp_state_str(enum sccp_lamp_state state)
+{
+	switch (state) {
+	case SCCP_LAMP_OFF:
+		return "off";
+	case SCCP_LAMP_ON:
+		return "on";
+	case SCCP_LAMP_WINK:
+		return "wink";
+	case SCCP_LAMP_FLASH:
+		return "flash";
+	case SCCP_LAMP_BLINK:
+		return "blink";
+	}
+
+	return "unknown";
+}
+
 const char *sccp_msg_id_str(uint32_t msg_id) {
 	switch (msg_id) {
 	case KEEP_ALIVE_MESSAGE:
@@ -754,49 +1166,121 @@ const char *sccp_msg_id_str(uint32_t msg_id) {
 	return "unknown";
 }
 
-const char *sccp_device_type_str(enum sccp_device_type device_type)
+static const char *sccp_reset_type_str(enum sccp_reset_type v)
 {
-	switch (device_type) {
-	case SCCP_DEVICE_7905:
-		return "7905";
-	case SCCP_DEVICE_7906:
-		return "7906";
-	case SCCP_DEVICE_7911:
-		return "7911";
-	case SCCP_DEVICE_7912:
-		return "7912";
-	case SCCP_DEVICE_7920:
-		return "7920";
-	case SCCP_DEVICE_7921:
-		return "7921";
-	case SCCP_DEVICE_7931:
-		return "7931";
-	case SCCP_DEVICE_7937:
-		return "7937";
-	case SCCP_DEVICE_7940:
-		return "7940";
-	case SCCP_DEVICE_7941:
-		return "7941";
-	case SCCP_DEVICE_7941GE:
-		return "7941GE";
-	case SCCP_DEVICE_7942:
-		return "7942";
-	case SCCP_DEVICE_7960:
-		return "7960";
-	case SCCP_DEVICE_7961:
-		return "7961";
-	case SCCP_DEVICE_7962:
-		return "7962";
-	case SCCP_DEVICE_7970:
-		return "7970";
-	case SCCP_DEVICE_CIPC:
-		return "CIPC";
+	switch (v) {
+	case SCCP_RESET_HARD_RESTART:
+		return "hard restart";
+	case SCCP_RESET_SOFT:
+		return "soft";
 	}
 
 	return "unknown";
 }
 
-const char *sccp_state_str(enum sccp_state state)
+static const char *sccp_ringer_mode_str(enum sccp_ringer_mode v)
+{
+	switch (v) {
+	case SCCP_RING_OFF:
+		return "ring off";
+	case SCCP_RING_INSIDE:
+		return "ring inside";
+	case SCCP_RING_OUTSIDE:
+		return "ring outside";
+	case SCCP_RING_FEATURE:
+		return "ring feature";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_softkey_str(enum sccp_softkey_type v)
+{
+	switch (v) {
+	case SOFTKEY_NONE:
+		return "none";
+	case SOFTKEY_REDIAL:
+		return "redial";
+	case SOFTKEY_NEWCALL:
+		return "newcall";
+	case SOFTKEY_HOLD:
+		return "hold";
+	case SOFTKEY_TRNSFER:
+		return "transfer";
+	case SOFTKEY_CFWDALL:
+		return "cfwdall";
+	case SOFTKEY_CFWDBUSY:
+		return "cfwdbusy";
+	case SOFTKEY_CFWDNOANSWER:
+		return "cfwdnoanswer";
+	case SOFTKEY_BKSPC:
+		return "bkspc";
+	case SOFTKEY_ENDCALL:
+		return "endcall";
+	case SOFTKEY_RESUME:
+		return "resume";
+	case SOFTKEY_ANSWER:
+		return "answer";
+	case SOFTKEY_INFO:
+		return "info";
+	case SOFTKEY_CONFRN:
+		return "confrn";
+	case SOFTKEY_PARK:
+		return "park";
+	case SOFTKEY_JOIN:
+		return "join";
+	case SOFTKEY_MEETME:
+		return "meetme";
+	case SOFTKEY_PICKUP:
+		return "pickup";
+	case SOFTKEY_GPICKUP:
+		return "gpickup";
+	case SOFTKEY_DND:
+		return "dnd";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_softkey_status_str(enum sccp_softkey_status v)
+{
+	switch (v) {
+	case KEYDEF_ONHOOK:
+		return "onhook";
+	case KEYDEF_CONNECTED:
+		return "connected";
+	case KEYDEF_ONHOLD:
+		return "onhold";
+	case KEYDEF_RINGIN:
+		return "ringin";
+	case KEYDEF_OFFHOOK:
+		return "offhook";
+	case KEYDEF_CONNINTRANSFER:
+		return "connintransfer";
+	case KEYDEF_CALLFWD:
+		return "callfwd";
+	case KEYDEF_DIALINTRANSFER:
+		return "dialintransfer";
+	case KEYDEF_RINGOUT:
+		return "ringout";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_speaker_mode_str(enum sccp_speaker_mode v)
+{
+	switch (v) {
+	case SCCP_SPEAKERON:
+		return "on";
+	case SCCP_SPEAKEROFF:
+		return "off";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_state_str(enum sccp_state state)
 {
 	switch (state) {
 	case SCCP_OFFHOOK:
@@ -828,4 +1312,68 @@ const char *sccp_state_str(enum sccp_state state)
 	}
 
 	return "Unknown";
+}
+
+static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type)
+{
+	switch (stimulus_type) {
+	case STIMULUS_REDIAL:
+		return "redial";
+	case STIMULUS_SPEEDDIAL:
+		return "speeddial";
+	case STIMULUS_HOLD:
+		return "hold";
+	case STIMULUS_TRANSFER:
+		return "transfer";
+	case STIMULUS_FORWARDALL:
+		return "forward all";
+	case STIMULUS_FORWARDBUSY:
+		return "forward busy";
+	case STIMULUS_FORWARDNOANSWER:
+		return "forward no answer";
+	case STIMULUS_DISPLAY:
+		return "display";
+	case STIMULUS_LINE:
+		return "line";
+	case STIMULUS_VOICEMAIL:
+		return "voicemail";
+	case STIMULUS_AUTOANSWER:
+		return "autoanswer";
+	case STIMULUS_DND:
+		return "dnd";
+	case STIMULUS_FEATUREBUTTON:
+		return "feature button";
+	case STIMULUS_CONFERENCE:
+		return "conference";
+	case STIMULUS_CALLPARK:
+		return "call park";
+	case STIMULUS_CALLPICKUP:
+		return "call pickup";
+	case STIMULUS_NONE:
+		return "none";
+	}
+
+	return "unknown";
+}
+
+static const char *sccp_tone_str(enum sccp_tone v)
+{
+	switch (v) {
+	case SCCP_TONE_SILENCE:
+		return "silence";
+	case SCCP_TONE_DIAL:
+		return "dial";
+	case SCCP_TONE_BUSY:
+		return "busy";
+	case SCCP_TONE_ALERT:
+		return "alert";
+	case SCCP_TONE_REORDER:
+		return "reorder";
+	case SCCP_TONE_CALLWAIT:
+		return "call wait";
+	case SCCP_TONE_NONE:
+		return "none";
+	}
+
+	return "unknown";
 }
