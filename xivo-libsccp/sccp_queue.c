@@ -120,7 +120,7 @@ struct sccp_sync_queue *sccp_sync_queue_create(size_t item_size)
 	}
 
 	if (pipe2(sync_q->pipefd, O_NONBLOCK | O_CLOEXEC) == -1) {
-		ast_log(LOG_ERROR, "sccp queue create failed: pipe: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "sccp sync queue create failed: pipe: %s\n", strerror(errno));
 		ast_free(sync_q);
 		return NULL;
 	}
@@ -199,13 +199,13 @@ static int sccp_sync_queue_put_no_lock(struct sccp_sync_queue *sync_q, void *ite
 
 	if (sccp_queue_empty(&sync_q->q)) {
 		if (sccp_sync_queue_signal_fd(sync_q)) {
-			ast_log(LOG_ERROR, "sccp queue put failed: could not write to pipe\n");
+			ast_log(LOG_ERROR, "sccp sync queue put failed: could not write to pipe\n");
 			return -1;
 		}
 	}
 
 	if (sccp_queue_put(&sync_q->q, item)) {
-		ast_log(LOG_ERROR, "sccp queue put failed: could not queue item\n");
+		ast_log(LOG_ERROR, "sccp sync queue put failed: could not queue item\n");
 		return -1;
 	}
 
@@ -258,7 +258,7 @@ static void sccp_sync_queue_get_all_no_lock(struct sccp_sync_queue *sync_q, stru
 int sccp_sync_queue_get_all(struct sccp_sync_queue *sync_q, struct sccp_queue *ret)
 {
 	if (!ret) {
-		ast_log(LOG_ERROR, "sccp queue get all failed: ret is null\n");
+		ast_log(LOG_ERROR, "sccp sync queue get all failed: ret is null\n");
 		return SCCP_QUEUE_INVAL;
 	}
 
