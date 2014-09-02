@@ -84,7 +84,7 @@ struct sccp_sync_queue *sccp_sync_queue_create(size_t item_size);
 void sccp_sync_queue_destroy(struct sccp_sync_queue *sync_q);
 
 /*!
- * \brief Return the read file descriptor of the queue.
+ * \brief Return the file descriptor of the queue.
  *
  * \note The file descriptor is ready when the queue is not empty.
  * \note You must not use the file descriptor for anything else than select / poll.

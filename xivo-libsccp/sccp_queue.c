@@ -153,7 +153,7 @@ void sccp_sync_queue_close(struct sccp_sync_queue *sync_q)
 	ast_mutex_unlock(&sync_q->lock);
 }
 
-static int sccp_sync_queue_write_pipe(struct sccp_sync_queue *sync_q)
+static int sccp_sync_queue_signal_fd(struct sccp_sync_queue *sync_q)
 {
 	static const char pipeval = 0xF0;
 	ssize_t n;
@@ -162,17 +162,17 @@ static int sccp_sync_queue_write_pipe(struct sccp_sync_queue *sync_q)
 
 	switch (n) {
 	case -1:
-		ast_log(LOG_ERROR, "sccp queue write pipe failed: write: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "sccp sync queue signal fd failed: write: %s\n", strerror(errno));
 		return -1;
 	case 0:
-		ast_log(LOG_ERROR, "sccp queue write pipe failed: write wrote nothing\n");
+		ast_log(LOG_ERROR, "sccp sync queue signal fd failed: write wrote nothing\n");
 		return -1;
 	}
 
 	return 0;
 }
 
-static int sccp_sync_queue_read_pipe(struct sccp_sync_queue *sync_q)
+static int sccp_sync_queue_clear_fd(struct sccp_sync_queue *sync_q)
 {
 	ssize_t n;
 	char buf[8];
@@ -181,10 +181,10 @@ static int sccp_sync_queue_read_pipe(struct sccp_sync_queue *sync_q)
 
 	switch (n) {
 	case -1:
-		ast_log(LOG_ERROR, "sccp queue read pipe failed: read: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "sccp sync queue clear fd failed: read: %s\n", strerror(errno));
 		return -1;
 	case 0:
-		ast_log(LOG_ERROR, "sccp queue read pipe failed: end of file reached\n");
+		ast_log(LOG_ERROR, "sccp sync queue clear fd failed: end of file reached\n");
 		return -1;
 	}
 
@@ -198,7 +198,7 @@ static int sccp_sync_queue_put_no_lock(struct sccp_sync_queue *sync_q, void *ite
 	}
 
 	if (sccp_queue_empty(&sync_q->q)) {
-		if (sccp_sync_queue_write_pipe(sync_q)) {
+		if (sccp_sync_queue_signal_fd(sync_q)) {
 			ast_log(LOG_ERROR, "sccp queue put failed: could not write to pipe\n");
 			return -1;
 		}
@@ -230,7 +230,7 @@ static int sccp_sync_queue_get_no_lock(struct sccp_sync_queue *sync_q, void *ite
 	}
 
 	if (sccp_queue_empty(&sync_q->q)) {
-		sccp_sync_queue_read_pipe(sync_q);
+		sccp_sync_queue_clear_fd(sync_q);
 	}
 
 	return 0;
@@ -251,7 +251,7 @@ static void sccp_sync_queue_get_all_no_lock(struct sccp_sync_queue *sync_q, stru
 {
 	sccp_queue_move(ret, &sync_q->q);
 	if (!sccp_queue_empty(ret)) {
-		sccp_sync_queue_read_pipe(sync_q);
+		sccp_sync_queue_clear_fd(sync_q);
 	}
 }
 
