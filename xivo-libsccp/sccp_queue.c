@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/eventfd.h>
 
 #include <asterisk.h>
 #include <asterisk/lock.h>
@@ -106,7 +107,7 @@ int sccp_queue_empty(const struct sccp_queue *q)
 struct sccp_sync_queue {
 	ast_mutex_t lock;
 	struct sccp_queue q;
-	int pipefd[2];
+	int eventfd;
 	int closed;
 };
 
@@ -119,8 +120,9 @@ struct sccp_sync_queue *sccp_sync_queue_create(size_t item_size)
 		return NULL;
 	}
 
-	if (pipe2(sync_q->pipefd, O_NONBLOCK | O_CLOEXEC) == -1) {
-		ast_log(LOG_ERROR, "sccp queue create failed: pipe: %s\n", strerror(errno));
+	sync_q->eventfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+	if (sync_q->eventfd == -1) {
+		ast_log(LOG_ERROR, "sccp sync queue create failed: eventfd: %s\n", strerror(errno));
 		ast_free(sync_q);
 		return NULL;
 	}
@@ -136,14 +138,13 @@ void sccp_sync_queue_destroy(struct sccp_sync_queue *sync_q)
 {
 	ast_mutex_destroy(&sync_q->lock);
 	sccp_queue_destroy(&sync_q->q);
-	close(sync_q->pipefd[0]);
-	close(sync_q->pipefd[1]);
+	close(sync_q->eventfd);
 	ast_free(sync_q);
 }
 
 int sccp_sync_queue_fd(struct sccp_sync_queue *sync_q)
 {
-	return sync_q->pipefd[0];
+	return sync_q->eventfd;
 }
 
 void sccp_sync_queue_close(struct sccp_sync_queue *sync_q)
@@ -153,38 +154,38 @@ void sccp_sync_queue_close(struct sccp_sync_queue *sync_q)
 	ast_mutex_unlock(&sync_q->lock);
 }
 
-static int sccp_sync_queue_write_pipe(struct sccp_sync_queue *sync_q)
+static int sccp_sync_queue_signal_fd(struct sccp_sync_queue *sync_q)
 {
-	static const char pipeval = 0xF0;
+	static const uint64_t val = 1;
 	ssize_t n;
 
-	n = write(sync_q->pipefd[1], &pipeval, sizeof(pipeval));
+	n = write(sync_q->eventfd, &val, sizeof(val));
 
 	switch (n) {
 	case -1:
-		ast_log(LOG_ERROR, "sccp queue write pipe failed: write: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "sccp sync queue signal fd failed: write: %s\n", strerror(errno));
 		return -1;
 	case 0:
-		ast_log(LOG_ERROR, "sccp queue write pipe failed: write wrote nothing\n");
+		ast_log(LOG_ERROR, "sccp sync queue signal fd failed: write wrote nothing\n");
 		return -1;
 	}
 
 	return 0;
 }
 
-static int sccp_sync_queue_read_pipe(struct sccp_sync_queue *sync_q)
+static int sccp_sync_queue_clear_fd(struct sccp_sync_queue *sync_q)
 {
+	uint64_t val;
 	ssize_t n;
-	char buf[8];
 
-	n = read(sync_q->pipefd[0], buf, sizeof(buf));
+	n = read(sync_q->eventfd, &val, sizeof(val));
 
 	switch (n) {
 	case -1:
-		ast_log(LOG_ERROR, "sccp queue read pipe failed: read: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "sccp sync queue clear fd failed: read: %s\n", strerror(errno));
 		return -1;
 	case 0:
-		ast_log(LOG_ERROR, "sccp queue read pipe failed: end of file reached\n");
+		ast_log(LOG_ERROR, "sccp sync queue clear fd failed: read read nothing\n");
 		return -1;
 	}
 
@@ -198,14 +199,14 @@ static int sccp_sync_queue_put_no_lock(struct sccp_sync_queue *sync_q, void *ite
 	}
 
 	if (sccp_queue_empty(&sync_q->q)) {
-		if (sccp_sync_queue_write_pipe(sync_q)) {
-			ast_log(LOG_ERROR, "sccp queue put failed: could not write to pipe\n");
+		if (sccp_sync_queue_signal_fd(sync_q)) {
+			ast_log(LOG_ERROR, "sccp sync queue put failed: could not write to pipe\n");
 			return -1;
 		}
 	}
 
 	if (sccp_queue_put(&sync_q->q, item)) {
-		ast_log(LOG_ERROR, "sccp queue put failed: could not queue item\n");
+		ast_log(LOG_ERROR, "sccp sync queue put failed: could not queue item\n");
 		return -1;
 	}
 
@@ -230,7 +231,7 @@ static int sccp_sync_queue_get_no_lock(struct sccp_sync_queue *sync_q, void *ite
 	}
 
 	if (sccp_queue_empty(&sync_q->q)) {
-		sccp_sync_queue_read_pipe(sync_q);
+		sccp_sync_queue_clear_fd(sync_q);
 	}
 
 	return 0;
@@ -251,14 +252,14 @@ static void sccp_sync_queue_get_all_no_lock(struct sccp_sync_queue *sync_q, stru
 {
 	sccp_queue_move(ret, &sync_q->q);
 	if (!sccp_queue_empty(ret)) {
-		sccp_sync_queue_read_pipe(sync_q);
+		sccp_sync_queue_clear_fd(sync_q);
 	}
 }
 
 int sccp_sync_queue_get_all(struct sccp_sync_queue *sync_q, struct sccp_queue *ret)
 {
 	if (!ret) {
-		ast_log(LOG_ERROR, "sccp queue get all failed: ret is null\n");
+		ast_log(LOG_ERROR, "sccp sync queue get all failed: ret is null\n");
 		return SCCP_QUEUE_INVAL;
 	}
 
