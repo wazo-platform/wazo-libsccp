@@ -335,13 +335,14 @@ static int server_start(struct sccp_server *server)
 		return -1;
 	}
 
-	server->state = STATE_STARTED;
 	ret = ast_pthread_create_background(&server->thread, NULL, server_run, server);
 	if (ret) {
 		ast_log(LOG_ERROR, "server start failed: pthread create: %s\n", strerror(ret));
 		close(server->sockfd);
-		server->state = STATE_CREATED;
+		return -1;
 	}
+
+	server->state = STATE_STARTED;
 
 	return 0;
 }
