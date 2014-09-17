@@ -3484,18 +3484,24 @@ int sccp_channel_tech_write(struct ast_channel *channel, struct ast_frame *frame
 	sccp_device_lock(device);
 
 	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+		ast_debug(1, "not writing frame: device is destroyed\n");
 		res = -1;
 		goto unlock;
 	}
 
+	if (subchan != device->active_subchan) {
+		ast_debug(1, "not writing frame: subchan is not active\n");
+		goto unlock;
+	}
+
 	if (subchan->rtp) {
-		if (line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS) {
-			res = ast_rtp_instance_write(subchan->rtp, frame);
-		}
-	} else if (line->state == SCCP_PROGRESS) {
-		/* handle early rtp during progress state */
+		res = ast_rtp_instance_write(subchan->rtp, frame);
+	} else if (device->recv_chan_status == SCCP_RECV_CHAN_CLOSED) {
+		/* handle early rtp */
 		transmit_subchan_stop_tone(device, subchan);
 		transmit_subchan_open_receive_channel(device, subchan);
+	} else {
+		ast_debug(1, "not writing frame: device is not ready\n");
 	}
 
 unlock:
