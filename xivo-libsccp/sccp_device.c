@@ -1986,6 +1986,11 @@ static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan
 		return -1;
 	}
 
+	if (subchan->state == SCCP_CONNECTED) {
+		ast_log(LOG_NOTICE, "do answer failed: subchan already in connected state\n");
+		return -1;
+	}
+
 	if (device->active_subchan) {
 		if (device->active_subchan->state == SCCP_RINGOUT) {
 			do_hangup(device, device->active_subchan);
