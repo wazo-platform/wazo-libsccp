@@ -1862,7 +1862,7 @@ static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan
 	return 0;
 }
 
-static struct sccp_subchannel *do_newcall(struct sccp_device *device, int open_speaker)
+static struct sccp_subchannel *do_newcall_options(struct sccp_device *device, enum option_flags options)
 {
 	struct sccp_line *line = sccp_lines_get_default(&device->lines);
 	struct sccp_subchannel *subchan;
@@ -1897,13 +1897,18 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device, int open_s
 	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_OFFHOOK);
 	transmit_subchan_tone(device, subchan, SCCP_TONE_DIAL);
-	if (open_speaker) {
+	if (options & OPT_SPEAKER_ON) {
 		transmit_speaker_mode(device, SCCP_SPEAKERON);
 	}
 
 	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
 
 	return subchan;
+}
+
+static inline struct sccp_subchannel *do_newcall(struct sccp_device *device)
+{
+	return do_newcall_options(device, 0);
 }
 
 static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchannel *subchan)
@@ -2107,7 +2112,7 @@ static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddia
 		set_callforward(device, sd->cfg->extension);
 	} else {
 		/* XXX this 3 steps stuff should be simplified into one function */
-		subchan = do_newcall(device, 1);
+		subchan = do_newcall_options(device, OPT_SPEAKER_ON);
 		if (!subchan) {
 			return;
 		}
@@ -2310,7 +2315,7 @@ static void handle_msg_offhook(struct sccp_device *device, struct sccp_msg *msg)
 
 	if (device->proto_version >= 11) {
 		if (!msg->data.offhook.lineInstance) {
-			do_newcall(device, 0);
+			do_newcall(device);
 		} else {
 			subchan_id = letohl(msg->data.offhook.callInstance);
 			subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
@@ -2326,7 +2331,7 @@ static void handle_msg_offhook(struct sccp_device *device, struct sccp_msg *msg)
 		if (subchan) {
 			do_answer(device, subchan);
 		} else if (!device->active_subchan) {
-			do_newcall(device, 0);
+			do_newcall(device);
 		}
 	}
 }
@@ -2496,7 +2501,7 @@ static void handle_softkey_hold(struct sccp_device *device)
 
 static void handle_softkey_newcall(struct sccp_device *device)
 {
-	do_newcall(device, 1);
+	do_newcall_options(device, OPT_SPEAKER_ON);
 }
 
 static void handle_softkey_redial(struct sccp_device *device)
@@ -2505,7 +2510,7 @@ static void handle_softkey_redial(struct sccp_device *device)
 
 	if (!ast_strlen_zero(device->last_exten)) {
 		/* XXX this 3 steps stuff should be simplified into one function */
-		subchan = do_newcall(device, 1);
+		subchan = do_newcall_options(device, OPT_SPEAKER_ON);
 		if (!subchan) {
 			return;
 		}
@@ -2726,7 +2731,7 @@ static void handle_stimulus_voicemail(struct sccp_device *device)
 	}
 
 	/* XXX 3 stuff steps should be replaced with something simpler */
-	subchan = do_newcall(device, 1);
+	subchan = do_newcall_options(device, OPT_SPEAKER_ON);
 	if (!subchan) {
 		return;
 	}
