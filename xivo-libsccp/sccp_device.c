@@ -221,6 +221,10 @@ struct nolock_task {
 	void (*exec)(union nolock_task_data *data);
 };
 
+enum option_flags {
+	OPT_SPEAKER_ON = (1 << 0),
+};
+
 static int add_ast_queue_hangup_task(struct sccp_device *device, struct ast_channel *channel);
 static void sccp_line_update_devstate(struct sccp_line *line, enum ast_device_state state);
 static struct sccp_line *sccp_lines_get_default(struct sccp_lines *lines);
@@ -1977,7 +1981,7 @@ static int do_hangup(struct sccp_device *device, struct sccp_subchannel *subchan
 	return 0;
 }
 
-static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan)
+static int do_answer_options(struct sccp_device *device, struct sccp_subchannel *subchan, enum option_flags options)
 {
 	struct sccp_line *line = subchan->line;
 
@@ -2002,6 +2006,10 @@ static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan
 
 	device->active_subchan = subchan;
 
+	if (options & OPT_SPEAKER_ON) {
+		transmit_speaker_mode(device, SCCP_SPEAKERON);
+	}
+
 	transmit_ringer_mode(device, SCCP_RING_OFF);
 	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
 	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
@@ -2015,6 +2023,11 @@ static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan
 	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
 
 	return 0;
+}
+
+static inline int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan)
+{
+	return do_answer_options(device, subchan, 0);
 }
 
 /* XXX whacked out operation that unlock the device and relock it after
@@ -2401,14 +2414,12 @@ static void handle_softkey_answer(struct sccp_device *device, uint32_t subchan_i
 {
 	struct sccp_subchannel *subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
 
-	transmit_speaker_mode(device, SCCP_SPEAKERON);
-
 	if (!subchan) {
 		ast_log(LOG_NOTICE, "handle softkey answer failed: no subchan %u\n", subchan_id);
 		return;
 	}
 
-	do_answer(device, subchan);
+	do_answer_options(device, subchan, OPT_SPEAKER_ON);
 }
 
 static void handle_softkey_bkspc(struct sccp_device *device)
@@ -3314,8 +3325,7 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 	transmit_line_lamp_state(device, line, SCCP_LAMP_BLINK);
 
 	if (subchan->autoanswer) {
-		transmit_speaker_mode(device, SCCP_SPEAKERON);
-		do_answer(device, subchan);
+		do_answer_options(device, subchan, OPT_SPEAKER_ON);
 	} else {
 		sccp_line_update_devstate(line, AST_DEVICE_RINGING);
 	}
