@@ -129,12 +129,12 @@ enum sccp_device_state {
 	STATE_NEW,
 	STATE_WORKING,
 	STATE_CONNLOST,
+	STATE_DESTROYED,
 };
 
 enum {
-	DEVICE_DESTROYED = (1 << 0),
-	DEVICE_RESET_ON_IDLE = (1 << 1),
-	DEVICE_FAULT = (1 << 2),
+	DEVICE_RESET_ON_IDLE = (1 << 0),
+	DEVICE_FAULT = (1 << 1),
 };
 
 struct sccp_device {
@@ -1248,16 +1248,11 @@ void sccp_device_destroy(struct sccp_device *device)
 	sccp_lines_deinit(&device->lines);
 	sccp_speeddials_deinit(&device->speeddials);
 
-	switch (device->state) {
-	case STATE_NEW:
-	case STATE_CONNLOST:
-		break;
-	default:
+	if (device->state == STATE_WORKING) {
 		transmit_reset(device, SCCP_RESET_SOFT);
-		break;
 	}
 
-	ast_set_flag(device, DEVICE_DESTROYED);
+	device->state = STATE_DESTROYED;
 
 	sccp_device_unlock(device);
 }
@@ -1655,9 +1650,11 @@ static void sccp_device_panic(struct sccp_device *device)
 	ast_log(LOG_WARNING, "panic for device %s\n", device->name);
 	sccp_stat_on_device_panic();
 
-	transmit_reset(device, SCCP_RESET_HARD_RESTART);
 	sccp_session_stop(device->session);
-	device->state = STATE_CONNLOST;
+	if (device->state == STATE_WORKING) {
+		transmit_reset(device, SCCP_RESET_HARD_RESTART);
+		device->state = STATE_CONNLOST;
+	}
 }
 
 static void sccp_device_set_fault(struct sccp_device *device, const char *reason)
@@ -2851,12 +2848,8 @@ int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 
 	sccp_device_lock(device);
 
-	switch (device->state) {
-	case STATE_WORKING:
+	if (device->state == STATE_WORKING) {
 		handle_msg_state_common(device, msg, msg_id);
-		break;
-	default:
-		break;
 	}
 
 	sccp_device_unlock(device);
@@ -3096,7 +3089,7 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
 {
 	sccp_device_lock(device);
-	if (!ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_WORKING) {
 		transmit_reset(device, type);
 	}
 
@@ -3144,7 +3137,7 @@ static int channel_tech_requester_locked(struct sccp_device *device, struct sccp
 {
 	struct sccp_subchannel *subchan;
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		return -1;
 	}
 
@@ -3211,7 +3204,7 @@ int sccp_channel_tech_devicestate(const struct sccp_line *line)
 	int res;
 
 	sccp_device_lock(device);
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		res = AST_DEVICE_UNAVAILABLE;
 	} else if (AST_LIST_EMPTY(&line->subchans)) {
 		res = AST_DEVICE_NOT_INUSE;
@@ -3263,7 +3256,7 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		res = -1;
 		goto unlock;
 	}
@@ -3324,7 +3317,7 @@ int sccp_channel_tech_hangup(struct ast_channel *channel)
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		if (subchan->rtp) {
 			ast_rtp_instance_stop(subchan->rtp);
 			ast_rtp_instance_destroy(subchan->rtp);
@@ -3356,7 +3349,7 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		sccp_device_unlock(device);
 		return -1;
 	}
@@ -3405,7 +3398,7 @@ struct ast_frame *sccp_channel_tech_read(struct ast_channel *channel)
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		goto unlock;
 	}
 
@@ -3456,7 +3449,7 @@ int sccp_channel_tech_write(struct ast_channel *channel, struct ast_frame *frame
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		ast_debug(1, "not writing frame: device is destroyed\n");
 		res = -1;
 		goto unlock;
@@ -3512,7 +3505,7 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		goto unlock;
 	}
 
@@ -3651,7 +3644,7 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		goto unlock;
 	}
 
