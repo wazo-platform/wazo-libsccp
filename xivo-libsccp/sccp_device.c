@@ -53,6 +53,10 @@ struct sccp_speeddials {
 	size_t count;
 };
 
+enum {
+	SUBCHANNEL_RINGOUT_PROGRESS = (1 << 0),
+};
+
 struct sccp_subchannel {
 	/* (dynamic) */
 	struct ast_sockaddr direct_media_addr;
@@ -74,6 +78,8 @@ struct sccp_subchannel {
 	enum sccp_state state;
 	/* (static) */
 	enum sccp_direction direction;
+	/* (dynamic) */
+	unsigned int flags;
 
 	uint8_t resuming;
 	uint8_t autoanswer;
@@ -550,6 +556,7 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->id = id;
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
+	subchan->flags = 0;
 	subchan->resuming = 0;
 	subchan->autoanswer = 0;
 	subchan->transferring = 0;
@@ -2226,12 +2233,9 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 				add_dialtimeout_task(device, device->active_subchan);
 			}
 		} else if (device->active_subchan->channel) {
-			/* XXX technically, we can now queue dtmf while in the "ringout" state, which
-			 *     is something we couldn't do before -- need to check if it's causing problems.
-			 *     If it is, then we should add a subchan flag "RINGOUT_PROGRESS" that we set
-			 *     if we are indicated a PROGRESS while we are in the RINGOUT state.
-			 */
-			add_ast_queue_frame_dtmf_task(device, device->active_subchan->channel, digit);
+			if (device->active_subchan->state != SCCP_RINGOUT || ast_test_flag(device->active_subchan, SUBCHANNEL_RINGOUT_PROGRESS)) {
+				add_ast_queue_frame_dtmf_task(device, device->active_subchan->channel, digit);
+			}
 		} else {
 			ast_log(LOG_WARNING, "ignoring keypad event: don't know what to do with it\n");
 		}
@@ -3537,6 +3541,9 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 		break;
 
 	case AST_CONTROL_PROGRESS:
+		if (subchan->state == SCCP_RINGOUT) {
+			ast_set_flag(subchan, SUBCHANNEL_RINGOUT_PROGRESS);
+		}
 		break;
 
 	case AST_CONTROL_PROCEEDING:
