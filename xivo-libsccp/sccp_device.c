@@ -57,6 +57,7 @@ enum {
 	SUBCHANNEL_RINGOUT_PROGRESS = (1 << 0),
 	SUBCHANNEL_RESUMING = (1 << 1),
 	SUBCHANNEL_AUTOANSWER = (1 << 2),
+	SUBCHANNEL_TRANSFERRING = (1 << 3),
 };
 
 struct sccp_subchannel {
@@ -82,8 +83,6 @@ struct sccp_subchannel {
 	enum sccp_direction direction;
 	/* (dynamic) */
 	unsigned int flags;
-
-	uint8_t transferring;
 
 	AST_LIST_ENTRY(sccp_subchannel) list;
 };
@@ -557,7 +556,6 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
 	subchan->flags = 0;
-	subchan->transferring = 0;
 
 	return subchan;
 }
@@ -2068,7 +2066,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 
 	subchan->state = SCCP_RINGOUT;
 	ast_setstate(subchan->channel, AST_STATE_RING);
-	if (subchan->transferring) {
+	if (ast_test_flag(subchan, SUBCHANNEL_TRANSFERRING)) {
 		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNINTRANSFER);
 	} else {
 		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_RINGOUT);
@@ -2563,7 +2561,7 @@ static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_in
 			return;
 		}
 
-		subchan->transferring = 1;
+		ast_set_flag(subchan, SUBCHANNEL_TRANSFERRING);
 
 		xfer_subchan->related = subchan;
 		subchan->related = xfer_subchan;
