@@ -92,7 +92,6 @@ struct sccp_line {
 
 	/* const */
 	uint32_t instance;
-	enum sccp_state state;
 
 	/* const, same string as cfg->name, but this one can be used safely in
 	 * non-session thread without holding the device lock
@@ -908,7 +907,6 @@ static struct sccp_line *sccp_line_alloc(struct sccp_line_cfg *cfg, struct sccp_
 	line->cfg = cfg;
 	ao2_ref(cfg, +1);
 	line->instance = instance;
-	line->state = SCCP_ONHOOK;
 	ast_copy_string(line->name, cfg->name, sizeof(line->name));
 
 	return line;
@@ -1707,7 +1705,6 @@ static void set_callforward(struct sccp_device *device, const char *exten)
 
 	device->callfwd = SCCP_CFWD_ACTIVE;
 	ast_copy_string(device->callfwd_exten, exten, sizeof(device->callfwd_exten));
-	line->state = SCCP_ONHOOK;
 
 	remove_fwdtimeout_task(device);
 	ast_db_put("sccp/cfwdall", device->name, device->callfwd_exten);
@@ -1743,7 +1740,6 @@ static void cancel_callforward_input(struct sccp_device *device)
 
 	device->callfwd = SCCP_CFWD_INACTIVE;
 	device->exten[0] = '\0';
-	line->state = SCCP_ONHOOK;
 
 	remove_fwdtimeout_task(device);
 
@@ -1842,8 +1838,6 @@ static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan
 		}
 	}
 
-	subchan->line->state = SCCP_CONNECTED;
-
 	/* put on connected */
 	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
@@ -1891,7 +1885,6 @@ static struct sccp_subchannel *do_newcall_options(struct sccp_device *device, en
 	}
 
 	device->active_subchan = subchan;
-	line->state = SCCP_OFFHOOK;
 
 	transmit_line_lamp_state(device, subchan->line, SCCP_LAMP_ON);
 	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
@@ -1945,7 +1938,6 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 	AST_LIST_REMOVE(&line->subchans, subchan, list);
 	if (AST_LIST_EMPTY(&line->subchans)) {
 		transmit_speaker_mode(device, SCCP_SPEAKEROFF);
-		line->state = SCCP_ONHOOK;
 		sccp_line_update_devstate(line, AST_DEVICE_NOT_INUSE);
 	}
 
@@ -2022,7 +2014,6 @@ static int do_answer_options(struct sccp_device *device, struct sccp_subchannel 
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
 	transmit_subchan_open_receive_channel(device, subchan);
 
-	line->state = SCCP_CONNECTED;
 	subchan->state = SCCP_CONNECTED;
 
 	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
@@ -2070,7 +2061,6 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 		goto error;
 	}
 
-	line->state = SCCP_RINGOUT;
 	subchan->state = SCCP_RINGOUT;
 	ast_setstate(subchan->channel, AST_STATE_RING);
 	if (subchan->transferring) {
@@ -2188,33 +2178,28 @@ static void handle_msg_keep_alive(struct sccp_device *device)
 	transmit_keep_alive_ack(device);
 }
 
+/*
+ * Append the given digit to device->exten. Digit '#' is ignored.
+ *
+ * Return the previous length of device->exten.
+ */
+static size_t append_digit_to_device_exten(struct sccp_device *device, char digit)
+{
+	size_t len = strlen(device->exten);
+
+	if (digit != '#' && len < sizeof(device->exten) - 1) {
+		device->exten[len] = digit;
+		device->exten[len+1] = '\0';
+	}
+
+	return len;
+}
+
 static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg *msg)
 {
-	struct sccp_line *line;
-	struct sccp_subchannel *subchan;
-	uint32_t button;
-	uint32_t instance;
+	uint32_t button = letohl(msg->data.keypad.button);
 	size_t len;
 	char digit;
-
-	button = letohl(msg->data.keypad.button);
-	instance = letohl(msg->data.keypad.lineInstance);
-
-	switch (device->type) {
-	case SCCP_DEVICE_7905:
-	case SCCP_DEVICE_7912:
-	case SCCP_DEVICE_7920:
-		line = sccp_lines_get_default(&device->lines);
-		break;
-	default:
-		line = sccp_lines_get_by_instance(&device->lines, instance);
-		break;
-	}
-
-	if (!line) {
-		ast_debug(1, "Device [%s] has no line instance [%d]\n", device->name, instance);
-		return;
-	}
 
 	if (button == 14) {
 		digit = '*';
@@ -2227,45 +2212,38 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 		ast_log(LOG_WARNING, "Unsupported digit %d\n", button);
 	}
 
-	if (line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS) {
-		/* Workaround for bug #4503 and bug #4841 */
-		if (device->active_subchan && device->active_subchan->channel) {
-			add_ast_queue_frame_dtmf_task(device, device->active_subchan->channel, digit);
-		}
-	} else if (line->state == SCCP_OFFHOOK) {
-		len = strlen(device->exten);
-		if (len < sizeof(device->exten) - 1 && digit != '#') {
-			device->exten[len] = digit;
-			device->exten[len+1] = '\0';
-		}
-
-		if (device->callfwd == SCCP_CFWD_INPUTEXTEN) {
-			if (digit == '#') {
-				set_callforward_from_device_exten(device);
-			} else {
-				add_fwdtimeout_task(device);
-			}
-		} else {
-			subchan = device->active_subchan;
-			if (!subchan) {
-				ast_log(LOG_WARNING, "active subchan is NULL, ignoring keypad button\n");
-				return;
-			}
-
+	if (device->active_subchan) {
+		if (device->active_subchan->state == SCCP_OFFHOOK) {
+			len = append_digit_to_device_exten(device, digit);
 			if (!len) {
-				/* XXX we are not using line->instance, which works ok on 7912, 7940, 7942,
-				 * but need more testing
-				 */
 				transmit_tone(device, SCCP_TONE_NONE, 0, 0);
 				transmit_stop_tone(device, 0, 0);
 			}
 
 			if (digit == '#') {
-				start_the_call(device, subchan);
+				start_the_call(device, device->active_subchan);
 			} else {
-				add_dialtimeout_task(device, subchan);
+				add_dialtimeout_task(device, device->active_subchan);
 			}
+		} else if (device->active_subchan->channel) {
+			/* XXX technically, we can now queue dtmf while in the "ringout" state, which
+			 *     is something we couldn't do before -- need to check if it's causing problems.
+			 *     If it is, then we should add a subchan flag "RINGOUT_PROGRESS" that we set
+			 *     if we are indicated a PROGRESS while we are in the RINGOUT state.
+			 */
+			add_ast_queue_frame_dtmf_task(device, device->active_subchan->channel, digit);
+		} else {
+			ast_log(LOG_WARNING, "ignoring keypad event: don't know what to do with it\n");
 		}
+	} else if (device->callfwd == SCCP_CFWD_INPUTEXTEN) {
+		append_digit_to_device_exten(device, digit);
+		if (digit == '#') {
+			set_callforward_from_device_exten(device);
+		} else {
+			add_fwdtimeout_task(device);
+		}
+	} else {
+		ast_debug(1, "ignoring keypad event: nothing to do\n");
 	}
 }
 
@@ -2442,7 +2420,6 @@ static void handle_softkey_cfwdall(struct sccp_device *device)
 	case SCCP_CFWD_INACTIVE:
 		device->callfwd_id = device->serial_callid++;
 		device->callfwd = SCCP_CFWD_INPUTEXTEN;
-		line->state = SCCP_OFFHOOK;
 
 		transmit_callstate(device, SCCP_OFFHOOK, line->instance, device->callfwd_id);
 		transmit_selectsoftkeys(device, line->instance, device->callfwd_id, KEYDEF_CALLFWD);
@@ -2590,7 +2567,6 @@ static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_in
 		subchan->related = xfer_subchan;
 
 		device->active_subchan = subchan;
-		line->state = SCCP_OFFHOOK;
 
 		transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
 		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_DIALINTRANSFER);
@@ -3237,7 +3213,7 @@ int sccp_channel_tech_devicestate(const struct sccp_line *line)
 	sccp_device_lock(device);
 	if (ast_test_flag(device, DEVICE_DESTROYED)) {
 		res = AST_DEVICE_UNAVAILABLE;
-	} else if (line->state == SCCP_ONHOOK) {
+	} else if (AST_LIST_EMPTY(&line->subchans)) {
 		res = AST_DEVICE_NOT_INUSE;
 	} else {
 		res = AST_DEVICE_INUSE;
@@ -3317,7 +3293,6 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 	subchan->state = SCCP_RINGIN;
 
 	if (!device->active_subchan) {
-		line->state = SCCP_RINGIN;
 		transmit_ringer_mode(device, SCCP_RING_INSIDE);
 	}
 
@@ -3401,8 +3376,6 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
 	transmit_subchan_stop_tone(device, subchan);
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
-
-	line->state = SCCP_CONNECTED;
 
 	sccp_device_unlock(device);
 
@@ -3564,7 +3537,6 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 		break;
 
 	case AST_CONTROL_PROGRESS:
-		line->state = SCCP_PROGRESS;
 		break;
 
 	case AST_CONTROL_PROCEEDING:
