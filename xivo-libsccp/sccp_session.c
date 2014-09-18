@@ -384,18 +384,13 @@ static void sccp_session_on_queue_events(struct sccp_session *session, int event
 
 static int sccp_session_read_sock(struct sccp_session *session)
 {
-	int ret;
-
-	ret = sccp_deserializer_read(&session->deserializer);
-	if (!ret) {
+	switch (sccp_deserializer_read(&session->deserializer)) {
+	case 0:
 		if (session->device) {
 			sccp_device_on_data_read(session->device);
 		}
 
 		return 0;
-	}
-
-	switch (ret) {
 	case SCCP_DESERIALIZER_EOF:
 		ast_log(LOG_NOTICE, "Device has closed the connection\n");
 		if (session->device) {
