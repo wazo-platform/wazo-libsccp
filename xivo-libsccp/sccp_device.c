@@ -56,6 +56,7 @@ struct sccp_speeddials {
 enum {
 	SUBCHANNEL_RINGOUT_PROGRESS = (1 << 0),
 	SUBCHANNEL_RESUMING = (1 << 1),
+	SUBCHANNEL_AUTOANSWER = (1 << 2),
 };
 
 struct sccp_subchannel {
@@ -82,7 +83,6 @@ struct sccp_subchannel {
 	/* (dynamic) */
 	unsigned int flags;
 
-	uint8_t autoanswer;
 	uint8_t transferring;
 
 	AST_LIST_ENTRY(sccp_subchannel) list;
@@ -557,7 +557,6 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
 	subchan->flags = 0;
-	subchan->autoanswer = 0;
 	subchan->transferring = 0;
 
 	return subchan;
@@ -3167,7 +3166,7 @@ static int channel_tech_requester_locked(struct sccp_device *device, struct sccp
 	}
 
 	if (options && !strncmp(options, "autoanswer", 10)) {
-		subchan->autoanswer = 1;
+		ast_set_flag(subchan, SUBCHANNEL_AUTOANSWER);
 	}
 
 	if (device->callfwd == SCCP_CFWD_ACTIVE) {
@@ -3307,7 +3306,7 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 	transmit_callinfo(device, name, number, "", line->cfg->cid_num, line->instance, subchan->id, subchan->direction);
 	transmit_line_lamp_state(device, line, SCCP_LAMP_BLINK);
 
-	if (subchan->autoanswer) {
+	if (ast_test_flag(subchan, SUBCHANNEL_AUTOANSWER)) {
 		do_answer_options(device, subchan, OPT_SPEAKER_ON);
 	} else {
 		sccp_line_update_devstate(line, AST_DEVICE_RINGING);
