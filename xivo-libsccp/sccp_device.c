@@ -55,6 +55,7 @@ struct sccp_speeddials {
 
 enum {
 	SUBCHANNEL_RINGOUT_PROGRESS = (1 << 0),
+	SUBCHANNEL_RESUMING = (1 << 1),
 };
 
 struct sccp_subchannel {
@@ -81,7 +82,6 @@ struct sccp_subchannel {
 	/* (dynamic) */
 	unsigned int flags;
 
-	uint8_t resuming;
 	uint8_t autoanswer;
 	uint8_t transferring;
 
@@ -557,7 +557,6 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
 	subchan->flags = 0;
-	subchan->resuming = 0;
 	subchan->autoanswer = 0;
 	subchan->transferring = 0;
 
@@ -1854,7 +1853,7 @@ static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan
 
 	/* restart the audio stream, which has been stopped in handle_softkey_hold */
 	if (subchan->rtp) {
-		subchan->resuming = 1;
+		ast_set_flag(subchan, SUBCHANNEL_RESUMING);
 		transmit_subchan_open_receive_channel(device, subchan);
 	}
 
@@ -2383,8 +2382,8 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 	device->remote.sin_addr.s_addr = addr;
 	device->remote.sin_port = htons(port);
 
-	if (device->active_subchan->resuming) {
-		device->active_subchan->resuming = 0;
+	if (ast_test_flag(device->active_subchan, SUBCHANNEL_RESUMING)) {
+		ast_clear_flag(device->active_subchan, SUBCHANNEL_RESUMING);
 		sccp_subchannel_start_media_transmission(device->active_subchan);
 	} else {
 		start_rtp(device->active_subchan);
