@@ -1987,8 +1987,8 @@ static int do_answer_options(struct sccp_device *device, struct sccp_subchannel 
 		return -1;
 	}
 
-	if (subchan->state == SCCP_CONNECTED) {
-		ast_log(LOG_NOTICE, "do answer failed: subchan already in connected state\n");
+	if (subchan->state != SCCP_RINGIN) {
+		ast_log(LOG_NOTICE, "do answer failed: subchan not in ringin state\n");
 		return -1;
 	}
 
