@@ -41,7 +41,7 @@ struct sccp_device *sccp_device_create(struct sccp_device_cfg *device_cfg, struc
  *
  * \note This does not decrease the reference count of the object.
  * \note Must be called only from the session thread.
- * \note Quite a few operations have undefined behavior once the device is destroyed.
+ * \note Quite a few operations have undefined behavior once the device is destroyed, including this one.
  */
 void sccp_device_destroy(struct sccp_device *device);
 

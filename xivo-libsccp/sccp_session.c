@@ -214,7 +214,7 @@ struct sccp_session *sccp_session_create(struct sccp_cfg *cfg, struct sccp_devic
 		return NULL;
 	}
 
-	session = ao2_alloc(sizeof(*session), sccp_session_destructor);
+	session = ao2_alloc_options(sizeof(*session), sccp_session_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!session) {
 		sccp_task_runner_destroy(task_runner);
 		sccp_sync_queue_destroy(sync_q);
@@ -384,18 +384,13 @@ static void sccp_session_on_queue_events(struct sccp_session *session, int event
 
 static int sccp_session_read_sock(struct sccp_session *session)
 {
-	int ret;
-
-	ret = sccp_deserializer_read(&session->deserializer);
-	if (!ret) {
+	switch (sccp_deserializer_read(&session->deserializer)) {
+	case 0:
 		if (session->device) {
 			sccp_device_on_data_read(session->device);
 		}
 
 		return 0;
-	}
-
-	switch (ret) {
 	case SCCP_DESERIALIZER_EOF:
 		ast_log(LOG_NOTICE, "Device has closed the connection\n");
 		if (session->device) {

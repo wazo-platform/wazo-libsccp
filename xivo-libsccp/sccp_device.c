@@ -53,6 +53,13 @@ struct sccp_speeddials {
 	size_t count;
 };
 
+enum {
+	SUBCHANNEL_RINGOUT_PROGRESS = (1 << 0),
+	SUBCHANNEL_RESUMING = (1 << 1),
+	SUBCHANNEL_AUTOANSWER = (1 << 2),
+	SUBCHANNEL_TRANSFERRING = (1 << 3),
+};
+
 struct sccp_subchannel {
 	/* (dynamic) */
 	struct ast_sockaddr direct_media_addr;
@@ -74,10 +81,8 @@ struct sccp_subchannel {
 	enum sccp_state state;
 	/* (static) */
 	enum sccp_direction direction;
-
-	uint8_t resuming;
-	uint8_t autoanswer;
-	uint8_t transferring;
+	/* (dynamic) */
+	unsigned int flags;
 
 	AST_LIST_ENTRY(sccp_subchannel) list;
 };
@@ -92,7 +97,6 @@ struct sccp_line {
 
 	/* const */
 	uint32_t instance;
-	enum sccp_state state;
 
 	/* const, same string as cfg->name, but this one can be used safely in
 	 * non-session thread without holding the device lock
@@ -125,12 +129,12 @@ enum sccp_device_state {
 	STATE_NEW,
 	STATE_WORKING,
 	STATE_CONNLOST,
+	STATE_DESTROYED,
 };
 
 enum {
-	DEVICE_DESTROYED = (1 << 0),
-	DEVICE_RESET_ON_IDLE = (1 << 1),
-	DEVICE_FAULT = (1 << 2),
+	DEVICE_RESET_ON_IDLE = (1 << 0),
+	DEVICE_FAULT = (1 << 1),
 };
 
 struct sccp_device {
@@ -219,6 +223,10 @@ union nolock_task_data {
 struct nolock_task {
 	union nolock_task_data data;
 	void (*exec)(union nolock_task_data *data);
+};
+
+enum option_flags {
+	OPT_SPEAKER_ON = (1 << 0),
 };
 
 static int add_ast_queue_hangup_task(struct sccp_device *device, struct ast_channel *channel);
@@ -547,9 +555,7 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->id = id;
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
-	subchan->resuming = 0;
-	subchan->autoanswer = 0;
-	subchan->transferring = 0;
+	subchan->flags = 0;
 
 	return subchan;
 }
@@ -904,7 +910,6 @@ static struct sccp_line *sccp_line_alloc(struct sccp_line_cfg *cfg, struct sccp_
 	line->cfg = cfg;
 	ao2_ref(cfg, +1);
 	line->instance = instance;
-	line->state = SCCP_ONHOOK;
 	ast_copy_string(line->name, cfg->name, sizeof(line->name));
 
 	return line;
@@ -1243,16 +1248,11 @@ void sccp_device_destroy(struct sccp_device *device)
 	sccp_lines_deinit(&device->lines);
 	sccp_speeddials_deinit(&device->speeddials);
 
-	switch (device->state) {
-	case STATE_NEW:
-	case STATE_CONNLOST:
-		break;
-	default:
+	if (device->state == STATE_WORKING) {
 		transmit_reset(device, SCCP_RESET_SOFT);
-		break;
 	}
 
-	ast_set_flag(device, DEVICE_DESTROYED);
+	device->state = STATE_DESTROYED;
 
 	sccp_device_unlock(device);
 }
@@ -1650,9 +1650,11 @@ static void sccp_device_panic(struct sccp_device *device)
 	ast_log(LOG_WARNING, "panic for device %s\n", device->name);
 	sccp_stat_on_device_panic();
 
-	transmit_reset(device, SCCP_RESET_HARD_RESTART);
 	sccp_session_stop(device->session);
-	device->state = STATE_CONNLOST;
+	if (device->state == STATE_WORKING) {
+		transmit_reset(device, SCCP_RESET_HARD_RESTART);
+		device->state = STATE_CONNLOST;
+	}
 }
 
 static void sccp_device_set_fault(struct sccp_device *device, const char *reason)
@@ -1703,7 +1705,6 @@ static void set_callforward(struct sccp_device *device, const char *exten)
 
 	device->callfwd = SCCP_CFWD_ACTIVE;
 	ast_copy_string(device->callfwd_exten, exten, sizeof(device->callfwd_exten));
-	line->state = SCCP_ONHOOK;
 
 	remove_fwdtimeout_task(device);
 	ast_db_put("sccp/cfwdall", device->name, device->callfwd_exten);
@@ -1739,7 +1740,6 @@ static void cancel_callforward_input(struct sccp_device *device)
 
 	device->callfwd = SCCP_CFWD_INACTIVE;
 	device->exten[0] = '\0';
-	line->state = SCCP_ONHOOK;
 
 	remove_fwdtimeout_task(device);
 
@@ -1838,8 +1838,6 @@ static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan
 		}
 	}
 
-	subchan->line->state = SCCP_CONNECTED;
-
 	/* put on connected */
 	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
@@ -1849,7 +1847,7 @@ static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan
 
 	/* restart the audio stream, which has been stopped in handle_softkey_hold */
 	if (subchan->rtp) {
-		subchan->resuming = 1;
+		ast_set_flag(subchan, SUBCHANNEL_RESUMING);
 		transmit_subchan_open_receive_channel(device, subchan);
 	}
 
@@ -1858,7 +1856,7 @@ static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan
 	return 0;
 }
 
-static struct sccp_subchannel *do_newcall(struct sccp_device *device, int open_speaker)
+static struct sccp_subchannel *do_newcall_options(struct sccp_device *device, enum option_flags options)
 {
 	struct sccp_line *line = sccp_lines_get_default(&device->lines);
 	struct sccp_subchannel *subchan;
@@ -1887,19 +1885,23 @@ static struct sccp_subchannel *do_newcall(struct sccp_device *device, int open_s
 	}
 
 	device->active_subchan = subchan;
-	line->state = SCCP_OFFHOOK;
 
 	transmit_line_lamp_state(device, subchan->line, SCCP_LAMP_ON);
 	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_OFFHOOK);
 	transmit_subchan_tone(device, subchan, SCCP_TONE_DIAL);
-	if (open_speaker) {
+	if (options & OPT_SPEAKER_ON) {
 		transmit_speaker_mode(device, SCCP_SPEAKERON);
 	}
 
 	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
 
 	return subchan;
+}
+
+static inline struct sccp_subchannel *do_newcall(struct sccp_device *device)
+{
+	return do_newcall_options(device, 0);
 }
 
 static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchannel *subchan)
@@ -1936,7 +1938,6 @@ static void do_clear_subchannel(struct sccp_device *device, struct sccp_subchann
 	AST_LIST_REMOVE(&line->subchans, subchan, list);
 	if (AST_LIST_EMPTY(&line->subchans)) {
 		transmit_speaker_mode(device, SCCP_SPEAKEROFF);
-		line->state = SCCP_ONHOOK;
 		sccp_line_update_devstate(line, AST_DEVICE_NOT_INUSE);
 	}
 
@@ -1977,12 +1978,17 @@ static int do_hangup(struct sccp_device *device, struct sccp_subchannel *subchan
 	return 0;
 }
 
-static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan)
+static int do_answer_options(struct sccp_device *device, struct sccp_subchannel *subchan, enum option_flags options)
 {
 	struct sccp_line *line = subchan->line;
 
 	if (!subchan->channel) {
 		ast_log(LOG_NOTICE, "do answer failed: subchan has no channel\n");
+		return -1;
+	}
+
+	if (subchan->state != SCCP_RINGIN) {
+		ast_log(LOG_NOTICE, "do answer failed: subchan not in ringin state\n");
 		return -1;
 	}
 
@@ -1997,6 +2003,10 @@ static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan
 
 	device->active_subchan = subchan;
 
+	if (options & OPT_SPEAKER_ON) {
+		transmit_speaker_mode(device, SCCP_SPEAKERON);
+	}
+
 	transmit_ringer_mode(device, SCCP_RING_OFF);
 	transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
 	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
@@ -2004,12 +2014,16 @@ static int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
 	transmit_subchan_open_receive_channel(device, subchan);
 
-	line->state = SCCP_CONNECTED;
 	subchan->state = SCCP_CONNECTED;
 
 	sccp_line_update_devstate(line, AST_DEVICE_INUSE);
 
 	return 0;
+}
+
+static inline int do_answer(struct sccp_device *device, struct sccp_subchannel *subchan)
+{
+	return do_answer_options(device, subchan, 0);
 }
 
 /* XXX whacked out operation that unlock the device and relock it after
@@ -2047,10 +2061,9 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 		goto error;
 	}
 
-	line->state = SCCP_RINGOUT;
 	subchan->state = SCCP_RINGOUT;
 	ast_setstate(subchan->channel, AST_STATE_RING);
-	if (subchan->transferring) {
+	if (ast_test_flag(subchan, SUBCHANNEL_TRANSFERRING)) {
 		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNINTRANSFER);
 	} else {
 		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_RINGOUT);
@@ -2089,7 +2102,7 @@ static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddia
 		set_callforward(device, sd->cfg->extension);
 	} else {
 		/* XXX this 3 steps stuff should be simplified into one function */
-		subchan = do_newcall(device, 1);
+		subchan = do_newcall_options(device, OPT_SPEAKER_ON);
 		if (!subchan) {
 			return;
 		}
@@ -2165,33 +2178,28 @@ static void handle_msg_keep_alive(struct sccp_device *device)
 	transmit_keep_alive_ack(device);
 }
 
+/*
+ * Append the given digit to device->exten. Digit '#' is ignored.
+ *
+ * Return the previous length of device->exten.
+ */
+static size_t append_digit_to_device_exten(struct sccp_device *device, char digit)
+{
+	size_t len = strlen(device->exten);
+
+	if (digit != '#' && len < sizeof(device->exten) - 1) {
+		device->exten[len] = digit;
+		device->exten[len+1] = '\0';
+	}
+
+	return len;
+}
+
 static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg *msg)
 {
-	struct sccp_line *line;
-	struct sccp_subchannel *subchan;
-	uint32_t button;
-	uint32_t instance;
+	uint32_t button = letohl(msg->data.keypad.button);
 	size_t len;
 	char digit;
-
-	button = letohl(msg->data.keypad.button);
-	instance = letohl(msg->data.keypad.lineInstance);
-
-	switch (device->type) {
-	case SCCP_DEVICE_7905:
-	case SCCP_DEVICE_7912:
-	case SCCP_DEVICE_7920:
-		line = sccp_lines_get_default(&device->lines);
-		break;
-	default:
-		line = sccp_lines_get_by_instance(&device->lines, instance);
-		break;
-	}
-
-	if (!line) {
-		ast_debug(1, "Device [%s] has no line instance [%d]\n", device->name, instance);
-		return;
-	}
 
 	if (button == 14) {
 		digit = '*';
@@ -2204,45 +2212,35 @@ static void handle_msg_keypad_button(struct sccp_device *device, struct sccp_msg
 		ast_log(LOG_WARNING, "Unsupported digit %d\n", button);
 	}
 
-	if (line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS) {
-		/* Workaround for bug #4503 and bug #4841 */
-		if (device->active_subchan && device->active_subchan->channel) {
-			add_ast_queue_frame_dtmf_task(device, device->active_subchan->channel, digit);
-		}
-	} else if (line->state == SCCP_OFFHOOK) {
-		len = strlen(device->exten);
-		if (len < sizeof(device->exten) - 1 && digit != '#') {
-			device->exten[len] = digit;
-			device->exten[len+1] = '\0';
-		}
-
-		if (device->callfwd == SCCP_CFWD_INPUTEXTEN) {
-			if (digit == '#') {
-				set_callforward_from_device_exten(device);
-			} else {
-				add_fwdtimeout_task(device);
-			}
-		} else {
-			subchan = device->active_subchan;
-			if (!subchan) {
-				ast_log(LOG_WARNING, "active subchan is NULL, ignoring keypad button\n");
-				return;
-			}
-
+	if (device->active_subchan) {
+		if (device->active_subchan->state == SCCP_OFFHOOK) {
+			len = append_digit_to_device_exten(device, digit);
 			if (!len) {
-				/* XXX we are not using line->instance, which works ok on 7912, 7940, 7942,
-				 * but need more testing
-				 */
 				transmit_tone(device, SCCP_TONE_NONE, 0, 0);
 				transmit_stop_tone(device, 0, 0);
 			}
 
 			if (digit == '#') {
-				start_the_call(device, subchan);
+				start_the_call(device, device->active_subchan);
 			} else {
-				add_dialtimeout_task(device, subchan);
+				add_dialtimeout_task(device, device->active_subchan);
 			}
+		} else if (device->active_subchan->channel) {
+			if (device->active_subchan->state != SCCP_RINGOUT || ast_test_flag(device->active_subchan, SUBCHANNEL_RINGOUT_PROGRESS)) {
+				add_ast_queue_frame_dtmf_task(device, device->active_subchan->channel, digit);
+			}
+		} else {
+			ast_log(LOG_WARNING, "ignoring keypad event: don't know what to do with it\n");
 		}
+	} else if (device->callfwd == SCCP_CFWD_INPUTEXTEN) {
+		append_digit_to_device_exten(device, digit);
+		if (digit == '#') {
+			set_callforward_from_device_exten(device);
+		} else {
+			add_fwdtimeout_task(device);
+		}
+	} else {
+		ast_debug(1, "ignoring keypad event: nothing to do\n");
 	}
 }
 
@@ -2292,7 +2290,7 @@ static void handle_msg_offhook(struct sccp_device *device, struct sccp_msg *msg)
 
 	if (device->proto_version >= 11) {
 		if (!msg->data.offhook.lineInstance) {
-			do_newcall(device, 0);
+			do_newcall(device);
 		} else {
 			subchan_id = letohl(msg->data.offhook.callInstance);
 			subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
@@ -2308,7 +2306,7 @@ static void handle_msg_offhook(struct sccp_device *device, struct sccp_msg *msg)
 		if (subchan) {
 			do_answer(device, subchan);
 		} else if (!device->active_subchan) {
-			do_newcall(device, 0);
+			do_newcall(device);
 		}
 	}
 }
@@ -2378,8 +2376,8 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 	device->remote.sin_addr.s_addr = addr;
 	device->remote.sin_port = htons(port);
 
-	if (device->active_subchan->resuming) {
-		device->active_subchan->resuming = 0;
+	if (ast_test_flag(device->active_subchan, SUBCHANNEL_RESUMING)) {
+		ast_clear_flag(device->active_subchan, SUBCHANNEL_RESUMING);
 		sccp_subchannel_start_media_transmission(device->active_subchan);
 	} else {
 		start_rtp(device->active_subchan);
@@ -2396,14 +2394,12 @@ static void handle_softkey_answer(struct sccp_device *device, uint32_t subchan_i
 {
 	struct sccp_subchannel *subchan = sccp_lines_get_subchan(&device->lines, subchan_id);
 
-	transmit_speaker_mode(device, SCCP_SPEAKERON);
-
 	if (!subchan) {
 		ast_log(LOG_NOTICE, "handle softkey answer failed: no subchan %u\n", subchan_id);
 		return;
 	}
 
-	do_answer(device, subchan);
+	do_answer_options(device, subchan, OPT_SPEAKER_ON);
 }
 
 static void handle_softkey_bkspc(struct sccp_device *device)
@@ -2421,7 +2417,6 @@ static void handle_softkey_cfwdall(struct sccp_device *device)
 	case SCCP_CFWD_INACTIVE:
 		device->callfwd_id = device->serial_callid++;
 		device->callfwd = SCCP_CFWD_INPUTEXTEN;
-		line->state = SCCP_OFFHOOK;
 
 		transmit_callstate(device, SCCP_OFFHOOK, line->instance, device->callfwd_id);
 		transmit_selectsoftkeys(device, line->instance, device->callfwd_id, KEYDEF_CALLFWD);
@@ -2480,7 +2475,7 @@ static void handle_softkey_hold(struct sccp_device *device)
 
 static void handle_softkey_newcall(struct sccp_device *device)
 {
-	do_newcall(device, 1);
+	do_newcall_options(device, OPT_SPEAKER_ON);
 }
 
 static void handle_softkey_redial(struct sccp_device *device)
@@ -2489,7 +2484,7 @@ static void handle_softkey_redial(struct sccp_device *device)
 
 	if (!ast_strlen_zero(device->last_exten)) {
 		/* XXX this 3 steps stuff should be simplified into one function */
-		subchan = do_newcall(device, 1);
+		subchan = do_newcall_options(device, OPT_SPEAKER_ON);
 		if (!subchan) {
 			return;
 		}
@@ -2563,13 +2558,12 @@ static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_in
 			return;
 		}
 
-		subchan->transferring = 1;
+		ast_set_flag(subchan, SUBCHANNEL_TRANSFERRING);
 
 		xfer_subchan->related = subchan;
 		subchan->related = xfer_subchan;
 
 		device->active_subchan = subchan;
-		line->state = SCCP_OFFHOOK;
 
 		transmit_subchan_callstate(device, subchan, SCCP_OFFHOOK);
 		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_DIALINTRANSFER);
@@ -2710,7 +2704,7 @@ static void handle_stimulus_voicemail(struct sccp_device *device)
 	}
 
 	/* XXX 3 stuff steps should be replaced with something simpler */
-	subchan = do_newcall(device, 1);
+	subchan = do_newcall_options(device, OPT_SPEAKER_ON);
 	if (!subchan) {
 		return;
 	}
@@ -2854,12 +2848,8 @@ int sccp_device_handle_msg(struct sccp_device *device, struct sccp_msg *msg)
 
 	sccp_device_lock(device);
 
-	switch (device->state) {
-	case STATE_WORKING:
+	if (device->state == STATE_WORKING) {
 		handle_msg_state_common(device, msg, msg_id);
-		break;
-	default:
-		break;
 	}
 
 	sccp_device_unlock(device);
@@ -3099,7 +3089,7 @@ void sccp_device_on_registration_success(struct sccp_device *device)
 int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
 {
 	sccp_device_lock(device);
-	if (!ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_WORKING) {
 		transmit_reset(device, type);
 	}
 
@@ -3147,7 +3137,7 @@ static int channel_tech_requester_locked(struct sccp_device *device, struct sccp
 {
 	struct sccp_subchannel *subchan;
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		return -1;
 	}
 
@@ -3167,7 +3157,7 @@ static int channel_tech_requester_locked(struct sccp_device *device, struct sccp
 	}
 
 	if (options && !strncmp(options, "autoanswer", 10)) {
-		subchan->autoanswer = 1;
+		ast_set_flag(subchan, SUBCHANNEL_AUTOANSWER);
 	}
 
 	if (device->callfwd == SCCP_CFWD_ACTIVE) {
@@ -3214,9 +3204,9 @@ int sccp_channel_tech_devicestate(const struct sccp_line *line)
 	int res;
 
 	sccp_device_lock(device);
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		res = AST_DEVICE_UNAVAILABLE;
-	} else if (line->state == SCCP_ONHOOK) {
+	} else if (AST_LIST_EMPTY(&line->subchans)) {
 		res = AST_DEVICE_NOT_INUSE;
 	} else {
 		res = AST_DEVICE_INUSE;
@@ -3266,7 +3256,7 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		res = -1;
 		goto unlock;
 	}
@@ -3296,7 +3286,6 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 	subchan->state = SCCP_RINGIN;
 
 	if (!device->active_subchan) {
-		line->state = SCCP_RINGIN;
 		transmit_ringer_mode(device, SCCP_RING_INSIDE);
 	}
 
@@ -3308,9 +3297,8 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 	transmit_callinfo(device, name, number, "", line->cfg->cid_num, line->instance, subchan->id, subchan->direction);
 	transmit_line_lamp_state(device, line, SCCP_LAMP_BLINK);
 
-	if (subchan->autoanswer) {
-		transmit_speaker_mode(device, SCCP_SPEAKERON);
-		do_answer(device, subchan);
+	if (ast_test_flag(subchan, SUBCHANNEL_AUTOANSWER)) {
+		do_answer_options(device, subchan, OPT_SPEAKER_ON);
 	} else {
 		sccp_line_update_devstate(line, AST_DEVICE_RINGING);
 	}
@@ -3329,7 +3317,7 @@ int sccp_channel_tech_hangup(struct ast_channel *channel)
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		if (subchan->rtp) {
 			ast_rtp_instance_stop(subchan->rtp);
 			ast_rtp_instance_destroy(subchan->rtp);
@@ -3361,7 +3349,7 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		sccp_device_unlock(device);
 		return -1;
 	}
@@ -3381,8 +3369,6 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
 	transmit_subchan_stop_tone(device, subchan);
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
-
-	line->state = SCCP_CONNECTED;
 
 	sccp_device_unlock(device);
 
@@ -3412,7 +3398,7 @@ struct ast_frame *sccp_channel_tech_read(struct ast_channel *channel)
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		goto unlock;
 	}
 
@@ -3463,19 +3449,25 @@ int sccp_channel_tech_write(struct ast_channel *channel, struct ast_frame *frame
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
+		ast_debug(1, "not writing frame: device is destroyed\n");
 		res = -1;
 		goto unlock;
 	}
 
+	if (subchan != device->active_subchan) {
+		ast_debug(1, "not writing frame: subchan is not active\n");
+		goto unlock;
+	}
+
 	if (subchan->rtp) {
-		if (line->state == SCCP_CONNECTED || line->state == SCCP_PROGRESS) {
-			res = ast_rtp_instance_write(subchan->rtp, frame);
-		}
-	} else if (line->state == SCCP_PROGRESS) {
-		/* handle early rtp during progress state */
+		res = ast_rtp_instance_write(subchan->rtp, frame);
+	} else if (device->recv_chan_status == SCCP_RECV_CHAN_CLOSED) {
+		/* handle early rtp */
 		transmit_subchan_stop_tone(device, subchan);
 		transmit_subchan_open_receive_channel(device, subchan);
+	} else {
+		ast_debug(1, "not writing frame: device is not ready\n");
 	}
 
 unlock:
@@ -3513,7 +3505,7 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		goto unlock;
 	}
 
@@ -3538,7 +3530,9 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 		break;
 
 	case AST_CONTROL_PROGRESS:
-		line->state = SCCP_PROGRESS;
+		if (subchan->state == SCCP_RINGOUT) {
+			ast_set_flag(subchan, SUBCHANNEL_RINGOUT_PROGRESS);
+		}
 		break;
 
 	case AST_CONTROL_PROCEEDING:
@@ -3650,7 +3644,7 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 
 	sccp_device_lock(device);
 
-	if (ast_test_flag(device, DEVICE_DESTROYED)) {
+	if (device->state == STATE_DESTROYED) {
 		goto unlock;
 	}
 

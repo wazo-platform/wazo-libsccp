@@ -419,8 +419,12 @@ static int register_sccp_tech(void)
 	}
 
 	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
+	if (ast_channel_register(&sccp_tech) == -1) {
+		ast_format_cap_destroy(sccp_tech.capabilities);
+		return -1;
+	}
 
-	return ast_channel_register(&sccp_tech);
+	return 0;
 }
 
 static void unregister_sccp_tech(void)
