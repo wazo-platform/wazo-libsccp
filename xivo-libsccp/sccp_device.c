@@ -1152,7 +1152,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	struct ast_format_cap *caps;
 	struct sccp_device *device;
 
-	caps = ast_format_cap_alloc_nolock();
+	caps = ast_format_cap_alloc();
 	if (!caps) {
 		return NULL;
 	}
