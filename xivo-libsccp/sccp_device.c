@@ -815,7 +815,7 @@ static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct a
 {
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(), ast_format_cap_destroy);
+	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(), ao2_cleanup);
 	struct ast_format_cap *tmpcaps = NULL;
 	int has_joint;
 	char buf[256];
@@ -834,7 +834,7 @@ static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct a
 	if (cap && ast_format_cap_has_joint(joint, cap)) {
 		tmpcaps = ast_format_cap_dup(joint);
 		ast_format_cap_joint_copy(tmpcaps, cap, joint);
-		ast_format_cap_destroy(tmpcaps);
+		ao2_ref(tmpcaps, -1);
 	}
 
 	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
@@ -1110,7 +1110,7 @@ static void sccp_device_destructor(void *data)
 
 	sccp_queue_destroy(&device->nolock_tasks);
 	ast_mutex_destroy(&device->lock);
-	ast_format_cap_destroy(device->caps);
+	ao2_ref(device->caps, -1);
 	ao2_ref(device->session, -1);
 	ao2_ref(device->cfg, -1);
 }
@@ -1159,7 +1159,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 
 	device = ao2_alloc_options(sizeof(*device), sccp_device_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!device) {
-		ast_format_cap_destroy(caps);
+		ao2_ref(caps, -1);
 		return NULL;
 	}
 

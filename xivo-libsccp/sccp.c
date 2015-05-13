@@ -420,7 +420,7 @@ static int register_sccp_tech(void)
 
 	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
 	if (ast_channel_register(&sccp_tech) == -1) {
-		ast_format_cap_destroy(sccp_tech.capabilities);
+		ao2_ref(sccp_tech.capabilities, -1);
 		return -1;
 	}
 
@@ -430,7 +430,7 @@ static int register_sccp_tech(void)
 static void unregister_sccp_tech(void)
 {
 	ast_channel_unregister(&sccp_tech);
-	ast_format_cap_destroy(sccp_tech.capabilities);
+	ao2_ref(sccp_tech.capabilities, -1);
 }
 
 static int load_module(void)

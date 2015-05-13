@@ -91,7 +91,7 @@ static void sccp_line_cfg_destructor(void *obj)
 	ast_variables_destroy(line_cfg->chanvars);
 	ast_unref_namedgroups(line_cfg->named_callgroups);
 	ast_unref_namedgroups(line_cfg->named_pickupgroups);
-	ast_format_cap_destroy(line_cfg->caps);
+	ao2_ref(line_cfg->caps, -1);
 }
 
 static void *sccp_line_cfg_alloc(const char *category)
@@ -113,7 +113,7 @@ static void *sccp_line_cfg_alloc(const char *category)
 
 	line_cfg = ao2_alloc_options(sizeof(*line_cfg), sccp_line_cfg_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!line_cfg) {
-		ast_format_cap_destroy(caps);
+		ao2_ref(caps, -1);
 		ast_free(internal);
 		return NULL;
 	}
