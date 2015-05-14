@@ -815,7 +815,7 @@ static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct a
 {
 	struct sccp_line *line = subchan->line;
 	struct sccp_device *device = line->device;
-	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(), ao2_cleanup);
+	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT), ao2_cleanup);
 	struct ast_format_cap *tmpcaps = NULL;
 	int has_joint;
 	char buf[256];
@@ -1152,7 +1152,7 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	struct ast_format_cap *caps;
 	struct sccp_device *device;
 
-	caps = ast_format_cap_alloc();
+	caps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
 	if (!caps) {
 		return NULL;
 	}

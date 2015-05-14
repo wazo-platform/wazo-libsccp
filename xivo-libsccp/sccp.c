@@ -413,7 +413,7 @@ static struct ast_cli_entry cli_entries[] = {
 
 static int register_sccp_tech(void)
 {
-	sccp_tech.capabilities = ast_format_cap_alloc();
+	sccp_tech.capabilities = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
 	if (!sccp_tech.capabilities) {
 		return -1;
 	}

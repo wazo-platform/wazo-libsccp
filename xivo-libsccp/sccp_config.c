@@ -105,7 +105,7 @@ static void *sccp_line_cfg_alloc(const char *category)
 		return NULL;
 	}
 
-	caps = ast_format_cap_alloc();
+	caps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
 	if (!caps) {
 		ast_free(internal);
 		return NULL;
