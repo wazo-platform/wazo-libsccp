@@ -782,13 +782,13 @@ static int add_start_channel_task(struct sccp_device *device, struct ast_channel
  * ast_channel_alloc, then it's possible that we are indirectly holding a channel lock if another
  * subchannel is trying to lock the device.
  */
-static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const char *exten, const char *linkedid)
+static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const char *exten, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor)
 {
 	struct ast_channel *channel;
 	struct ast_variable *var_itr;
 	char valuebuf[1024];
 
-	channel = ast_channel_alloc(1, AST_STATE_DOWN, line_cfg->cid_num, line_cfg->cid_name, "code", exten, line_cfg->context, linkedid, 0, SCCP_LINE_PREFIX "/%s-%08x", line_cfg->name, ast_atomic_fetchadd_int((int *)&chan_idx, +1));
+	channel = ast_channel_alloc(1, AST_STATE_DOWN, line_cfg->cid_num, line_cfg->cid_name, "code", exten, line_cfg->context, assignedids, requestor, 0, SCCP_LINE_PREFIX "/%s-%08x", line_cfg->name, ast_atomic_fetchadd_int((int *)&chan_idx, +1));
 	if (!channel) {
 		return NULL;
 	}
@@ -2043,7 +2043,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	/* we are in the session thread and line->cfg and device->exten are updated only in
 	 * session thread, so there's no race condition here
 	 */
-	channel = alloc_channel(line->cfg, device->exten, NULL);
+	channel = alloc_channel(line->cfg, device->exten, NULL, NULL);
 
 	sccp_device_lock(device);
 
@@ -3168,7 +3168,7 @@ static int channel_tech_requester_locked(struct sccp_device *device, struct sccp
 	return 0;
 }
 
-struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_channel *requestor, int *cause)
+struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor, int *cause)
 {
 	struct sccp_device *device = line->device;
 	struct sccp_line_cfg *line_cfg;
@@ -3180,7 +3180,7 @@ struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const ch
 	ao2_ref(line_cfg, +1);
 	sccp_device_unlock(device);
 
-	channel = alloc_channel(line_cfg, "", requestor ? ast_channel_linkedid(requestor) : NULL);
+	channel = alloc_channel(line_cfg, "", assignedids, requestor);
 	ao2_ref(line_cfg, -1);
 	if (!channel) {
 		return NULL;

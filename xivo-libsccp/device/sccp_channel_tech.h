@@ -6,6 +6,7 @@
 struct ast_channel;
 struct ast_format_cap;
 struct ast_frame;
+struct ast_assigned_ids;
 struct sccp_line;
 
 /*!
@@ -14,7 +15,7 @@ struct sccp_line;
  * \note This function CAN'T be used directly in an ast_channel_tech. You must first obtain a sccp_line,
  *       and then call this function with it.
  */
-struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_channel *requestor, int *cause);
+struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor, int *cause);
 
 /*!
  * \brief Partial implementation of ast_channel_tech::devicestate.

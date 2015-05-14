@@ -64,7 +64,7 @@ static enum find_line_result find_line(const char *name, struct sccp_line **resu
 	return LINE_NOT_FOUND;
 }
 
-static struct ast_channel *channel_tech_requester(const char *type, struct ast_format_cap *cap, const struct ast_channel *requestor, const char *addr, int *cause)
+static struct ast_channel *channel_tech_requester(const char *type, struct ast_format_cap *cap, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor, const char *addr, int *cause)
 {
 	struct sccp_line *line;
 	struct ast_channel *channel = NULL;
@@ -77,7 +77,7 @@ static struct ast_channel *channel_tech_requester(const char *type, struct ast_f
 
 	switch (find_line(addr, &line)) {
 	case LINE_FOUND:
-		channel = sccp_channel_tech_requester(line, options, cap, requestor, cause);
+		channel = sccp_channel_tech_requester(line, options, cap, assignedids, requestor, cause);
 		ao2_ref(line, -1);
 		break;
 	case LINE_NOT_REGISTERED:
