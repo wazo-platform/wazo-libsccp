@@ -8,11 +8,14 @@
 #include <asterisk/event.h>
 #include <asterisk/features.h>
 #include <asterisk/format.h>
+#include <asterisk/format_cache.h>
+#include <asterisk/format_cap.h>
 #include <asterisk/lock.h>
 #include <asterisk/module.h>
 #include <asterisk/musiconhold.h>
 #include <asterisk/network.h>
 #include <asterisk/pbx.h>
+#include <asterisk/strings.h>
 #include <asterisk/rtp_engine.h>
 #include <asterisk/utils.h>
 
@@ -63,13 +66,13 @@ enum {
 struct sccp_subchannel {
 	/* (dynamic) */
 	struct ast_sockaddr direct_media_addr;
-	/* (static) */
-	struct ast_format fmt;
 
 	/* (static) */
 	struct sccp_line *line;
 	/* (dynamic) */
 	struct ast_channel *channel;
+	/* (dynamic) */
+	struct ast_format *fmt;
 	/* (dynamic) */
 	struct ast_rtp_instance *rtp;
 	/* (dynamic) */
@@ -77,6 +80,8 @@ struct sccp_subchannel {
 
 	/* (static) */
 	uint32_t id;
+	/* (dynamic) */
+	uint32_t framing;
 	/* (dynamic) */
 	enum sccp_state state;
 	/* (static) */
@@ -536,6 +541,7 @@ static void sccp_subchannel_destructor(void *data)
 	}
 
 	ao2_ref(subchan->line, -1);
+	ao2_cleanup(subchan->fmt);
 }
 
 static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uint32_t id, enum sccp_direction direction)
@@ -550,9 +556,11 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->line = line;
 	ao2_ref(line, +1);
 	subchan->channel = NULL;
+	subchan->fmt = NULL;
 	subchan->rtp = NULL;
 	subchan->related = NULL;
 	subchan->id = id;
+	subchan->framing = 0;
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
 	subchan->flags = 0;
@@ -817,41 +825,46 @@ static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct a
 	struct sccp_device *device = line->device;
 	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT), ao2_cleanup);
 	struct ast_format_cap *tmpcaps = NULL;
-	int has_joint;
-	char buf[256];
+	struct ast_str *buf = ast_str_alloca(64);
 
 	if (subchan->channel) {
 		ast_log(LOG_ERROR, "subchan already has a channel\n");
 		return -1;
 	}
 
-	has_joint = ast_format_cap_joint_copy(line->cfg->caps, device->caps, joint);
-	if (!has_joint) {
+	ast_format_cap_get_compatible(line->cfg->caps, device->caps, joint);
+	if (ast_format_cap_empty(joint)) {
 		ast_log(LOG_WARNING, "no compatible codecs\n");
 		return -1;
 	}
 
-	if (cap && ast_format_cap_has_joint(joint, cap)) {
-		tmpcaps = ast_format_cap_dup(joint);
-		ast_format_cap_joint_copy(tmpcaps, cap, joint);
-		ao2_ref(tmpcaps, -1);
+	if (cap && ast_format_cap_iscompatible(joint, cap)) {
+		tmpcaps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+		if (tmpcaps) {
+			ast_format_cap_append_from_cap(tmpcaps, joint, AST_MEDIA_TYPE_UNKNOWN);
+			ast_format_cap_get_compatible(tmpcaps, cap, joint);
+			ao2_ref(tmpcaps, -1);
+		}
 	}
 
-	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
+	ast_debug(1, "joint capabilities %s\n", ast_format_cap_get_names(joint, &buf));
 
 	ast_channel_tech_set(channel, &sccp_tech);
 	ast_channel_tech_pvt_set(channel, subchan);
 	ao2_ref(subchan, +1);
 	subchan->channel = channel;
 
-	ast_codec_choose(&line->cfg->codec_pref, joint, 1, &subchan->fmt);
-	ast_debug(1, "best codec %s\n", ast_getformatname(&subchan->fmt));
+	subchan->fmt = ast_format_cap_get_format(joint, 0);
+	/* XXX ast_format_cap_get_format could return null */
+	subchan->framing = ast_format_cap_get_format_framing(joint, subchan->fmt);
+	ast_debug(1, "best codec %s ms %u\n", ast_format_get_name(subchan->fmt), (unsigned int) subchan->framing);
 
-	ast_format_cap_set(ast_channel_nativeformats(channel), &subchan->fmt);
-	ast_format_copy(ast_channel_writeformat(channel), &subchan->fmt);
-	ast_format_copy(ast_channel_rawwriteformat(channel), &subchan->fmt);
-	ast_format_copy(ast_channel_readformat(channel), &subchan->fmt);
-	ast_format_copy(ast_channel_rawreadformat(channel), &subchan->fmt);
+	ast_format_cap_remove_by_type(ast_channel_nativeformats(channel), AST_MEDIA_TYPE_UNKNOWN);
+	ast_format_cap_append(ast_channel_nativeformats(channel), subchan->fmt, subchan->framing);
+	ast_channel_set_writeformat(channel, subchan->fmt);
+	ast_channel_set_rawwriteformat(channel, subchan->fmt);
+	ast_channel_set_readformat(channel, subchan->fmt);
+	ast_channel_set_rawreadformat(channel, subchan->fmt);
 
 	ast_module_ref(sccp_module_info->self);
 
@@ -1283,52 +1296,44 @@ static int sccp_device_is_idle(struct sccp_device *device)
 	return !sccp_lines_has_subchans(&device->lines);
 }
 
-static enum sccp_codecs codec_ast2sccp(struct ast_format *format)
+static enum sccp_codecs codec_ast2sccp(const struct ast_format *format)
 {
-	switch (format->id) {
-	case AST_FORMAT_ALAW:
+	if (ast_format_cmp(format, ast_format_alaw) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G711_ALAW;
-	case AST_FORMAT_ULAW:
+	} else if (ast_format_cmp(format, ast_format_ulaw) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G711_ULAW;
-	case AST_FORMAT_G723_1:
+	} else if (ast_format_cmp(format, ast_format_g723) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G723_1;
-	case AST_FORMAT_G729A:
+	} else if (ast_format_cmp(format, ast_format_g729) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G729A;
-	case AST_FORMAT_G726_AAL2:
+	} else if (ast_format_cmp(format, ast_format_g726) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G726_32;
-	case AST_FORMAT_H261:
+	} else if (ast_format_cmp(format, ast_format_h261) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_H261;
-	case AST_FORMAT_H263:
+	} else if (ast_format_cmp(format, ast_format_h263) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_H263;
-	default:
+	} else {
 		return -1;
 	}
 }
 
-static void codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_format *result)
+static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec)
 {
 	switch (sccpcodec) {
 	case SCCP_CODEC_G711_ALAW:
-		ast_format_set(result, AST_FORMAT_ALAW, 0);
-		break;
+		return ast_format_alaw;
 	case SCCP_CODEC_G711_ULAW:
-		ast_format_set(result, AST_FORMAT_ULAW, 0);
-		break;
+		return ast_format_ulaw;
 	case SCCP_CODEC_G723_1:
-		ast_format_set(result, AST_FORMAT_G723_1, 0);
-		break;
+		return ast_format_g723;
 	case SCCP_CODEC_G729A:
-		ast_format_set(result, AST_FORMAT_G729A, 0);
-		break;
+		return ast_format_g729;
 	case SCCP_CODEC_H261:
-		ast_format_set(result, AST_FORMAT_H261, 0);
-		break;
+		return ast_format_h261;
 	case SCCP_CODEC_H263:
-		ast_format_set(result, AST_FORMAT_H263, 0);
-		break;
+		return ast_format_h263;
 	default:
-		ast_format_clear(result);
-		break;
+		return ast_format_none;
 	}
 }
 
@@ -1588,7 +1593,6 @@ static void transmit_subchan_callstate(struct sccp_device *device, struct sccp_s
 static void transmit_subchan_open_receive_channel(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
 	struct sccp_msg msg;
-	struct ast_format_list fmt;
 
 	switch (device->recv_chan_status) {
 	case SCCP_RECV_CHAN_CLOSED:
@@ -1601,8 +1605,7 @@ static void transmit_subchan_open_receive_channel(struct sccp_device *device, st
 
 	device->recv_chan_status = SCCP_RECV_CHAN_OPENING;
 
-	fmt = ast_codec_pref_getsize(&subchan->line->cfg->codec_pref, &subchan->fmt);
-	sccp_msg_open_receive_channel(&msg, subchan->id, fmt.cur_ms, codec_ast2sccp(&fmt.format));
+	sccp_msg_open_receive_channel(&msg, subchan->id, subchan->framing, codec_ast2sccp(subchan->fmt));
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -1614,12 +1617,9 @@ static void transmit_subchan_selectsoftkeys(struct sccp_device *device, struct s
 static void transmit_subchan_start_media_transmission(struct sccp_device *device, struct sccp_subchannel *subchan, struct sockaddr_in *endpoint)
 {
 	struct sccp_msg msg;
-	struct ast_format_list fmt;
-
-	fmt = ast_codec_pref_getsize(&subchan->line->cfg->codec_pref, &subchan->fmt);
 
 	ast_debug(2, "Sending start media transmission to %s: %s %d\n", sccp_session_remote_addr_ch(device->session), ast_inet_ntoa(endpoint->sin_addr), ntohs(endpoint->sin_port));
-	sccp_msg_start_media_transmission(&msg, subchan->id, fmt.cur_ms, codec_ast2sccp(&fmt.format), subchan->line->cfg->tos_audio, endpoint);
+	sccp_msg_start_media_transmission(&msg, subchan->id, subchan->framing, codec_ast2sccp(subchan->fmt), subchan->line->cfg->tos_audio, endpoint);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -2114,7 +2114,7 @@ static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddia
 
 static void handle_msg_capabilities_res(struct sccp_device *device, struct sccp_msg *msg)
 {
-	struct ast_format format;
+	struct ast_format *format;
 	uint32_t count = letohl(msg->data.caps.count);
 	uint32_t sccpcodec;
 	uint32_t i;
@@ -2124,13 +2124,13 @@ static void handle_msg_capabilities_res(struct sccp_device *device, struct sccp_
 		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
 	}
 
-	ast_format_cap_remove_all(device->caps);
+	ast_format_cap_remove_by_type(device->caps, AST_MEDIA_TYPE_UNKNOWN);
 
 	for (i = 0; i < count; i++) {
 		sccpcodec = letohl(msg->data.caps.caps[i].codec);
-		codec_sccp2ast(sccpcodec, &format);
+		format = codec_sccp2ast(sccpcodec);
 
-		ast_format_cap_add(device->caps, &format);
+		ast_format_cap_append(device->caps, format, 0);
 	}
 }
 
@@ -2332,8 +2332,7 @@ static void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 8);
 	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 18);
 
-	ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
-					subchan->rtp, &subchan->line->cfg->codec_pref);
+	ast_rtp_codecs_set_framing(ast_rtp_instance_get_codecs(subchan->rtp), subchan->framing);
 }
 
 static int start_rtp(struct sccp_subchannel *subchan)
@@ -3100,13 +3099,17 @@ int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
 
 void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_snapshot *snapshot)
 {
+	struct ast_str *buf = ast_str_alloca(sizeof(snapshot->capabilities));
+
 	sccp_device_lock(device);
 	snapshot->type = device->type;
 	snapshot->proto_version = device->proto_version;
 	ast_copy_string(snapshot->name, device->name, sizeof(snapshot->name));
 	ast_copy_string(snapshot->ipaddr, sccp_session_remote_addr_ch(device->session), sizeof(snapshot->ipaddr));
-	ast_getformatname_multiple(snapshot->capabilities, sizeof(snapshot->capabilities), device->caps);
+	ast_format_cap_get_names(device->caps, &buf);
 	sccp_device_unlock(device);
+
+	ast_copy_string(snapshot->capabilities, ast_str_buffer(buf), sizeof(snapshot->capabilities));
 }
 
 unsigned int sccp_device_line_count(const struct sccp_device *device)
@@ -3428,8 +3431,12 @@ unlock:
 	}
 
 	if (frame && frame->frametype == AST_FRAME_VOICE) {
-		if (!(ast_format_cap_iscompatible(ast_channel_nativeformats(channel), &frame->subclass.format))) {
-			ast_format_cap_set(ast_channel_nativeformats(channel), &frame->subclass.format);
+		if (ast_format_cap_iscompatible_format(ast_channel_nativeformats(channel), frame->subclass.format) == AST_FORMAT_CMP_NOT_EQUAL) {
+			/* XXX this code is suspicious... why would it happens in SCCP ?
+			 *     If we do update ast_channel_nativeformats, we might also update subchan->fmt and subchan->framing (?)
+			 *
+			 * ast_format_cap_set(ast_channel_nativeformats(channel), &frame->subclass.format);
+			 */
 			ast_set_read_format(channel, ast_channel_readformat(channel));
 			ast_set_write_format(channel, ast_channel_writeformat(channel));
 		}
@@ -3693,5 +3700,5 @@ void sccp_rtp_glue_get_codec(struct ast_channel *channel, struct ast_format_cap 
 {
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 
-	ast_format_cap_set(result, &subchan->fmt);
+	ast_format_cap_append(result, subchan->fmt, subchan->framing);
 }

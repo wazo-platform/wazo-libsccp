@@ -741,8 +741,8 @@ int sccp_config_init(void)
 	aco_option_register(&cfg_info, "language", ACO_EXACT, line_types, "en_US", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, language));
 	aco_option_register(&cfg_info, "directmedia", ACO_EXACT, line_types, "no", OPT_BOOL_T, 1, FLDSET(struct sccp_line_cfg, directmedia));
 	aco_option_register_custom(&cfg_info, "tos_audio", ACO_EXACT, line_types, "EF", line_cfg_tos_audio_handler, 0);
-	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, NULL, OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, codec_pref, caps));
-	aco_option_register(&cfg_info, "allow", ACO_EXACT, line_types, "ulaw,alaw", OPT_CODEC_T, 1, FLDSET(struct sccp_line_cfg, codec_pref, caps));
+	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, NULL, OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, caps));
+	aco_option_register(&cfg_info, "allow", ACO_EXACT, line_types, "ulaw,alaw", OPT_CODEC_T, 1, FLDSET(struct sccp_line_cfg, caps));
 	aco_option_register_custom(&cfg_info, "callgroup", ACO_EXACT, line_types, NULL, line_cfg_callgroup_handler, 0);
 	aco_option_register_custom(&cfg_info, "pickupgroup", ACO_EXACT, line_types, NULL, line_cfg_pickupgroup_handler, 0);
 	aco_option_register_custom(&cfg_info, "namedcallgroup", ACO_EXACT, line_types, NULL, line_cfg_namedcallgroup_handler, 0);

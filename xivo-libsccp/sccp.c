@@ -418,7 +418,7 @@ static int register_sccp_tech(void)
 		return -1;
 	}
 
-	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
+	ast_format_cap_append_by_type(sccp_tech.capabilities, AST_MEDIA_TYPE_AUDIO);
 	if (ast_channel_register(&sccp_tech) == -1) {
 		ao2_ref(sccp_tech.capabilities, -1);
 		return -1;

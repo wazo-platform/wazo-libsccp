@@ -54,7 +54,6 @@ struct sccp_line_cfg {
 	struct ast_namedgroups *named_callgroups;
 	struct ast_namedgroups *named_pickupgroups;
 
-	struct ast_codec_pref codec_pref;
 	struct ast_format_cap *caps;
 
 	struct ast_variable *chanvars;
