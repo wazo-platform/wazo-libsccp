@@ -481,6 +481,7 @@ static struct sccp_speeddial_cfg *sccp_cfg_find_speeddial(struct sccp_cfg *cfg, 
 
 static struct aco_type speeddial_type = {
 	.type = ACO_ITEM,
+	.name = "speeddial",
 	.category_match = ACO_BLACKLIST,
 	.category = "^general$",
 	.matchfield = "type",
@@ -494,6 +495,7 @@ static struct aco_type *speeddial_types[] = ACO_TYPES(&speeddial_type);
 
 static struct aco_type line_type = {
 	.type = ACO_ITEM,
+	.name = "line",
 	.category_match = ACO_BLACKLIST,
 	.category = "^general$",
 	.matchfield = "type",
@@ -507,6 +509,7 @@ static struct aco_type *line_types[] = ACO_TYPES(&line_type);
 
 static struct aco_type device_type = {
 	.type = ACO_ITEM,
+	.name = "device",
 	.category_match = ACO_BLACKLIST,
 	.category = "^general$",
 	.matchfield = "type",
@@ -520,6 +523,7 @@ static struct aco_type *device_types[] = ACO_TYPES(&device_type);
 
 static struct aco_type general_type = {
 	.type = ACO_GLOBAL,
+	.name = "general",
 	.category_match = ACO_WHITELIST,
 	.category = "^general$",
 	.item_offset = offsetof(struct sccp_cfg, general_cfg),
