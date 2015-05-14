@@ -3277,7 +3277,7 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 		redirecting.from.number.str = ast_strdup(line->cfg->cid_num);
 		redirecting.from.number.valid = 1;
 		update_redirecting.from.number = 1;
-		redirecting.reason = AST_REDIRECTING_REASON_UNCONDITIONAL;
+		redirecting.reason.code = AST_REDIRECTING_REASON_UNCONDITIONAL;
 		redirecting.count = 1;
 
 		ast_channel_set_redirecting(channel, &redirecting, &update_redirecting);
