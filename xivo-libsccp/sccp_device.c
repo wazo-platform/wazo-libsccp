@@ -2,6 +2,7 @@
 #include <asterisk/app.h>
 #include <asterisk/astdb.h>
 #include <asterisk/astobj2.h>
+#include <asterisk/bridge.h>
 #include <asterisk/callerid.h>
 #include <asterisk/causes.h>
 #include <asterisk/channelstate.h>
@@ -188,9 +189,9 @@ struct sccp_device {
 	char callfwd_exten[AST_MAX_EXTENSION];
 };
 
-struct nolock_task_ast_channel_xfer_masquerade {
-	struct ast_channel *active_chan;
-	struct ast_channel *related_chan;
+struct nolock_task_ast_bridge_transfer_attended {
+	struct ast_channel *to_transferee;
+	struct ast_channel *to_transfer_target;
 };
 
 struct nolock_task_ast_queue_control {
@@ -217,7 +218,7 @@ struct nolock_task_start_channel {
 };
 
 union nolock_task_data {
-	struct nolock_task_ast_channel_xfer_masquerade xfer_masquerade;
+	struct nolock_task_ast_bridge_transfer_attended transfer_attended;
 	struct nolock_task_ast_queue_control queue_control;
 	struct nolock_task_ast_queue_frame_dtmf queue_frame_dtmf;
 	struct nolock_task_ast_queue_hangup queue_hangup;
@@ -606,32 +607,49 @@ static void exec_nolock_tasks(struct sccp_queue *tasks)
 	}
 }
 
-static void exec_ast_channel_transfer_masquerade(union nolock_task_data *data)
+static void exec_ast_bridge_transfer_attended(union nolock_task_data *data)
 {
-	struct ast_channel *active_chan = data->xfer_masquerade.active_chan;
-	struct ast_channel *related_chan = data->xfer_masquerade.related_chan;
+	struct ast_channel *to_transferee = data->transfer_attended.to_transferee;
+	struct ast_channel *to_transfer_target = data->transfer_attended.to_transfer_target;
+	enum ast_transfer_result res;
 
-	ast_channel_transfer_masquerade(active_chan, ast_channel_connected(active_chan), 0,
-			ast_bridged_channel(related_chan), ast_channel_connected(related_chan), 1);
+	res = ast_bridge_transfer_attended(to_transferee, to_transfer_target);
 
-	ast_channel_unref(active_chan);
-	ast_channel_unref(related_chan);
+	switch (res) {
+	case AST_BRIDGE_TRANSFER_SUCCESS:
+		break;
+	case AST_BRIDGE_TRANSFER_NOT_PERMITTED:
+		ast_log(LOG_WARNING, "attended transfer failed: transfer not permitted\n");
+		break;
+	case AST_BRIDGE_TRANSFER_INVALID:
+		ast_log(LOG_WARNING, "attended transfer failed: invalid bridge setup\n");
+		break;
+	case AST_BRIDGE_TRANSFER_FAIL:
+		ast_log(LOG_WARNING, "attended transfer failed: operation failed\n");
+		break;
+	default:
+		ast_log(LOG_WARNING, "attended transfer failed: unknown reason %d\n", (int) res);
+		break;
+	}
+
+	ast_channel_unref(to_transferee);
+	ast_channel_unref(to_transfer_target);
 }
 
-static int add_ast_channel_transfer_masquerade_task(struct sccp_device *device, struct ast_channel *active_chan, struct ast_channel *related_chan)
+static int add_ast_bridge_transfer_attended_task(struct sccp_device *device, struct ast_channel *to_transferee, struct ast_channel *to_transfer_target)
 {
 	struct nolock_task task;
 
-	task.exec = exec_ast_channel_transfer_masquerade;
-	task.data.xfer_masquerade.active_chan = active_chan;
-	task.data.xfer_masquerade.related_chan = related_chan;
+	task.exec = exec_ast_bridge_transfer_attended;
+	task.data.transfer_attended.to_transferee = to_transferee;
+	task.data.transfer_attended.to_transfer_target = to_transfer_target;
 
 	if (add_nolock_task(device, &task)) {
 		return -1;
 	}
 
-	ast_channel_ref(active_chan);
-	ast_channel_ref(related_chan);
+	ast_channel_ref(to_transferee);
+	ast_channel_ref(to_transfer_target);
 
 	return 0;
 }
@@ -2581,12 +2599,7 @@ static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_in
 			return;
 		}
 
-		if (ast_bridged_channel(related_channel)) {
-			add_ast_channel_transfer_masquerade_task(device, active_channel, related_channel);
-			add_ast_queue_hangup_task(device, related_channel);
-		} else {
-			add_ast_queue_hangup_task(device, active_channel);
-		}
+		add_ast_bridge_transfer_attended_task(device, related_channel, active_channel);
 	}
 }
 
