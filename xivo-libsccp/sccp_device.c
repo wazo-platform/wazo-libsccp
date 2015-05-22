@@ -8,6 +8,7 @@
 #include <asterisk/channelstate.h>
 #include <asterisk/event.h>
 #include <asterisk/features.h>
+#include <asterisk/features_config.h>
 #include <asterisk/format.h>
 #include <asterisk/format_cache.h>
 #include <asterisk/format_cap.h>
@@ -16,6 +17,7 @@
 #include <asterisk/musiconhold.h>
 #include <asterisk/network.h>
 #include <asterisk/pbx.h>
+#include <asterisk/pickup.h>
 #include <asterisk/strings.h>
 #include <asterisk/rtp_engine.h>
 #include <asterisk/utils.h>
@@ -2044,6 +2046,26 @@ static inline int do_answer(struct sccp_device *device, struct sccp_subchannel *
 	return do_answer_options(device, subchan, 0);
 }
 
+/*
+ * This function locks the channel.
+ */
+static void get_pickup_exten(struct ast_channel *channel, char *pickupexten, size_t n)
+{
+	struct ast_features_pickup_config *pickup_cfg;
+
+	ast_channel_lock(channel);
+	pickup_cfg = ast_get_chan_features_pickup_config(channel);
+	ast_channel_unlock(channel);
+
+	if (!pickup_cfg) {
+		ast_log(LOG_ERROR, "Unable to retrieve pickup configuration options. Unable to detect call pickup extension\n");
+		return;
+	}
+
+	ast_copy_string(pickupexten, pickup_cfg->pickupexten, n);
+	ao2_ref(pickup_cfg, -1);
+}
+
 /* XXX whacked out operation that unlock the device and relock it after
  *     when this function returns, you must check that your invariant still make
  *     sense -- the better is to have nothing to do after this function return
@@ -2053,6 +2075,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 {
 	struct sccp_line *line = subchan->line;
 	struct ast_channel *channel;
+	char pickupexten[20] = "";
 
 	remove_dialtimeout_task(device, subchan);
 
@@ -2062,6 +2085,9 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	 * session thread, so there's no race condition here
 	 */
 	channel = alloc_channel(line->cfg, device->exten, NULL, NULL);
+	if (channel) {
+		get_pickup_exten(channel, pickupexten, sizeof(pickupexten));
+	}
 
 	sccp_device_lock(device);
 
@@ -2096,7 +2122,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	memcpy(device->last_exten, device->exten, AST_MAX_EXTENSION);
 	line->device->exten[0] = '\0';
 
-	if (!strcmp(device->last_exten, ast_pickup_ext())) {
+	if (!strcmp(device->last_exten, pickupexten)) {
 		add_pickup_channel_task(device, subchan->channel);
 	} else {
 		add_start_channel_task(device, subchan->channel, line->cfg);
