@@ -541,6 +541,7 @@ static AO2_GLOBAL_OBJ_STATIC(global_cfg);
 CONFIG_INFO_STANDARD(cfg_info, global_cfg, sccp_cfg_alloc,
 	.files = ACO_FILES(&sccp_conf),
 	.pre_apply_config = pre_apply_config,
+	.hidden = 1,
 );
 
 static int cb_pre_apply_device_cfg(void *obj, void *arg, int flags)
