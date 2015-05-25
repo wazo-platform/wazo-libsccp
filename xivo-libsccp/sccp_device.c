@@ -1,5 +1,4 @@
 #include <asterisk.h>
-#include <asterisk/app.h>
 #include <asterisk/astdb.h>
 #include <asterisk/astobj2.h>
 #include <asterisk/bridge.h>
@@ -168,7 +167,7 @@ struct sccp_device {
 	/* (dynamic) */
 	struct ast_format_cap *caps;	/* Supported capabilities */
 	/* (dynamic, modified in thread session only) */
-	struct ast_event_sub *mwi_event_sub;
+	struct stasis_subscription *mwi_event_sub;
 	/* (dynamic) */
 	struct sccp_subchannel *active_subchan;
 
@@ -1769,37 +1768,43 @@ static void cancel_callforward_input(struct sccp_device *device)
 
 /*
  * entry point: yes
- * thread: event processing thread
  */
-static void on_mwi_event(const struct ast_event *event, void *data)
+static void on_mwi_event(void *data, struct stasis_subscription *sub, struct stasis_message *msg)
 {
 	struct sccp_device *device = data;
-	int new_msgs = ast_event_get_ie_uint(event, AST_EVENT_IE_NEWMSGS);
+	struct ast_mwi_state *mwi_state;
+
+	if (ast_mwi_state_type() != stasis_message_type(msg)) {
+		return;
+	}
+
+	mwi_state = stasis_message_data(msg);
 
 	sccp_device_lock(device);
-	transmit_voicemail_lamp_state(device, new_msgs);
+	transmit_voicemail_lamp_state(device, mwi_state->new_msgs);
 	sccp_device_unlock(device);
 }
 
 /*
  * thread: session
- * locked: MUST NOT
  */
 static void subscribe_mwi(struct sccp_device *device)
 {
-	const char *context = sccp_lines_get_default(&device->lines)->cfg->context;
+	struct stasis_topic *mwi_topic;
 
 	if (ast_strlen_zero(device->cfg->voicemail)) {
 		return;
 	}
 
-	device->mwi_event_sub = ast_event_subscribe(AST_EVENT_MWI, on_mwi_event, "sccp mwi subsciption", device,
-			AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, device->cfg->voicemail,
-			AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, context,
-			AST_EVENT_IE_NEWMSGS, AST_EVENT_IE_PLTYPE_EXISTS,
-			AST_EVENT_IE_END);
+	mwi_topic = ast_mwi_topic(device->cfg->voicemail);
+	if (!mwi_topic) {
+		ast_log(LOG_WARNING, "device %s subscribe mwi failed: no mwi topic\n", device->name);
+		return;
+	}
+
+	device->mwi_event_sub = stasis_subscribe_pool(mwi_topic, on_mwi_event, device);
 	if (!device->mwi_event_sub) {
-		ast_log(LOG_WARNING, "device %s subscribe mwi failed\n", device->name);
+		ast_log(LOG_WARNING, "device %s subscribe mwi failed: could not subscribe to topic\n", device->name);
 	}
 }
 
@@ -1810,7 +1815,7 @@ static void subscribe_mwi(struct sccp_device *device)
 static void unsubscribe_mwi(struct sccp_device *device)
 {
 	if (device->mwi_event_sub) {
-		ast_event_unsubscribe(device->mwi_event_sub);
+		device->mwi_event_sub = stasis_unsubscribe_and_join(device->mwi_event_sub);
 	}
 }
 

@@ -1,6 +1,7 @@
 #ifndef SCCP_CONFIG_H_
 #define SCCP_CONFIG_H_
 
+#include <asterisk/app.h>
 #include <asterisk/channel.h>
 #include <stddef.h>
 
@@ -26,7 +27,7 @@ struct sccp_general_cfg {
 struct sccp_device_cfg {
 	char name[SCCP_DEVICE_NAME_MAX];
 	char dateformat[6];
-	char voicemail[AST_MAX_EXTENSION];
+	char voicemail[AST_MAX_MAILBOX_UNIQUEID];
 	char vmexten[AST_MAX_EXTENSION];
 	char timezone[40];
 	int keepalive;
