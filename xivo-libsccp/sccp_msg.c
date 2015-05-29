@@ -640,13 +640,13 @@ int sccp_deserializer_pop(struct sccp_deserializer *deserializer, struct sccp_ms
 	if (avail_bytes < total_length) {
 		return SCCP_DESERIALIZER_NOMSG;
 	}  else if (total_length < SCCP_MSG_MIN_TOTAL_LEN) {
-		ast_log(LOG_WARNING, "invalid message: total length (%u) is too small\n", total_length);
+		ast_log(LOG_WARNING, "invalid message: total length (%zu) is too small\n", total_length);
 		return SCCP_DESERIALIZER_MALFORMED;
 	} else if (total_length > SCCP_MSG_MAX_TOTAL_LEN) {
 		 if (total_length <= sizeof(deserializer->buf)) {
 			 copy_length = SCCP_MSG_MAX_TOTAL_LEN;
 		 } else {
-			 ast_log(LOG_WARNING, "invalid message: total length (%u) is too large\n", total_length);
+			 ast_log(LOG_WARNING, "invalid message: total length (%zu) is too large\n", total_length);
 			 return SCCP_DESERIALIZER_MALFORMED;
 		 }
 	} else {
