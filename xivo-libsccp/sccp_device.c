@@ -215,7 +215,6 @@ struct nolock_task_pickup_channel {
 
 struct nolock_task_start_channel {
 	struct ast_channel *channel;
-	struct sccp_line_cfg *line_cfg;
 };
 
 union nolock_task_data {
@@ -774,30 +773,24 @@ static int add_pickup_channel_task(struct sccp_device *device, struct ast_channe
 static void exec_start_channel(union nolock_task_data *data)
 {
 	struct ast_channel *channel = data->start_channel.channel;
-	struct sccp_line_cfg *line_cfg = data->start_channel.line_cfg;
-
-	ast_set_callerid(channel, line_cfg->cid_num, line_cfg->cid_name, NULL);
 
 	ast_pbx_start(channel);
 
 	ast_channel_unref(channel);
-	ao2_ref(line_cfg, -1);
 }
 
-static int add_start_channel_task(struct sccp_device *device, struct ast_channel *channel, struct sccp_line_cfg *line_cfg)
+static int add_start_channel_task(struct sccp_device *device, struct ast_channel *channel)
 {
 	struct nolock_task task;
 
 	task.exec = exec_start_channel;
 	task.data.start_channel.channel = channel;
-	task.data.start_channel.line_cfg = line_cfg;
 
 	if (add_nolock_task(device, &task)) {
 		return -1;
 	}
 
 	ast_channel_ref(channel);
-	ao2_ref(line_cfg, +1);
 
 	return 0;
 }
@@ -2130,7 +2123,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	if (!strcmp(device->last_exten, pickupexten)) {
 		add_pickup_channel_task(device, subchan->channel);
 	} else {
-		add_start_channel_task(device, subchan->channel, line->cfg);
+		add_start_channel_task(device, subchan->channel);
 	}
 
 	return 0;
