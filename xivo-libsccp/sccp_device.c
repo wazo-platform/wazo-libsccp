@@ -3430,8 +3430,6 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 		usleep(500000);
 	}
 
-	ast_setstate(channel, AST_STATE_UP);
-
 	return 0;
 }
 
