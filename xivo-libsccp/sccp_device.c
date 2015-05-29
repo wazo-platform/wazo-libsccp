@@ -18,6 +18,7 @@
 #include <asterisk/pbx.h>
 #include <asterisk/pickup.h>
 #include <asterisk/strings.h>
+#include <asterisk/stasis_channels.h>
 #include <asterisk/rtp_engine.h>
 #include <asterisk/utils.h>
 
@@ -801,6 +802,9 @@ static int add_start_channel_task(struct sccp_device *device, struct ast_channel
  * Since the device lock is shared between subchannels, if we are holding the device lock before calling
  * ast_channel_alloc, then it's possible that we are indirectly holding a channel lock if another
  * subchannel is trying to lock the device.
+ *
+ * The returned channel is locked (since ast_channel_lock returns the channel locked since 12.0.0) and
+ * ast_channel_stage_snapshot is called.
  */
 static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const char *exten, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor)
 {
@@ -812,6 +816,8 @@ static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const c
 	if (!channel) {
 		return NULL;
 	}
+
+	ast_channel_stage_snapshot(channel);
 
 	for (var_itr = line_cfg->chanvars; var_itr; var_itr = var_itr->next) {
 		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
@@ -2045,15 +2051,13 @@ static inline int do_answer(struct sccp_device *device, struct sccp_subchannel *
 }
 
 /*
- * This function locks the channel.
+ * \pre channel is locked
  */
 static void get_pickup_exten(struct ast_channel *channel, char *pickupexten, size_t n)
 {
 	struct ast_features_pickup_config *pickup_cfg;
 
-	ast_channel_lock(channel);
 	pickup_cfg = ast_get_chan_features_pickup_config(channel);
-	ast_channel_unlock(channel);
 
 	if (!pickup_cfg) {
 		ast_log(LOG_ERROR, "Unable to retrieve pickup configuration options. Unable to detect call pickup extension\n");
@@ -2083,9 +2087,6 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	 * session thread, so there's no race condition here
 	 */
 	channel = alloc_channel(line->cfg, device->exten, NULL, NULL);
-	if (channel) {
-		get_pickup_exten(channel, pickupexten, sizeof(pickupexten));
-	}
 
 	sccp_device_lock(device);
 
@@ -2100,11 +2101,22 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 
 	if (sccp_subchannel_set_channel(subchan, channel, NULL)) {
 		do_clear_subchannel(device, subchan);
-		goto error;
+
+		sccp_device_unlock(device);
+		ast_channel_stage_snapshot_done(channel);
+		ast_channel_unlock(channel);
+		ast_channel_release(channel);
+		sccp_device_lock(device);
+
+		return -1;
 	}
 
-	subchan->state = SCCP_RINGOUT;
 	ast_setstate(subchan->channel, AST_STATE_RING);
+	get_pickup_exten(channel, pickupexten, sizeof(pickupexten));
+	ast_channel_stage_snapshot_done(channel);
+	ast_channel_unlock(channel);
+
+	subchan->state = SCCP_RINGOUT;
 	if (ast_test_flag(subchan, SUBCHANNEL_TRANSFERRING)) {
 		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNINTRANSFER);
 	} else {
@@ -2127,13 +2139,6 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	}
 
 	return 0;
-
-error:
-	sccp_device_unlock(device);
-	ast_channel_release(channel);
-	sccp_device_lock(device);
-
-	return -1;
 }
 
 static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddial *sd)
@@ -3229,6 +3234,9 @@ struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const ch
 	sccp_device_lock(device);
 	res = channel_tech_requester_locked(device, line, channel, options, cap, cause);
 	sccp_device_unlock(device);
+
+	ast_channel_stage_snapshot_done(channel);
+	ast_channel_unlock(channel);
 
 	if (res) {
 		ast_channel_release(channel);
