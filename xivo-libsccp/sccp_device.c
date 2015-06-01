@@ -210,6 +210,14 @@ struct nolock_task_ast_queue_hangup {
 	struct ast_channel *channel;
 };
 
+struct nolock_task_ast_queue_hold {
+	struct ast_channel *channel;
+};
+
+struct nolock_task_ast_queue_unhold {
+	struct ast_channel *channel;
+};
+
 struct nolock_task_pickup_channel {
 	struct ast_channel *channel;
 };
@@ -223,6 +231,8 @@ union nolock_task_data {
 	struct nolock_task_ast_queue_control queue_control;
 	struct nolock_task_ast_queue_frame_dtmf queue_frame_dtmf;
 	struct nolock_task_ast_queue_hangup queue_hangup;
+	struct nolock_task_ast_queue_hold queue_hold;
+	struct nolock_task_ast_queue_unhold queue_unhold;
 	struct nolock_task_pickup_channel pickup_channel;
 	struct nolock_task_start_channel start_channel;
 };
@@ -731,6 +741,56 @@ static int add_ast_queue_hangup_task(struct sccp_device *device, struct ast_chan
 
 	task.exec = exec_ast_queue_hangup;
 	task.data.queue_hangup.channel = channel;
+
+	if (add_nolock_task(device, &task)) {
+		return -1;
+	}
+
+	ast_channel_ref(channel);
+
+	return 0;
+}
+
+static void exec_ast_queue_hold(union nolock_task_data *data)
+{
+	struct ast_channel *channel = data->queue_hold.channel;
+
+	ast_queue_hold(channel, NULL);
+
+	ast_channel_unref(channel);
+}
+
+static int add_ast_queue_hold_task(struct sccp_device *device, struct ast_channel *channel)
+{
+	struct nolock_task task;
+
+	task.exec = exec_ast_queue_hold;
+	task.data.queue_hold.channel = channel;
+
+	if (add_nolock_task(device, &task)) {
+		return -1;
+	}
+
+	ast_channel_ref(channel);
+
+	return 0;
+}
+
+static void exec_ast_queue_unhold(union nolock_task_data *data)
+{
+	struct ast_channel *channel = data->queue_unhold.channel;
+
+	ast_queue_unhold(channel);
+
+	ast_channel_unref(channel);
+}
+
+static int add_ast_queue_unhold_task(struct sccp_device *device, struct ast_channel *channel)
+{
+	struct nolock_task task;
+
+	task.exec = exec_ast_queue_unhold;
+	task.data.queue_unhold.channel = channel;
 
 	if (add_nolock_task(device, &task)) {
 		return -1;
@@ -1826,7 +1886,7 @@ static int do_hold(struct sccp_device *device)
 	struct sccp_subchannel *subchan = device->active_subchan;
 
 	if (subchan->channel) {
-		if (add_ast_queue_control_task(device, subchan->channel, AST_CONTROL_HOLD)) {
+		if (add_ast_queue_hold_task(device, subchan->channel)) {
 			return -1;
 		}
 	}
@@ -1857,7 +1917,7 @@ static int do_hold(struct sccp_device *device)
 static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
 	if (subchan->channel) {
-		if (add_ast_queue_control_task(device, subchan->channel, AST_CONTROL_UNHOLD)) {
+		if (add_ast_queue_unhold_task(device, subchan->channel)) {
 			return -1;
 		}
 	}
