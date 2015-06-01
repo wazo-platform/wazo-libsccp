@@ -3622,6 +3622,10 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 	case AST_CONTROL_CONNECTED_LINE:
 		indicate_connected_line(device, line, subchan, channel);
 		break;
+
+	case AST_CONTROL_MASQUERADE_NOTIFY:
+		res = _AST_PROVIDE_INBAND_SIGNALLING;
+		break;
 	}
 
 unlock:
