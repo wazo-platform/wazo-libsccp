@@ -2363,6 +2363,7 @@ static void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 	ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_RTCP, 1);
 
 	if (subchan->channel) {
+		ast_rtp_instance_set_channel_id(subchan->rtp, ast_channel_uniqueid(subchan->channel));
 		ast_channel_set_fd(subchan->channel, 0, ast_rtp_instance_fd(subchan->rtp, 0));
 		ast_channel_set_fd(subchan->channel, 1, ast_rtp_instance_fd(subchan->rtp, 1));
 	}
@@ -3643,7 +3644,12 @@ int sccp_channel_tech_fixup(struct ast_channel *oldchannel, struct ast_channel *
 	struct sccp_device *device = line->device;
 
 	sccp_device_lock(device);
+
 	subchan->channel = newchannel;
+	if (subchan->rtp) {
+		ast_rtp_instance_set_channel_id(subchan->rtp, ast_channel_uniqueid(newchannel));
+	}
+
 	sccp_device_unlock(device);
 
 	return 0;
