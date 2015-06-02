@@ -1411,7 +1411,7 @@ static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec)
 	case SCCP_CODEC_H263:
 		return ast_format_h263;
 	default:
-		return ast_format_none;
+		return NULL;
 	}
 }
 
@@ -2236,8 +2236,9 @@ static void handle_msg_capabilities_res(struct sccp_device *device, struct sccp_
 	for (i = 0; i < count; i++) {
 		sccpcodec = letohl(msg->data.caps.caps[i].codec);
 		format = codec_sccp2ast(sccpcodec);
-
-		ast_format_cap_append(device->caps, format, 0);
+		if (format) {
+			ast_format_cap_append(device->caps, format, 0);
+		}
 	}
 }
 
