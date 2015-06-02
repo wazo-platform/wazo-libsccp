@@ -3502,6 +3502,7 @@ struct ast_frame *sccp_channel_tech_read(struct ast_channel *channel)
 	struct sccp_device *device = line->device;
 	struct ast_frame *frame;
 	struct ast_rtp_instance *rtp = NULL;
+	struct ast_format_cap *caps;
 
 	sccp_device_lock(device);
 
@@ -3536,11 +3537,13 @@ unlock:
 
 	if (frame && frame->frametype == AST_FRAME_VOICE) {
 		if (ast_format_cap_iscompatible_format(ast_channel_nativeformats(channel), frame->subclass.format) == AST_FORMAT_CMP_NOT_EQUAL) {
-			/* XXX this code is suspicious... why would it happens in SCCP ?
-			 *     If we do update ast_channel_nativeformats, we might also update subchan->fmt and subchan->framing (?)
-			 *
-			 * ast_format_cap_set(ast_channel_nativeformats(channel), &frame->subclass.format);
-			 */
+			caps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+			if (caps) {
+				ast_format_cap_append(caps, frame->subclass.format, 0);
+				ast_channel_nativeformats_set(channel, caps);
+				ao2_ref(caps, -1);
+			}
+
 			ast_set_read_format(channel, ast_channel_readformat(channel));
 			ast_set_write_format(channel, ast_channel_writeformat(channel));
 		}
