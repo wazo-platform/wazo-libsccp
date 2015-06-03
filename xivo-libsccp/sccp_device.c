@@ -920,6 +920,7 @@ static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct a
 		tmpcaps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
 		if (tmpcaps) {
 			ast_format_cap_append_from_cap(tmpcaps, joint, AST_MEDIA_TYPE_UNKNOWN);
+			ast_format_cap_remove_by_type(joint, AST_MEDIA_TYPE_UNKNOWN);
 			ast_format_cap_get_compatible(tmpcaps, cap, joint);
 			ao2_ref(tmpcaps, -1);
 		}
