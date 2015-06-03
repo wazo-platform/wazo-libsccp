@@ -1916,12 +1916,6 @@ static int do_hold(struct sccp_device *device)
  */
 static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
-	if (subchan->channel) {
-		if (add_ast_queue_unhold_task(device, subchan->channel)) {
-			return -1;
-		}
-	}
-
 	/* put on connected */
 	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
@@ -2487,6 +2481,10 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 	if (ast_test_flag(device->active_subchan, SUBCHANNEL_RESUMING)) {
 		ast_clear_flag(device->active_subchan, SUBCHANNEL_RESUMING);
 		sccp_subchannel_start_media_transmission(device->active_subchan);
+
+		if (device->active_subchan->channel) {
+			add_ast_queue_unhold_task(device, device->active_subchan->channel);
+		}
 	} else {
 		start_rtp(device->active_subchan);
 	}
