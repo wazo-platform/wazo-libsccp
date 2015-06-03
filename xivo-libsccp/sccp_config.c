@@ -342,6 +342,22 @@ static int sccp_device_cfg_build_speeddials(struct sccp_device_cfg *device_cfg, 
 	return 0;
 }
 
+static void sccp_device_cfg_norm_voicemail(struct sccp_device_cfg *device_cfg)
+{
+	char buf[sizeof(device_cfg->voicemail)];
+
+	if (ast_strlen_zero(device_cfg->voicemail)) {
+		return;
+	}
+
+	if (strchr(device_cfg->voicemail, '@')) {
+		return;
+	}
+
+	strcpy(buf, device_cfg->voicemail);
+	snprintf(device_cfg->voicemail, sizeof(device_cfg->voicemail), "%s@%s", buf, device_cfg->line_cfg->context);
+}
+
 static int sccp_device_cfg_hash(const void *obj, int flags)
 {
 	const char *name;
@@ -557,6 +573,7 @@ static int cb_pre_apply_device_cfg(void *obj, void *arg, int flags)
 		return CMP_MATCH;
 	}
 
+	sccp_device_cfg_norm_voicemail(device_cfg);
 	sccp_device_cfg_free_internal(device_cfg);
 
 	return 0;
