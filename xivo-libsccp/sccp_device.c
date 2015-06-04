@@ -897,55 +897,99 @@ static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const c
 	return channel;
 }
 
+static struct ast_format_cap *sccp_line_build_native_format_cap(struct sccp_line *line, struct ast_format_cap *cap)
+{
+	struct sccp_device *device = line->device;
+	struct ast_format_cap *allowed_cap = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+	struct ast_format_cap *selected_cap = NULL;
+	struct ast_format_cap *native_cap = NULL;
+	struct ast_format *fmt = NULL;
+	unsigned int framing;
+
+	if (!allowed_cap) {
+		goto end;
+	}
+
+	ast_format_cap_get_compatible(line->cfg->caps, device->caps, allowed_cap);
+	if (ast_format_cap_empty(allowed_cap)) {
+		ast_log(LOG_WARNING, "no compatible codecs\n");
+		goto end;
+	}
+
+	if (cap && ast_format_cap_iscompatible(allowed_cap, cap)) {
+		selected_cap = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+		if (!selected_cap) {
+			goto end;
+		}
+
+		if (ast_format_cap_get_compatible(allowed_cap, cap, selected_cap)) {
+			goto end;
+		}
+	} else {
+		selected_cap = allowed_cap;
+		ao2_ref(selected_cap, +1);
+	}
+
+	if (ast_format_cap_count(selected_cap) == 1) {
+		native_cap = selected_cap;
+		ao2_ref(native_cap, +1);
+	} else {
+		native_cap = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+		if (!native_cap) {
+			goto end;
+		}
+
+		fmt = ast_format_cap_get_format(selected_cap, 0);
+		framing = ast_format_cap_get_format_framing(selected_cap, fmt);
+
+		if (ast_format_cap_append(native_cap, fmt, framing)) {
+			ao2_ref(native_cap, -1);
+			native_cap = NULL;
+			goto end;
+		}
+	}
+
+end:
+	ao2_cleanup(allowed_cap);
+	ao2_cleanup(selected_cap);
+	ao2_cleanup(fmt);
+
+	return native_cap;
+}
+
 static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct ast_channel *channel, struct ast_format_cap *cap)
 {
 	struct sccp_line *line = subchan->line;
-	struct sccp_device *device = line->device;
-	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT), ao2_cleanup);
-	struct ast_format_cap *tmpcaps = NULL;
-	struct ast_str *buf = ast_str_alloca(64);
+	struct ast_format_cap *native_cap;
 
 	if (subchan->channel) {
 		ast_log(LOG_ERROR, "subchan already has a channel\n");
 		return -1;
 	}
 
-	ast_format_cap_get_compatible(line->cfg->caps, device->caps, joint);
-	if (ast_format_cap_empty(joint)) {
-		ast_log(LOG_WARNING, "no compatible codecs\n");
+	native_cap = sccp_line_build_native_format_cap(line, cap);
+	if (!native_cap) {
 		return -1;
 	}
-
-	if (cap && ast_format_cap_iscompatible(joint, cap)) {
-		tmpcaps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
-		if (tmpcaps) {
-			ast_format_cap_append_from_cap(tmpcaps, joint, AST_MEDIA_TYPE_UNKNOWN);
-			ast_format_cap_remove_by_type(joint, AST_MEDIA_TYPE_UNKNOWN);
-			ast_format_cap_get_compatible(tmpcaps, cap, joint);
-			ao2_ref(tmpcaps, -1);
-		}
-	}
-
-	ast_debug(1, "joint capabilities %s\n", ast_format_cap_get_names(joint, &buf));
 
 	ast_channel_tech_set(channel, &sccp_tech);
 	ast_channel_tech_pvt_set(channel, subchan);
 	ao2_ref(subchan, +1);
 	subchan->channel = channel;
+	subchan->fmt = ast_format_cap_get_format(native_cap, 0);;
+	subchan->framing = ast_format_cap_get_format_framing(native_cap, subchan->fmt);
 
-	subchan->fmt = ast_format_cap_get_format(joint, 0);
-	/* XXX ast_format_cap_get_format could return null */
-	subchan->framing = ast_format_cap_get_format_framing(joint, subchan->fmt);
 	ast_debug(1, "best codec %s ms %u\n", ast_format_get_name(subchan->fmt), (unsigned int) subchan->framing);
 
-	ast_format_cap_remove_by_type(ast_channel_nativeformats(channel), AST_MEDIA_TYPE_UNKNOWN);
-	ast_format_cap_append(ast_channel_nativeformats(channel), subchan->fmt, subchan->framing);
+	ast_channel_nativeformats_set(channel, native_cap);
 	ast_channel_set_writeformat(channel, subchan->fmt);
 	ast_channel_set_rawwriteformat(channel, subchan->fmt);
 	ast_channel_set_readformat(channel, subchan->fmt);
 	ast_channel_set_rawreadformat(channel, subchan->fmt);
 
 	ast_module_ref(sccp_module_info->self);
+
+	ao2_ref(native_cap, -1);
 
 	return 0;
 }
