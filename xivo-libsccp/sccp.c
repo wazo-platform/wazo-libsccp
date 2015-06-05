@@ -262,8 +262,8 @@ static char *cli_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args
 
 static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
-#define FORMAT_STRING  "%-18.18s %-12.12s %-12.12s %-4d\n"
-#define FORMAT_STRING2 "%-18.18s %-12.12s %-12.12s %-4s\n"
+#define FORMAT_STRING  "%-18.18s %-12.12s %-24.24s %-4d\n"
+#define FORMAT_STRING2 "%-18.18s %-12.12s %-24.24s %-4s\n"
 	struct sccp_cfg *cfg;
 	struct sccp_device_cfg *device_cfg;
 	struct ao2_iterator iter;
