@@ -1,3 +1,9 @@
+xivo-libsccp (15.11~20150211.195111.685dd7f-wheezy-1+build1) xivo-dev; urgency=medium
+
+  * Update packaging
+
+ -- Sylvain Boily <sboily@avencall.com>  Tue, 09 Jun 2015 13:10:50 -0400
+
 xivo-libsccp (13.24~20131203.160736.0d232f0-2) squeeze-xivo-skaro-dev; urgency=low
 
   * update asterisk dependency from 1.8 to 11.6.0
