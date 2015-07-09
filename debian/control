@@ -1,14 +1,14 @@
 Source: xivo-libsccp
 Priority: extra
 Maintainer: XiVO Dev Team <dev@avencall.com>
-Build-Depends: debhelper (>= 7.0.50~), asterisk-dev (>= 11.6.0)
+Build-Depends: debhelper (>= 7.0.50~), asterisk-dev (>= 13.4.0)
 Standards-Version: 3.8.4
 Section: comm
 
 Package: xivo-libsccp
 Section: comm
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 11.6.0)
+Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 13.4.0)
 Conflicts: asterisk-chan-sccp
 Replaces: asterisk-chan-sccp
 Provides: asterisk-chan-sccp
