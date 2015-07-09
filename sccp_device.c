@@ -1,18 +1,24 @@
 #include <asterisk.h>
-#include <asterisk/app.h>
 #include <asterisk/astdb.h>
 #include <asterisk/astobj2.h>
+#include <asterisk/bridge.h>
 #include <asterisk/callerid.h>
 #include <asterisk/causes.h>
 #include <asterisk/channelstate.h>
 #include <asterisk/event.h>
 #include <asterisk/features.h>
+#include <asterisk/features_config.h>
 #include <asterisk/format.h>
+#include <asterisk/format_cache.h>
+#include <asterisk/format_cap.h>
 #include <asterisk/lock.h>
 #include <asterisk/module.h>
 #include <asterisk/musiconhold.h>
 #include <asterisk/network.h>
 #include <asterisk/pbx.h>
+#include <asterisk/pickup.h>
+#include <asterisk/strings.h>
+#include <asterisk/stasis_channels.h>
 #include <asterisk/rtp_engine.h>
 #include <asterisk/utils.h>
 
@@ -63,13 +69,13 @@ enum {
 struct sccp_subchannel {
 	/* (dynamic) */
 	struct ast_sockaddr direct_media_addr;
-	/* (static) */
-	struct ast_format fmt;
 
 	/* (static) */
 	struct sccp_line *line;
 	/* (dynamic) */
 	struct ast_channel *channel;
+	/* (dynamic) */
+	struct ast_format *fmt;
 	/* (dynamic) */
 	struct ast_rtp_instance *rtp;
 	/* (dynamic) */
@@ -77,6 +83,8 @@ struct sccp_subchannel {
 
 	/* (static) */
 	uint32_t id;
+	/* (dynamic) */
+	uint32_t framing;
 	/* (dynamic) */
 	enum sccp_state state;
 	/* (static) */
@@ -160,7 +168,7 @@ struct sccp_device {
 	/* (dynamic) */
 	struct ast_format_cap *caps;	/* Supported capabilities */
 	/* (dynamic, modified in thread session only) */
-	struct ast_event_sub *mwi_event_sub;
+	struct stasis_subscription *mwi_event_sub;
 	/* (dynamic) */
 	struct sccp_subchannel *active_subchan;
 
@@ -183,9 +191,9 @@ struct sccp_device {
 	char callfwd_exten[AST_MAX_EXTENSION];
 };
 
-struct nolock_task_ast_channel_xfer_masquerade {
-	struct ast_channel *active_chan;
-	struct ast_channel *related_chan;
+struct nolock_task_ast_bridge_transfer_attended {
+	struct ast_channel *to_transferee;
+	struct ast_channel *to_transfer_target;
 };
 
 struct nolock_task_ast_queue_control {
@@ -202,20 +210,29 @@ struct nolock_task_ast_queue_hangup {
 	struct ast_channel *channel;
 };
 
+struct nolock_task_ast_queue_hold {
+	struct ast_channel *channel;
+};
+
+struct nolock_task_ast_queue_unhold {
+	struct ast_channel *channel;
+};
+
 struct nolock_task_pickup_channel {
 	struct ast_channel *channel;
 };
 
 struct nolock_task_start_channel {
 	struct ast_channel *channel;
-	struct sccp_line_cfg *line_cfg;
 };
 
 union nolock_task_data {
-	struct nolock_task_ast_channel_xfer_masquerade xfer_masquerade;
+	struct nolock_task_ast_bridge_transfer_attended transfer_attended;
 	struct nolock_task_ast_queue_control queue_control;
 	struct nolock_task_ast_queue_frame_dtmf queue_frame_dtmf;
 	struct nolock_task_ast_queue_hangup queue_hangup;
+	struct nolock_task_ast_queue_hold queue_hold;
+	struct nolock_task_ast_queue_unhold queue_unhold;
 	struct nolock_task_pickup_channel pickup_channel;
 	struct nolock_task_start_channel start_channel;
 };
@@ -536,6 +553,7 @@ static void sccp_subchannel_destructor(void *data)
 	}
 
 	ao2_ref(subchan->line, -1);
+	ao2_cleanup(subchan->fmt);
 }
 
 static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uint32_t id, enum sccp_direction direction)
@@ -550,9 +568,11 @@ static struct sccp_subchannel *sccp_subchannel_alloc(struct sccp_line *line, uin
 	subchan->line = line;
 	ao2_ref(line, +1);
 	subchan->channel = NULL;
+	subchan->fmt = NULL;
 	subchan->rtp = NULL;
 	subchan->related = NULL;
 	subchan->id = id;
+	subchan->framing = 0;
 	subchan->state = SCCP_OFFHOOK;
 	subchan->direction = direction;
 	subchan->flags = 0;
@@ -598,32 +618,49 @@ static void exec_nolock_tasks(struct sccp_queue *tasks)
 	}
 }
 
-static void exec_ast_channel_transfer_masquerade(union nolock_task_data *data)
+static void exec_ast_bridge_transfer_attended(union nolock_task_data *data)
 {
-	struct ast_channel *active_chan = data->xfer_masquerade.active_chan;
-	struct ast_channel *related_chan = data->xfer_masquerade.related_chan;
+	struct ast_channel *to_transferee = data->transfer_attended.to_transferee;
+	struct ast_channel *to_transfer_target = data->transfer_attended.to_transfer_target;
+	enum ast_transfer_result res;
 
-	ast_channel_transfer_masquerade(active_chan, ast_channel_connected(active_chan), 0,
-			ast_bridged_channel(related_chan), ast_channel_connected(related_chan), 1);
+	res = ast_bridge_transfer_attended(to_transferee, to_transfer_target);
 
-	ast_channel_unref(active_chan);
-	ast_channel_unref(related_chan);
+	switch (res) {
+	case AST_BRIDGE_TRANSFER_SUCCESS:
+		break;
+	case AST_BRIDGE_TRANSFER_NOT_PERMITTED:
+		ast_log(LOG_WARNING, "attended transfer failed: transfer not permitted\n");
+		break;
+	case AST_BRIDGE_TRANSFER_INVALID:
+		ast_log(LOG_WARNING, "attended transfer failed: invalid bridge setup\n");
+		break;
+	case AST_BRIDGE_TRANSFER_FAIL:
+		ast_log(LOG_WARNING, "attended transfer failed: operation failed\n");
+		break;
+	default:
+		ast_log(LOG_WARNING, "attended transfer failed: unknown reason %d\n", (int) res);
+		break;
+	}
+
+	ast_channel_unref(to_transferee);
+	ast_channel_unref(to_transfer_target);
 }
 
-static int add_ast_channel_transfer_masquerade_task(struct sccp_device *device, struct ast_channel *active_chan, struct ast_channel *related_chan)
+static int add_ast_bridge_transfer_attended_task(struct sccp_device *device, struct ast_channel *to_transferee, struct ast_channel *to_transfer_target)
 {
 	struct nolock_task task;
 
-	task.exec = exec_ast_channel_transfer_masquerade;
-	task.data.xfer_masquerade.active_chan = active_chan;
-	task.data.xfer_masquerade.related_chan = related_chan;
+	task.exec = exec_ast_bridge_transfer_attended;
+	task.data.transfer_attended.to_transferee = to_transferee;
+	task.data.transfer_attended.to_transfer_target = to_transfer_target;
 
 	if (add_nolock_task(device, &task)) {
 		return -1;
 	}
 
-	ast_channel_ref(active_chan);
-	ast_channel_ref(related_chan);
+	ast_channel_ref(to_transferee);
+	ast_channel_ref(to_transfer_target);
 
 	return 0;
 }
@@ -714,6 +751,56 @@ static int add_ast_queue_hangup_task(struct sccp_device *device, struct ast_chan
 	return 0;
 }
 
+static void exec_ast_queue_hold(union nolock_task_data *data)
+{
+	struct ast_channel *channel = data->queue_hold.channel;
+
+	ast_queue_hold(channel, NULL);
+
+	ast_channel_unref(channel);
+}
+
+static int add_ast_queue_hold_task(struct sccp_device *device, struct ast_channel *channel)
+{
+	struct nolock_task task;
+
+	task.exec = exec_ast_queue_hold;
+	task.data.queue_hold.channel = channel;
+
+	if (add_nolock_task(device, &task)) {
+		return -1;
+	}
+
+	ast_channel_ref(channel);
+
+	return 0;
+}
+
+static void exec_ast_queue_unhold(union nolock_task_data *data)
+{
+	struct ast_channel *channel = data->queue_unhold.channel;
+
+	ast_queue_unhold(channel);
+
+	ast_channel_unref(channel);
+}
+
+static int add_ast_queue_unhold_task(struct sccp_device *device, struct ast_channel *channel)
+{
+	struct nolock_task task;
+
+	task.exec = exec_ast_queue_unhold;
+	task.data.queue_unhold.channel = channel;
+
+	if (add_nolock_task(device, &task)) {
+		return -1;
+	}
+
+	ast_channel_ref(channel);
+
+	return 0;
+}
+
 static void exec_pickup_channel(union nolock_task_data *data)
 {
 	struct ast_channel *channel = data->pickup_channel.channel;
@@ -747,30 +834,24 @@ static int add_pickup_channel_task(struct sccp_device *device, struct ast_channe
 static void exec_start_channel(union nolock_task_data *data)
 {
 	struct ast_channel *channel = data->start_channel.channel;
-	struct sccp_line_cfg *line_cfg = data->start_channel.line_cfg;
-
-	ast_set_callerid(channel, line_cfg->cid_num, line_cfg->cid_name, NULL);
 
 	ast_pbx_start(channel);
 
 	ast_channel_unref(channel);
-	ao2_ref(line_cfg, -1);
 }
 
-static int add_start_channel_task(struct sccp_device *device, struct ast_channel *channel, struct sccp_line_cfg *line_cfg)
+static int add_start_channel_task(struct sccp_device *device, struct ast_channel *channel)
 {
 	struct nolock_task task;
 
 	task.exec = exec_start_channel;
 	task.data.start_channel.channel = channel;
-	task.data.start_channel.line_cfg = line_cfg;
 
 	if (add_nolock_task(device, &task)) {
 		return -1;
 	}
 
 	ast_channel_ref(channel);
-	ao2_ref(line_cfg, +1);
 
 	return 0;
 }
@@ -781,17 +862,22 @@ static int add_start_channel_task(struct sccp_device *device, struct ast_channel
  * Since the device lock is shared between subchannels, if we are holding the device lock before calling
  * ast_channel_alloc, then it's possible that we are indirectly holding a channel lock if another
  * subchannel is trying to lock the device.
+ *
+ * The returned channel is locked (since ast_channel_lock returns the channel locked since 12.0.0) and
+ * ast_channel_stage_snapshot is called.
  */
-static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const char *exten, const char *linkedid)
+static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const char *exten, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor)
 {
 	struct ast_channel *channel;
 	struct ast_variable *var_itr;
 	char valuebuf[1024];
 
-	channel = ast_channel_alloc(1, AST_STATE_DOWN, line_cfg->cid_num, line_cfg->cid_name, "code", exten, line_cfg->context, linkedid, 0, SCCP_LINE_PREFIX "/%s-%08x", line_cfg->name, ast_atomic_fetchadd_int((int *)&chan_idx, +1));
+	channel = ast_channel_alloc(1, AST_STATE_DOWN, line_cfg->cid_num, line_cfg->cid_name, "code", exten, line_cfg->context, assignedids, requestor, 0, SCCP_LINE_PREFIX "/%s-%08x", line_cfg->name, ast_atomic_fetchadd_int((int *)&chan_idx, +1));
 	if (!channel) {
 		return NULL;
 	}
+
+	ast_channel_stage_snapshot(channel);
 
 	for (var_itr = line_cfg->chanvars; var_itr; var_itr = var_itr->next) {
 		ast_get_encoded_str(var_itr->value, valuebuf, sizeof(valuebuf));
@@ -811,49 +897,99 @@ static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const c
 	return channel;
 }
 
+static struct ast_format_cap *sccp_line_build_native_format_cap(struct sccp_line *line, struct ast_format_cap *cap)
+{
+	struct sccp_device *device = line->device;
+	struct ast_format_cap *allowed_cap = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+	struct ast_format_cap *selected_cap = NULL;
+	struct ast_format_cap *native_cap = NULL;
+	struct ast_format *fmt = NULL;
+	unsigned int framing;
+
+	if (!allowed_cap) {
+		goto end;
+	}
+
+	ast_format_cap_get_compatible(line->cfg->caps, device->caps, allowed_cap);
+	if (ast_format_cap_empty(allowed_cap)) {
+		ast_log(LOG_WARNING, "no compatible codecs\n");
+		goto end;
+	}
+
+	if (cap && ast_format_cap_iscompatible(allowed_cap, cap)) {
+		selected_cap = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+		if (!selected_cap) {
+			goto end;
+		}
+
+		if (ast_format_cap_get_compatible(allowed_cap, cap, selected_cap)) {
+			goto end;
+		}
+	} else {
+		selected_cap = allowed_cap;
+		ao2_ref(selected_cap, +1);
+	}
+
+	if (ast_format_cap_count(selected_cap) == 1) {
+		native_cap = selected_cap;
+		ao2_ref(native_cap, +1);
+	} else {
+		native_cap = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+		if (!native_cap) {
+			goto end;
+		}
+
+		fmt = ast_format_cap_get_format(selected_cap, 0);
+		framing = ast_format_cap_get_format_framing(selected_cap, fmt);
+
+		if (ast_format_cap_append(native_cap, fmt, framing)) {
+			ao2_ref(native_cap, -1);
+			native_cap = NULL;
+			goto end;
+		}
+	}
+
+end:
+	ao2_cleanup(allowed_cap);
+	ao2_cleanup(selected_cap);
+	ao2_cleanup(fmt);
+
+	return native_cap;
+}
+
 static int sccp_subchannel_set_channel(struct sccp_subchannel *subchan, struct ast_channel *channel, struct ast_format_cap *cap)
 {
 	struct sccp_line *line = subchan->line;
-	struct sccp_device *device = line->device;
-	RAII_VAR(struct ast_format_cap *, joint, ast_format_cap_alloc(), ast_format_cap_destroy);
-	struct ast_format_cap *tmpcaps = NULL;
-	int has_joint;
-	char buf[256];
+	struct ast_format_cap *native_cap;
 
 	if (subchan->channel) {
 		ast_log(LOG_ERROR, "subchan already has a channel\n");
 		return -1;
 	}
 
-	has_joint = ast_format_cap_joint_copy(line->cfg->caps, device->caps, joint);
-	if (!has_joint) {
-		ast_log(LOG_WARNING, "no compatible codecs\n");
+	native_cap = sccp_line_build_native_format_cap(line, cap);
+	if (!native_cap) {
 		return -1;
 	}
-
-	if (cap && ast_format_cap_has_joint(joint, cap)) {
-		tmpcaps = ast_format_cap_dup(joint);
-		ast_format_cap_joint_copy(tmpcaps, cap, joint);
-		ast_format_cap_destroy(tmpcaps);
-	}
-
-	ast_debug(1, "joint capabilities %s\n", ast_getformatname_multiple(buf, sizeof(buf), joint));
 
 	ast_channel_tech_set(channel, &sccp_tech);
 	ast_channel_tech_pvt_set(channel, subchan);
 	ao2_ref(subchan, +1);
 	subchan->channel = channel;
+	subchan->fmt = ast_format_cap_get_format(native_cap, 0);;
+	subchan->framing = ast_format_cap_get_format_framing(native_cap, subchan->fmt);
 
-	ast_codec_choose(&line->cfg->codec_pref, joint, 1, &subchan->fmt);
-	ast_debug(1, "best codec %s\n", ast_getformatname(&subchan->fmt));
+	ast_debug(1, "best codec %s ms %u\n", ast_format_get_name(subchan->fmt), (unsigned int) subchan->framing);
 
-	ast_format_cap_set(ast_channel_nativeformats(channel), &subchan->fmt);
-	ast_format_copy(ast_channel_writeformat(channel), &subchan->fmt);
-	ast_format_copy(ast_channel_rawwriteformat(channel), &subchan->fmt);
-	ast_format_copy(ast_channel_readformat(channel), &subchan->fmt);
-	ast_format_copy(ast_channel_rawreadformat(channel), &subchan->fmt);
+	ast_channel_nativeformats_set(channel, native_cap);
+	ast_channel_set_writeformat(channel, subchan->fmt);
+	ast_channel_set_rawwriteformat(channel, subchan->fmt);
+	ast_channel_set_readformat(channel, subchan->fmt);
+	ast_channel_set_rawreadformat(channel, subchan->fmt);
 
 	ast_module_ref(sccp_module_info->self);
+
+	ao2_ref(native_cap, -1);
 
 	return 0;
 }
@@ -1110,7 +1246,7 @@ static void sccp_device_destructor(void *data)
 
 	sccp_queue_destroy(&device->nolock_tasks);
 	ast_mutex_destroy(&device->lock);
-	ast_format_cap_destroy(device->caps);
+	ao2_ref(device->caps, -1);
 	ao2_ref(device->session, -1);
 	ao2_ref(device->cfg, -1);
 }
@@ -1152,14 +1288,14 @@ static struct sccp_device *sccp_device_alloc(struct sccp_device_cfg *cfg, struct
 	struct ast_format_cap *caps;
 	struct sccp_device *device;
 
-	caps = ast_format_cap_alloc_nolock();
+	caps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
 	if (!caps) {
 		return NULL;
 	}
 
 	device = ao2_alloc_options(sizeof(*device), sccp_device_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!device) {
-		ast_format_cap_destroy(caps);
+		ao2_ref(caps, -1);
 		return NULL;
 	}
 
@@ -1283,52 +1419,44 @@ static int sccp_device_is_idle(struct sccp_device *device)
 	return !sccp_lines_has_subchans(&device->lines);
 }
 
-static enum sccp_codecs codec_ast2sccp(struct ast_format *format)
+static enum sccp_codecs codec_ast2sccp(const struct ast_format *format)
 {
-	switch (format->id) {
-	case AST_FORMAT_ALAW:
+	if (ast_format_cmp(format, ast_format_alaw) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G711_ALAW;
-	case AST_FORMAT_ULAW:
+	} else if (ast_format_cmp(format, ast_format_ulaw) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G711_ULAW;
-	case AST_FORMAT_G723_1:
+	} else if (ast_format_cmp(format, ast_format_g723) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G723_1;
-	case AST_FORMAT_G729A:
+	} else if (ast_format_cmp(format, ast_format_g729) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G729A;
-	case AST_FORMAT_G726_AAL2:
+	} else if (ast_format_cmp(format, ast_format_g726) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G726_32;
-	case AST_FORMAT_H261:
+	} else if (ast_format_cmp(format, ast_format_h261) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_H261;
-	case AST_FORMAT_H263:
+	} else if (ast_format_cmp(format, ast_format_h263) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_H263;
-	default:
+	} else {
 		return -1;
 	}
 }
 
-static void codec_sccp2ast(enum sccp_codecs sccpcodec, struct ast_format *result)
+static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec)
 {
 	switch (sccpcodec) {
 	case SCCP_CODEC_G711_ALAW:
-		ast_format_set(result, AST_FORMAT_ALAW, 0);
-		break;
+		return ast_format_alaw;
 	case SCCP_CODEC_G711_ULAW:
-		ast_format_set(result, AST_FORMAT_ULAW, 0);
-		break;
+		return ast_format_ulaw;
 	case SCCP_CODEC_G723_1:
-		ast_format_set(result, AST_FORMAT_G723_1, 0);
-		break;
+		return ast_format_g723;
 	case SCCP_CODEC_G729A:
-		ast_format_set(result, AST_FORMAT_G729A, 0);
-		break;
+		return ast_format_g729;
 	case SCCP_CODEC_H261:
-		ast_format_set(result, AST_FORMAT_H261, 0);
-		break;
+		return ast_format_h261;
 	case SCCP_CODEC_H263:
-		ast_format_set(result, AST_FORMAT_H263, 0);
-		break;
+		return ast_format_h263;
 	default:
-		ast_format_clear(result);
-		break;
+		return NULL;
 	}
 }
 
@@ -1588,7 +1716,6 @@ static void transmit_subchan_callstate(struct sccp_device *device, struct sccp_s
 static void transmit_subchan_open_receive_channel(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
 	struct sccp_msg msg;
-	struct ast_format_list fmt;
 
 	switch (device->recv_chan_status) {
 	case SCCP_RECV_CHAN_CLOSED:
@@ -1601,8 +1728,7 @@ static void transmit_subchan_open_receive_channel(struct sccp_device *device, st
 
 	device->recv_chan_status = SCCP_RECV_CHAN_OPENING;
 
-	fmt = ast_codec_pref_getsize(&subchan->line->cfg->codec_pref, &subchan->fmt);
-	sccp_msg_open_receive_channel(&msg, subchan->id, fmt.cur_ms, codec_ast2sccp(&fmt.format));
+	sccp_msg_open_receive_channel(&msg, subchan->id, subchan->framing, codec_ast2sccp(subchan->fmt));
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -1614,12 +1740,9 @@ static void transmit_subchan_selectsoftkeys(struct sccp_device *device, struct s
 static void transmit_subchan_start_media_transmission(struct sccp_device *device, struct sccp_subchannel *subchan, struct sockaddr_in *endpoint)
 {
 	struct sccp_msg msg;
-	struct ast_format_list fmt;
-
-	fmt = ast_codec_pref_getsize(&subchan->line->cfg->codec_pref, &subchan->fmt);
 
 	ast_debug(2, "Sending start media transmission to %s: %s %d\n", sccp_session_remote_addr_ch(device->session), ast_inet_ntoa(endpoint->sin_addr), ntohs(endpoint->sin_port));
-	sccp_msg_start_media_transmission(&msg, subchan->id, fmt.cur_ms, codec_ast2sccp(&fmt.format), subchan->line->cfg->tos_audio, endpoint);
+	sccp_msg_start_media_transmission(&msg, subchan->id, subchan->framing, codec_ast2sccp(subchan->fmt), subchan->line->cfg->tos_audio, endpoint);
 	sccp_session_transmit_msg(device->session, &msg);
 }
 
@@ -1749,37 +1872,43 @@ static void cancel_callforward_input(struct sccp_device *device)
 
 /*
  * entry point: yes
- * thread: event processing thread
  */
-static void on_mwi_event(const struct ast_event *event, void *data)
+static void on_mwi_event(void *data, struct stasis_subscription *sub, struct stasis_message *msg)
 {
 	struct sccp_device *device = data;
-	int new_msgs = ast_event_get_ie_uint(event, AST_EVENT_IE_NEWMSGS);
+	struct ast_mwi_state *mwi_state;
+
+	if (ast_mwi_state_type() != stasis_message_type(msg)) {
+		return;
+	}
+
+	mwi_state = stasis_message_data(msg);
 
 	sccp_device_lock(device);
-	transmit_voicemail_lamp_state(device, new_msgs);
+	transmit_voicemail_lamp_state(device, mwi_state->new_msgs);
 	sccp_device_unlock(device);
 }
 
 /*
  * thread: session
- * locked: MUST NOT
  */
 static void subscribe_mwi(struct sccp_device *device)
 {
-	const char *context = sccp_lines_get_default(&device->lines)->cfg->context;
+	struct stasis_topic *mwi_topic;
 
 	if (ast_strlen_zero(device->cfg->voicemail)) {
 		return;
 	}
 
-	device->mwi_event_sub = ast_event_subscribe(AST_EVENT_MWI, on_mwi_event, "sccp mwi subsciption", device,
-			AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, device->cfg->voicemail,
-			AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, context,
-			AST_EVENT_IE_NEWMSGS, AST_EVENT_IE_PLTYPE_EXISTS,
-			AST_EVENT_IE_END);
+	mwi_topic = ast_mwi_topic(device->cfg->voicemail);
+	if (!mwi_topic) {
+		ast_log(LOG_WARNING, "device %s subscribe mwi failed: no mwi topic\n", device->name);
+		return;
+	}
+
+	device->mwi_event_sub = stasis_subscribe_pool(mwi_topic, on_mwi_event, device);
 	if (!device->mwi_event_sub) {
-		ast_log(LOG_WARNING, "device %s subscribe mwi failed\n", device->name);
+		ast_log(LOG_WARNING, "device %s subscribe mwi failed: could not subscribe to topic\n", device->name);
 	}
 }
 
@@ -1790,7 +1919,7 @@ static void subscribe_mwi(struct sccp_device *device)
 static void unsubscribe_mwi(struct sccp_device *device)
 {
 	if (device->mwi_event_sub) {
-		ast_event_unsubscribe(device->mwi_event_sub);
+		device->mwi_event_sub = stasis_unsubscribe_and_join(device->mwi_event_sub);
 	}
 }
 
@@ -1802,7 +1931,7 @@ static int do_hold(struct sccp_device *device)
 	struct sccp_subchannel *subchan = device->active_subchan;
 
 	if (subchan->channel) {
-		if (add_ast_queue_control_task(device, subchan->channel, AST_CONTROL_HOLD)) {
+		if (add_ast_queue_hold_task(device, subchan->channel)) {
 			return -1;
 		}
 	}
@@ -1832,12 +1961,6 @@ static int do_hold(struct sccp_device *device)
  */
 static int do_resume(struct sccp_device *device, struct sccp_subchannel *subchan)
 {
-	if (subchan->channel) {
-		if (add_ast_queue_control_task(device, subchan->channel, AST_CONTROL_UNHOLD)) {
-			return -1;
-		}
-	}
-
 	/* put on connected */
 	transmit_subchan_callstate(device, subchan, SCCP_CONNECTED);
 	transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNECTED);
@@ -2026,6 +2149,24 @@ static inline int do_answer(struct sccp_device *device, struct sccp_subchannel *
 	return do_answer_options(device, subchan, 0);
 }
 
+/*
+ * \pre channel is locked
+ */
+static void get_pickup_exten(struct ast_channel *channel, char *pickupexten, size_t n)
+{
+	struct ast_features_pickup_config *pickup_cfg;
+
+	pickup_cfg = ast_get_chan_features_pickup_config(channel);
+
+	if (!pickup_cfg) {
+		ast_log(LOG_ERROR, "Unable to retrieve pickup configuration options. Unable to detect call pickup extension\n");
+		return;
+	}
+
+	ast_copy_string(pickupexten, pickup_cfg->pickupexten, n);
+	ao2_ref(pickup_cfg, -1);
+}
+
 /* XXX whacked out operation that unlock the device and relock it after
  *     when this function returns, you must check that your invariant still make
  *     sense -- the better is to have nothing to do after this function return
@@ -2035,6 +2176,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 {
 	struct sccp_line *line = subchan->line;
 	struct ast_channel *channel;
+	char pickupexten[20] = "";
 
 	remove_dialtimeout_task(device, subchan);
 
@@ -2043,7 +2185,7 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	/* we are in the session thread and line->cfg and device->exten are updated only in
 	 * session thread, so there's no race condition here
 	 */
-	channel = alloc_channel(line->cfg, device->exten, NULL);
+	channel = alloc_channel(line->cfg, device->exten, NULL, NULL);
 
 	sccp_device_lock(device);
 
@@ -2058,11 +2200,22 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 
 	if (sccp_subchannel_set_channel(subchan, channel, NULL)) {
 		do_clear_subchannel(device, subchan);
-		goto error;
+
+		sccp_device_unlock(device);
+		ast_channel_stage_snapshot_done(channel);
+		ast_channel_unlock(channel);
+		ast_channel_release(channel);
+		sccp_device_lock(device);
+
+		return -1;
 	}
 
-	subchan->state = SCCP_RINGOUT;
 	ast_setstate(subchan->channel, AST_STATE_RING);
+	get_pickup_exten(channel, pickupexten, sizeof(pickupexten));
+	ast_channel_stage_snapshot_done(channel);
+	ast_channel_unlock(channel);
+
+	subchan->state = SCCP_RINGOUT;
 	if (ast_test_flag(subchan, SUBCHANNEL_TRANSFERRING)) {
 		transmit_subchan_selectsoftkeys(device, subchan, KEYDEF_CONNINTRANSFER);
 	} else {
@@ -2078,20 +2231,13 @@ static int start_the_call(struct sccp_device *device, struct sccp_subchannel *su
 	memcpy(device->last_exten, device->exten, AST_MAX_EXTENSION);
 	line->device->exten[0] = '\0';
 
-	if (!strcmp(device->last_exten, ast_pickup_ext())) {
+	if (!strcmp(device->last_exten, pickupexten)) {
 		add_pickup_channel_task(device, subchan->channel);
 	} else {
-		add_start_channel_task(device, subchan->channel, line->cfg);
+		add_start_channel_task(device, subchan->channel);
 	}
 
 	return 0;
-
-error:
-	sccp_device_unlock(device);
-	ast_channel_release(channel);
-	sccp_device_lock(device);
-
-	return -1;
 }
 
 static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddial *sd)
@@ -2114,7 +2260,7 @@ static void do_speeddial_action(struct sccp_device *device, struct sccp_speeddia
 
 static void handle_msg_capabilities_res(struct sccp_device *device, struct sccp_msg *msg)
 {
-	struct ast_format format;
+	struct ast_format *format;
 	uint32_t count = letohl(msg->data.caps.count);
 	uint32_t sccpcodec;
 	uint32_t i;
@@ -2124,13 +2270,14 @@ static void handle_msg_capabilities_res(struct sccp_device *device, struct sccp_
 		ast_log(LOG_WARNING, "Received more capabilities (%d) than we can handle (%d)\n", count, SCCP_MAX_CAPABILITIES);
 	}
 
-	ast_format_cap_remove_all(device->caps);
+	ast_format_cap_remove_by_type(device->caps, AST_MEDIA_TYPE_UNKNOWN);
 
 	for (i = 0; i < count; i++) {
 		sccpcodec = letohl(msg->data.caps.caps[i].codec);
-		codec_sccp2ast(sccpcodec, &format);
-
-		ast_format_cap_add(device->caps, &format);
+		format = codec_sccp2ast(sccpcodec);
+		if (format) {
+			ast_format_cap_append(device->caps, format, 0);
+		}
 	}
 }
 
@@ -2316,6 +2463,7 @@ static void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 	ast_rtp_instance_set_prop(subchan->rtp, AST_RTP_PROPERTY_RTCP, 1);
 
 	if (subchan->channel) {
+		ast_rtp_instance_set_channel_id(subchan->rtp, ast_channel_uniqueid(subchan->channel));
 		ast_channel_set_fd(subchan->channel, 0, ast_rtp_instance_fd(subchan->rtp, 0));
 		ast_channel_set_fd(subchan->channel, 1, ast_rtp_instance_fd(subchan->rtp, 1));
 	}
@@ -2332,8 +2480,7 @@ static void subchan_init_rtp_instance(struct sccp_subchannel *subchan)
 	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 8);
 	ast_rtp_codecs_payloads_set_m_type(ast_rtp_instance_get_codecs(subchan->rtp), subchan->rtp, 18);
 
-	ast_rtp_codecs_packetization_set(ast_rtp_instance_get_codecs(subchan->rtp),
-					subchan->rtp, &subchan->line->cfg->codec_pref);
+	ast_rtp_codecs_set_framing(ast_rtp_instance_get_codecs(subchan->rtp), subchan->framing);
 }
 
 static int start_rtp(struct sccp_subchannel *subchan)
@@ -2379,6 +2526,10 @@ static void handle_msg_open_receive_channel_ack(struct sccp_device *device, stru
 	if (ast_test_flag(device->active_subchan, SUBCHANNEL_RESUMING)) {
 		ast_clear_flag(device->active_subchan, SUBCHANNEL_RESUMING);
 		sccp_subchannel_start_media_transmission(device->active_subchan);
+
+		if (device->active_subchan->channel) {
+			add_ast_queue_unhold_task(device, device->active_subchan->channel);
+		}
 	} else {
 		start_rtp(device->active_subchan);
 	}
@@ -2582,12 +2733,7 @@ static void handle_softkey_transfer(struct sccp_device *device, uint32_t line_in
 			return;
 		}
 
-		if (ast_bridged_channel(related_channel)) {
-			add_ast_channel_transfer_masquerade_task(device, active_channel, related_channel);
-			add_ast_queue_hangup_task(device, related_channel);
-		} else {
-			add_ast_queue_hangup_task(device, active_channel);
-		}
+		add_ast_bridge_transfer_attended_task(device, related_channel, active_channel);
 	}
 }
 
@@ -3100,13 +3246,17 @@ int sccp_device_reset(struct sccp_device *device, enum sccp_reset_type type)
 
 void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_snapshot *snapshot)
 {
+	struct ast_str *buf = ast_str_alloca(sizeof(snapshot->capabilities));
+
 	sccp_device_lock(device);
 	snapshot->type = device->type;
 	snapshot->proto_version = device->proto_version;
 	ast_copy_string(snapshot->name, device->name, sizeof(snapshot->name));
 	ast_copy_string(snapshot->ipaddr, sccp_session_remote_addr_ch(device->session), sizeof(snapshot->ipaddr));
-	ast_getformatname_multiple(snapshot->capabilities, sizeof(snapshot->capabilities), device->caps);
+	ast_format_cap_get_names(device->caps, &buf);
 	sccp_device_unlock(device);
+
+	ast_copy_string(snapshot->capabilities, ast_str_buffer(buf), sizeof(snapshot->capabilities));
 }
 
 unsigned int sccp_device_line_count(const struct sccp_device *device)
@@ -3168,7 +3318,7 @@ static int channel_tech_requester_locked(struct sccp_device *device, struct sccp
 	return 0;
 }
 
-struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_channel *requestor, int *cause)
+struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const char *options, struct ast_format_cap *cap, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor, int *cause)
 {
 	struct sccp_device *device = line->device;
 	struct sccp_line_cfg *line_cfg;
@@ -3180,7 +3330,7 @@ struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const ch
 	ao2_ref(line_cfg, +1);
 	sccp_device_unlock(device);
 
-	channel = alloc_channel(line_cfg, "", requestor ? ast_channel_linkedid(requestor) : NULL);
+	channel = alloc_channel(line_cfg, "", assignedids, requestor);
 	ao2_ref(line_cfg, -1);
 	if (!channel) {
 		return NULL;
@@ -3189,6 +3339,9 @@ struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const ch
 	sccp_device_lock(device);
 	res = channel_tech_requester_locked(device, line, channel, options, cap, cause);
 	sccp_device_unlock(device);
+
+	ast_channel_stage_snapshot_done(channel);
+	ast_channel_unlock(channel);
 
 	if (res) {
 		ast_channel_release(channel);
@@ -3274,7 +3427,7 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 		redirecting.from.number.str = ast_strdup(line->cfg->cid_num);
 		redirecting.from.number.valid = 1;
 		update_redirecting.from.number = 1;
-		redirecting.reason = AST_REDIRECTING_REASON_UNCONDITIONAL;
+		redirecting.reason.code = AST_REDIRECTING_REASON_UNCONDITIONAL;
 		redirecting.count = 1;
 
 		ast_channel_set_redirecting(channel, &redirecting, &update_redirecting);
@@ -3383,8 +3536,6 @@ int sccp_channel_tech_answer(struct ast_channel *channel)
 		usleep(500000);
 	}
 
-	ast_setstate(channel, AST_STATE_UP);
-
 	return 0;
 }
 
@@ -3395,6 +3546,7 @@ struct ast_frame *sccp_channel_tech_read(struct ast_channel *channel)
 	struct sccp_device *device = line->device;
 	struct ast_frame *frame;
 	struct ast_rtp_instance *rtp = NULL;
+	struct ast_format_cap *caps;
 
 	sccp_device_lock(device);
 
@@ -3428,8 +3580,14 @@ unlock:
 	}
 
 	if (frame && frame->frametype == AST_FRAME_VOICE) {
-		if (!(ast_format_cap_iscompatible(ast_channel_nativeformats(channel), &frame->subclass.format))) {
-			ast_format_cap_set(ast_channel_nativeformats(channel), &frame->subclass.format);
+		if (ast_format_cap_iscompatible_format(ast_channel_nativeformats(channel), frame->subclass.format) == AST_FORMAT_CMP_NOT_EQUAL) {
+			caps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
+			if (caps) {
+				ast_format_cap_append(caps, frame->subclass.format, 0);
+				ast_channel_nativeformats_set(channel, caps);
+				ao2_ref(caps, -1);
+			}
+
 			ast_set_read_format(channel, ast_channel_readformat(channel));
 			ast_set_write_format(channel, ast_channel_writeformat(channel));
 		}
@@ -3571,6 +3729,10 @@ int sccp_channel_tech_indicate(struct ast_channel *channel, int ind, const void 
 	case AST_CONTROL_CONNECTED_LINE:
 		indicate_connected_line(device, line, subchan, channel);
 		break;
+
+	case AST_CONTROL_MASQUERADE_NOTIFY:
+		res = _AST_PROVIDE_INBAND_SIGNALLING;
+		break;
 	}
 
 unlock:
@@ -3593,7 +3755,12 @@ int sccp_channel_tech_fixup(struct ast_channel *oldchannel, struct ast_channel *
 	struct sccp_device *device = line->device;
 
 	sccp_device_lock(device);
+
 	subchan->channel = newchannel;
+	if (subchan->rtp) {
+		ast_rtp_instance_set_channel_id(subchan->rtp, ast_channel_uniqueid(newchannel));
+	}
+
 	sccp_device_unlock(device);
 
 	return 0;
@@ -3693,5 +3860,5 @@ void sccp_rtp_glue_get_codec(struct ast_channel *channel, struct ast_format_cap 
 {
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
 
-	ast_format_cap_set(result, &subchan->fmt);
+	ast_format_cap_append(result, subchan->fmt, subchan->framing);
 }

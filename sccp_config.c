@@ -91,7 +91,7 @@ static void sccp_line_cfg_destructor(void *obj)
 	ast_variables_destroy(line_cfg->chanvars);
 	ast_unref_namedgroups(line_cfg->named_callgroups);
 	ast_unref_namedgroups(line_cfg->named_pickupgroups);
-	ast_format_cap_destroy(line_cfg->caps);
+	ao2_ref(line_cfg->caps, -1);
 }
 
 static void *sccp_line_cfg_alloc(const char *category)
@@ -105,7 +105,7 @@ static void *sccp_line_cfg_alloc(const char *category)
 		return NULL;
 	}
 
-	caps = ast_format_cap_alloc_nolock();
+	caps = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
 	if (!caps) {
 		ast_free(internal);
 		return NULL;
@@ -113,7 +113,7 @@ static void *sccp_line_cfg_alloc(const char *category)
 
 	line_cfg = ao2_alloc_options(sizeof(*line_cfg), sccp_line_cfg_destructor, AO2_ALLOC_OPT_LOCK_NOLOCK);
 	if (!line_cfg) {
-		ast_format_cap_destroy(caps);
+		ao2_ref(caps, -1);
 		ast_free(internal);
 		return NULL;
 	}
@@ -342,6 +342,22 @@ static int sccp_device_cfg_build_speeddials(struct sccp_device_cfg *device_cfg, 
 	return 0;
 }
 
+static void sccp_device_cfg_norm_voicemail(struct sccp_device_cfg *device_cfg)
+{
+	char buf[sizeof(device_cfg->voicemail)];
+
+	if (ast_strlen_zero(device_cfg->voicemail)) {
+		return;
+	}
+
+	if (strchr(device_cfg->voicemail, '@')) {
+		return;
+	}
+
+	strcpy(buf, device_cfg->voicemail);
+	snprintf(device_cfg->voicemail, sizeof(device_cfg->voicemail), "%s@%s", buf, device_cfg->line_cfg->context);
+}
+
 static int sccp_device_cfg_hash(const void *obj, int flags)
 {
 	const char *name;
@@ -481,6 +497,7 @@ static struct sccp_speeddial_cfg *sccp_cfg_find_speeddial(struct sccp_cfg *cfg, 
 
 static struct aco_type speeddial_type = {
 	.type = ACO_ITEM,
+	.name = "speeddial",
 	.category_match = ACO_BLACKLIST,
 	.category = "^general$",
 	.matchfield = "type",
@@ -494,6 +511,7 @@ static struct aco_type *speeddial_types[] = ACO_TYPES(&speeddial_type);
 
 static struct aco_type line_type = {
 	.type = ACO_ITEM,
+	.name = "line",
 	.category_match = ACO_BLACKLIST,
 	.category = "^general$",
 	.matchfield = "type",
@@ -507,6 +525,7 @@ static struct aco_type *line_types[] = ACO_TYPES(&line_type);
 
 static struct aco_type device_type = {
 	.type = ACO_ITEM,
+	.name = "device",
 	.category_match = ACO_BLACKLIST,
 	.category = "^general$",
 	.matchfield = "type",
@@ -520,6 +539,7 @@ static struct aco_type *device_types[] = ACO_TYPES(&device_type);
 
 static struct aco_type general_type = {
 	.type = ACO_GLOBAL,
+	.name = "general",
 	.category_match = ACO_WHITELIST,
 	.category = "^general$",
 	.item_offset = offsetof(struct sccp_cfg, general_cfg),
@@ -537,6 +557,7 @@ static AO2_GLOBAL_OBJ_STATIC(global_cfg);
 CONFIG_INFO_STANDARD(cfg_info, global_cfg, sccp_cfg_alloc,
 	.files = ACO_FILES(&sccp_conf),
 	.pre_apply_config = pre_apply_config,
+	.hidden = 1,
 );
 
 static int cb_pre_apply_device_cfg(void *obj, void *arg, int flags)
@@ -552,6 +573,7 @@ static int cb_pre_apply_device_cfg(void *obj, void *arg, int flags)
 		return CMP_MATCH;
 	}
 
+	sccp_device_cfg_norm_voicemail(device_cfg);
 	sccp_device_cfg_free_internal(device_cfg);
 
 	return 0;
@@ -737,8 +759,8 @@ int sccp_config_init(void)
 	aco_option_register(&cfg_info, "language", ACO_EXACT, line_types, "en_US", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, language));
 	aco_option_register(&cfg_info, "directmedia", ACO_EXACT, line_types, "no", OPT_BOOL_T, 1, FLDSET(struct sccp_line_cfg, directmedia));
 	aco_option_register_custom(&cfg_info, "tos_audio", ACO_EXACT, line_types, "EF", line_cfg_tos_audio_handler, 0);
-	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, NULL, OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, codec_pref, caps));
-	aco_option_register(&cfg_info, "allow", ACO_EXACT, line_types, "ulaw,alaw", OPT_CODEC_T, 1, FLDSET(struct sccp_line_cfg, codec_pref, caps));
+	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, NULL, OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, caps));
+	aco_option_register(&cfg_info, "allow", ACO_EXACT, line_types, "ulaw,alaw", OPT_CODEC_T, 1, FLDSET(struct sccp_line_cfg, caps));
 	aco_option_register_custom(&cfg_info, "callgroup", ACO_EXACT, line_types, NULL, line_cfg_callgroup_handler, 0);
 	aco_option_register_custom(&cfg_info, "pickupgroup", ACO_EXACT, line_types, NULL, line_cfg_pickupgroup_handler, 0);
 	aco_option_register_custom(&cfg_info, "namedcallgroup", ACO_EXACT, line_types, NULL, line_cfg_namedcallgroup_handler, 0);

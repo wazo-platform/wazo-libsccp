@@ -64,7 +64,7 @@ static enum find_line_result find_line(const char *name, struct sccp_line **resu
 	return LINE_NOT_FOUND;
 }
 
-static struct ast_channel *channel_tech_requester(const char *type, struct ast_format_cap *cap, const struct ast_channel *requestor, const char *addr, int *cause)
+static struct ast_channel *channel_tech_requester(const char *type, struct ast_format_cap *cap, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor, const char *addr, int *cause)
 {
 	struct sccp_line *line;
 	struct ast_channel *channel = NULL;
@@ -77,7 +77,7 @@ static struct ast_channel *channel_tech_requester(const char *type, struct ast_f
 
 	switch (find_line(addr, &line)) {
 	case LINE_FOUND:
-		channel = sccp_channel_tech_requester(line, options, cap, requestor, cause);
+		channel = sccp_channel_tech_requester(line, options, cap, assignedids, requestor, cause);
 		ao2_ref(line, -1);
 		break;
 	case LINE_NOT_REGISTERED:
@@ -133,7 +133,6 @@ struct ast_channel_tech sccp_tech = {
 	.indicate = sccp_channel_tech_indicate,
 	.fixup = sccp_channel_tech_fixup,
 	.send_digit_end = sccp_channel_tech_send_digit_end,
-	.bridge = ast_rtp_instance_bridge,
 };
 
 static struct ast_rtp_glue sccp_rtp_glue = {
@@ -263,8 +262,8 @@ static char *cli_set_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args
 
 static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
-#define FORMAT_STRING  "%-18.18s %-12.12s %-12.12s %-4d\n"
-#define FORMAT_STRING2 "%-18.18s %-12.12s %-12.12s %-4s\n"
+#define FORMAT_STRING  "%-18.18s %-12.12s %-24.24s %-4d\n"
+#define FORMAT_STRING2 "%-18.18s %-12.12s %-24.24s %-4s\n"
 	struct sccp_cfg *cfg;
 	struct sccp_device_cfg *device_cfg;
 	struct ao2_iterator iter;
@@ -413,14 +412,14 @@ static struct ast_cli_entry cli_entries[] = {
 
 static int register_sccp_tech(void)
 {
-	sccp_tech.capabilities = ast_format_cap_alloc();
+	sccp_tech.capabilities = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
 	if (!sccp_tech.capabilities) {
 		return -1;
 	}
 
-	ast_format_cap_add_all_by_type(sccp_tech.capabilities, AST_FORMAT_TYPE_AUDIO);
+	ast_format_cap_append_by_type(sccp_tech.capabilities, AST_MEDIA_TYPE_AUDIO);
 	if (ast_channel_register(&sccp_tech) == -1) {
-		ast_format_cap_destroy(sccp_tech.capabilities);
+		ao2_ref(sccp_tech.capabilities, -1);
 		return -1;
 	}
 
@@ -430,7 +429,7 @@ static int register_sccp_tech(void)
 static void unregister_sccp_tech(void)
 {
 	ast_channel_unregister(&sccp_tech);
-	ast_format_cap_destroy(sccp_tech.capabilities);
+	ao2_ref(sccp_tech.capabilities, -1);
 }
 
 static int load_module(void)

@@ -5,7 +5,7 @@ guest = no
 [SEP0015C66BFD16]
 type = device
 dateformat = D/M/Y
-voicemail = 1002
+voicemail = 1002@foobar
 vmexten = *98
 keepalive = 10
 dialtimeout = 5
