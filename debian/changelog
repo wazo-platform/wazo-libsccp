@@ -1,3 +1,9 @@
+xivo-libsccp (15.20~20151208.181251) xivo-dev; urgency=medium
+
+  * Update Jessie
+
+ -- Francois Blackburn <fblackburn@avencall.com>  Tue, 08 Dec 2015 13:12:51 -0500
+
 xivo-libsccp (15.11~20150211.195111.685dd7f-wheezy-1+build1) xivo-dev; urgency=medium
 
   * Update packaging
