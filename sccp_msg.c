@@ -970,6 +970,8 @@ static const char *sccp_codecs_str(enum sccp_codecs v)
 		return "G.711 a-law";
 	case SCCP_CODEC_G711_ULAW:
 		return "G.711 u-law";
+	case SCCP_CODEC_G722:
+		return "G.722";
 	case SCCP_CODEC_G723_1:
 		return "G723.1";
 	case SCCP_CODEC_G729A:

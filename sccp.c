@@ -308,8 +308,8 @@ static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 
 static char *cli_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
-#define FORMAT_STRING  "%-16.16s %-16.16s %-6.6s %-6.6s %-18.18s\n"
-#define FORMAT_STRING2 "%-16.16s %-16.16s %-6.6s %-6u %-18.18s\n"
+#define FORMAT_STRING  "%-16.16s %-16.16s %-6.6s %-6.6s %-25.25s\n"
+#define FORMAT_STRING2 "%-16.16s %-16.16s %-6.6s %-6u %-25.25s\n"
 	struct sccp_device_snapshot *snapshots;
 	size_t n;
 	size_t i;

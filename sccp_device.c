@@ -1425,6 +1425,8 @@ static enum sccp_codecs codec_ast2sccp(const struct ast_format *format)
 		return SCCP_CODEC_G711_ALAW;
 	} else if (ast_format_cmp(format, ast_format_ulaw) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G711_ULAW;
+	} else if (ast_format_cmp(format, ast_format_g722) == AST_FORMAT_CMP_EQUAL) {
+		return SCCP_CODEC_G722;
 	} else if (ast_format_cmp(format, ast_format_g723) == AST_FORMAT_CMP_EQUAL) {
 		return SCCP_CODEC_G723_1;
 	} else if (ast_format_cmp(format, ast_format_g729) == AST_FORMAT_CMP_EQUAL) {
@@ -1447,6 +1449,8 @@ static struct ast_format *codec_sccp2ast(enum sccp_codecs sccpcodec)
 		return ast_format_alaw;
 	case SCCP_CODEC_G711_ULAW:
 		return ast_format_ulaw;
+	case SCCP_CODEC_G722:
+		return ast_format_g722;
 	case SCCP_CODEC_G723_1:
 		return ast_format_g723;
 	case SCCP_CODEC_G729A:

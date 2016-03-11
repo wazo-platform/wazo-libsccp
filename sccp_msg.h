@@ -168,6 +168,7 @@ enum sccp_softkey_type {
 enum sccp_codecs {
 	SCCP_CODEC_G711_ALAW = 2,
 	SCCP_CODEC_G711_ULAW = 4,
+	SCCP_CODEC_G722 = 6,
 	SCCP_CODEC_G723_1 = 9,
 	SCCP_CODEC_G729A = 12,
 	SCCP_CODEC_G726_32 = 82,
