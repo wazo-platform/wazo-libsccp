@@ -872,7 +872,7 @@ static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const c
 	struct ast_variable *var_itr;
 	char valuebuf[1024];
 
-	channel = ast_channel_alloc(1, AST_STATE_DOWN, line_cfg->cid_num, line_cfg->cid_name, "code", exten, line_cfg->context, assignedids, requestor, 0, SCCP_LINE_PREFIX "/%s-%08x", line_cfg->name, ast_atomic_fetchadd_int((int *)&chan_idx, +1));
+	channel = ast_channel_alloc(1, AST_STATE_DOWN, line_cfg->cid_num, line_cfg->cid_name, line_cfg->accountcode, exten, line_cfg->context, assignedids, requestor, 0, SCCP_LINE_PREFIX "/%s-%08x", line_cfg->name, ast_atomic_fetchadd_int((int *)&chan_idx, +1));
 	if (!channel) {
 		return NULL;
 	}

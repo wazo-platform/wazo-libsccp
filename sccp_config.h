@@ -46,6 +46,7 @@ struct sccp_line_cfg {
 	char cid_name[40];
 	char language[MAX_LANGUAGE];
 	char context[AST_MAX_CONTEXT];
+	char accountcode[AST_MAX_ACCOUNT_CODE];
 	int directmedia;
 	unsigned int tos_audio;
 

@@ -757,6 +757,7 @@ int sccp_config_init(void)
 	aco_option_register_custom(&cfg_info, "setvar", ACO_EXACT, line_types, NULL, line_cfg_setvar_handler, 0);
 	aco_option_register(&cfg_info, "context", ACO_EXACT, line_types, "default", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, context));
 	aco_option_register(&cfg_info, "language", ACO_EXACT, line_types, "en_US", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, language));
+	aco_option_register(&cfg_info, "accountcode", ACO_EXACT, line_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, accountcode));
 	aco_option_register(&cfg_info, "directmedia", ACO_EXACT, line_types, "no", OPT_BOOL_T, 1, FLDSET(struct sccp_line_cfg, directmedia));
 	aco_option_register_custom(&cfg_info, "tos_audio", ACO_EXACT, line_types, "EF", line_cfg_tos_audio_handler, 0);
 	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, NULL, OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, caps));
