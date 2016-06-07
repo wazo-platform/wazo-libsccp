@@ -22,6 +22,7 @@ setvar = XIVO_USERID=1
 setvar = PICKUPMARK=1001%default
 context = default
 language = en_US
+accountcode = 1001
 directmedia = yes
 tos_audio = EF
 disallow = all

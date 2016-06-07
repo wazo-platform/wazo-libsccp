@@ -17,7 +17,7 @@ static int sccp_device_hash(const void *obj, int flags)
 {
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = (const char *) obj;
 	} else {
 		name = sccp_device_name((const struct sccp_device *) obj);
@@ -31,7 +31,7 @@ static int sccp_device_cmp(void *obj, void *arg, int flags)
 	struct sccp_device *device = obj;
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = (const char *) arg;
 	} else {
 		name = sccp_device_name((const struct sccp_device *) arg);
@@ -44,7 +44,7 @@ static int sccp_line_hash(const void *obj, int flags)
 {
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = (const char *) obj;
 	} else {
 		name = sccp_line_name((const struct sccp_line *) obj);
@@ -58,7 +58,7 @@ static int sccp_line_cmp(void *obj, void *arg, int flags)
 	struct sccp_line *line = obj;
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = (const char *) arg;
 	} else {
 		name = sccp_line_name((const struct sccp_line *) arg);
@@ -157,7 +157,7 @@ int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_
 
 	ast_mutex_lock(&registry->lock);
 
-	other_device = ao2_find(registry->devices, sccp_device_name(device), OBJ_KEY);
+	other_device = ao2_find(registry->devices, sccp_device_name(device), OBJ_SEARCH_KEY);
 	if (other_device) {
 		ao2_ref(other_device, -1);
 		ret = SCCP_DEVICE_REGISTRY_ALREADY;
@@ -204,7 +204,7 @@ struct sccp_device *sccp_device_registry_find(struct sccp_device_registry *regis
 	}
 
 	ast_mutex_lock(&registry->lock);
-	device = ao2_find(registry->devices, name, OBJ_KEY);
+	device = ao2_find(registry->devices, name, OBJ_SEARCH_KEY);
 	ast_mutex_unlock(&registry->lock);
 
 	return device;
@@ -220,7 +220,7 @@ struct sccp_line *sccp_device_registry_find_line(struct sccp_device_registry *re
 	}
 
 	ast_mutex_lock(&registry->lock);
-	line = ao2_find(registry->lines, name, OBJ_KEY);
+	line = ao2_find(registry->lines, name, OBJ_SEARCH_KEY);
 	ast_mutex_unlock(&registry->lock);
 
 	return line;

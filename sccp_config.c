@@ -55,7 +55,7 @@ static int sccp_speeddial_cfg_hash(const void *obj, int flags)
 {
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = obj;
 	} else {
 		name = ((const struct sccp_speeddial_cfg *) obj)->name;
@@ -69,7 +69,7 @@ static int sccp_speeddial_cfg_cmp(void *obj, void *arg, int flags)
 	struct sccp_speeddial_cfg *speeddial_cfg = obj;
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = arg;
 	} else {
 		name = ((const struct sccp_speeddial_cfg *) arg)->name;
@@ -80,7 +80,7 @@ static int sccp_speeddial_cfg_cmp(void *obj, void *arg, int flags)
 
 static void *sccp_speeddial_cfg_find(struct ao2_container *container, const char *category)
 {
-	return ao2_find(container, category, OBJ_KEY);
+	return ao2_find(container, category, OBJ_SEARCH_KEY);
 }
 
 static void sccp_line_cfg_destructor(void *obj)
@@ -145,7 +145,7 @@ static int sccp_line_cfg_hash(const void *obj, int flags)
 {
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = obj;
 	} else {
 		name = ((const struct sccp_line_cfg *) obj)->name;
@@ -159,7 +159,7 @@ static int sccp_line_cfg_cmp(void *obj, void *arg, int flags)
 	struct sccp_line_cfg *line_cfg = obj;
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = arg;
 	} else {
 		name = ((const struct sccp_line_cfg *) arg)->name;
@@ -170,7 +170,7 @@ static int sccp_line_cfg_cmp(void *obj, void *arg, int flags)
 
 static void *sccp_line_cfg_find(struct ao2_container *container, const char *category)
 {
-	return ao2_find(container, category, OBJ_KEY);
+	return ao2_find(container, category, OBJ_SEARCH_KEY);
 }
 
 static void sccp_device_cfg_destructor(void *obj)
@@ -362,7 +362,7 @@ static int sccp_device_cfg_hash(const void *obj, int flags)
 {
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = obj;
 	} else {
 		name = ((const struct sccp_device_cfg *) obj)->name;
@@ -376,7 +376,7 @@ static int sccp_device_cfg_cmp(void *obj, void *arg, int flags)
 	struct sccp_device_cfg *device_cfg = obj;
 	const char *name;
 
-	if (flags & OBJ_KEY) {
+	if (flags & OBJ_SEARCH_KEY) {
 		name = arg;
 	} else {
 		name = ((const struct sccp_device_cfg *) arg)->name;
@@ -387,7 +387,7 @@ static int sccp_device_cfg_cmp(void *obj, void *arg, int flags)
 
 static void *sccp_device_cfg_find(struct ao2_container *container, const char *category)
 {
-	return ao2_find(container, category, OBJ_KEY);
+	return ao2_find(container, category, OBJ_SEARCH_KEY);
 }
 
 static void sccp_general_cfg_destructor(void *obj)
@@ -492,7 +492,7 @@ error:
 
 static struct sccp_speeddial_cfg *sccp_cfg_find_speeddial(struct sccp_cfg *cfg, const char *name)
 {
-	return ao2_find(cfg->speeddials_cfg, name, OBJ_KEY);
+	return ao2_find(cfg->speeddials_cfg, name, OBJ_SEARCH_KEY);
 }
 
 static struct aco_type speeddial_type = {
@@ -757,6 +757,7 @@ int sccp_config_init(void)
 	aco_option_register_custom(&cfg_info, "setvar", ACO_EXACT, line_types, NULL, line_cfg_setvar_handler, 0);
 	aco_option_register(&cfg_info, "context", ACO_EXACT, line_types, "default", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, context));
 	aco_option_register(&cfg_info, "language", ACO_EXACT, line_types, "en_US", OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, language));
+	aco_option_register(&cfg_info, "accountcode", ACO_EXACT, line_types, NULL, OPT_CHAR_ARRAY_T, 0, CHARFLDSET(struct sccp_line_cfg, accountcode));
 	aco_option_register(&cfg_info, "directmedia", ACO_EXACT, line_types, "no", OPT_BOOL_T, 1, FLDSET(struct sccp_line_cfg, directmedia));
 	aco_option_register_custom(&cfg_info, "tos_audio", ACO_EXACT, line_types, "EF", line_cfg_tos_audio_handler, 0);
 	aco_option_register(&cfg_info, "disallow", ACO_EXACT, line_types, NULL, OPT_CODEC_T, 0, FLDSET(struct sccp_line_cfg, caps));
@@ -807,7 +808,7 @@ struct sccp_cfg *sccp_config_get(void)
 
 struct sccp_device_cfg *sccp_cfg_find_device(struct sccp_cfg *cfg, const char *name)
 {
-	return ao2_find(cfg->devices_cfg, name, OBJ_KEY);
+	return ao2_find(cfg->devices_cfg, name, OBJ_SEARCH_KEY);
 }
 
 struct sccp_device_cfg *sccp_cfg_find_device_or_guest(struct sccp_cfg *cfg, const char *name)
@@ -830,5 +831,5 @@ struct sccp_device_cfg *sccp_cfg_find_device_or_guest(struct sccp_cfg *cfg, cons
 
 struct sccp_line_cfg *sccp_cfg_find_line(struct sccp_cfg *cfg, const char *name)
 {
-	return ao2_find(cfg->lines_cfg, name, OBJ_KEY);
+	return ao2_find(cfg->lines_cfg, name, OBJ_SEARCH_KEY);
 }
