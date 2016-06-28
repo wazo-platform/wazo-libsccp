@@ -308,9 +308,7 @@ static int new_server_socket(void)
 	}
 
 	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &flag_reuse, sizeof(flag_reuse)) == -1) {
-		ast_log(LOG_ERROR, "server new socket failed: setsockopt: %s\n", strerror(errno));
-		close(sockfd);
-		return -1;
+		ast_log(LOG_ERROR, "server new socket error: setsockopt: %s\n", strerror(errno));
 	}
 
 	memset(&addr, 0, sizeof(addr));
