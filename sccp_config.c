@@ -745,7 +745,7 @@ int sccp_config_init(void)
 	/* general options */
 	aco_option_register(&cfg_info, "authtimeout", ACO_EXACT, general_types, "5", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_general_cfg, authtimeout), 1, 60);
 	aco_option_register_custom(&cfg_info, "guest", ACO_EXACT, general_types, "no", general_cfg_guest_handler, 0);
-	aco_option_register_custom(&cfg_info, "tos", ACO_EXACT, general_types, "0", general_cfg_tos_handler, 0);
+	aco_option_register_custom(&cfg_info, "tos", ACO_EXACT, general_types, "AF31", general_cfg_tos_handler, 0);
 
 	/* device options */
 	aco_option_register(&cfg_info, "type", ACO_EXACT, device_types, NULL, OPT_NOOP_T, 0, 0);
