@@ -9,6 +9,7 @@
 #include "sccp_queue.h"
 #include "sccp_server.h"
 #include "sccp_session.h"
+#include "sccp_utils.h"
 
 #define SERVER_PORT 2000
 #define SERVER_BACKLOG 50
@@ -222,6 +223,8 @@ static void server_reload_config(struct sccp_server *server, struct sccp_cfg *cf
 {
 	struct server_session *srv_session;
 
+	sccp_socket_set_tos(server->sockfd, cfg, server->cfg);
+
 	ao2_ref(server->cfg, -1);
 	server->cfg = cfg;
 	ao2_ref(cfg, +1);
@@ -295,7 +298,7 @@ static void server_join_sessions(struct sccp_server *server)
 	AST_LIST_TRAVERSE_SAFE_END;
 }
 
-static int new_server_socket(void)
+static int new_server_socket(struct sccp_cfg *cfg)
 {
 	struct sockaddr_in addr;
 	int sockfd;
@@ -303,13 +306,15 @@ static int new_server_socket(void)
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd == -1) {
-		ast_log(LOG_ERROR, "server new socket failed: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "server new socket failed: socket: %s\n", strerror(errno));
 		return -1;
 	}
 
 	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &flag_reuse, sizeof(flag_reuse)) == -1) {
-		ast_log(LOG_ERROR, "server new socket error: setsockopt: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "server new socket error: setsockopt REUSEADDR: %s\n", strerror(errno));
 	}
+
+	sccp_socket_set_tos(sockfd, cfg, NULL);
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
@@ -328,7 +333,7 @@ static int server_start(struct sccp_server *server)
 {
 	int ret;
 
-	server->sockfd = new_server_socket();
+	server->sockfd = new_server_socket(server->cfg);
 	if (server->sockfd == -1) {
 		return -1;
 	}

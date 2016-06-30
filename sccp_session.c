@@ -326,6 +326,8 @@ static void process_reload_config(struct sccp_session *session, struct sccp_cfg 
 {
 	struct sccp_device_cfg *device_cfg;
 
+	sccp_socket_set_tos(session->sockfd, cfg, session->cfg);
+
 	ao2_ref(session->cfg, -1);
 	session->cfg = cfg;
 	ao2_ref(cfg, +1);
