@@ -18,6 +18,7 @@ struct sccp_cfg {
 
 struct sccp_general_cfg {
 	int authtimeout;
+	unsigned int tos;
 
 	struct sccp_device_cfg *guest_device_cfg;
 

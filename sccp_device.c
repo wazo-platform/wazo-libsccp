@@ -863,7 +863,7 @@ static int add_start_channel_task(struct sccp_device *device, struct ast_channel
  * ast_channel_alloc, then it's possible that we are indirectly holding a channel lock if another
  * subchannel is trying to lock the device.
  *
- * The returned channel is locked (since ast_channel_lock returns the channel locked since 12.0.0) and
+ * The returned channel is locked (since ast_channel_alloc returns the channel locked since 12.0.0) and
  * ast_channel_stage_snapshot is called.
  */
 static struct ast_channel *alloc_channel(struct sccp_line_cfg *line_cfg, const char *exten, const struct ast_assigned_ids *assignedids, const struct ast_channel *requestor)
