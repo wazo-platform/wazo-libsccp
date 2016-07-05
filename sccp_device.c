@@ -2985,6 +2985,10 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 	case VERSION_REQ_MESSAGE:
 		handle_msg_version_req(device);
 		break;
+
+	default:
+		ast_debug(1, "ignoring message with ID 0x%04X\n", msg_id);
+		break;
 	}
 }
 
