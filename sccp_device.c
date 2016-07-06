@@ -3619,13 +3619,13 @@ int sccp_channel_tech_write(struct ast_channel *channel, struct ast_frame *frame
 	sccp_device_lock(device);
 
 	if (device->state == STATE_DESTROYED) {
-		ast_debug(1, "not writing frame: device is destroyed\n");
+		ast_debug(2, "not writing frame: device is destroyed\n");
 		res = -1;
 		goto unlock;
 	}
 
 	if (subchan != device->active_subchan) {
-		ast_debug(1, "not writing frame: subchan is not active\n");
+		ast_debug(2, "not writing frame: subchan is not active\n");
 		goto unlock;
 	}
 
@@ -3636,7 +3636,7 @@ int sccp_channel_tech_write(struct ast_channel *channel, struct ast_frame *frame
 		transmit_subchan_stop_tone(device, subchan);
 		transmit_subchan_open_receive_channel(device, subchan);
 	} else {
-		ast_debug(1, "not writing frame: device is not ready\n");
+		ast_debug(2, "not writing frame: device is not ready\n");
 	}
 
 unlock:
@@ -3827,7 +3827,7 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 	}
 
 	if (subchan != device->active_subchan) {
-		ast_debug(1, "not updating peer: subchan is not active\n");
+		ast_debug(2, "not updating peer: subchan is not active\n");
 		goto unlock;
 	}
 
@@ -3842,7 +3842,7 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 
 	changed = ast_rtp_instance_get_and_cmp_remote_address(rtp, &subchan->direct_media_addr);
 	if (!changed) {
-		ast_debug(1, "not updating peer: remote address has not changed\n");
+		ast_debug(2, "not updating peer: remote address has not changed\n");
 		goto unlock;
 	}
 
@@ -3855,7 +3855,7 @@ int sccp_rtp_glue_update_peer(struct ast_channel *channel, struct ast_rtp_instan
 		transmit_subchan_start_media_transmission(device, subchan, &endpoint);
 		add_ast_queue_control_task(device, subchan->channel, AST_CONTROL_UPDATE_RTP_PEER);
 	} else {
-		ast_debug(1, "updating peer: remote address is 0, device will send media to asterisk\n");
+		ast_debug(2, "updating peer: remote address is 0, device will send media to asterisk\n");
 
 		transmit_stop_media_transmission(device, subchan->id);
 		transmit_subchan_start_media_transmission(device, subchan, &local);
