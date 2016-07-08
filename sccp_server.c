@@ -196,7 +196,6 @@ static int server_join(struct sccp_server *server)
 {
 	int ret;
 
-	ast_debug(1, "joining server thread\n");
 	ret = pthread_join(server->thread, NULL);
 	if (ret) {
 		ast_log(LOG_ERROR, "server join failed: pthread_join: %s\n", strerror(ret));
@@ -490,8 +489,6 @@ static void *server_run(void *data)
 	}
 
 end:
-	ast_debug(1, "server thread is leaving\n");
-
 	close(server->sockfd);
 	server_close_queue(server);
 	server_empty_queue(server);
