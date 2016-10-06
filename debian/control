@@ -1,12 +1,12 @@
 Source: xivo-libsccp
-Priority: extra
-Maintainer: XiVO Dev Team <dev@avencall.com>
-Build-Depends: debhelper (>= 9), asterisk-dev (>= 13.4.0)
-Standards-Version: 3.8.4
 Section: comm
+Priority: extra
+Maintainer: XiVO Dev Team <dev+pkg@proformatique.com>
+Uploaders: XiVO Builder Team <release@xivo.io>
+Build-Depends: debhelper (>= 9), asterisk-dev (>= 13.4.0)
+Standards-Version: 3.9.6
 
 Package: xivo-libsccp
-Section: comm
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 13.4.0)
 Conflicts: asterisk-chan-sccp
@@ -16,7 +16,6 @@ Description: Skinny Client Control Protocol
  Skinny Client Control Protocol, an implementation of the CISCO SCCP protocol.
 
 Package: xivo-libsccp-dbg
-Section: comm
 Architecture: any
 Depends: xivo-libsccp (= ${Source-Version})
 Conflicts: asterisk-chan-sccp-dbg
