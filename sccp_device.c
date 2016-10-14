@@ -293,7 +293,7 @@ static struct sccp_speeddial *sccp_speeddial_alloc(struct sccp_speeddial_cfg *cf
 	return sd;
 }
 
-static int on_extension_state_change(char *context, char *id, struct ast_state_cb_info *info, void *data)
+static int on_extension_state_change(const char *context, const char *exten, struct ast_state_cb_info *info, void *data)
 {
 	struct sccp_speeddial *sd = data;
 	struct sccp_device *device = sd->device;
