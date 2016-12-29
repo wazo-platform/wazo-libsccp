@@ -7,10 +7,5 @@ McNamara & Florian Overkamp.
 
 ## Getting Started
 
-* http://documentation.xivo.io/en/stable/contributors/sccp.html
-* https://github.com/xivo-pbx/xivo-libsccp
-
-## Authors
-
-* XiVO development team
-* Nicolas Bouliane
+* http://documentation.wazo.community/en/stable/contributors/sccp.html
+* https://github.com/wazo-pbx/xivo-libsccp
