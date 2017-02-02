@@ -282,7 +282,8 @@ static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 	cfg = sccp_config_get();
 
 	ast_cli(a->fd, "authtimeout = %d\n", cfg->general_cfg->authtimeout);
-	ast_cli(a->fd, "guest = %s\n\n", AST_CLI_YESNO(cfg->general_cfg->guest_device_cfg));
+	ast_cli(a->fd, "guest = %s\n", AST_CLI_YESNO(cfg->general_cfg->guest_device_cfg));
+	ast_cli(a->fd, "max_guests = %u\n\n", cfg->general_cfg->max_guests);
 
 	ast_cli(a->fd, FORMAT_STRING2, "Device", "Line", "Voicemail", "Speeddials");
 	iter = ao2_iterator_init(cfg->devices_cfg, 0);
@@ -435,7 +436,7 @@ static void unregister_sccp_tech(void)
 
 static int load_module(void)
 {
-	struct sccp_cfg *cfg;
+	struct sccp_cfg *cfg = NULL;
 
 	sccp_module_info = ast_module_info;
 
@@ -447,7 +448,8 @@ static int load_module(void)
 		goto fail2;
 	}
 
-	global_registry = sccp_device_registry_create();
+	cfg = sccp_config_get();
+	global_registry = sccp_device_registry_create(cfg);
 	if (!global_registry) {
 		goto fail2;
 	}
@@ -457,9 +459,7 @@ static int load_module(void)
 		goto fail3;
 	}
 
-	cfg = sccp_config_get();
 	global_server = sccp_server_create(cfg, global_registry);
-	ao2_ref(cfg, -1);
 	if (!global_server) {
 		goto fail4;
 	}
@@ -477,6 +477,7 @@ static int load_module(void)
 	}
 
 	ast_cli_register_multiple(cli_entries, ARRAY_LEN(cli_entries));
+	ao2_ref(cfg, -1);
 
 	return AST_MODULE_LOAD_SUCCESS;
 
@@ -491,6 +492,7 @@ fail4:
 fail3:
 	sccp_device_registry_destroy(global_registry);
 fail2:
+	ao2_cleanup(cfg);
 	sccp_config_destroy();
 fail1:
 
@@ -514,14 +516,15 @@ static int unload_module(void)
 static int reload(void)
 {
 	struct sccp_cfg *cfg;
-	int ret;
+	int ret = 0;
 
 	if (sccp_config_reload()) {
 		return -1;
 	}
 
 	cfg = sccp_config_get();
-	ret = sccp_server_reload_config(global_server, cfg);
+	ret |= sccp_server_reload_config(global_server, cfg);
+	ret |= sccp_device_registry_reload_config(global_registry, cfg);
 	ao2_ref(cfg, -1);
 
 	return ret ? -1 : 0;

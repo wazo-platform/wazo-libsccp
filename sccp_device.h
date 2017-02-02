@@ -120,6 +120,13 @@ struct sccp_line* sccp_device_line(struct sccp_device *device, unsigned int i);
 const char *sccp_device_name(const struct sccp_device *device);
 
 /*!
+ * \brief Return non-zero if the device is a guest device.
+ *
+ * \note The "guest" state of a device is a constant attribute.
+ */
+int sccp_device_is_guest(struct sccp_device *device);
+
+/*!
  * \brief Return the name of the line.
  *
  * \note The name of a line is a constant attribute.

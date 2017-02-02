@@ -4,11 +4,14 @@
 #include <asterisk/strings.h>
 
 #include "sccp.h"
+#include "sccp_config.h"
 #include "sccp_device.h"
 #include "sccp_device_registry.h"
 
 struct sccp_device_registry {
 	ast_mutex_t lock;
+	unsigned int max_guests;
+	unsigned int cur_guests;
 	struct ao2_container *devices;
 	struct ao2_container *lines;
 };
@@ -67,9 +70,14 @@ static int sccp_line_cmp(void *obj, void *arg, int flags)
 	return strcmp(sccp_line_name(line), name) ? 0 : (CMP_MATCH | CMP_STOP);
 }
 
-struct sccp_device_registry *sccp_device_registry_create(void)
+struct sccp_device_registry *sccp_device_registry_create(struct sccp_cfg *cfg)
 {
 	struct sccp_device_registry *registry;
+
+	if (!cfg) {
+		ast_log(LOG_ERROR, "sccp device registry create failed: cfg is null\n");
+		return NULL;
+	}
 
 	registry = ast_calloc(1, sizeof(*registry));
 	if (!registry) {
@@ -90,6 +98,8 @@ struct sccp_device_registry *sccp_device_registry_create(void)
 	}
 
 	ast_mutex_init(&registry->lock);
+	registry->max_guests = cfg->general_cfg->max_guests;
+	registry->cur_guests = 0;
 
 	return registry;
 }
@@ -149,13 +159,20 @@ int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_
 {
 	struct sccp_device *other_device;
 	int ret = 0;
+	int is_guest;
 
 	if (!device) {
 		ast_log(LOG_ERROR, "sccp device registry add failed: device is null\n");
 		return -1;
 	}
 
+	is_guest = sccp_device_is_guest(device);
 	ast_mutex_lock(&registry->lock);
+
+	if (is_guest && registry->cur_guests >= registry->max_guests) {
+		ret = SCCP_DEVICE_REGISTRY_MAXGUESTS;
+		goto unlock;
+	}
 
 	other_device = ao2_find(registry->devices, sccp_device_name(device), OBJ_SEARCH_KEY);
 	if (other_device) {
@@ -175,6 +192,10 @@ int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_
 		goto unlock;
 	}
 
+	if (is_guest) {
+		registry->cur_guests++;
+	}
+
 unlock:
 	ast_mutex_unlock(&registry->lock);
 
@@ -183,14 +204,22 @@ unlock:
 
 void sccp_device_registry_remove(struct sccp_device_registry *registry, struct sccp_device *device)
 {
+	int is_guest;
+
 	if (!device) {
 		ast_log(LOG_ERROR, "sccp device registry remove failed: device is null\n");
 		return;
 	}
 
+	is_guest = sccp_device_is_guest(device);
 	ast_mutex_lock(&registry->lock);
 	remove_lines(registry, device);
 	remove_device(registry, device);
+
+	if (is_guest && registry->cur_guests) {
+		registry->cur_guests--;
+	}
+
 	ast_mutex_unlock(&registry->lock);
 }
 
@@ -320,4 +349,18 @@ unlock:
 	ast_mutex_unlock(&registry->lock);
 
 	return ret;
+}
+
+int sccp_device_registry_reload_config(struct sccp_device_registry *registry, struct sccp_cfg *cfg)
+{
+	if (!cfg) {
+		ast_log(LOG_ERROR, "sccp device registry reload config failed: cfg is null\n");
+		return -1;
+	}
+
+	ast_mutex_lock(&registry->lock);
+	registry->max_guests = cfg->general_cfg->max_guests;
+	ast_mutex_unlock(&registry->lock);
+
+	return 0;
 }

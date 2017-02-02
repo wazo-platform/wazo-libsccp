@@ -3020,6 +3020,10 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 {
 	struct sccp_device_cfg *old_device_cfg = device->cfg;
 
+	if (old_device_cfg->guest != new_device_cfg->guest) {
+		return 0;
+	}
+
 	if (strcmp(old_device_cfg->dateformat, new_device_cfg->dateformat)) {
 		return 0;
 	}
@@ -3289,6 +3293,17 @@ struct sccp_line* sccp_device_line(struct sccp_device *device, unsigned int i)
 const char *sccp_device_name(const struct sccp_device *device)
 {
 	return device->name;
+}
+
+int sccp_device_is_guest(struct sccp_device *device)
+{
+	int guest;
+
+	sccp_device_lock(device);
+	guest = device->cfg->guest;
+	sccp_device_unlock(device);
+
+	return guest;
 }
 
 const char *sccp_line_name(const struct sccp_line *line)
