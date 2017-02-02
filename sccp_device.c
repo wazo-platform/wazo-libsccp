@@ -3784,6 +3784,22 @@ int sccp_channel_tech_send_digit_end(struct ast_channel *channel, char digit, un
 	return 0;
 }
 
+int sccp_channel_tech_acf_channel_read(struct ast_channel *channel, const char *cmd, char *data, char *buf, size_t len)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+	struct sccp_line *line = subchan->line;
+	struct sccp_device *device = line->device;
+	int res = 0;
+
+	if (!strcmp(data, "peerip")) {
+		ast_copy_string(buf, sccp_session_remote_addr_ch(device->session), len);
+	} else {
+		res = -1;
+	}
+
+	return res;
+}
+
 enum ast_rtp_glue_result sccp_rtp_glue_get_rtp_info(struct ast_channel *channel, struct ast_rtp_instance **instance)
 {
 	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);

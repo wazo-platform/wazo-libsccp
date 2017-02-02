@@ -133,6 +133,7 @@ struct ast_channel_tech sccp_tech = {
 	.indicate = sccp_channel_tech_indicate,
 	.fixup = sccp_channel_tech_fixup,
 	.send_digit_end = sccp_channel_tech_send_digit_end,
+	.func_channel_read = sccp_channel_tech_acf_channel_read,
 };
 
 static struct ast_rtp_glue sccp_rtp_glue = {
