@@ -22,6 +22,7 @@ struct sccp_device_info {
 
 struct sccp_device_snapshot {
 	enum sccp_device_type type;
+	int guest;
 	uint8_t proto_version;
 	char name[SCCP_DEVICE_NAME_MAX];
 	char ipaddr[16];

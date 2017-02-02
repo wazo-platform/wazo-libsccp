@@ -3267,6 +3267,7 @@ void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_sn
 
 	sccp_device_lock(device);
 	snapshot->type = device->type;
+	snapshot->guest = device->cfg->guest;
 	snapshot->proto_version = device->proto_version;
 	ast_copy_string(snapshot->name, device->name, sizeof(snapshot->name));
 	ast_copy_string(snapshot->ipaddr, sccp_session_remote_addr_ch(device->session), sizeof(snapshot->ipaddr));

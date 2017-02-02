@@ -310,10 +310,11 @@ static char *cli_show_config(struct ast_cli_entry *e, int cmd, struct ast_cli_ar
 
 static char *cli_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 {
-#define FORMAT_STRING  "%-16.16s %-16.16s %-6.6s %-6.6s %-25.25s\n"
-#define FORMAT_STRING2 "%-16.16s %-16.16s %-6.6s %-6u %-25.25s\n"
+#define FORMAT_STRING  "%-16.16s %-16.16s %-6.6s %-6.6s %-6.6s %-25.25s\n"
+#define FORMAT_STRING2 "%-16.16s %-16.16s %-6.6s %-6.6s %-6u %-25.25s\n"
 	struct sccp_device_snapshot *snapshots;
 	size_t n;
+	size_t n_guests = 0;
 	size_t i;
 
 	switch (cmd) {
@@ -331,12 +332,16 @@ static char *cli_show_devices(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 		return CLI_FAILURE;
 	}
 
-	ast_cli(a->fd, FORMAT_STRING, "Device", "IP", "Type", "Proto", "Capabilities");
+	ast_cli(a->fd, FORMAT_STRING, "Device", "IP", "Guest", "Type", "Proto", "Capabilities");
 	for (i = 0; i < n; i++) {
-		ast_cli(a->fd, FORMAT_STRING2, snapshots[i].name, snapshots[i].ipaddr, sccp_device_type_str(snapshots[i].type), snapshots[i].proto_version, snapshots[i].capabilities);
+		ast_cli(a->fd, FORMAT_STRING2, snapshots[i].name, snapshots[i].ipaddr, AST_CLI_YESNO(snapshots[i].guest),
+				sccp_device_type_str(snapshots[i].type), snapshots[i].proto_version, snapshots[i].capabilities);
+		if (snapshots[i].guest) {
+			n_guests++;
+		}
 	}
 
-	ast_cli(a->fd, "Total: %zu connected device(s)\n", n);
+	ast_cli(a->fd, "Total: %zu connected device(s) (%zu guests)\n", n, n_guests);
 
 	ast_free(snapshots);
 
