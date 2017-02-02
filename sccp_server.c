@@ -318,7 +318,7 @@ static int new_server_socket(struct sccp_cfg *cfg)
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(SERVER_PORT);
-	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
 		ast_log(LOG_ERROR, "server new socket failed: bind: %s\n", strerror(errno));
 		close(sockfd);
