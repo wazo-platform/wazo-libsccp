@@ -272,7 +272,7 @@ static int start_session(struct server_session *srv_session)
 
 	ret = ast_pthread_create(&srv_session->thread, NULL, session_run, srv_session);
 	if (ret) {
-		ast_log(LOG_ERROR, "server start session failed: pthread create: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "server start session failed: pthread create: %s\n", strerror(ret));
 		return -1;
 	}
 
