@@ -26,6 +26,8 @@ enum sccp_device_type {
 	SCCP_DEVICE_7912 = 30007,
 	SCCP_DEVICE_CIPC = 30016,
 	SCCP_DEVICE_7961 = 30018,
+	SCCP_DEVICE_8941 = 586,
+	SCCP_DEVICE_8945 = 585,
 };
 
 enum sccp_speaker_mode {
