@@ -1,3 +1,4 @@
 /xivo-libsccp/html
 /xivo-libsccp/latex
 *.o
+*.so

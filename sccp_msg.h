@@ -710,7 +710,7 @@ struct sccp_deserializer {
 	size_t start;
 	size_t end;
 	int fd;
-	char buf[2048];
+	char buf[3072];
 };
 
 /*!
