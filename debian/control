@@ -7,7 +7,7 @@ Standards-Version: 3.9.6
 
 Package: xivo-libsccp
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 8:15)
+Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 8:15) | asterisk-virtual (>= 8:15)
 Conflicts: asterisk-chan-sccp
 Replaces: asterisk-chan-sccp
 Provides: asterisk-chan-sccp
