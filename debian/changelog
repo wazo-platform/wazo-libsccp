@@ -1,3 +1,9 @@
+xivo-libsccp (18.01~20180109.124200) xivo-dev; urgency=medium
+
+  * Update Stretch
+
+ -- Wazo Maintainers <dev+pkg@wazo.community>  Tue, 09 Jan 2018 12:40:24 -0500
+
 xivo-libsccp (15.20~20151222.192300) xivo-dev; urgency=medium
 
   * Update Jessie

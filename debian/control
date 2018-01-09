@@ -16,7 +16,7 @@ Description: Skinny Client Control Protocol
 
 Package: xivo-libsccp-dbg
 Architecture: any
-Depends: xivo-libsccp (= ${Source-Version})
+Depends: xivo-libsccp (= ${source:Version})
 Conflicts: asterisk-chan-sccp-dbg
 Replaces: asterisk-chan-sccp-dbg
 Provides: asterisk-chan-sccp-dbg
