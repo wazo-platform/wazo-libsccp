@@ -1274,6 +1274,8 @@ static int device_type_is_supported(enum sccp_device_type device_type)
 	case SCCP_DEVICE_7962:
 	case SCCP_DEVICE_7965:
 	case SCCP_DEVICE_7970:
+	case SCCP_DEVICE_7971:
+	case SCCP_DEVICE_7971GE:
 	case SCCP_DEVICE_7975:
 	case SCCP_DEVICE_CIPC:
 		supported = 1;
