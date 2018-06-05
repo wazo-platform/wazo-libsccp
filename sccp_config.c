@@ -200,6 +200,7 @@ static void *sccp_device_cfg_alloc(const char *category)
 
 	ast_copy_string(device_cfg->name, category, sizeof(device_cfg->name));
 	device_cfg->line_cfg = NULL;
+	device_cfg->guest = 0;
 	device_cfg->speeddial_count = 0;
 	device_cfg->speeddials_cfg = NULL;
 	device_cfg->internal = internal;
@@ -616,6 +617,7 @@ static void pre_apply_general_cfg(struct sccp_cfg *cfg)
 
 		if (general_cfg->internal->guest) {
 			general_cfg->guest_device_cfg = device_cfg;
+			device_cfg->guest = 1;
 		} else {
 			ao2_ref(device_cfg, -1);
 		}
@@ -745,6 +747,7 @@ int sccp_config_init(void)
 	/* general options */
 	aco_option_register(&cfg_info, "authtimeout", ACO_EXACT, general_types, "5", OPT_INT_T, PARSE_IN_RANGE, FLDSET(struct sccp_general_cfg, authtimeout), 1, 60);
 	aco_option_register_custom(&cfg_info, "guest", ACO_EXACT, general_types, "no", general_cfg_guest_handler, 0);
+	aco_option_register(&cfg_info, "max_guests", ACO_EXACT, general_types, "100", OPT_UINT_T, 0, FLDSET(struct sccp_general_cfg, max_guests));
 	aco_option_register_custom(&cfg_info, "tos", ACO_EXACT, general_types, "AF31", general_cfg_tos_handler, 0);
 
 	/* device options */

@@ -1,6 +1,7 @@
 [general]
 authtimeout = 5
 guest = no
+max_guests = 100
 tos = AF31
 
 [SEP0015C66BFD16]

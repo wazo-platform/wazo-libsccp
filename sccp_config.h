@@ -18,6 +18,7 @@ struct sccp_cfg {
 
 struct sccp_general_cfg {
 	int authtimeout;
+	unsigned int max_guests;
 	unsigned int tos;
 
 	struct sccp_device_cfg *guest_device_cfg;
@@ -34,6 +35,7 @@ struct sccp_device_cfg {
 	int keepalive;
 	int dialtimeout;
 
+	int guest;
 	size_t speeddial_count;
 	struct sccp_line_cfg *line_cfg;
 	struct sccp_speeddial_cfg **speeddials_cfg;

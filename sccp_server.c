@@ -272,7 +272,7 @@ static int start_session(struct server_session *srv_session)
 
 	ret = ast_pthread_create(&srv_session->thread, NULL, session_run, srv_session);
 	if (ret) {
-		ast_log(LOG_ERROR, "server start session failed: pthread create: %s\n", strerror(errno));
+		ast_log(LOG_ERROR, "server start session failed: pthread create: %s\n", strerror(ret));
 		return -1;
 	}
 
@@ -318,7 +318,7 @@ static int new_server_socket(struct sccp_cfg *cfg)
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(SERVER_PORT);
-	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
 		ast_log(LOG_ERROR, "server new socket failed: bind: %s\n", strerror(errno));
 		close(sockfd);

@@ -22,6 +22,7 @@ struct sccp_device_info {
 
 struct sccp_device_snapshot {
 	enum sccp_device_type type;
+	int guest;
 	uint8_t proto_version;
 	char name[SCCP_DEVICE_NAME_MAX];
 	char ipaddr[16];
@@ -118,6 +119,13 @@ struct sccp_line* sccp_device_line(struct sccp_device *device, unsigned int i);
  * \note The name of a device is a constant attribute.
  */
 const char *sccp_device_name(const struct sccp_device *device);
+
+/*!
+ * \brief Return non-zero if the device is a guest device.
+ *
+ * \note The "guest" state of a device is a constant attribute.
+ */
+int sccp_device_is_guest(struct sccp_device *device);
 
 /*!
  * \brief Return the name of the line.
