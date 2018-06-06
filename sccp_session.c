@@ -451,6 +451,8 @@ static void sccp_session_handle_msg_register(struct sccp_session *session, struc
 	if (ret) {
 		if (ret == SCCP_DEVICE_REGISTRY_ALREADY) {
 			ast_log(LOG_WARNING, "Device already registered [%s]\n", name);
+		} else if (ret == SCCP_DEVICE_REGISTRY_MAXGUESTS) {
+			ast_log(LOG_WARNING, "No more guest devices accepted (limit reached) [%s]\n", name);
 		}
 
 		sccp_session_transmit_register_rej(session);

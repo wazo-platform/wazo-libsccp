@@ -1,11 +1,13 @@
 #ifndef SCCP_DEVICE_REGISTRY_H_
 #define SCCP_DEVICE_REGISTRY_H_
 
+struct sccp_cfg;
 struct sccp_device;
 struct sccp_device_registry;
 struct sccp_device_snapshot;
 
 #define SCCP_DEVICE_REGISTRY_ALREADY 1
+#define SCCP_DEVICE_REGISTRY_MAXGUESTS 2
 
 /*!
  * \brief Create a new device registry.
@@ -15,7 +17,7 @@ struct sccp_device_snapshot;
  * \retval non-NULL on success
  * \retval NULL on failure
  */
-struct sccp_device_registry *sccp_device_registry_create(void);
+struct sccp_device_registry *sccp_device_registry_create(struct sccp_cfg *cfg);
 
 /*!
  * \brief Destroy the registry.
@@ -29,6 +31,7 @@ void sccp_device_registry_destroy(struct sccp_device_registry *registry);
  *
  * \retval 0 on success
  * \retval SCCP_DEVICE_REGISTRY_ALREADY if a device with the same name is already in the container
+ * \retval SCCP_DEVICE_REGISTRY_MAXGUESTS if the device is a guest and the guest limit has been reached
  * \retval -1 on other failure
  */
 int sccp_device_registry_add(struct sccp_device_registry *registry, struct sccp_device *device);
@@ -94,5 +97,13 @@ char *sccp_device_registry_complete(struct sccp_device_registry *registry, const
  * \retval non-zero on failure
  */
 int sccp_device_registry_take_snapshots(struct sccp_device_registry *registry, struct sccp_device_snapshot **snapshots, size_t *n);
+
+/*!
+ * \brief Reload the device registry configuration.
+ *
+ * \retval 0 on success
+ * \retval non-zero on failure
+ */
+int sccp_device_registry_reload_config(struct sccp_device_registry *registry, struct sccp_cfg *cfg);
 
 #endif /* SCCP_DEVICE_REGISTRY_H_ */

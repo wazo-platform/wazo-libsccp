@@ -1277,6 +1277,8 @@ static int device_type_is_supported(enum sccp_device_type device_type)
 	case SCCP_DEVICE_7971:
 	case SCCP_DEVICE_7971GE:
 	case SCCP_DEVICE_7975:
+	case SCCP_DEVICE_8941:
+	case SCCP_DEVICE_8945:
 	case SCCP_DEVICE_CIPC:
 		supported = 1;
 		break;
@@ -3020,6 +3022,10 @@ static int sccp_device_test_apply_config(struct sccp_device *device, struct sccp
 {
 	struct sccp_device_cfg *old_device_cfg = device->cfg;
 
+	if (old_device_cfg->guest != new_device_cfg->guest) {
+		return 0;
+	}
+
 	if (strcmp(old_device_cfg->dateformat, new_device_cfg->dateformat)) {
 		return 0;
 	}
@@ -3263,6 +3269,7 @@ void sccp_device_take_snapshot(struct sccp_device *device, struct sccp_device_sn
 
 	sccp_device_lock(device);
 	snapshot->type = device->type;
+	snapshot->guest = device->cfg->guest;
 	snapshot->proto_version = device->proto_version;
 	ast_copy_string(snapshot->name, device->name, sizeof(snapshot->name));
 	ast_copy_string(snapshot->ipaddr, sccp_session_remote_addr_ch(device->session), sizeof(snapshot->ipaddr));
@@ -3289,6 +3296,17 @@ struct sccp_line* sccp_device_line(struct sccp_device *device, unsigned int i)
 const char *sccp_device_name(const struct sccp_device *device)
 {
 	return device->name;
+}
+
+int sccp_device_is_guest(struct sccp_device *device)
+{
+	int guest;
+
+	sccp_device_lock(device);
+	guest = device->cfg->guest;
+	sccp_device_unlock(device);
+
+	return guest;
 }
 
 const char *sccp_line_name(const struct sccp_line *line)
@@ -3782,6 +3800,22 @@ int sccp_channel_tech_fixup(struct ast_channel *oldchannel, struct ast_channel *
 int sccp_channel_tech_send_digit_end(struct ast_channel *channel, char digit, unsigned int duration)
 {
 	return 0;
+}
+
+int sccp_channel_tech_acf_channel_read(struct ast_channel *channel, const char *cmd, char *data, char *buf, size_t len)
+{
+	struct sccp_subchannel *subchan = ast_channel_tech_pvt(channel);
+	struct sccp_line *line = subchan->line;
+	struct sccp_device *device = line->device;
+	int res = 0;
+
+	if (!strcmp(data, "peerip")) {
+		ast_copy_string(buf, sccp_session_remote_addr_ch(device->session), len);
+	} else {
+		res = -1;
+	}
+
+	return res;
 }
 
 enum ast_rtp_glue_result sccp_rtp_glue_get_rtp_info(struct ast_channel *channel, struct ast_rtp_instance **instance)

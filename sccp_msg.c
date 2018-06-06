@@ -1032,6 +1032,10 @@ const char *sccp_device_type_str(enum sccp_device_type device_type)
 		return "7971GE";
 	case SCCP_DEVICE_7975:
 		return "7975";
+	case SCCP_DEVICE_8941:
+		return "8941";
+	case SCCP_DEVICE_8945:
+		return "8945";
 	case SCCP_DEVICE_CIPC:
 		return "CIPC";
 	}

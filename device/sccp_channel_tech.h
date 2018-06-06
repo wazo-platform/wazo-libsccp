@@ -65,4 +65,9 @@ int sccp_channel_tech_fixup(struct ast_channel *oldchannel, struct ast_channel *
  */
 int sccp_channel_tech_send_digit_end(struct ast_channel *channel, char digit, unsigned int duration);
 
+/*!
+ * \brief Implementation of ast_channel_tech::func_channel_read.
+ */
+int sccp_channel_tech_acf_channel_read(struct ast_channel *channel, const char *cmd, char *data, char *buf, size_t len);
+
 #endif /* SCCP_CHANNEL_TECH_H_ */
