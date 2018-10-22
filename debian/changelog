@@ -1,3 +1,9 @@
+xivo-libsccp (18.12~20181022.1) wazo-dev-stretch; urgency=medium
+
+  * update for asterisk 16
+
+ -- Wazo Maintainers <dev+pkg@wazo.community>  Mon, 22 Oct 2018 09:37:41 -0400
+
 xivo-libsccp (18.01~20180109.124200) xivo-dev; urgency=medium
 
   * Update Stretch
