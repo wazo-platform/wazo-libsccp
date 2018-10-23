@@ -4,4 +4,4 @@
 	dh $@
 
 override_dh_strip:
-	dh_strip --dbg-package=xivo-libsccp-dbg
+	dh_strip --dbg-package=wazo-libsccp-dbg
