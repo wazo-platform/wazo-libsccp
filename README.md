@@ -1,4 +1,4 @@
-# xivo-libsccp
+# wazo-libsccp
 
 An Asterisk channel driver for the SCCP protocol.
 
@@ -8,4 +8,4 @@ McNamara & Florian Overkamp.
 ## Getting Started
 
 * http://documentation.wazo.community/en/stable/contributors/sccp.html
-* https://github.com/wazo-pbx/xivo-libsccp
+* https://github.com/wazo-pbx/wazo-libsccp

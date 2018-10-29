@@ -1,4 +1,4 @@
-/xivo-libsccp/html
-/xivo-libsccp/latex
+/wazo-libsccp/html
+/wazo-libsccp/latex
 *.o
 *.so

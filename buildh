@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 
-CONFIG_FILE = '~/.xivo-libsccp-buildh-config'
+CONFIG_FILE = '~/.wazo-libsccp-buildh-config'
 SHELL = 'sh'
 
 
@@ -24,7 +24,7 @@ def main():
             print >>sys.stderr, 'Example:\n'
             print >>sys.stderr, '[default]'
             print >>sys.stderr, 'host = skaro-dev-1'
-            print >>sys.stderr, 'directory = xivo-libsccp'
+            print >>sys.stderr, 'directory = wazo-libsccp'
             raise SystemExit(1)
         else:
             raise

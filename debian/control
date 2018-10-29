@@ -1,24 +1,24 @@
-Source: xivo-libsccp
+Source: wazo-libsccp
 Section: comm
 Priority: extra
 Maintainer: Wazo Maintainers <dev@wazo.community>
 Build-Depends: debhelper (>= 9), asterisk-dev (>= 8:16)
-Standards-Version: 3.9.6
+Standards-Version: 4.2.1
 
-Package: xivo-libsccp
+Package: wazo-libsccp
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 8:16) | asterisk-virtual
-Conflicts: asterisk-chan-sccp
-Replaces: asterisk-chan-sccp
-Provides: asterisk-chan-sccp
+Conflicts: xivo-libsccp
+Replaces: xivo-libsccp
+Provides: xivo-libsccp
 Description: Skinny Client Control Protocol
  Skinny Client Control Protocol, an implementation of the CISCO SCCP protocol.
 
-Package: xivo-libsccp-dbg
+Package: wazo-libsccp-dbg
 Architecture: any
-Depends: xivo-libsccp (= ${source:Version})
-Conflicts: asterisk-chan-sccp-dbg
-Replaces: asterisk-chan-sccp-dbg
-Provides: asterisk-chan-sccp-dbg
+Depends: wazo-libsccp (= ${source:Version})
+Conflicts: xivo-libsccp-dbg
+Replaces: xivo-libsccp-dbg
+Provides: xivo-libsccp-dbg
 Description: Skinny Client Control Protocol with debug symbols
  Skinny Client Control Protocol, an implementation of the CISCO SCCP protocol.
