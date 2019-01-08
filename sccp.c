@@ -362,7 +362,7 @@ static char *cli_show_version(struct ast_cli_entry *e, int cmd, struct ast_cli_a
 		return NULL;
 	}
 
-	ast_cli(a->fd, "xivo-libsccp %s\n", VERSION);
+	ast_cli(a->fd, "wazo-libsccp %s\n", VERSION);
 
 	return CLI_SUCCESS;
 }

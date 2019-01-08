@@ -1,3 +1,15 @@
+wazo-libsccp (18.12~20181022.1~1) wazo-dev-stretch; urgency=medium
+
+  * rename to wazo-libsccp
+
+ -- Wazo Maintainers <dev+pkg@wazo.community>  Tue, 23 Oct 2018 13:51:29 -0400
+
+xivo-libsccp (18.12~20181022.1) wazo-dev-stretch; urgency=medium
+
+  * update for asterisk 16
+
+ -- Wazo Maintainers <dev+pkg@wazo.community>  Mon, 22 Oct 2018 09:37:41 -0400
+
 xivo-libsccp (18.01~20180109.124200) xivo-dev; urgency=medium
 
   * Update Stretch
@@ -20,13 +32,13 @@ xivo-libsccp (13.24~20131203.160736.0d232f0-2) squeeze-xivo-skaro-dev; urgency=l
 
   * update asterisk dependency from 1.8 to 11.6.0
 
- -- Pascal Cadotte Michaud <pcadottemichaud@avencall.com>  Wed, 04 Dec 2013 08:08:23 -0500
+ -- Pascal Cadotte Michaud <pcm@wazo.io>  Wed, 04 Dec 2013 08:08:23 -0500
 
 xivo-libsccp (13.24~20131203.135049.ec34791-2) squeeze-xivo-skaro-dev; urgency=low
 
   * update asterisk-dev dependency from 1.8 to 11.6
 
- -- Pascal Cadotte Michaud <pcadottemichaud@avencall.com>  Tue, 03 Dec 2013 11:02:12 -0500
+ -- Pascal Cadotte Michaud <pcm@wazo.io>  Tue, 03 Dec 2013 11:02:12 -0500
 
 xivo-libsccp (13.09~20130507.193207.0a4553b-2) squeeze-xivo-skaro-dev; urgency=low
 
