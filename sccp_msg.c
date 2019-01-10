@@ -106,6 +106,7 @@ static void dump_dialed_number(char *str, size_t size, const struct dialed_numbe
 static void dump_feature_stat(char *str, size_t size, const struct feature_stat_message *m);
 static void dump_forward_status_res(char *str, size_t size, const struct forward_status_res_message *m);
 static void dump_keypad_button(char *str, size_t size, const struct keypad_button_message *m);
+static void dump_notification(char *str, size_t size, const struct notification_message *m);
 static void dump_offhook(char *str, size_t size, const struct offhook_message *m);
 static void dump_onhook(char *str, size_t size, const struct onhook_message *m);
 static void dump_open_receive_channel(char *str, size_t size, const struct open_receive_channel_message *m);
@@ -122,6 +123,8 @@ static void dump_stimulus(char *str, size_t size, const struct stimulus_message 
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
 static void dump_stop_tone(char *str, size_t size, const struct stop_tone_message *m);
 static void dump_register_ack(char *str, size_t size, const struct register_ack_message *m);
+static void dump_subscription_status_req(char *str, size_t size, const struct subscription_status_req_message *m);
+static void dump_subscription_status_res(char *str, size_t size, const struct subscription_status_res_message *m);
 
 static const char *sccp_codecs_str(enum sccp_codecs v);
 static const char *sccp_lamp_state_str(enum sccp_lamp_state state);
@@ -132,6 +135,7 @@ static const char *sccp_softkey_status_str(enum sccp_softkey_status v);
 static const char *sccp_speaker_mode_str(enum sccp_speaker_mode v);
 static const char *sccp_state_str(enum sccp_state state);
 static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type);
+static const char *sccp_subscription_cause_str(enum sccp_subscription_cause cause);
 static const char *sccp_tone_str(enum sccp_tone v);
 
 /*
@@ -291,6 +295,17 @@ void sccp_msg_line_status_res(struct sccp_msg *msg, const char *cid_name, const 
 	ast_copy_string(msg->data.linestatus.lineDisplayAlias, cid_num, sizeof(msg->data.linestatus.lineDisplayAlias));
 }
 
+void sccp_msg_notification(struct sccp_msg *msg, uint32_t transactionId, uint32_t featureId, uint32_t status, const char *text)
+{
+	prepare_msg(msg, sizeof(struct notification_message), NOTIFICATION_MESSAGE);
+
+	msg->data.notification.transactionId = htolel(transactionId);
+	msg->data.notification.featureId = htolel(featureId);
+	msg->data.notification.status = htolel(status);
+	ast_copy_string(msg->data.notification.text, text, sizeof(msg->data.notification.text));
+}
+
+
 void sccp_msg_open_receive_channel(struct sccp_msg *msg, uint32_t callid, uint32_t packets, uint32_t capability)
 {
 	prepare_msg(msg, sizeof(struct open_receive_channel_message), OPEN_RECEIVE_CHANNEL_MESSAGE);
@@ -428,6 +443,16 @@ void sccp_msg_stop_tone(struct sccp_msg *msg, uint32_t line_instance, uint32_t c
 
 	msg->data.stop_tone.lineInstance = htolel(line_instance);
 	msg->data.stop_tone.callInstance = htolel(callid);
+}
+
+void sccp_msg_subscription_status_res(struct sccp_msg *msg, uint32_t transactionId, uint32_t featureId, uint32_t timer, enum sccp_subscription_cause cause)
+{
+	prepare_msg(msg, sizeof(struct subscription_status_res_message), SUBSCRIPTION_STATUS_RES_MESSAGE);
+
+	msg->data.subscriptionstatus.transactionId = htolel(transactionId);
+	msg->data.subscriptionstatus.featureId = htolel(featureId);
+	msg->data.subscriptionstatus.timer = htolel(timer);
+	msg->data.subscriptionstatus.cause = htolel(cause);
 }
 
 void sccp_msg_time_date_res(struct sccp_msg *msg, const char *timezone)
@@ -694,6 +719,8 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case KEYPAD_BUTTON_MESSAGE:
 		dump_keypad_button(str, size, &msg->data.keypad);
 		break;
+	case NOTIFICATION_MESSAGE:
+		dump_notification(str, size, &msg->data.notification);
 	case OFFHOOK_MESSAGE:
 		dump_offhook(str, size, &msg->data.offhook);
 		break;
@@ -738,6 +765,11 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 		break;
 	case STOP_TONE_MESSAGE:
 		dump_stop_tone(str, size, &msg->data.stop_tone);
+	case SUBSCRIPTION_STATUS_REQ_MESSAGE:
+		dump_subscription_status_req(str, size, &msg->data.subscription);
+		break;
+	case SUBSCRIPTION_STATUS_RES_MESSAGE:
+		dump_subscription_status_res(str, size, &msg->data.subscriptionstatus);
 		break;
 	case REGISTER_ACK_MESSAGE:
 		dump_register_ack(str, size, &msg->data.regack);
@@ -821,6 +853,16 @@ static void dump_keypad_button(char *str, size_t size, const struct keypad_butto
 			"Line instance: %u\n"
 			"Call ID: %u\n",
 			letohl(m->button), letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_notification(char *str, size_t size, const struct notification_message *m)
+{
+	snprintf(str, size,
+			"Transaction ID: %u\n"
+			"Feature ID: %u\n"
+			"Status: %u\n",
+			"Text: %s\n",
+			letohl(m->transactionId), letohl(m->featureId), letohl(m->status), m->text);
 }
 
 static void dump_offhook(char *str, size_t size, const struct offhook_message *m)
@@ -978,6 +1020,26 @@ static void dump_register_ack(char *str, size_t size, const struct register_ack_
            letohl(m->dateTemplate),
            letohl(m->secondaryKeepAlive),
            letohl(m->protoVersion));
+}
+
+static void dump_subscription_status_req(char *str, size_t size, const struct subscription_status_req_message *m)
+{
+	snprintf(str, size,
+			"Transaction ID: %u\n"
+			"Feature ID: %u\n",
+			"Timer: %u\n",
+			"Subscription ID: %u\n",
+			letohl(m->transactionId), letohl(m->featureId), letohl(m->timer), letohl(m->subscriptionId));
+}
+
+static void dump_subscription_status_res(char *str, size_t size, const struct subscription_status_res_message *m)
+{
+	snprintf(str, size,
+			"Transaction ID: %u\n"
+			"Feature ID: %u\n",
+			"Timer: %u\n",
+			"Cause: %u\n",
+			letohl(m->transactionId), letohl(m->featureId), letohl(m->timer), sccp_subscription_cause_str(letohl(m->cause)));
 }
 
 static const char *sccp_codecs_str(enum sccp_codecs v)
@@ -1387,6 +1449,25 @@ static const char *sccp_stimulus_type_str(enum sccp_stimulus_type stimulus_type)
 	}
 
 	return "unknown";
+}
+
+static const char *sccp_subscription_cause_str(enum sccp_subscription_cause cause) {
+	switch (cause) {
+	case OK:
+		return "ok";
+	case ROUTE_FAIL:
+		return "route fail";
+	case AUTH_FAIL:
+		return "auth fail";
+	case TIMEOUT:
+		return "timeout";
+	case TRUNK_TERM:
+		return "trunk term";
+	case TRUNK_FORBIDDEN:
+		return "trunk forbidden";
+	case THROTTLE:
+		return "throttle";
+	}
 }
 
 static const char *sccp_tone_str(enum sccp_tone v)
