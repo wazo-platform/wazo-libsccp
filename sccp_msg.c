@@ -301,7 +301,6 @@ void sccp_msg_notification(struct sccp_msg *msg, uint32_t transactionId, uint32_
 	msg->data.notification.transactionId = htolel(transactionId);
 	msg->data.notification.featureId = htolel(featureId);
 	msg->data.notification.status = htolel(status);
-	ast_copy_string(msg->data.notification.text, text, sizeof(msg->data.notification.text));
 }
 
 
@@ -720,6 +719,7 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 		break;
 	case NOTIFICATION_MESSAGE:
 		dump_notification(str, size, &msg->data.notification);
+		break;
 	case OFFHOOK_MESSAGE:
 		dump_offhook(str, size, &msg->data.offhook);
 		break;
@@ -856,7 +856,7 @@ static void dump_notification(char *str, size_t size, const struct notification_
 	snprintf(str, size,
 			"Transaction ID: %u\n"
 			"Feature ID: %u\n"
-			"Status: %u\n",
+			"Status: %u\n"
 			"Text: %s\n",
 			letohl(m->transactionId), letohl(m->featureId), letohl(m->status), m->text);
 }
@@ -1009,9 +1009,9 @@ static void dump_subscription_status_req(char *str, size_t size, const struct su
 {
 	snprintf(str, size,
 			"Transaction ID: %u\n"
-			"Feature ID: %u\n",
-			"Timer: %u\n",
-			"Subscription ID: %u\n",
+			"Feature ID: %u\n"
+			"Timer: %u\n"
+			"Subscription ID: %s\n",
 			letohl(m->transactionId), letohl(m->featureId), letohl(m->timer), letohl(m->subscriptionId));
 }
 
@@ -1019,9 +1019,9 @@ static void dump_subscription_status_res(char *str, size_t size, const struct su
 {
 	snprintf(str, size,
 			"Transaction ID: %u\n"
-			"Feature ID: %u\n",
-			"Timer: %u\n",
-			"Cause: %u\n",
+			"Feature ID: %u\n"
+			"Timer: %u\n"
+			"Cause: %s\n",
 			letohl(m->transactionId), letohl(m->featureId), letohl(m->timer), sccp_subscription_cause_str(letohl(m->cause)));
 }
 
@@ -1239,6 +1239,12 @@ const char *sccp_msg_id_str(uint32_t msg_id) {
 		return "feature status";
 	case START_MEDIA_TRANSMISSION_ACK_MESSAGE:
 		return "start media transmission ack";
+	case SUBSCRIPTION_STATUS_REQ_MESSAGE:
+		return "subscription status";
+	case SUBSCRIPTION_STATUS_RES_MESSAGE:
+		return "subscription status res";
+	case NOTIFICATION_MESSAGE:
+		return "notification";
 	}
 
 	return "unknown";
@@ -1451,6 +1457,8 @@ static const char *sccp_subscription_cause_str(enum sccp_subscription_cause caus
 	case THROTTLE:
 		return "throttle";	
 	}
+
+	return "unknown";
 }
 
 static const char *sccp_tone_str(enum sccp_tone v)

@@ -2925,14 +2925,12 @@ static void handle_msg_subscription_status_req(struct sccp_device *device, struc
 	uint32_t featureId = letohl(msg->data.subscription.featureId);
 	uint32_t timer = letohl(msg->data.subscription.timer);
 
-	char subscriptionId[256];
-	ast_copy_string(subscriptionId, msg->data.subscription.subscriptionId, sizeof(subscriptionId));
+	// We should perform a real lookup on the dialplan to return a valid cause
+	transmit_subscription_status_res(device, transactionId, featureId, timer, OK);
 
-	// We should perform a real lookup on the dialplan in the future to return a valid cause
-	transmit_subscription_status_res(device, transactionId, featureId, timer, sccp_subscription_cause.OK);
-
-	const char *context = sccp_lines_get_default(device->lines)->cfg->context;
-	enum sccp_blf_status status = extstate_ast2sccp(device, ast_extension_state(NULL, context, subscriptionId));
+	const char *context = sccp_lines_get_default(&device->lines)->cfg->context;
+	int ast_state = ast_extension_state(NULL, context, msg->data.subscription.subscriptionId);
+	enum sccp_blf_status status = extstate_ast2sccp(device, ast_state);
 	transmit_notification(device, transactionId, featureId, status, NULL);
 }
 
