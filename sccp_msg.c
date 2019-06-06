@@ -121,6 +121,7 @@ static void dump_start_tone(char *str, size_t size, const struct start_tone_mess
 static void dump_stimulus(char *str, size_t size, const struct stimulus_message *m);
 static void dump_stop_media_transmission(char *str, size_t size, const struct stop_media_transmission_message *m);
 static void dump_stop_tone(char *str, size_t size, const struct stop_tone_message *m);
+static void dump_register_ack(char *str, size_t size, const struct register_ack_message *m);
 
 static const char *sccp_codecs_str(enum sccp_codecs v);
 static const char *sccp_lamp_state_str(enum sccp_lamp_state state);
@@ -738,6 +739,9 @@ int sccp_msg_dump(char *str, size_t size, const struct sccp_msg *msg)
 	case STOP_TONE_MESSAGE:
 		dump_stop_tone(str, size, &msg->data.stop_tone);
 		break;
+	case REGISTER_ACK_MESSAGE:
+		dump_register_ack(str, size, &msg->data.regack);
+		break;
 	default:
 		return -1;
 	}
@@ -961,6 +965,19 @@ static void dump_stop_tone(char *str, size_t size, const struct stop_tone_messag
 			"Line instance: %u\n"
 			"Call ID: %u\n",
 			letohl(m->lineInstance), letohl(m->callInstance));
+}
+
+static void dump_register_ack(char *str, size_t size, const struct register_ack_message *m)
+{
+	snprintf(str, size,
+           "Keepalive: %u\n"
+           "Date template: %s\n"
+           "Secondary keepalive: %u\n"
+           "Protocol version: %hhu\n",
+           letohl(m->keepAlive),
+           letohl(m->dateTemplate),
+           letohl(m->secondaryKeepAlive),
+           letohl(m->protoVersion));
 }
 
 static const char *sccp_codecs_str(enum sccp_codecs v)

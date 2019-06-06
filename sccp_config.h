@@ -28,7 +28,7 @@ struct sccp_general_cfg {
 
 struct sccp_device_cfg {
 	char name[SCCP_DEVICE_NAME_MAX];
-	char dateformat[6];
+	char dateformat[8];
 	char voicemail[AST_MAX_MAILBOX_UNIQUEID];
 	char vmexten[AST_MAX_EXTENSION];
 	char timezone[40];
