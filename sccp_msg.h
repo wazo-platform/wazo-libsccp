@@ -306,8 +306,7 @@ struct feature_status_req_message {
 #define REGISTER_ACK_MESSAGE 0x0081
 struct register_ack_message {
 	uint32_t keepAlive;
-	char dateTemplate[6];
-	char res[2];
+	char dateTemplate[8];
 	uint32_t secondaryKeepAlive;
 	uint8_t protoVersion;
 	uint8_t unknown1;
