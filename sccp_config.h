@@ -2,6 +2,7 @@
 #define SCCP_CONFIG_H_
 
 #include <asterisk/app.h>
+#include <asterisk/mwi.h>
 #include <asterisk/channel.h>
 #include <stddef.h>
 
