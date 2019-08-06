@@ -3394,12 +3394,6 @@ int sccp_device_has_active_incoming_subchan(const struct sccp_device *device) {
 	if (!device->active_subchan) {
 		return 0;
 	}
-	if (device->active_subchan->direction == SCCP_DIR_INCOMING) {
-		ast_log(LOG_ERROR, "--INCOMING--\n");
-	} else if (device->active_subchan->direction == SCCP_DIR_OUTGOING) {
-		ast_log(LOG_ERROR, "--OUTGOING--\n");
-	}
-
 	return device->active_subchan && device->active_subchan->direction == SCCP_DIR_INCOMING;
 }
 

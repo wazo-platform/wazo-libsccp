@@ -2,3 +2,4 @@
 /wazo-libsccp/latex
 *.o
 *.so
+*.pyc
