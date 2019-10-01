@@ -1,6 +1,6 @@
 Format: http://dep.debian.net/deps/dep5
 Upstream-Name: wazo-libsccp
-Source: https://github.com/wazo-pbx/wazo-libsccp.git
+Source: https://github.com/wazo-platform/wazo-libsccp.git
 
 Files: *
 Copyright: 2011-2018 The Wazo Authors

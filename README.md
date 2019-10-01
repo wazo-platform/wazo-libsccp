@@ -8,4 +8,4 @@ McNamara & Florian Overkamp.
 ## Getting Started
 
 * http://documentation.wazo.community/en/stable/contributors/sccp.html
-* https://github.com/wazo-pbx/wazo-libsccp
+* https://github.com/wazo-platform/wazo-libsccp
