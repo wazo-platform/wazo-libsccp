@@ -3469,7 +3469,7 @@ int sccp_channel_tech_call(struct ast_channel *channel, const char *dest, int ti
 
 	subchan->state = SCCP_RINGIN;
 
-	if (!device->active_subchan) {
+	if (!device->active_subchan && !ast_test_flag(subchan, SUBCHANNEL_AUTOANSWER)) {
 		transmit_ringer_mode(device, SCCP_RING_INSIDE);
 	}
 
