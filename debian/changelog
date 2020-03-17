@@ -1,3 +1,9 @@
+wazo-libsccp (20.05~20200317.1~1) wazo-dev-buster; urgency=medium
+
+  * update for Asterisk 17
+
+ -- Wazo Maintainers <dev+pkg@wazo.community>  Tue, 17 Mar 2020 08:29:00 -0400
+
 wazo-libsccp (18.12~20181022.1~1) wazo-dev-stretch; urgency=medium
 
   * rename to wazo-libsccp
