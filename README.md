@@ -9,3 +9,4 @@ McNamara & Florian Overkamp.
 
 * http://documentation.wazo.community/en/stable/contributors/sccp.html
 * https://github.com/wazo-platform/wazo-libsccp
+
