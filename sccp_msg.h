@@ -183,6 +183,16 @@ enum sccp_codecs {
 	SCCP_CODEC_H263 = 101
 };
 
+enum sccp_subscription_cause {
+	OK = 0x00,
+	ROUTE_FAIL = 0x01,
+	AUTH_FAIL = 0x02,
+	TIMEOUT = 0x03,
+	TRUNK_TERM = 0x04,
+	TRUNK_FORBIDDEN = 0x05,
+	THROTTLE = 0x06
+};
+
 #define KEEP_ALIVE_MESSAGE 0x0000
 
 #define REGISTER_MESSAGE 0x0001
@@ -300,6 +310,14 @@ struct softkey_event_message {
 struct feature_status_req_message {
 	uint32_t instance;
 	uint32_t unknown;
+};
+
+#define SUBSCRIPTION_STATUS_REQ_MESSAGE 0x0048
+struct subscription_status_req_message {
+	uint32_t transactionId;
+	uint32_t featureId;
+	uint32_t timer;
+	char subscriptionId[256];
 };
 
 #define ACCESSORY_STATUS_MESSAGE 0x0049
@@ -601,6 +619,22 @@ struct feature_stat_message {
 	char label[40];
 };
 
+#define SUBSCRIPTION_STATUS_RES_MESSAGE 0x0152
+struct subscription_status_res_message {
+	uint32_t transactionId;
+	uint32_t featureId;
+	uint32_t timer;
+	uint32_t cause;
+};
+
+#define NOTIFICATION_MESSAGE 0x0153
+struct notification_message {
+	uint32_t transactionId;
+	uint32_t featureId;
+	uint32_t status;
+	char text[97];
+};
+
 #define START_MEDIA_TRANSMISSION_ACK_MESSAGE 0x0159
 
 union sccp_data {
@@ -623,6 +657,7 @@ union sccp_data {
 	struct keypad_button_message keypad;
 	struct line_status_req_message line;
 	struct line_status_res_message linestatus;
+	struct notification_message notification;
 	struct offhook_message offhook;
 	struct onhook_message onhook;
 	struct open_receive_channel_ack_message openreceivechannelack;
@@ -645,6 +680,8 @@ union sccp_data {
 	struct stimulus_message stimulus;
 	struct stop_media_transmission_message stopmedia;
 	struct stop_tone_message stop_tone;
+	struct subscription_status_req_message subscription;
+	struct subscription_status_res_message subscriptionstatus;
 	struct time_date_res_message timedate;
 	struct version_res_message version;
 };
@@ -675,6 +712,7 @@ void sccp_msg_forward_status_res(struct sccp_msg *msg, uint32_t line_instance, c
 void sccp_msg_keep_alive_ack(struct sccp_msg *msg);
 void sccp_msg_lamp_state(struct sccp_msg *msg, enum sccp_stimulus_type stimulus, uint32_t instance, enum sccp_lamp_state indication);
 void sccp_msg_line_status_res(struct sccp_msg *msg, const char *cid_name, const char *cid_num, uint32_t line_instance);
+void sccp_msg_notification(struct sccp_msg *msg, uint32_t transactionId, uint32_t featureId, uint32_t status, const char *text);
 void sccp_msg_open_receive_channel(struct sccp_msg *msg, uint32_t callid, uint32_t packets, uint32_t capability);
 void sccp_msg_register_ack(struct sccp_msg *msg, const char *datefmt, uint32_t keepalive, uint8_t proto_version, uint8_t unknown1, uint8_t unknown2, uint8_t unknown3);
 void sccp_msg_register_rej(struct sccp_msg *msg);
@@ -687,6 +725,7 @@ void sccp_msg_speeddial_stat_res(struct sccp_msg *msg, uint32_t index, const cha
 void sccp_msg_start_media_transmission(struct sccp_msg *msg, uint32_t callid, uint32_t packet_size, uint32_t payload_type, uint32_t precedence, struct sockaddr_in *endpoint);
 void sccp_msg_stop_media_transmission(struct sccp_msg *msg, uint32_t callid);
 void sccp_msg_stop_tone(struct sccp_msg *msg, uint32_t line_instance, uint32_t callid);
+void sccp_msg_subscription_status_res(struct sccp_msg *msg, uint32_t transactionId, uint32_t featureId, uint32_t timer, enum sccp_subscription_cause cause);
 void sccp_msg_time_date_res(struct sccp_msg *msg, const char *timezone);
 void sccp_msg_tone(struct sccp_msg *msg, enum sccp_tone tone, uint32_t line_instance, uint32_t callid);
 void sccp_msg_reset(struct sccp_msg *msg, enum sccp_reset_type type);

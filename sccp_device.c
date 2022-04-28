@@ -1774,6 +1774,22 @@ static void transmit_voicemail_lamp_state(struct sccp_device *device, int new_ms
 	transmit_lamp_state(device, STIMULUS_VOICEMAIL, 0, indication);
 }
 
+static void transmit_subscription_status_res(struct sccp_device *device, uint32_t transactionId, uint32_t featureId, uint32_t timer, enum sccp_subscription_cause cause)
+{
+	struct sccp_msg msg;
+
+	sccp_msg_subscription_status_res(&msg, transactionId, featureId, timer, cause);
+	sccp_session_transmit_msg(device->session, &msg);
+}
+
+static void transmit_notification(struct sccp_device *device, uint32_t transactionId, uint32_t featureId, enum sccp_blf_status status, const char *text)
+{
+	struct sccp_msg msg;
+
+	sccp_msg_notification(&msg, transactionId, featureId, status, text);
+	sccp_session_transmit_msg(device->session, &msg);
+}
+
 static void handle_msg_button_template_req(struct sccp_device *device)
 {
 	transmit_button_template_res(device);
@@ -2903,6 +2919,21 @@ static void handle_msg_version_req(struct sccp_device *device)
 	transmit_version_res(device);
 }
 
+static void handle_msg_subscription_status_req(struct sccp_device *device, struct sccp_msg *msg)
+{
+	uint32_t transactionId = letohl(msg->data.subscription.transactionId);
+	uint32_t featureId = letohl(msg->data.subscription.featureId);
+	uint32_t timer = letohl(msg->data.subscription.timer);
+
+	// We should perform a real lookup on the dialplan to return a valid cause
+	transmit_subscription_status_res(device, transactionId, featureId, timer, OK);
+
+	const char *context = sccp_lines_get_default(&device->lines)->cfg->context;
+	int ast_state = ast_extension_state(NULL, context, msg->data.subscription.subscriptionId);
+	enum sccp_blf_status status = extstate_ast2sccp(device, ast_state);
+	transmit_notification(device, transactionId, featureId, status, NULL);
+}
+
 static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg *msg, uint32_t msg_id)
 {
 	switch (msg_id) {
@@ -2990,6 +3021,9 @@ static void handle_msg_state_common(struct sccp_device *device, struct sccp_msg 
 		handle_msg_version_req(device);
 		break;
 
+	case SUBSCRIPTION_STATUS_REQ_MESSAGE:
+		handle_msg_subscription_status_req(device, msg);
+		break;
 	default:
 		ast_debug(1, "ignoring message with ID 0x%04X\n", msg_id);
 		break;
