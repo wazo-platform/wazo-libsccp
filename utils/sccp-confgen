@@ -30,7 +30,7 @@ def main():
     template.stream(base=parsed_args.base, n=parsed_args.n).dump(sys.stdout)
 
 
-def _parse_args():
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--base', default=0, type=int,
                         help='base number for device/line')
@@ -39,12 +39,13 @@ def _parse_args():
     return parser.parse_args()
 
 
-def _int_or_random_range(string):
+def _int_or_random_range(string: str) -> int:
     head, sep, tail = string.partition('-')
     if sep:
         return random.randint(int(head), int(tail))
     else:
         return int(head)
 
+if __name__ == "__main__":
+    main()
 
-main()
