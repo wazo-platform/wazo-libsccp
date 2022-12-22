@@ -43,9 +43,9 @@ def _parse_args():
 def _int_or_random_range(string):
     head, sep, tail = string.partition('-')
     if sep:
-	return random.randint(int(head), int(tail))
+        return random.randint(int(head), int(tail))
     else:
-	return int(head)
+        return int(head)
 
 
 main()
