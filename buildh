@@ -8,6 +8,7 @@ import subprocess
 import sys
 import collections
 import itertools
+from typing import TextIO
 
 CONFIG_FILE = '~/.wazo-libsccp-buildh-config'
 SHELL = 'sh'
@@ -43,7 +44,7 @@ class AsteriskConfigParser(configparser.RawConfigParser):
         ]
 
 
-def asterisk_parser(food=None) -> AsteriskConfigParser:
+def asterisk_parser(food: TextIO | None=None) -> AsteriskConfigParser:
     parser = AsteriskConfigParser(
         dict_type=CustomConfigParserStorage,
         strict=False,
@@ -82,7 +83,7 @@ def main():
     command_fun(profile)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--profile', default='default',
                         help='profile to use')
@@ -100,7 +101,7 @@ def read_config(config_file: TextIO):
     return config
 
 
-def command_make(profile):
+def command_make(profile: dict):
     local_script = _build_rsync_script(profile['host'], profile['directory'])
     _exec_local_script(local_script)
 
@@ -110,7 +111,7 @@ def command_make(profile):
     _exec_remote_script('\n'.join(remote_script), profile['host'])
 
 
-def command_makei(profile):
+def command_makei(profile: dict):
     local_script = _build_rsync_script(profile['host'], profile['directory'])
     _exec_local_script(local_script)
 
@@ -123,16 +124,16 @@ def command_makei(profile):
     _exec_remote_script('\n'.join(remote_script), profile['host'])
 
 
-def _build_cd_script(directory):
+def _build_cd_script(directory: str) -> str:
     return f"cd '{directory}'"
 
 
-def _build_make_script():
-    version = subprocess.check_output(['git', 'describe']).rstrip()
+def _build_make_script() -> str:
+    version: str = subprocess.check_output(['git', 'describe'], text=True).rstrip()
     return f'make VERSION={version}'
 
 
-def _build_rsync_script(host, directory):
+def _build_rsync_script(host: str, directory: str) -> str:
     return f'''
     rsync -v -rlp \
     --include '*.c' \
@@ -144,15 +145,15 @@ def _build_rsync_script(host, directory):
     '''
 
 
-def _exec_local_script(script):
+def _exec_local_script(script: str):
     _exec_command([SHELL, '-e'], script)
 
 
-def _exec_remote_script(script, host):
+def _exec_remote_script(script: str, host: str):
     _exec_command(['ssh', '-l', 'root', host, SHELL, '-e'], script)
 
 
-def _exec_command(args, process_input):
+def _exec_command(args: list[str], process_input: str):
     p = subprocess.run(args, input=process_input, stdout=subprocess.PIPE, text=True)
     if p.returncode:
         print(f'command {args} returned non-zero status code: {p.returncode}', file=sys.stderr)
