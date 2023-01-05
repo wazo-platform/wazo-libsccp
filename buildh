@@ -6,7 +6,7 @@ import errno
 import os
 import subprocess
 import sys
-import collections
+from collections import UserDict, OrderedDict
 import itertools
 from typing import TextIO
 
@@ -14,12 +14,13 @@ CONFIG_FILE = '~/.wazo-libsccp-buildh-config'
 SHELL = 'sh'
 DEFAULT_RSYNC_SSH_CMD = "ssh"
 
-class CustomConfigParserStorage(collections.UserDict):
+
+class CustomConfigParserStorage(UserDict):
     """configparser storage class customized for asterisk format parsing"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.data = collections.OrderedDict(self.data)
+        self.data = OrderedDict(self.data)
         self.counter = itertools.count(start=1)
 
     def __setitem__(self, k, v):
@@ -42,20 +43,6 @@ class AsteriskConfigParser(configparser.RawConfigParser):
             (option.split(":", maxsplit=1)[-1], value)
             for option, value in super().items(*args, **kwargs)
         ]
-
-
-def asterisk_parser(food: TextIO | None=None) -> AsteriskConfigParser:
-    parser = AsteriskConfigParser(
-        dict_type=CustomConfigParserStorage,
-        strict=False,
-        interpolation=None,
-        empty_lines_in_values=False,
-        inline_comment_prefixes=[";"]
-    )
-    if food:
-        parser.read_file(food)
-    return parser
-
 
 
 def main():
@@ -85,27 +72,41 @@ def main():
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--profile', default='default',
-                        help='profile to use')
-    parser.add_argument('-c', '--config-file', default=os.path.expanduser(CONFIG_FILE),
-                        type=argparse.FileType(mode="r"),
-                        help='config file to use')
-    parser.add_argument('-r', '--rsync-ssh', default=DEFAULT_RSYNC_SSH_CMD,
-                        type=str,
-                        help='ssh command to use for rsyncing the build files')
-    parser.add_argument('command', choices=['make', 'makei'],
-                        help='command to execute')
+    parser.add_argument('-p', '--profile', default='default', help='profile to use')
+    parser.add_argument(
+        '-c',
+        '--config-file',
+        default=os.path.expanduser(CONFIG_FILE),
+        type=argparse.FileType(mode="r"),
+        help='config file to use',
+    )
+    parser.add_argument(
+        '-r',
+        '--rsync-ssh',
+        default=DEFAULT_RSYNC_SSH_CMD,
+        type=str,
+        help='ssh command to use for rsyncing the build files',
+    )
+    parser.add_argument('command', choices=['make', 'makei'], help='command to execute')
     return parser.parse_args()
 
 
+def read_config(config_file: TextIO) -> AsteriskConfigParser:
+    parser = AsteriskConfigParser(
+        dict_type=CustomConfigParserStorage,
+        strict=False,
+        interpolation=None,
+        empty_lines_in_values=False,
+        inline_comment_prefixes=[";"],
+    )
+    parser.read_file(config_file)
+    return parser
 
-def read_config(config_file: TextIO):
-    config = asterisk_parser(config_file)
-    return config
 
-
-def command_make(profile: dict[str,str], rsync_ssh_cmd: str=DEFAULT_RSYNC_SSH_CMD):
-    local_script = _build_rsync_script(profile['host'], profile['directory'], ssh_cmd=rsync_ssh_cmd)
+def command_make(profile: dict[str, str], rsync_ssh_cmd: str = DEFAULT_RSYNC_SSH_CMD):
+    local_script = _build_rsync_script(
+        profile['host'], profile['directory'], ssh_cmd=rsync_ssh_cmd
+    )
     _exec_local_script(local_script)
 
     remote_script = []
@@ -114,8 +115,10 @@ def command_make(profile: dict[str,str], rsync_ssh_cmd: str=DEFAULT_RSYNC_SSH_CM
     _exec_remote_script('\n'.join(remote_script), profile['host'])
 
 
-def command_makei(profile: dict[str, str], rsync_ssh_cmd: str=DEFAULT_RSYNC_SSH_CMD):
-    local_script = _build_rsync_script(profile['host'], profile['directory'], ssh_cmd=rsync_ssh_cmd)
+def command_makei(profile: dict[str, str], rsync_ssh_cmd: str = DEFAULT_RSYNC_SSH_CMD):
+    local_script = _build_rsync_script(
+        profile['host'], profile['directory'], ssh_cmd=rsync_ssh_cmd
+    )
     _exec_local_script(local_script)
 
     remote_script = []
@@ -136,7 +139,9 @@ def _build_make_script() -> str:
     return f'make VERSION={version}'
 
 
-def _build_rsync_script(host: str, directory: str, ssh_cmd: str=DEFAULT_RSYNC_SSH_CMD) -> str:
+def _build_rsync_script(
+    host: str, directory: str, ssh_cmd: str = DEFAULT_RSYNC_SSH_CMD
+) -> str:
     return f'''
     rsync -v -e="{ssh_cmd}" -rlp \
     --include '*.c' \
@@ -159,7 +164,10 @@ def _exec_remote_script(script: str, host: str):
 def _exec_command(args: list[str], process_input: str):
     p = subprocess.run(args, input=process_input, stdout=subprocess.PIPE, text=True)
     if p.returncode:
-        print(f'command {args} returned non-zero status code: {p.returncode}', file=sys.stderr)
+        print(
+            f'command {args} returned non-zero status code: {p.returncode}',
+            file=sys.stderr,
+        )
 
 
 if __name__ == '__main__':

@@ -23,6 +23,7 @@ cid_num = {{ i }}
 
 '''
 
+
 def main():
     parsed_args = _parse_args()
 
@@ -32,10 +33,12 @@ def main():
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-b', '--base', default=0, type=int,
-                        help='base number for device/line')
-    parser.add_argument('n', type=_int_or_random_range,
-                        help='number of devices/lines to create')
+    parser.add_argument(
+        '-b', '--base', default=0, type=int, help='base number for device/line'
+    )
+    parser.add_argument(
+        'n', type=_int_or_random_range, help='number of devices/lines to create'
+    )
     return parser.parse_args()
 
 
@@ -46,6 +49,6 @@ def _int_or_random_range(string: str) -> int:
     else:
         return int(head)
 
+
 if __name__ == "__main__":
     main()
-
