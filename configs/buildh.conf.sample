@@ -1,0 +1,3 @@
+[default]
+host = pcm-dev-primary
+directory = wazo-libsccp

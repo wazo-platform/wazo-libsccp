@@ -1,59 +1,112 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
+#!/usr/bin/env python3
+from __future__ import annotations
 import argparse
-import ConfigParser
+import configparser
 import errno
 import os
 import subprocess
 import sys
+from collections import UserDict, OrderedDict
+import itertools
+from typing import TextIO
 
 CONFIG_FILE = '~/.wazo-libsccp-buildh-config'
 SHELL = 'sh'
+DEFAULT_RSYNC_SSH_CMD = "ssh"
+
+
+class CustomConfigParserStorage(UserDict):
+    """configparser storage class customized for asterisk format parsing"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data = OrderedDict(self.data)
+        self.counter = itertools.count(start=1)
+
+    def __setitem__(self, k, v):
+        if isinstance(v, list):
+            # if list, we assume this is a new option declaration
+            # configparser creates option values as list to deal with multiline values
+            self.data[f"{next(self.counter)}:{k}"] = v
+        else:
+            # this is either a SectionProxy object,
+            # or an option value transformed from list form to string(so not a new option)
+            self.data[k] = v
+
+
+class AsteriskConfigParser(configparser.RawConfigParser):
+    def items(self, *args, **kwargs):
+        # Coupled with above CustomConfigParserStorage class as dict_type,
+        # we trick configparser into tracking each duplicate option declarations by storing them under different keys
+        # This reverts the trick in order to expose duplicate options under their real name
+        return [
+            (option.split(":", maxsplit=1)[-1], value)
+            for option, value in super().items(*args, **kwargs)
+        ]
 
 
 def main():
     parsed_args = parse_args()
 
-    config_filename = os.path.expanduser(CONFIG_FILE)
+    config_file = parsed_args.config_file
     try:
-        config = read_config(config_filename)
-    except IOError as e:
+        with config_file:
+            config = read_config(config_file)
+    except OSError as e:
         if e.errno == errno.ENOENT:
-            print >>sys.stderr, 'error: need config file {!r}'.format(config_filename)
-            print >>sys.stderr, 'Example:\n'
-            print >>sys.stderr, '[default]'
-            print >>sys.stderr, 'host = skaro-dev-1'
-            print >>sys.stderr, 'directory = wazo-libsccp'
+            print(f'error: need config file {config_file.name!r}', file=sys.stderr)
+            print('Example:\n', file=sys.stderr)
+            print('[default]', file=sys.stderr)
+            print('host = skaro-dev-1', file=sys.stderr)
+            print('directory = wazo-libsccp', file=sys.stderr)
             raise SystemExit(1)
         else:
             raise
 
     profile = dict(config.items(parsed_args.profile))
 
-    command_name = 'command_{}'.format(parsed_args.command)
+    command_name = f'command_{parsed_args.command}'
     command_fun = globals()[command_name]
-    command_fun(profile)
+    command_fun(profile, rsync_ssh_cmd=parsed_args.rsync_ssh)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--profile', default='default',
-                        help='profile to use')
-    parser.add_argument('command', choices=['make', 'makei'],
-                        help='command to execute')
+    parser.add_argument('-p', '--profile', default='default', help='profile to use')
+    parser.add_argument(
+        '-c',
+        '--config-file',
+        default=os.path.expanduser(CONFIG_FILE),
+        type=argparse.FileType(mode="r"),
+        help='config file to use',
+    )
+    parser.add_argument(
+        '-r',
+        '--rsync-ssh',
+        default=DEFAULT_RSYNC_SSH_CMD,
+        type=str,
+        help='ssh command to use for rsyncing the build files',
+    )
+    parser.add_argument('command', choices=['make', 'makei'], help='command to execute')
     return parser.parse_args()
 
 
-def read_config(config_filename):
-    config = ConfigParser.RawConfigParser()
-    with open(config_filename) as fobj:
-        config.readfp(fobj)
-    return config
+def read_config(config_file: TextIO) -> AsteriskConfigParser:
+    parser = AsteriskConfigParser(
+        dict_type=CustomConfigParserStorage,
+        strict=False,
+        interpolation=None,
+        empty_lines_in_values=False,
+        inline_comment_prefixes=[";"],
+    )
+    parser.read_file(config_file)
+    return parser
 
 
-def command_make(profile):
-    local_script = _build_rsync_script(profile['host'], profile['directory'])
+def command_make(profile: dict[str, str], rsync_ssh_cmd: str = DEFAULT_RSYNC_SSH_CMD):
+    local_script = _build_rsync_script(
+        profile['host'], profile['directory'], ssh_cmd=rsync_ssh_cmd
+    )
     _exec_local_script(local_script)
 
     remote_script = []
@@ -62,8 +115,10 @@ def command_make(profile):
     _exec_remote_script('\n'.join(remote_script), profile['host'])
 
 
-def command_makei(profile):
-    local_script = _build_rsync_script(profile['host'], profile['directory'])
+def command_makei(profile: dict[str, str], rsync_ssh_cmd: str = DEFAULT_RSYNC_SSH_CMD):
+    local_script = _build_rsync_script(
+        profile['host'], profile['directory'], ssh_cmd=rsync_ssh_cmd
+    )
     _exec_local_script(local_script)
 
     remote_script = []
@@ -75,40 +130,44 @@ def command_makei(profile):
     _exec_remote_script('\n'.join(remote_script), profile['host'])
 
 
-def _build_cd_script(directory):
-    return "cd '{}'".format(directory)
+def _build_cd_script(directory: str) -> str:
+    return f"cd '{directory}'"
 
 
-def _build_make_script():
-    version = subprocess.check_output(['git', 'describe']).rstrip()
-    return 'make VERSION={}'.format(version)
+def _build_make_script() -> str:
+    version: str = subprocess.check_output(['git', 'describe'], text=True).rstrip()
+    return f'make VERSION={version}'
 
 
-def _build_rsync_script(host, directory):
-    return '''
-rsync -v -rlp \
+def _build_rsync_script(
+    host: str, directory: str, ssh_cmd: str = DEFAULT_RSYNC_SSH_CMD
+) -> str:
+    return f'''
+    rsync -v -e="{ssh_cmd}" -rlp \
     --include '*.c' \
     --include '*.h' \
     --include /device \
     --include /Makefile \
     --exclude '*' \
     . {host}:{directory}
-'''.format(host=host, directory=directory)
+    '''
 
 
-def _exec_local_script(script):
+def _exec_local_script(script: str):
     _exec_command([SHELL, '-e'], script)
 
 
-def _exec_remote_script(script, host):
+def _exec_remote_script(script: str, host: str):
     _exec_command(['ssh', '-l', 'root', host, SHELL, '-e'], script)
 
 
-def _exec_command(args, process_input):
-    p = subprocess.Popen(args, stdin=subprocess.PIPE)
-    p.communicate(process_input)
+def _exec_command(args: list[str], process_input: str):
+    p = subprocess.run(args, input=process_input, stdout=subprocess.PIPE, text=True)
     if p.returncode:
-        print >>sys.stderr, 'command {} returned non-zero status code: {}'.format(args, p.returncode)
+        print(
+            f'command {args} returned non-zero status code: {p.returncode}',
+            file=sys.stderr,
+        )
 
 
 if __name__ == '__main__':

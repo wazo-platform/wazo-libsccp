@@ -1,5 +1,4 @@
-#!/usr/bin/python
-# -*- coding: UTF-8 -*-
+#!/usr/bin/env python3
 #
 # Helper script to generate large configuration file for testing purposes.
 
@@ -24,6 +23,7 @@ cid_num = {{ i }}
 
 '''
 
+
 def main():
     parsed_args = _parse_args()
 
@@ -31,21 +31,24 @@ def main():
     template.stream(base=parsed_args.base, n=parsed_args.n).dump(sys.stdout)
 
 
-def _parse_args():
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-b', '--base', default=0, type=int,
-                        help='base number for device/line')
-    parser.add_argument('n', type=_int_or_random_range,
-                        help='number of devices/lines to create')
+    parser.add_argument(
+        '-b', '--base', default=0, type=int, help='base number for device/line'
+    )
+    parser.add_argument(
+        'n', type=_int_or_random_range, help='number of devices/lines to create'
+    )
     return parser.parse_args()
 
 
-def _int_or_random_range(string):
+def _int_or_random_range(string: str) -> int:
     head, sep, tail = string.partition('-')
     if sep:
-	return random.randint(int(head), int(tail))
+        return random.randint(int(head), int(tail))
     else:
-	return int(head)
+        return int(head)
 
 
-main()
+if __name__ == "__main__":
+    main()
