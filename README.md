@@ -11,7 +11,7 @@ McNamara & Florian Overkamp.
 * https://github.com/wazo-platform/wazo-libsccp
 
 ## buildh
-[buildh](./buildh) is a python script used to compile and install the sccp channel driver on a remote wazo stack. 
+[buildh](./buildh) is a python script used to compile and install the sccp channel driver on a remote wazo stack.
 You need a configuration file with the following content, by default located at `~/.wazo-libsccp-buildh-config`:
 ```
 [default]
