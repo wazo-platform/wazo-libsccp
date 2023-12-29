@@ -20,7 +20,7 @@ speeddial = 1-2
 type = line
 cid_name = Alice
 cid_num = 1001
-setvar = XIVO_USERID=1
+setvar = WAZO_USERID=1
 setvar = PICKUPMARK=1001%default
 context = default
 language = en_US
