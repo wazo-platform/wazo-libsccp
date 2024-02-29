@@ -88,6 +88,21 @@ static struct ast_channel *channel_tech_requester(const char *type, struct ast_f
 		break;
 	}
 
+	if (!line) {
+		return NULL;
+	}
+
+	struct sccp_device *device = sccp_line_device(line);
+	if (sccp_device_has_active_subchan(device)) {
+		if (sccp_device_has_active_incoming_subchan(device)) {
+			sccp_device_transmit_tone(device, SCCP_TONE_CALLWAIT);
+			sccp_device_transmit_callstate(device, SCCP_CALLWAIT);
+		} else {
+			sccp_device_transmit_tone(device, SCCP_TONE_NONE);
+		}
+	}
+
+
 	return channel;
 }
 
