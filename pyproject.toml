@@ -20,7 +20,6 @@ warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 no_implicit_optional = true
-follow_imports = "skip"
 ignore_missing_imports = true
 check_untyped_defs = true
 explicit_package_bases = true
