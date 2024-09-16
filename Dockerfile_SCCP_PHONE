@@ -1,0 +1,20 @@
+FROM debian:buster
+MAINTAINER Wazo Maintainers <dev@wazo.community>
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get -q update && apt-get -q -y install \
+    gnupg \
+    wget \
+    git \
+    python3 \
+    python3-pip
+
+
+RUN echo "deb http://mirror.wazo.community/debian/ wazo-dev-stretch main" > /etc/apt/sources.list.d/wazo-dist.list
+RUN wget http://mirror.wazo.community/wazo_current.key -O - | apt-key add -
+
+EXPOSE 8000
+
+RUN pip3 install https://github.com/wazo-pbx/sccp-http/archive/sccp-phone.zip
+CMD ["/usr/local/bin/uvicorn", "sccp_http.http_sccp_controller:app", "--host", "0.0.0.0", "--reload", "--port", "8000"]

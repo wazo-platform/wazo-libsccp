@@ -1,0 +1,34 @@
+version: "3.7"
+services:
+  sync:
+    depends_on:
+      - asterisk
+      - sccp_phone_controller_1
+      - sccp_phone_controller_2
+      - sccp_phone_controller_3
+    image: wazopbx/wait
+    environment:
+      TIMEOUT: "${INTEGRATION_TEST_TIMEOUT}"
+      TARGETS: "asterisk:5039 sccp_phone_controller_1:8000 sccp_phone_controller_2:8000 sccp_phone_controller_3:8000"
+
+  asterisk:
+    image: asterisk_sccp
+    ports:
+      - "5039"
+      - "2000"
+    volumes:
+      - "./etc/asterisk:/etc/asterisk"
+
+
+  sccp_phone_controller_1:
+    image: sccp_phone
+    ports:
+      - "8000"
+  sccp_phone_controller_2:
+    image: sccp_phone
+    ports:
+      - "8000"
+  sccp_phone_controller_3:
+    image: sccp_phone
+    ports:
+      - "8000"
