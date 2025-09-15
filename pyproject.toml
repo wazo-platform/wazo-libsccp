@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta:__legacy__"
 name = "wazo-libsccp"
 description = "asterisk module implementation to support sccp protocol"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.11"
 license = { file = "LICENSE" }
 version = "0.2"
 
