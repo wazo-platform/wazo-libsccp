@@ -121,6 +121,21 @@ struct sccp_line* sccp_device_line(struct sccp_device *device, unsigned int i);
 const char *sccp_device_name(const struct sccp_device *device);
 
 /*!
+ * \brief Check if the device has an incoming active subchannel
+ */
+int sccp_device_has_active_incoming_subchan(const struct sccp_device *device);
+
+/*!
+ * \brief Transmit a call state to the given device
+ */
+void sccp_device_transmit_callstate(struct sccp_device *device, enum sccp_state state);
+
+/*!
+ * \brief Check if the device has an active subchannel
+ */
+int sccp_device_has_active_subchan(const struct sccp_device *device);
+
+/*!
  * \brief Return non-zero if the device is a guest device.
  *
  * \note The "guest" state of a device is a constant attribute.
@@ -133,5 +148,17 @@ int sccp_device_is_guest(struct sccp_device *device);
  * \note The name of a line is a constant attribute.
  */
 const char *sccp_line_name(const struct sccp_line *line);
+
+/*!
+ * \brief Return the device of the line.
+ *
+ */
+struct sccp_device *sccp_line_device(const struct sccp_line *line);
+
+/*!
+ * \brief Transmit a tone to the device.
+ *
+ */
+void sccp_device_transmit_tone(struct sccp_device *device, enum sccp_tone tone);
 
 #endif /* SCCP_DEVICE_H_ */

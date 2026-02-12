@@ -1767,6 +1767,14 @@ static void transmit_subchan_tone(struct sccp_device *device, struct sccp_subcha
 	transmit_tone(device, tone, subchan->line->instance, subchan->id);
 }
 
+void sccp_device_transmit_tone(struct sccp_device *device, enum sccp_tone tone) {
+	transmit_tone(device, tone, device->active_subchan->line->instance, device->active_subchan->id);
+}
+
+void sccp_device_transmit_callstate(struct sccp_device *device, enum sccp_state state) {
+	transmit_callstate(device, state, device->lines.line->instance, device->callfwd_id);
+}
+
 static void transmit_voicemail_lamp_state(struct sccp_device *device, int new_msgs)
 {
 	enum sccp_lamp_state indication = new_msgs ? SCCP_LAMP_ON : SCCP_LAMP_OFF;
@@ -3414,6 +3422,21 @@ struct ast_channel *sccp_channel_tech_requester(struct sccp_line *line, const ch
 	}
 
 	return channel;
+}
+
+int sccp_device_has_active_incoming_subchan(const struct sccp_device *device) {
+	if (!device->active_subchan) {
+		return 0;
+	}
+	return device->active_subchan && device->active_subchan->direction == SCCP_DIR_INCOMING;
+}
+
+struct sccp_device *sccp_line_device(const struct sccp_line *line) {
+	return line->device;
+}
+
+int sccp_device_has_active_subchan(const struct sccp_device *device) {
+	return device->active_subchan != NULL;
 }
 
 int sccp_channel_tech_devicestate(const struct sccp_line *line)
